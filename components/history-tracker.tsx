@@ -21,7 +21,7 @@ export function recordWatchStart(
       title: anime.title,
       poster: anime.poster,
       timestamp: Date.now(),
-      episode: options?.episode,
+      episode: options?.episode && options.episode > 0 ? options.episode : undefined,
     }
 
     localStorage.setItem("watch-history", JSON.stringify([newItem, ...filtered].slice(0, 20)))

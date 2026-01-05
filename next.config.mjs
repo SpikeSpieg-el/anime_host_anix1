@@ -11,7 +11,7 @@ const nextConfig = {
     ],
   },
   experimental: {
-    allowedDevOrigins: ['192.168.0.16']
+    allowedDevOrigins: ['192.168.0.16', 'anix.stream']
   }
 };
 

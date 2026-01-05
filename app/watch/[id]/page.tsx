@@ -2,7 +2,7 @@ import { notFound } from "next/navigation"
 import Image from "next/image"
 import { Navbar } from "@/components/navbar"
 import { getAnimeById } from "@/lib/shikimori"
-import { KodikPlayer } from "@/components/kodik-player"
+import { WatchPageClient } from "@/components/watch-page-client"
 
 export default async function WatchPage({
   params,
@@ -14,8 +14,7 @@ export default async function WatchPage({
   const { id } = await params
   const sp = searchParams ? await searchParams : undefined
   const episode = sp?.episode ? Number.parseInt(sp.episode, 10) : undefined
-  
-  // 1. Получаем данные с Shikimori
+
   const anime = await getAnimeById(id)
 
   if (!anime) return notFound()
@@ -23,29 +22,23 @@ export default async function WatchPage({
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100">
       <Navbar />
-      
-      <div className="container mx-auto px-4 py-8">
-        {/* Плеер */}
-        <div className="mb-8">
-           <h1 className="text-2xl md:text-3xl font-bold mb-4">{anime.title}</h1>
-           
-           {/* Вставляем плеер, который сам найдет видео по ID */}
-           <KodikPlayer
-             shikimoriId={anime.shikimoriId}
-             title={anime.title}
-             poster={anime.poster}
-             episode={Number.isFinite(episode) && (episode as number) > 0 ? (episode as number) : undefined}
-           />
-        </div>
 
-        {/* Инфо */}
+      <div className="container mx-auto px-4 py-8">
+        <WatchPageClient
+          shikimoriId={anime.shikimoriId}
+          title={anime.title}
+          poster={anime.poster}
+          totalEpisodes={anime.episodesTotal || 1}
+          initialEpisode={Number.isFinite(episode) && (episode as number) > 0 ? (episode as number) : undefined}
+        />
+
         <div className="flex flex-col md:flex-row gap-8">
            <div className="w-[200px] shrink-0 hidden md:block">
               <div className="aspect-[2/3] relative rounded-xl overflow-hidden border border-white/10">
                 <Image src={anime.poster} fill alt={anime.title} className="object-cover" />
               </div>
            </div>
-           
+
            <div className="flex-1">
               <div className="flex flex-wrap gap-2 mb-4">
                 {anime.genres.map((g: string) => (
