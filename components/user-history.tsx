@@ -59,7 +59,11 @@ export function UserHistory() {
           
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-4">
             {history.map((item) => (
-              <Link key={item.id} href={`/watch/${item.id}`} className="group relative block">
+              <Link
+                key={item.id}
+                href={item.episode ? `/watch/${item.id}?episode=${item.episode}` : `/watch/${item.id}`}
+                className="group relative block"
+              >
                 <div className="relative aspect-[16/9] md:aspect-[2/3] overflow-hidden rounded-lg bg-zinc-900 border border-zinc-800">
                   <Image
                     src={item.poster}
@@ -79,7 +83,9 @@ export function UserHistory() {
                 </div>
                 <div className="mt-2">
                    <h3 className="text-xs font-bold text-zinc-300 truncate group-hover:text-white">{item.title}</h3>
-                   <p className="text-[10px] text-zinc-500">Продолжить</p>
+                   <p className="text-[10px] text-zinc-500">
+                     {item.episode ? `Остановились на серии ${item.episode}` : "Продолжить"}
+                   </p>
                 </div>
               </Link>
             ))}

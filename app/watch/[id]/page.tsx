@@ -3,10 +3,17 @@ import Image from "next/image"
 import { Navbar } from "@/components/navbar"
 import { getAnimeById } from "@/lib/shikimori"
 import { KodikPlayer } from "@/components/kodik-player"
-import { HistoryTracker } from "@/components/history-tracker" // Импорт есть
 
-export default async function WatchPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function WatchPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>
+  searchParams?: Promise<{ episode?: string }>
+}) {
   const { id } = await params
+  const sp = searchParams ? await searchParams : undefined
+  const episode = sp?.episode ? Number.parseInt(sp.episode, 10) : undefined
   
   // 1. Получаем данные с Shikimori
   const anime = await getAnimeById(id)
@@ -17,16 +24,18 @@ export default async function WatchPage({ params }: { params: Promise<{ id: stri
     <div className="min-h-screen bg-zinc-950 text-zinc-100">
       <Navbar />
       
-      {/* --- ВАЖНО: Вставляем трекер сюда, чтобы история сохранялась --- */}
-      <HistoryTracker anime={anime} />
-      
       <div className="container mx-auto px-4 py-8">
         {/* Плеер */}
         <div className="mb-8">
            <h1 className="text-2xl md:text-3xl font-bold mb-4">{anime.title}</h1>
            
            {/* Вставляем плеер, который сам найдет видео по ID */}
-           <KodikPlayer shikimoriId={anime.shikimoriId} title={anime.title} />
+           <KodikPlayer
+             shikimoriId={anime.shikimoriId}
+             title={anime.title}
+             poster={anime.poster}
+             episode={Number.isFinite(episode) && (episode as number) > 0 ? (episode as number) : undefined}
+           />
         </div>
 
         {/* Инфо */}

@@ -3,8 +3,8 @@ export default function Loading() {
     <div className="min-h-screen bg-zinc-950 text-white flex items-center justify-center">
       <div className="flex flex-col items-center gap-4">
         {/* Анимированный логотип */}
-        <div className="w-16 h-16 bg-gradient-to-tr from-orange-600 to-red-600 rounded-lg flex items-center justify-center font-black text-white text-2xl shadow-lg shadow-orange-900/20 animate-pulse">
-          K
+        <div className="w-16 h-16 animate-pulse">
+          <img src="/icon.svg" alt="Logo" className="w-full h-full" />
         </div>
         
         {/* Спиннер загрузки */}

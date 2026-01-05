@@ -47,13 +47,13 @@ export function UpdatesBanner({ updates, announcements }: UpdatesBannerProps) {
         </div>
 
         {/* Две колонки: Обновления и Анонсы */}
-        <div className="grid md:grid-cols-2 gap-8">
+        <div className="grid md:grid-cols-2 gap-4 md:gap-8">
           
           {/* Левая колонка - Новые серии */}
           <div className="space-y-4">
             <div className="flex items-center gap-2 mb-3">
-              <TrendingUp className="w-4 h-4 text-green-400" />
-              <h4 className="text-lg font-semibold text-green-400">Свежие серии</h4>
+              <TrendingUp className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-green-400" />
+              <h4 className="text-base sm:text-lg font-semibold text-green-400">Свежие серии</h4>
             </div>
             
             <div className="space-y-3">
@@ -61,10 +61,10 @@ export function UpdatesBanner({ updates, announcements }: UpdatesBannerProps) {
                 <Link 
                   key={anime.id}
                   href={`/watch/${anime.id}`}
-                  className="flex items-start gap-3 p-3 bg-white/5 rounded-xl border border-white/5 hover:bg-white/10 transition-all hover:scale-[1.01] hover:border-orange-500/30 group"
+                  className="flex items-start gap-2 sm:gap-3 p-2 sm:p-3 bg-white/5 rounded-xl border border-white/5 hover:bg-white/10 transition-all hover:scale-[1.01] hover:border-orange-500/30 group"
                 >
                   {/* Миниатюра */}
-                  <div className="relative w-12 h-16 rounded-md overflow-hidden flex-shrink-0 bg-zinc-800">
+                  <div className="relative w-10 h-14 sm:w-12 sm:h-16 rounded-md overflow-hidden flex-shrink-0 bg-zinc-800">
                     <Image
                       src={anime.poster}
                       alt={anime.title}
@@ -76,11 +76,11 @@ export function UpdatesBanner({ updates, announcements }: UpdatesBannerProps) {
                   
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
-                      <p className="text-white font-medium text-sm truncate pr-2 group-hover:text-orange-400 transition-colors">
+                      <p className="text-white font-medium text-xs sm:text-sm truncate pr-2 group-hover:text-orange-400 transition-colors">
                         {anime.title}
                       </p>
                     </div>
-                    <div className="flex items-center gap-2 text-xs">
+                    <div className="flex items-center gap-1.5 sm:gap-2 text-[10px] sm:text-xs">
                         <span className="text-zinc-300 bg-zinc-800/80 px-1.5 py-0.5 rounded">
                            {anime.episodesCurrent ? `${anime.episodesCurrent} серия` : 'Новинка'}
                         </span>
@@ -90,8 +90,8 @@ export function UpdatesBanner({ updates, announcements }: UpdatesBannerProps) {
                   </div>
                   
                   {/* Иконка перехода */}
-                  <div className="flex items-center justify-center w-8 h-8 rounded-full bg-orange-500/20 text-orange-400 opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all">
-                    <Play className="w-3 h-3 ml-0.5" fill="currentColor" />
+                  <div className="flex items-center justify-center w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-orange-500/20 text-orange-400 opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all">
+                    <Play className="w-2.5 h-2.5 sm:w-3 sm:h-3 ml-0.5" fill="currentColor" />
                   </div>
                 </Link>
               ))}
@@ -101,8 +101,8 @@ export function UpdatesBanner({ updates, announcements }: UpdatesBannerProps) {
           {/* Правая колонка - Анонсы */}
           <div className="space-y-4">
             <div className="flex items-center gap-2 mb-3">
-              <Calendar className="w-4 h-4 text-purple-400" />
-              <h4 className="text-lg font-semibold text-purple-400">Скоро на экранах</h4>
+              <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-purple-400" />
+              <h4 className="text-base sm:text-lg font-semibold text-purple-400">Скоро на экранах</h4>
             </div>
             
             <div className="space-y-3">
@@ -110,9 +110,9 @@ export function UpdatesBanner({ updates, announcements }: UpdatesBannerProps) {
                 <Link 
                   key={anime.id}
                   href={`/watch/${anime.id}`}
-                  className="flex items-start gap-3 p-3 bg-white/5 rounded-xl border border-white/5 hover:bg-white/10 transition-all hover:scale-[1.01] hover:border-purple-500/30 group"
+                  className="flex items-start gap-2 sm:gap-3 p-2 sm:p-3 bg-white/5 rounded-xl border border-white/5 hover:bg-white/10 transition-all hover:scale-[1.01] hover:border-purple-500/30 group"
                 >
-                  <div className="relative w-12 h-16 rounded-md overflow-hidden flex-shrink-0 bg-zinc-800">
+                  <div className="relative w-10 h-14 sm:w-12 sm:h-16 rounded-md overflow-hidden flex-shrink-0 bg-zinc-800">
                     <Image
                       src={anime.poster}
                       alt={anime.title}
@@ -124,11 +124,11 @@ export function UpdatesBanner({ updates, announcements }: UpdatesBannerProps) {
                   
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
-                      <p className="text-white font-medium text-sm truncate pr-2 group-hover:text-purple-300 transition-colors">
+                      <p className="text-white font-medium text-xs sm:text-sm truncate pr-2 group-hover:text-purple-300 transition-colors">
                         {anime.title}
                       </p>
                     </div>
-                    <div className="flex items-center gap-2 text-xs">
+                    <div className="flex items-center gap-1.5 sm:gap-2 text-[10px] sm:text-xs">
                          <span className="text-purple-300 bg-purple-500/10 border border-purple-500/20 px-1.5 py-0.5 rounded">
                            Анонс
                         </span>
@@ -137,8 +137,8 @@ export function UpdatesBanner({ updates, announcements }: UpdatesBannerProps) {
                     </div>
                   </div>
                   
-                  <div className="flex items-center justify-center w-8 h-8 rounded-full bg-purple-500/20 text-purple-400 opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all">
-                    <ExternalLink className="w-3 h-3" />
+                  <div className="flex items-center justify-center w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-purple-500/20 text-purple-400 opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all">
+                    <ExternalLink className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
                   </div>
                 </Link>
               ))}

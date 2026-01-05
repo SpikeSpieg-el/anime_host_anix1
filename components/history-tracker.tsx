@@ -1,26 +1,35 @@
 "use client"
-import { useEffect } from "react"
 
-export function HistoryTracker({ anime }: { anime: any }) {
-  useEffect(() => {
-    // 1. Получаем текущую историю
-    const history = JSON.parse(localStorage.getItem("watch-history") || "[]")
-    
-    // 2. Убираем дубликаты (если это аниме уже есть, удаляем старую запись)
-    const filtered = history.filter((item: any) => item.id !== anime.id)
-    
-    // 3. Добавляем текущее аниме в начало
-    const newItem = {
+type WatchHistoryItem = {
+  id: string
+  title: string
+  poster: string
+  timestamp: number
+  episode?: number
+}
+
+export function recordWatchStart(
+  anime: { id: string; title: string; poster: string },
+  options?: { episode?: number }
+) {
+  try {
+    const history: WatchHistoryItem[] = JSON.parse(localStorage.getItem("watch-history") || "[]")
+    const filtered = history.filter((item) => item.id !== anime.id)
+
+    const newItem: WatchHistoryItem = {
       id: anime.id,
       title: anime.title,
       poster: anime.poster,
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      episode: options?.episode,
     }
-    
-    // 4. Сохраняем (максимум 20 штук)
-    localStorage.setItem("watch-history", JSON.stringify([newItem, ...filtered].slice(0, 20)))
-    
-  }, [anime])
 
+    localStorage.setItem("watch-history", JSON.stringify([newItem, ...filtered].slice(0, 20)))
+  } catch (e) {
+    console.error(e)
+  }
+}
+
+export function HistoryTracker({ anime }: { anime: any }) {
   return null // Этот компонент ничего не рисует, только логика
 }

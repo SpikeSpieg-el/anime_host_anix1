@@ -7,6 +7,7 @@ import { FilterToolbar } from "@/components/filter-toolbar"
 import { CatalogGrid } from "@/components/catalog-grid"
 import { RecentlyViewed } from "@/components/recently-viewed"
 import { animeData } from "@/lib/anime-data"
+import type { Anime as ShikimoriAnime } from "@/lib/shikimori"
 
 export default function AnimeCatalogPage() {
   const searchParams = useSearchParams()
@@ -80,6 +81,28 @@ export default function AnimeCatalogPage() {
     return result
   }, [searchQuery, selectedGenre, selectedYear, selectedCountry, selectedSort])
 
+  const filteredAnimeForCards: ShikimoriAnime[] = useMemo(() => {
+    return filteredAnime.map((a) => {
+      const episodesCount = Math.max(0, ...Object.values(a.players).map((eps) => eps.length))
+
+      return {
+        id: a.id,
+        shikimoriId: a.id,
+        title: a.title,
+        originalTitle: a.originalTitle,
+        poster: a.poster,
+        rating: a.rating,
+        year: a.year,
+        episodesCurrent: episodesCount,
+        episodesTotal: episodesCount,
+        status: a.status,
+        description: a.description,
+        genres: a.genres,
+        quality: a.quality,
+      }
+    })
+  }, [filteredAnime])
+
   const clearFilters = () => {
     setSelectedGenre("")
     setSelectedYear("")
@@ -112,7 +135,7 @@ export default function AnimeCatalogPage() {
         </div>
 
         {/* Catalog Grid */}
-        <CatalogGrid anime={filteredAnime} />
+        <CatalogGrid anime={filteredAnimeForCards} />
 
         {/* Recently Viewed */}
         <RecentlyViewed />

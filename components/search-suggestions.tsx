@@ -85,6 +85,10 @@ export function SearchSuggestions({
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Escape") {
       setIsOpen(false)
+    } else if (e.key === "Enter") {
+      if (value.trim()) {
+        handleSelect(value.trim())
+      }
     }
   }
 

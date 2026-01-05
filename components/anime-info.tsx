@@ -8,6 +8,8 @@ interface AnimeInfoProps {
 }
 
 export function AnimeInfo({ anime }: AnimeInfoProps) {
+  const episodesCount = Math.max(0, ...Object.values(anime.players).map((eps) => eps.length))
+
   return (
     <div className="space-y-6">
       {/* Title */}
@@ -32,7 +34,7 @@ export function AnimeInfo({ anime }: AnimeInfoProps) {
         </div>
         <div className="flex items-center gap-2 text-sm text-zinc-400">
           <Tv className="h-4 w-4 text-orange-500" />
-          <span>{anime.episodes.length} Episodes</span>
+          <span>{episodesCount} Episodes</span>
         </div>
         <div className="flex items-center gap-2 text-sm text-zinc-400">
           <Star className="h-4 w-4 fill-amber-500 text-amber-500" />

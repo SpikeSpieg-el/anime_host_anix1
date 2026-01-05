@@ -1,7 +1,7 @@
 "use client"
 
 import { AnimeCard } from "./anime-card"
-import type { Anime } from "@/lib/anime-data"
+import type { Anime } from "@/lib/shikimori"
 
 interface CatalogGridProps {
   anime: Anime[]

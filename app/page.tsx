@@ -1,28 +1,38 @@
 import { Navbar } from "@/components/navbar"
 import { AnimeCard } from "@/components/anime-card"
-import { getAnimeList, getRecentUpdates, getAnnouncements } from "@/lib/shikimori" // Импортируем новые функции
+import { getAnimeList, getRecentUpdates, getAnnouncements, getHeroRecommendation } from "@/lib/shikimori" // Импортируем новые функции
 import { HeroBanner } from "@/components/hero-banner"
 import { UserHistory } from "@/components/user-history"
 import { UpdatesBanner } from "@/components/updates-banner" // Импортируем баннер
+import { cookies } from 'next/headers' // Импортируем для работы с куками
 
 export default async function HomePage() {
-  // Запрашиваем ВСЕ данные параллельно
+  // 1. Получаем историю из кук (нужно реализовать запись в куки в плеере)
+  const cookieStore = await cookies();
+  const watchedHistory = cookieStore.get('watched_history')?.value;
+  const watchedIds = watchedHistory ? JSON.parse(watchedHistory) : [];
+
+  // 2. Запрашиваем данные параллельно, включая рекомендацию
   const [
-    ongoingAnime, 
-    newAnime, 
-    updates, // <-- Новые серии
-    announcements // <-- Анонсы
+    ongoingAnime,
+    newAnime,
+    updates,
+    announcements,
   ] = await Promise.all([
     getAnimeList(12, 'popularity'),
     getAnimeList(12, 'aired_on'),
-    getRecentUpdates(3),   // Берем 3 последних обновления
-    getAnnouncements(3)    // Берем 3 главных анонса
+    getRecentUpdates(3),
+    getAnnouncements(3),
   ]);
 
-  // Берем первое аниме из популярных для баннера
-  const heroAnime = ongoingAnime[0];
-  // Убираем его из списка, чтобы не дублировать
-  const popularList = ongoingAnime.slice(1);
+  // Получаем рекомендацию, передавая список популярных аниме для fallback
+  const recommendedHero = await getHeroRecommendation(watchedIds, ongoingAnime);
+
+  // Если алгоритм ничего не вернул, берем первое из популярных
+  const heroAnime = recommendedHero || ongoingAnime[0];
+  
+  // Убираем hero из списка "Популярное", чтобы не дублировать
+  const popularList = ongoingAnime.filter(a => a.id !== heroAnime.id).slice(0, 12);
 
   return (
     <main className="min-h-screen bg-zinc-950 text-white pb-20 overflow-x-hidden selection:bg-orange-500/30">

@@ -125,7 +125,7 @@ export function CatalogClient({ initialFilters }: { initialFilters?: CatalogFilt
 
   // Обновление фильтра
   const updateFilter = (key: keyof CatalogFilters, value: string) => {
-    setFilters(prev => ({
+    setFilters((prev: CatalogFilters) => ({
       ...prev,
       [key]: value || undefined,
       page: 1 // Сбрасываем страницу при изменении фильтров
