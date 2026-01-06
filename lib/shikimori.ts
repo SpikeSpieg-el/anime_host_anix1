@@ -3,6 +3,11 @@
 const BASE_URL = "https://shikimori.one/api";
 const SITE_URL = "https://shikimori.one";
 
+// Общий заголовок для всех запросов (Обязателен для Shikimori API)
+const HEADERS = {
+  'User-Agent': 'AnimePlatform/1.0 (Client-ID: AnixStream)'
+};
+
 function normalizeShikimoriUrl(value: string): string {
   const raw = (value ?? "").trim();
   if (!raw) return raw;
@@ -16,6 +21,8 @@ function normalizeShikimoriUrl(value: string): string {
 
   return `${SITE_URL}/${raw}`;
 }
+
+// --- Interfaces ---
 
 export interface ShikimoriAnime {
   id: number;
@@ -93,6 +100,38 @@ interface ShikimoriScreenshot {
   preview: string;
 }
 
+export interface ShikimoriTopic {
+  id: number;
+  topic_title: string;
+  body: string;
+  html_body: string;
+  html_footer: string;
+  created_at: string;
+  comments_count: number;
+  forum: {
+    id: number;
+    position: number;
+    name: string;
+    permalink: string;
+    url: string;
+  };
+  user: {
+    id: number;
+    nickname: string;
+    avatar: string;
+  };
+}
+
+export interface NewsItem {
+  id: string;
+  title: string;
+  excerpt: string;
+  date: string;
+  author: string;
+  comments: number;
+  url: string;
+}
+
 export interface CatalogFilters {
   page?: number;
   limit?: number;
@@ -104,7 +143,7 @@ export interface CatalogFilters {
   search?: string;
 }
 
-// Исправленный словарь жанров (без дубликатов и с правильными ID)
+// Словарь жанров
 export const GENRES_MAP: Record<string, string> = {
   "Экшен": "1",
   "Приключения": "2",
@@ -132,7 +171,8 @@ export const GENRES_MAP: Record<string, string> = {
   "Эротика": "9",
 };
 
-// Помощник: Трансформация данных
+// --- Helpers ---
+
 async function transformAnime(item: ShikimoriAnime): Promise<Anime> {
   let posterUrl = normalizeShikimoriUrl(item.image.original);
 
@@ -147,7 +187,7 @@ async function transformAnime(item: ShikimoriAnime): Promise<Anime> {
     originalTitle: item.name,
     poster: posterUrl,
     rating: parseFloat(item.score) || 0,
-    year: item.aired_on ? new Date(item.aired_on).getFullYear() : 2025,
+    year: item.aired_on ? new Date(item.aired_on).getFullYear() : new Date().getFullYear(),
     airedOn: item.aired_on || undefined,
     episodesCurrent: item.episodes_aired,
     episodesTotal: item.episodes || 0,
@@ -158,10 +198,26 @@ async function transformAnime(item: ShikimoriAnime): Promise<Anime> {
   };
 }
 
+function transformTopic(topic: ShikimoriTopic): NewsItem {
+  const rawText = topic.body || "";
+  const excerpt = rawText.length > 150 ? rawText.slice(0, 150) + "..." : rawText;
+
+  return {
+    id: String(topic.id),
+    title: topic.topic_title,
+    excerpt: excerpt,
+    date: new Date(topic.created_at).toLocaleDateString('ru-RU'),
+    author: topic.user.nickname,
+    comments: topic.comments_count,
+    url: `${SITE_URL}${topic.forum.url}/${topic.id}`,
+  };
+}
+
 async function getAnimeBackdrop(shikimoriId: string): Promise<string | null> {
   try {
     const res = await fetch(`${BASE_URL}/animes/${shikimoriId}/screenshots`, {
       next: { revalidate: 86400 },
+      headers: HEADERS
     });
 
     if (!res.ok) return null;
@@ -180,11 +236,16 @@ async function getAnimeBackdrop(shikimoriId: string): Promise<string | null> {
   }
 }
 
+// --- Fetch Functions ---
+
 export async function getAnimeList(limit = 20, order = 'popularity') {
   try {
     const res = await fetch(
-      `${BASE_URL}/animes?limit=${limit}&order=${order}&status=ongoing,released&score=7`,
-      { next: { revalidate: 3600 } }
+      `${BASE_URL}/animes?limit=${limit}&order=${order}&status=ongoing,released&score=6`,
+      { 
+        next: { revalidate: 3600 },
+        headers: HEADERS 
+      }
     );
     if (!res.ok) throw new Error("Failed to fetch");
     const data: ShikimoriAnime[] = await res.json();
@@ -195,9 +256,79 @@ export async function getAnimeList(limit = 20, order = 'popularity') {
   }
 }
 
+export async function getPopularNow(limit = 12): Promise<Anime[]> {
+  try {
+    const res = await fetch(
+      `${BASE_URL}/animes?limit=${limit}&order=popularity&status=ongoing&score=7`,
+      {
+        next: { revalidate: 3600 },
+        headers: HEADERS
+      }
+    );
+
+    if (!res.ok) return [];
+
+    const data: ShikimoriAnime[] = await res.json();
+    return await Promise.all(data.map(transformAnime));
+  } catch (error) {
+    return [];
+  }
+}
+
+export async function getPopularAlways(limit = 12): Promise<Anime[]> {
+  try {
+    const res = await fetch(
+      `${BASE_URL}/animes?limit=${limit}&order=popularity&status=released&score=8`,
+      {
+        next: { revalidate: 3600 },
+        headers: HEADERS
+      }
+    );
+
+    if (!res.ok) return [];
+    const data: ShikimoriAnime[] = await res.json();
+    return await Promise.all(data.map(transformAnime));
+  } catch (error) {
+    return [];
+  }
+}
+
+export async function getOngoingList(limit = 12): Promise<Anime[]> {
+  try {
+    const res = await fetch(
+      `${BASE_URL}/animes?limit=${limit}&status=ongoing&order=ranked`,
+      {
+        next: { revalidate: 1800 },
+        headers: HEADERS
+      }
+    );
+
+    if (!res.ok) return [];
+    const data: ShikimoriAnime[] = await res.json();
+    return await Promise.all(data.map(transformAnime));
+  } catch (error) {
+    return [];
+  }
+}
+
+export async function getForumNews(limit = 4): Promise<NewsItem[]> {
+  try {
+    const res = await fetch(`${BASE_URL}/topics?forum=news&limit=${limit}`, {
+      next: { revalidate: 3600 },
+      headers: HEADERS
+    });
+    
+    if (!res.ok) return [];
+    const data: ShikimoriTopic[] = await res.json();
+    return data.map(transformTopic);
+  } catch (error) {
+    return [];
+  }
+}
+
 export async function getAnimeById(id: string) {
   try {
-    const res = await fetch(`${BASE_URL}/animes/${id}`);
+    const res = await fetch(`${BASE_URL}/animes/${id}`, { headers: HEADERS });
     if (!res.ok) return null;
     const data: ShikimoriAnime = await res.json();
     return await transformAnime(data);
@@ -210,9 +341,7 @@ export async function getAnimeFranchise(id: string): Promise<FranchiseItem[]> {
   try {
     const res = await fetch(`${BASE_URL}/animes/${id}/franchise`, {
       next: { revalidate: 3600 },
-      headers: {
-        'User-Agent': 'move'
-      }
+      headers: HEADERS
     });
 
     if (!res.ok) return [];
@@ -222,7 +351,6 @@ export async function getAnimeFranchise(id: string): Promise<FranchiseItem[]> {
 
     const items: FranchiseItem[] = nodes.map((node) => {
       let posterUrl = normalizeShikimoriUrl(node.image_url);
-
       if (posterUrl.includes("missing")) {
         posterUrl = `https://placehold.co/200x300/18181b/orange/png?text=${encodeURIComponent(node.name)}`;
       }
@@ -238,17 +366,9 @@ export async function getAnimeFranchise(id: string): Promise<FranchiseItem[]> {
       };
     });
 
-    // ИСПРАВЛЕННАЯ СОРТИРОВКА:
     return items.sort((a, b) => {
-      // 1. Сначала сортируем по году (от старых к новым)
-      if ((a.year ?? 0) !== (b.year ?? 0)) {
-        return (a.year ?? 0) - (b.year ?? 0);
-      }
-      // 2. Если год одинаковый, используем вес (основные сериалы обычно имеют меньший вес)
-      if (a.weight !== b.weight) {
-        return a.weight - b.weight;
-      }
-      return 0;
+      if ((a.year ?? 0) !== (b.year ?? 0)) return (a.year ?? 0) - (b.year ?? 0);
+      return a.weight - b.weight;
     });
   } catch (error) {
     console.error(error);
@@ -256,22 +376,15 @@ export async function getAnimeFranchise(id: string): Promise<FranchiseItem[]> {
   }
 }
 
+/**
+ * Поиск (Live Search)
+ * Включает фильтрацию по оценке >= 6, чтобы убрать мусор.
+ */
 export async function searchAnime(query: string) {
   try {
-    const res = await fetch(`${BASE_URL}/animes?search=${encodeURIComponent(query)}&limit=10`);
-    const data = await res.json();
-    return await Promise.all(data.map(transformAnime));
-  } catch (error) {
-    return [];
-  }
-}
-
-export async function getRecentUpdates(limit = 3) {
-  try {
-    const res = await fetch(
-      `${BASE_URL}/animes?limit=${limit}&order=aired_on&status=ongoing`,
-      { next: { revalidate: 1800 } }
-    );
+    const res = await fetch(`${BASE_URL}/animes?search=${encodeURIComponent(query)}&limit=10&score=6`, {
+        headers: HEADERS
+    });
     const data = await res.json();
     return await Promise.all(data.map(transformAnime));
   } catch (error) {
@@ -283,7 +396,10 @@ export async function getAnnouncements(limit = 3) {
   try {
     const res = await fetch(
       `${BASE_URL}/animes?limit=${limit}&order=popularity&status=anons`,
-      { next: { revalidate: 86400 } }
+      { 
+        next: { revalidate: 86400 },
+        headers: HEADERS
+      }
     );
     const data = await res.json();
     return await Promise.all(data.map(transformAnime));
@@ -296,7 +412,9 @@ export async function getAnimeByIds(ids: string[]) {
   if (ids.length === 0) return [];
   const idsString = ids.join(',');
   try {
-    const res = await fetch(`${BASE_URL}/animes?ids=${idsString}`);
+    const res = await fetch(`${BASE_URL}/animes?ids=${idsString}`, {
+        headers: HEADERS
+    });
     if (!res.ok) return [];
     const data: ShikimoriAnime[] = await res.json();
     return await Promise.all(data.map(transformAnime));
@@ -305,20 +423,23 @@ export async function getAnimeByIds(ids: string[]) {
   }
 }
 
-// 9. Алгоритм рекомендации (динамический баннер)
 export async function getHeroRecommendation(watchedIds: string[], popularAnime?: Anime[]) {
   try {
-    // Если истории нет, берем случайное из популярных
-    if (!watchedIds || watchedIds.length === 0) {
-      const list = popularAnime && popularAnime.length > 0 ? popularAnime : await getAnimeList(10, 'popularity');
+    // 1. Случай, если истории нет или она пустая
+    if (!watchedIds || watchedIds.length === 0 || !watchedIds[0]) {
+      const list = popularAnime && popularAnime.length > 0 ? popularAnime : await getPopularNow(10);
+      if (!list || list.length === 0) return null;
+      
       const selected = list[Math.floor(Math.random() * list.length)];
       const backdrop = await getAnimeBackdrop(selected.shikimoriId);
       return backdrop ? { ...selected, backdrop } : selected;
     }
 
-    // 1. Берем последнее просмотренное
+    // 2. Получаем последнее просмотренное аниме
     const lastWatchedId = watchedIds[0];
-    const response = await fetch(`${BASE_URL}/animes/${lastWatchedId}`);
+    const response = await fetch(`${BASE_URL}/animes/${lastWatchedId}`, {
+        headers: HEADERS
+    });
 
     if (!response.ok) {
       if (!popularAnime || popularAnime.length === 0) return null;
@@ -330,9 +451,10 @@ export async function getHeroRecommendation(watchedIds: string[], popularAnime?:
     const lastAnime = await response.json();
     const genreIds = lastAnime.genres?.map((g: any) => g.id).slice(0, 3).join(',');
 
-    // 2. Ищем похожие
+    // 3. Ищем похожие
     const recommendedRes = await fetch(
-      `${BASE_URL}/animes?genre=${genreIds}&order=popularity&limit=10&exclude_ids=${watchedIds.join(',')}`
+      `${BASE_URL}/animes?genre=${genreIds}&order=popularity&limit=10&exclude_ids=${watchedIds.join(',')}`,
+      { headers: HEADERS }
     );
 
     if (!recommendedRes.ok) {
@@ -357,6 +479,7 @@ export async function getHeroRecommendation(watchedIds: string[], popularAnime?:
     const selected = popularAnime[0];
     const backdrop = await getAnimeBackdrop(selected.shikimoriId);
     return backdrop ? { ...selected, backdrop } : selected;
+
   } catch (error) {
     console.error("Recommendation error:", error);
     if (!popularAnime || popularAnime.length === 0) return null;
@@ -366,6 +489,10 @@ export async function getHeroRecommendation(watchedIds: string[], popularAnime?:
   }
 }
 
+/**
+ * Основной каталог и результаты поиска
+ * Исправлена проблема 422 и добавлены заголовки.
+ */
 export async function getAnimeCatalog(filters: CatalogFilters): Promise<Anime[]> {
   const {
     page = 1,
@@ -382,19 +509,38 @@ export async function getAnimeCatalog(filters: CatalogFilters): Promise<Anime[]>
     const params = new URLSearchParams();
     params.append('page', String(page));
     params.append('limit', String(limit));
-    params.append('order', order);
+
+    // --- МАППИНГ ПАРАМЕТРОВ ---
+    // Преобразуем параметры из URL (понятные пользователю) в API (понятные Shikimori)
+    let apiOrder = order;
+    if (order === 'popular') apiOrder = 'popularity';
+    if (order === 'new') apiOrder = 'aired_on';
+    if (order === 'rating') apiOrder = 'ranked';
+    
+    params.append('order', apiOrder);
+    // ----------------------------
 
     if (genre) params.append('genre', genre);
     if (status) params.append('status', status);
     if (kind) params.append('kind', kind);
     if (year) params.append('season', `${year}_all`);
-    if (search) params.append('search', search);
+    
+    if (search) {
+      params.append('search', search);
+      // Если ищем по тексту, добавляем минимальный порог оценки, чтобы не показывать треш
+      params.append('score', '6');
+    }
 
     const res = await fetch(`${BASE_URL}/animes?${params.toString()}`, {
-      next: { revalidate: 3600 }
+      next: { revalidate: 3600 },
+      headers: HEADERS
     });
 
-    if (!res.ok) throw new Error("Failed to fetch catalog");
+    if (!res.ok) {
+        console.error(`Catalog fetch failed: ${res.status} ${res.statusText} URL: ${res.url}`);
+        throw new Error("Failed to fetch catalog");
+    }
+    
     const data: ShikimoriAnime[] = await res.json();
     return await Promise.all(data.map(transformAnime));
   } catch (error) {

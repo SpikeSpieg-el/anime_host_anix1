@@ -1,11 +1,12 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { usePathname, useSearchParams } from "next/navigation"
 import { Zap } from "lucide-react"
 
 export function GlobalLoading() {
   const [isLoading, setIsLoading] = useState(false)
+  const resetTimeoutRef = useRef<number | null>(null)
   const pathname = usePathname()
   const searchParams = useSearchParams()
 
@@ -15,8 +16,26 @@ export function GlobalLoading() {
 
   useEffect(() => {
     // Показываем загрузчик при начале навигации
-    const startLoading = () => setIsLoading(true)
-    const stopLoading = () => setIsLoading(false)
+    const clearResetTimeout = () => {
+      if (resetTimeoutRef.current !== null) {
+        window.clearTimeout(resetTimeoutRef.current)
+        resetTimeoutRef.current = null
+      }
+    }
+
+    const startLoading = () => {
+      setIsLoading(true)
+      clearResetTimeout()
+      resetTimeoutRef.current = window.setTimeout(() => {
+        setIsLoading(false)
+        resetTimeoutRef.current = null
+      }, 10000)
+    }
+
+    const stopLoading = () => {
+      clearResetTimeout()
+      setIsLoading(false)
+    }
 
     const onDocumentClick = (event: MouseEvent) => {
       if (event.defaultPrevented) return
@@ -67,6 +86,7 @@ export function GlobalLoading() {
     window.addEventListener("popstate", startLoading)
 
     return () => {
+      clearResetTimeout()
       window.removeEventListener("beforeunload", startLoading)
       window.removeEventListener("load", stopLoading)
       document.removeEventListener("click", onDocumentClick, true)

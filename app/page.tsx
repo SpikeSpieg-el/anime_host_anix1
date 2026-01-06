@@ -1,85 +1,148 @@
 import { Navbar } from "@/components/navbar"
 import { AnimeCard } from "@/components/anime-card"
-import { getAnimeList, getRecentUpdates, getAnnouncements, getHeroRecommendation } from "@/lib/shikimori" // Импортируем новые функции
+import { 
+  getPopularNow, 
+  getPopularAlways, 
+  getOngoingList, 
+  getForumNews, 
+  getAnnouncements, 
+  getHeroRecommendation 
+} from "@/lib/shikimori"
 import { HeroBanner } from "@/components/hero-banner"
 import { UserHistory } from "@/components/user-history"
-import { UpdatesBanner } from "@/components/updates-banner" // Импортируем баннер
+import { UpdatesBanner } from "@/components/updates-banner" // Предполагаем, что этот компонент может принимать новости
 import { BookmarksSection } from "@/components/bookmarks-section"
-import { cookies } from 'next/headers' // Импортируем для работы с куками
+import { cookies } from 'next/headers'
+import Link from "next/link"
 
 export default async function HomePage() {
-  // 1. Получаем историю из кук (нужно реализовать запись в куки в плеере)
+  // 1. Получаем историю из кук
   const cookieStore = await cookies();
   const watchedHistory = cookieStore.get('watched_history')?.value;
   const watchedIds = watchedHistory ? JSON.parse(watchedHistory) : [];
 
-  // 2. Запрашиваем данные параллельно, включая рекомендацию
+  // 2. Параллельный запрос данных
   const [
+    popularNow,
+    popularAlways,
     ongoingAnime,
-    newAnime,
-    updates,
+    newsUpdates,
     announcements,
   ] = await Promise.all([
-    getAnimeList(12, 'popularity'),
-    getAnimeList(12, 'aired_on'),
-    getRecentUpdates(3),
-    getAnnouncements(3),
+    getPopularNow(12),         // Популярные онгоинги
+    getPopularAlways(12),      // Популярные завершенные
+    getOngoingList(12),        // Полный список онгоингов (ranked)
+    getForumNews(4),           // Новости сайта/индустрии
+    getAnnouncements(3),       // Анонсы
   ]);
 
-  // Получаем рекомендацию, передавая список популярных аниме для fallback
-  const recommendedHero = await getHeroRecommendation(watchedIds, ongoingAnime);
-
-  // Если алгоритм ничего не вернул, берем первое из популярных
-  const heroAnime = recommendedHero || ongoingAnime[0];
+  // 3. Рекомендация для Hero баннера
+  const heroFallback = [...popularNow, ...popularAlways];
+  const recommendedHero = await getHeroRecommendation(watchedIds, heroFallback);
+  const heroAnime = recommendedHero || heroFallback[0];
   
-  // Убираем hero из списка "Популярное", чтобы не дублировать
-  const popularList = ongoingAnime.filter(a => a.id !== heroAnime.id).slice(0, 12);
+  // Убираем hero из списков, чтобы не дублировать (опционально)
+  const popularNowList = popularNow.filter(a => a.id !== heroAnime?.id).slice(0, 12);
 
   return (
     <main className="min-h-screen bg-zinc-950 text-white pb-20 overflow-x-hidden selection:bg-orange-500/30">
       <Navbar />
 
-      {/* 1. HERO SECTION (Огромный баннер) */}
-      <HeroBanner anime={heroAnime} />
+      {/* 1. HERO SECTION */}
+      {heroAnime && <HeroBanner anime={heroAnime} />}
 
       <div className="container mx-auto px-4 relative z-10 -mt-10">
         
-        {/* 2. ИСТОРИЯ И ПОИСК (Клиентский блок) */}
-        {/* Поднимаем его визуально, чтобы он был "поверх" баннера или сразу под ним */}
+        {/* 2. ИСТОРИЯ И ЗАКЛАДКИ */}
         <UserHistory />
-
         <BookmarksSection />
 
-        {/* 2. НОВЫЙ БАННЕР ОБНОВЛЕНИЙ */}
-        <div className="mb-12">
-            <UpdatesBanner updates={updates} announcements={announcements} />
-        </div>
+        {/* 3. НОВОСТИ И ОБНОВЛЕНИЯ (Аналог /forum/updates) */}
+        {newsUpdates.length > 0 && (
+            <section className="mb-12 bg-zinc-900/50 p-6 rounded-xl border border-zinc-800">
+                <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+                        <span className="w-2 h-8 bg-orange-500 rounded-full"></span>
+                        Новости индустрии
+                    </h2>
+                    <Link href="https://shikimori.one/forum/news" target="_blank" className="text-zinc-400 text-sm hover:text-white transition">
+                        Все новости Shikimori &rarr;
+                    </Link>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {newsUpdates.map((news) => (
+                        <a key={news.id} href={news.url} target="_blank" rel="noopener noreferrer" className="block group">
+                            <article className="h-full flex flex-col justify-between p-4 bg-zinc-900 rounded-lg hover:bg-zinc-800 transition border border-zinc-800 hover:border-orange-500/50">
+                                <div>
+                                    <h3 className="font-semibold text-zinc-100 group-hover:text-orange-400 transition line-clamp-2 mb-2">
+                                        {news.title}
+                                    </h3>
+                                    <p className="text-xs text-zinc-500 line-clamp-3 mb-3">{news.excerpt}</p>
+                                </div>
+                                <div className="flex justify-between items-center text-xs text-zinc-600 mt-auto pt-3 border-t border-zinc-800">
+                                    <span>{news.date}</span>
+                                    <span className="flex items-center gap-1">
+                                        💬 {news.comments}
+                                    </span>
+                                </div>
+                            </article>
+                        </a>
+                    ))}
+                </div>
+            </section>
+        )}
 
-        {/* 4. ПОПУЛЯРНОЕ */}
+        {/* 4. ПОПУЛЯРНОЕ СЕЙЧАС (Ongoing Popular) */}
         <section className="mb-16">
           <div className="flex items-end justify-between mb-6">
             <div>
               <h2 className="text-3xl font-bold text-white mb-1">Популярное сейчас</h2>
-              <p className="text-zinc-500 text-sm">Выбор зрителей на этой неделе</p>
+              <p className="text-zinc-500 text-sm">Главные хиты текущего сезона</p>
             </div>
-            <a href="/catalog?sort=popular" className="text-orange-500 text-sm font-medium hover:text-orange-400 transition">Показать все</a>
+            <Link href="/catalog?sort=popular&status=ongoing" className="text-orange-500 text-sm font-medium hover:text-orange-400 transition">
+                Показать все
+            </Link>
           </div>
           
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-x-4 gap-y-8">
-            {popularList.map((anime) => (
+            {popularNowList.map((anime) => (
               <AnimeCard key={anime.id} anime={anime} />
             ))}
           </div>
         </section>
 
-        {/* 4. Свежие релизы */}
-        <section>
+        {/* 5. ОНГОИНГИ (Аналог /animes/status/ongoing) */}
+        <section className="mb-16">
           <div className="flex items-end justify-between mb-6">
-             <h2 className="text-2xl font-bold text-white border-l-4 border-blue-500 pl-4">Новинки сезона</h2>
-             <a href="/catalog?sort=new" className="text-blue-500 text-sm font-medium hover:text-blue-400 transition">Все новинки</a>
+             <div className="flex items-center gap-3">
+                <h2 className="text-2xl font-bold text-white">Выходят прямо сейчас</h2>
+                <span className="px-2 py-0.5 bg-green-500/10 text-green-500 text-xs font-bold rounded uppercase tracking-wider">Ongoing</span>
+             </div>
+             <Link href="/catalog?status=ongoing" className="text-zinc-400 text-sm font-medium hover:text-white transition">
+                Весь список
+             </Link>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-            {newAnime.map((anime) => (
+            {ongoingAnime.map((anime) => (
+              <AnimeCard key={anime.id} anime={anime} />
+            ))}
+          </div>
+        </section>
+
+        {/* 6. ПОПУЛЯРНЫЕ ВСЕГДА */}
+        <section className="mb-16">
+          <div className="flex items-end justify-between mb-6">
+            <div>
+              <h2 className="text-3xl font-bold text-white mb-1">Легендарное</h2>
+              <p className="text-zinc-500 text-sm">Классика и шедевры на все времена</p>
+            </div>
+            <Link href="/catalog?sort=popular" className="text-orange-500 text-sm font-medium hover:text-orange-400 transition">
+                Показать все
+            </Link>
+          </div>
+          
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-x-4 gap-y-8">
+            {popularAlways.map((anime) => (
               <AnimeCard key={anime.id} anime={anime} />
             ))}
           </div>

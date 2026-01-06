@@ -1,13 +1,13 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { AnimeCard } from './anime-card'
-import { fetchAnimeData } from '@/app/catalog/actions'
-import { Anime, CatalogFilters, GENRES_MAP } from '@/lib/shikimori'
-import { Button } from './ui/button'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select'
-import { Input } from './ui/input'
-import { Search, Filter, Loader2 } from 'lucide-react'
+import { useState, useEffect, useCallback } from 'react'
+import { AnimeCard } from '@/components/anime-card'
+import { getAnimeCatalog, Anime, CatalogFilters, GENRES_MAP } from '@/lib/shikimori' // Импортируем getAnimeCatalog напрямую или через server action
+import { Button } from '@/components/ui/button'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Input } from '@/components/ui/input'
+import { Search, Filter, Loader2, X } from 'lucide-react'
+import { useRouter, useSearchParams } from 'next/navigation'
 
 const ORDER_OPTIONS = [
   { value: 'popularity', label: 'Популярные' },
@@ -16,14 +16,14 @@ const ORDER_OPTIONS = [
 ]
 
 const STATUS_OPTIONS = [
-  { value: '', label: 'Все статусы' },
+  { value: 'all', label: 'Все статусы' },
   { value: 'ongoing', label: 'Онгоинги' },
   { value: 'released', label: 'Вышедшие' },
   { value: 'anons', label: 'Анонсы' },
 ]
 
 const KIND_OPTIONS = [
-  { value: '', label: 'Все типы' },
+  { value: 'all', label: 'Все типы' },
   { value: 'tv', label: 'ТВ сериал' },
   { value: 'movie', label: 'Фильм' },
   { value: 'ova', label: 'OVA' },
@@ -32,7 +32,7 @@ const KIND_OPTIONS = [
 ]
 
 const YEAR_OPTIONS = [
-  { value: '', label: 'Все годы' },
+  { value: 'all', label: 'Все годы' },
   { value: '2025', label: '2025' },
   { value: '2024', label: '2024' },
   { value: '2023', label: '2023' },
@@ -41,255 +41,222 @@ const YEAR_OPTIONS = [
   { value: '2020', label: '2020' },
 ]
 
-export function CatalogClient({ initialFilters }: { initialFilters?: CatalogFilters }) {
+export function CatalogClient({ initialFilters }: { initialFilters: CatalogFilters }) {
+  const router = useRouter()
+  
+  // Состояние
   const [animes, setAnimes] = useState<Anime[]>([])
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
   const [hasMore, setHasMore] = useState(true)
-  const [currentPage, setCurrentPage] = useState(1)
-  const [filters, setFilters] = useState<CatalogFilters>({
-    page: 1,
-    limit: 24,
-    order: 'popularity',
-    ...initialFilters
-  })
+  
+  // Инициализируем фильтры из пропсов
+  const [filters, setFilters] = useState<CatalogFilters>(initialFilters)
   const [showFilters, setShowFilters] = useState(false)
 
-  // Загрузка данных
-  const loadData = async (page: number, isLoadMore = false) => {
+  // Функция загрузки данных
+  const fetchAnimes = useCallback(async (currentFilters: CatalogFilters, isLoadMore = false) => {
     if (isLoadMore) {
       setLoadingMore(true)
     } else {
       setLoading(true)
-      setAnimes([])
     }
 
     try {
-      const result = await fetchAnimeData({
-        ...filters,
-        page
-      })
+      // Здесь вызываем функцию получения данных (Server Action или API helper)
+      const data = await getAnimeCatalog(currentFilters)
 
       if (isLoadMore) {
-        setAnimes(prev => [...prev, ...result.animes])
+        setAnimes(prev => [...prev, ...data])
       } else {
-        setAnimes(result.animes)
+        setAnimes(data)
       }
 
-      setHasMore(result.hasMore)
-      setCurrentPage(page)
+      // Если вернулось меньше лимита, значит больше нет данных
+      setHasMore(data.length === (currentFilters.limit || 24))
     } catch (error) {
-      console.error('Error loading data:', error)
+      console.error('Error fetching catalog:', error)
     } finally {
       setLoading(false)
       setLoadingMore(false)
     }
-  }
-
-  // Первоначальная загрузка
-  useEffect(() => {
-    loadData(1)
   }, [])
 
-  // Применение фильтров
+  // 1. Эффект при монтировании или изменении ключа (навигация из меню)
+  useEffect(() => {
+    setFilters(initialFilters)
+    fetchAnimes(initialFilters, false)
+    // Мы не добавляем fetchAnimes в зависимости, чтобы избежать циклов, 
+    // так как он зависит от стейта через useCallback (если бы зависел).
+    // Но здесь initialFilters меняется только при смене URL (спасибо key={clientKey} в page.tsx)
+  }, [initialFilters])
+
+  // Применение фильтров (обновляем URL)
   const applyFilters = () => {
-    setCurrentPage(1)
-    setHasMore(true)
-    loadData(1)
+    const params = new URLSearchParams()
+    
+    if (filters.order) params.set('sort', filters.order)
+    if (filters.genre && filters.genre !== 'all') params.set('genre', filters.genre)
+    if (filters.status && filters.status !== 'all') params.set('status', filters.status)
+    if (filters.kind && filters.kind !== 'all') params.set('kind', filters.kind)
+    if (filters.year && filters.year !== 'all') params.set('year', filters.year)
+    if (filters.search) params.set('search', filters.search)
+
+    router.push(`/catalog?${params.toString()}`)
   }
 
-  // Сброс фильтров
-  const resetFilters = () => {
-    const defaultFilters = {
-      page: 1,
-      limit: 24,
-      order: 'popularity',
-      genre: '',
-      status: '',
-      kind: '',
-      year: '',
-      search: ''
-    }
-    setFilters(defaultFilters)
-    setCurrentPage(1)
-    setHasMore(true)
-    loadData(1)
+  // Обновление конкретного фильтра в стейте (не вызывает перезагрузку сразу)
+  const updateFilter = (key: keyof CatalogFilters, value: string) => {
+    setFilters(prev => ({
+      ...prev,
+      [key]: value === 'all' ? undefined : value,
+      page: 1
+    }))
   }
 
   // Загрузить еще
   const loadMore = () => {
     if (!loadingMore && hasMore) {
-      loadData(currentPage + 1, true)
+      const nextPage = (filters.page || 1) + 1
+      const newFilters = { ...filters, page: nextPage }
+      setFilters(newFilters)
+      fetchAnimes(newFilters, true)
     }
   }
 
-  // Обновление фильтра
-  const updateFilter = (key: keyof CatalogFilters, value: string) => {
-    setFilters((prev: CatalogFilters) => ({
-      ...prev,
-      [key]: value || undefined,
-      page: 1 // Сбрасываем страницу при изменении фильтров
-    }))
+  // Очистка поиска
+  const clearSearch = () => {
+    updateFilter('search', '')
+    // Можно сразу применить, если хотим
+    const newFilters = { ...filters, search: undefined, page: 1 }
+    setFilters(newFilters)
+    // fetchAnimes(newFilters, false) // Опционально, если хотим без перезагрузки URL
+    router.push('/catalog') // Лучше сбросить URL
   }
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-white pb-20">
+    <div className="min-h-screen pb-20">
       {/* Панель фильтров */}
-      <div className="sticky top-0 bg-zinc-950 border-b border-zinc-800 z-10 p-4">
+      <div className="sticky top-16 bg-zinc-950/95 backdrop-blur border-b border-zinc-800 z-30 p-4">
         <div className="container mx-auto">
-          {/* Поиск и кнопка фильтров */}
-          <div className="flex gap-4 mb-4">
+          {/* Верхняя строка: Поиск и кнопки */}
+          <div className="flex flex-col md:flex-row gap-4 mb-4">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-zinc-400 w-4 h-4" />
               <Input
-                placeholder="Поиск аниме..."
+                placeholder="Поиск по названию..."
                 value={filters.search || ''}
                 onChange={(e) => updateFilter('search', e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    applyFilters()
-                  }
-                }}
-                className="pl-10 bg-zinc-900 border-zinc-800 text-white placeholder-zinc-500"
+                onKeyDown={(e) => e.key === 'Enter' && applyFilters()}
+                className="pl-10 bg-zinc-900 border-zinc-800 text-white placeholder-zinc-500 focus:ring-orange-500"
               />
+              {filters.search && (
+                <button 
+                  onClick={clearSearch}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-zinc-500 hover:text-white"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
             </div>
-            <Button
-              variant="outline"
-              onClick={() => setShowFilters(!showFilters)}
-              className="border-zinc-800 text-white hover:bg-zinc-800"
-            >
-              <Filter className="w-4 h-4 mr-2" />
-              Фильтры
-            </Button>
-            <Button
-              onClick={applyFilters}
-              disabled={loading}
-              className="bg-orange-600 hover:bg-orange-700"
-            >
-              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Применить'}
-            </Button>
+            
+            <div className="flex gap-2">
+                <Button
+                variant="outline"
+                onClick={() => setShowFilters(!showFilters)}
+                className={`border-zinc-800 hover:bg-zinc-800 ${showFilters ? 'bg-zinc-800 text-white' : 'text-zinc-400'}`}
+                >
+                <Filter className="w-4 h-4 mr-2" />
+                Фильтры
+                </Button>
+                <Button
+                onClick={applyFilters}
+                className="bg-orange-600 hover:bg-orange-700 text-white min-w-[120px]"
+                disabled={loading && !loadingMore}
+                >
+                {loading && !loadingMore ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Применить'}
+                </Button>
+            </div>
           </div>
 
-          {/* Расширенные фильтры */}
+          {/* Сетка фильтров (раскрывающаяся) */}
           {showFilters && (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 p-4 bg-zinc-900 rounded-lg">
-              {/* Сортировка */}
-              <Select value={filters.order || 'popularity'} onValueChange={(value) => updateFilter('order', value)}>
-                <SelectTrigger className="bg-zinc-800 border-zinc-700 text-white">
-                  <SelectValue placeholder="Сортировка" />
-                </SelectTrigger>
-                <SelectContent className="bg-zinc-800 border-zinc-700">
-                  {ORDER_OPTIONS.map(option => (
-                    <SelectItem key={option.value} value={option.value} className="text-white hover:bg-zinc-700">
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 p-4 bg-zinc-900/50 rounded-lg border border-zinc-800 animate-in fade-in slide-in-from-top-2">
+              <Select value={filters.order || 'popularity'} onValueChange={(v) => updateFilter('order', v)}>
+                <SelectTrigger className="bg-zinc-800 border-zinc-700 text-white"><SelectValue placeholder="Сортировка" /></SelectTrigger>
+                <SelectContent className="bg-zinc-800 border-zinc-700">{ORDER_OPTIONS.map(o => <SelectItem key={o.value} value={o.value} className="text-white hover:bg-zinc-700 focus:bg-zinc-700">{o.label}</SelectItem>)}</SelectContent>
               </Select>
 
-              {/* Жанр */}
-              <Select value={filters.genre || 'all'} onValueChange={(value) => updateFilter('genre', value === 'all' ? '' : value)}>
-                <SelectTrigger className="bg-zinc-800 border-zinc-700 text-white">
-                  <SelectValue placeholder="Жанр" />
-                </SelectTrigger>
+              <Select value={filters.genre || 'all'} onValueChange={(v) => updateFilter('genre', v)}>
+                <SelectTrigger className="bg-zinc-800 border-zinc-700 text-white"><SelectValue placeholder="Жанр" /></SelectTrigger>
                 <SelectContent className="bg-zinc-800 border-zinc-700 max-h-60">
-                  <SelectItem value="all" className="text-white hover:bg-zinc-700">Все жанры</SelectItem>
-                  {Object.entries(GENRES_MAP).map(([name, id]) => (
-                    <SelectItem key={id} value={id} className="text-white hover:bg-zinc-700">
-                      {name}
-                    </SelectItem>
-                  ))}
+                    <SelectItem value="all" className="text-white">Все жанры</SelectItem>
+                    {Object.entries(GENRES_MAP).map(([name, id]) => (
+                        <SelectItem key={id} value={id} className="text-white hover:bg-zinc-700 focus:bg-zinc-700">{name}</SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
 
-              {/* Статус */}
-              <Select value={filters.status || 'all'} onValueChange={(value) => updateFilter('status', value === 'all' ? '' : value)}>
-                <SelectTrigger className="bg-zinc-800 border-zinc-700 text-white">
-                  <SelectValue placeholder="Статус" />
-                </SelectTrigger>
-                <SelectContent className="bg-zinc-800 border-zinc-700">
-                  {STATUS_OPTIONS.map(option => (
-                    <SelectItem key={option.value || 'all'} value={option.value || 'all'} className="text-white hover:bg-zinc-700">
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
+              <Select value={filters.status || 'all'} onValueChange={(v) => updateFilter('status', v)}>
+                <SelectTrigger className="bg-zinc-800 border-zinc-700 text-white"><SelectValue placeholder="Статус" /></SelectTrigger>
+                <SelectContent className="bg-zinc-800 border-zinc-700">{STATUS_OPTIONS.map(o => <SelectItem key={o.value} value={o.value} className="text-white hover:bg-zinc-700 focus:bg-zinc-700">{o.label}</SelectItem>)}</SelectContent>
               </Select>
 
-              {/* Тип */}
-              <Select value={filters.kind || 'all'} onValueChange={(value) => updateFilter('kind', value === 'all' ? '' : value)}>
-                <SelectTrigger className="bg-zinc-800 border-zinc-700 text-white">
-                  <SelectValue placeholder="Тип" />
-                </SelectTrigger>
-                <SelectContent className="bg-zinc-800 border-zinc-700">
-                  {KIND_OPTIONS.map(option => (
-                    <SelectItem key={option.value || 'all'} value={option.value || 'all'} className="text-white hover:bg-zinc-700">
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
+              <Select value={filters.kind || 'all'} onValueChange={(v) => updateFilter('kind', v)}>
+                <SelectTrigger className="bg-zinc-800 border-zinc-700 text-white"><SelectValue placeholder="Тип" /></SelectTrigger>
+                <SelectContent className="bg-zinc-800 border-zinc-700">{KIND_OPTIONS.map(o => <SelectItem key={o.value} value={o.value} className="text-white hover:bg-zinc-700 focus:bg-zinc-700">{o.label}</SelectItem>)}</SelectContent>
               </Select>
 
-              {/* Год */}
-              <Select value={filters.year || 'all'} onValueChange={(value) => updateFilter('year', value === 'all' ? '' : value)}>
-                <SelectTrigger className="bg-zinc-800 border-zinc-700 text-white">
-                  <SelectValue placeholder="Год" />
-                </SelectTrigger>
-                <SelectContent className="bg-zinc-800 border-zinc-700">
-                  {YEAR_OPTIONS.map(option => (
-                    <SelectItem key={option.value || 'all'} value={option.value || 'all'} className="text-white hover:bg-zinc-700">
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
+              <Select value={filters.year || 'all'} onValueChange={(v) => updateFilter('year', v)}>
+                <SelectTrigger className="bg-zinc-800 border-zinc-700 text-white"><SelectValue placeholder="Год" /></SelectTrigger>
+                <SelectContent className="bg-zinc-800 border-zinc-700">{YEAR_OPTIONS.map(o => <SelectItem key={o.value} value={o.value} className="text-white hover:bg-zinc-700 focus:bg-zinc-700">{o.label}</SelectItem>)}</SelectContent>
               </Select>
-
-              {/* Сброс */}
-              <Button
-                variant="outline"
-                onClick={resetFilters}
-                className="border-zinc-700 text-white hover:bg-zinc-800"
-              >
-                Сбросить
-              </Button>
             </div>
           )}
         </div>
       </div>
 
-      {/* Контент */}
+      {/* Список Аниме */}
       <div className="container mx-auto px-4 py-8">
-        {/* Заголовок и счетчик */}
         <div className="flex items-center justify-between mb-8">
-          <h1 className="text-3xl font-bold border-l-4 border-orange-500 pl-4">
-            Каталог аниме
+          <h1 className="text-2xl font-bold text-white border-l-4 border-orange-500 pl-4">
+            Результаты поиска
           </h1>
           <span className="text-zinc-500 text-sm">
-            Найдено: {animes.length}+ {loading && '(загрузка...)'}
+             {loading && !loadingMore ? 'Загрузка...' : `Найдено: ${animes.length}`}
           </span>
         </div>
 
-        {/* Сетка аниме */}
-        {loading && animes.length === 0 ? (
-          <div className="flex justify-center items-center py-20">
-            <Loader2 className="w-8 h-8 animate-spin text-orange-500" />
+        {loading && !loadingMore ? (
+          <div className="flex justify-center items-center py-40">
+            <Loader2 className="w-10 h-10 animate-spin text-orange-500" />
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-y-8 gap-x-4">
-              {animes.map((anime) => (
-                <AnimeCard key={anime.id} anime={anime} />
-              ))}
-            </div>
+            {animes.length > 0 ? (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-x-4 gap-y-8">
+                    {animes.map((anime) => (
+                    <AnimeCard key={anime.id} anime={anime} />
+                    ))}
+                </div>
+            ) : (
+                <div className="text-center py-20 bg-zinc-900/30 rounded-lg border border-zinc-800 border-dashed">
+                    <p className="text-zinc-400 text-lg font-medium">Ничего не найдено</p>
+                    <p className="text-zinc-600 text-sm mt-2">Попробуйте изменить параметры поиска</p>
+                    <Button variant="link" onClick={() => router.push('/catalog')} className="mt-4 text-orange-500">
+                        Сбросить фильтры
+                    </Button>
+                </div>
+            )}
 
-            {/* Кнопка "Загрузить еще" */}
+            {/* Load More */}
             {hasMore && animes.length > 0 && (
               <div className="mt-12 flex justify-center">
                 <Button
                   onClick={loadMore}
                   disabled={loadingMore}
                   variant="outline"
-                  className="px-6 py-2 bg-zinc-900 border border-zinc-800 rounded-full hover:bg-orange-600 hover:text-white hover:border-orange-600 transition text-sm font-medium"
+                  className="px-8 py-6 rounded-full bg-zinc-900 border-zinc-800 text-zinc-300 hover:bg-zinc-800 hover:text-white hover:border-orange-500/50 transition-all"
                 >
                   {loadingMore ? (
                     <>
@@ -300,14 +267,6 @@ export function CatalogClient({ initialFilters }: { initialFilters?: CatalogFilt
                     'Показать еще'
                   )}
                 </Button>
-              </div>
-            )}
-
-            {/* Сообщение об отсутствии результатов */}
-            {!loading && animes.length === 0 && (
-              <div className="text-center py-20">
-                <p className="text-zinc-500 text-lg">Аниме не найдено</p>
-                <p className="text-zinc-600 text-sm mt-2">Попробуйте изменить параметры поиска или фильтры</p>
               </div>
             )}
           </>

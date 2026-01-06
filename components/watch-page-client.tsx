@@ -32,46 +32,45 @@ export function WatchPageClient({
   const pathname = usePathname()
   const searchParams = useSearchParams()
 
-  // Если initialEpisode изменился (например, перешли по ссылке с ?episode=),
-  // синхронизируем выбранную серию, но НЕ считаем просмотр начатым.
-  useEffect(() => {
-    if (
-      !isStarted &&
-      initialEpisode &&
-      initialEpisode > 0 &&
-      initialEpisode !== selectedEpisode
-    ) {
-      setSelectedEpisode(initialEpisode)
-    }
-  }, [initialEpisode, isStarted, selectedEpisode])
+// 2. Инициализация при смене пропсов (если перешли на другое аниме)
+useEffect(() => {
+if (
+!isStarted &&
+initialEpisode &&
+initialEpisode > 0 &&
+initialEpisode !== selectedEpisode
+) {
+setSelectedEpisode(initialEpisode)
+}
+}, [initialEpisode, isStarted, selectedEpisode])
 
-  // Держим URL и историю просмотра в синхроне с текущей серией,
-  // но только после фактического старта просмотра.
-  useEffect(() => {
-    if (!isStarted) return
+// 3. Синхронизация State -> URL и История
+useEffect(() => {
+if (!isStarted) return
 
-    const current = searchParams.get("episode")
-    const currentNumber = current ? Number.parseInt(current, 10) : undefined
-    const shouldReplace = !Number.isFinite(currentNumber) || currentNumber !== selectedEpisode
+const current = searchParams.get("episode")
+const currentNumber = current ? Number.parseInt(current, 10) : undefined
 
-    if (shouldReplace) {
-      const next = new URLSearchParams(searchParams.toString())
-      next.set("episode", String(selectedEpisode))
-      router.replace(`${pathname}?${next.toString()}`, { scroll: false })
-    }
+// Обновляем URL только если он отличается, чтобы не спамить историю браузера
+if (currentNumber !== selectedEpisode) {
+  const next = new URLSearchParams(searchParams.toString())
+  next.set("episode", String(selectedEpisode))
+  router.replace(`${pathname}?${next.toString()}`, { scroll: false })
+}
 
-    recordWatchStart(
-      { id: anime.id, title: anime.title, poster: anime.poster },
-      { episode: selectedEpisode }
-    )
-  }, [selectedEpisode, isStarted, pathname, router, searchParams, anime.id, anime.poster, anime.title])
+// Записываем в историю
+recordWatchStart(
+  { id: anime.id, title: anime.title, poster: anime.poster },
+  { episode: selectedEpisode }
+)
+}, [selectedEpisode, isStarted, pathname, router, searchParams, anime.id, anime.title, anime.poster])
 
   const handleSelectEpisode = (episode: number) => {
     setSelectedEpisode(episode)
     setIsStarted(true) // При клике на серию сразу включаем плеер
-    
+
     // Плавная прокрутка к плееру при выборе серии (для мобилок)
-    window.scrollTo({ top: 0, behavior: 'smooth' })
+    window.scrollTo({ top: 0, behavior: "smooth" })
   }
 
   return (
@@ -83,26 +82,23 @@ export function WatchPageClient({
           </h1>
           <div className="flex items-center gap-2 text-orange-500 font-medium">
             <span className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
-            {hasEpisodes ? `Серия ${selectedEpisode}` : "Анонс"}
+            {hasEpisodes ? "Серия " + selectedEpisode : "Анонс"}
           </div>
         </div>
 
-        <Button
-          type="button"
-          variant={saved ? "default" : "secondary"}
-          className={saved ? "bg-orange-500 text-black hover:bg-orange-400" : "bg-zinc-800/60 text-white hover:bg-zinc-800 border border-white/10"}
-          onClick={() => {
-            toggle(anime)
-          }}
-        >
-          <Bookmark className={saved ? "fill-black" : ""} />
-          {saved ? "В закладках" : "Сохранить"}
-        </Button>
-      </div>
+<Button
+      type="button"
+      variant={saved ? "default" : "secondary"}
+      className={saved ? "bg-orange-500 text-black hover:bg-orange-400" : "bg-zinc-800/60 text-white hover:bg-zinc-800 border border-white/10"}
+      onClick={() => toggle(anime)}
+    >
+      <Bookmark className={saved ? "fill-black" : ""} />
+      {saved ? "В закладках" : "Сохранить"}
+    </Button>
+  </div>
 
-      {/* Контейнер плеера */}
-      <div className="w-full">
-        {hasEpisodes ? (
+  <div className="w-full">
+    {hasEpisodes ? (
           <KodikPlayer
             shikimoriId={anime.shikimoriId}
             title={anime.title}
@@ -112,43 +108,42 @@ export function WatchPageClient({
               setIsStarted(true)
             }}
           />
-        ) : (
-          <div className="relative aspect-video w-full overflow-hidden rounded-2xl bg-zinc-950 border border-white/5 shadow-2xl">
-            <div className="absolute inset-0 flex items-center justify-center">
-              <img
-                src={anime.poster}
-                className="absolute inset-0 w-full h-full object-cover opacity-20 blur-xl"
-                alt=""
-              />
 
-              <div className="relative z-10 px-6 py-4 bg-black/40 border border-white/10 rounded-2xl text-center">
-                <div className="text-white font-bold">Это анонс</div>
-                <div className="text-zinc-400 text-sm mt-1">Эпизоды появятся после релиза</div>
-              </div>
-            </div>
+    ) : (
+      <div className="relative aspect-video w-full overflow-hidden rounded-2xl bg-zinc-950 border border-white/5 shadow-2xl">
+        <div className="absolute inset-0 flex items-center justify-center">
+          <img
+            src={anime.poster}
+            className="absolute inset-0 w-full h-full object-cover opacity-20 blur-xl"
+            alt=""
+          />
+          <div className="relative z-10 px-6 py-4 bg-black/40 border border-white/10 rounded-2xl text-center">
+            <div className="text-white font-bold">Это анонс</div>
+            <div className="text-zinc-400 text-sm mt-1">Эпизоды появятся после релиза</div>
           </div>
-        )}
+        </div>
+      </div>
+    )}
+  </div>
+
+  {hasEpisodes && (
+    <div className="bg-zinc-900/40 border border-white/5 rounded-2xl p-4 md:p-6 backdrop-blur-md">
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-lg font-bold text-zinc-100 flex items-center gap-2">
+          Выбор серии
+          <span className="text-zinc-500 text-sm font-normal">
+            (Всего: {anime.episodesTotal})
+          </span>
+        </h2>
       </div>
 
-      {/* Селектор серий под плеером */}
-      {hasEpisodes && (
-        <div className="bg-zinc-900/40 border border-white/5 rounded-2xl p-4 md:p-6 backdrop-blur-md">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-lg font-bold text-zinc-100 flex items-center gap-2">
-              Выбор серии
-              <span className="text-zinc-500 text-sm font-normal">
-                (Всего: {anime.episodesTotal})
-              </span>
-            </h2>
-          </div>
-
-          <EpisodeSelector
-            totalEpisodes={anime.episodesTotal}
-            currentEpisode={selectedEpisode} // Важно: передаем текущий стейт
-            onSelectEpisode={handleSelectEpisode}
-          />
-        </div>
-      )}
+      <EpisodeSelector
+        totalEpisodes={anime.episodesTotal}
+        currentEpisode={selectedEpisode}
+        onSelectEpisode={handleSelectEpisode}
+      />
     </div>
-  )
+  )}
+</div>
+)
 }
