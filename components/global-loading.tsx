@@ -37,6 +37,15 @@ export function GlobalLoading() {
       setIsLoading(false)
     }
 
+    const onPopState = () => {
+      startLoading()
+      // При back/forward браузер может восстановить страницу из BFCache,
+      // и тогда никакие "load"/router-events не придут. Делаем fail-safe.
+      window.setTimeout(() => {
+        stopLoading()
+      }, 1500)
+    }
+
     const onDocumentClick = (event: MouseEvent) => {
       if (event.defaultPrevented) return
       if (event.button !== 0) return
@@ -80,17 +89,19 @@ export function GlobalLoading() {
     // Слушаем события начала и окончания загрузки страницы (fallback)
     window.addEventListener("beforeunload", startLoading)
     window.addEventListener("load", stopLoading)
+    window.addEventListener("pageshow", stopLoading)
 
     // SPA-навигация
     document.addEventListener("click", onDocumentClick, true)
-    window.addEventListener("popstate", startLoading)
+    window.addEventListener("popstate", onPopState)
 
     return () => {
       clearResetTimeout()
       window.removeEventListener("beforeunload", startLoading)
       window.removeEventListener("load", stopLoading)
+      window.removeEventListener("pageshow", stopLoading)
       document.removeEventListener("click", onDocumentClick, true)
-      window.removeEventListener("popstate", startLoading)
+      window.removeEventListener("popstate", onPopState)
     }
   }, [])
 

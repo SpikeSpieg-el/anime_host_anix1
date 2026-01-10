@@ -9,7 +9,7 @@ const HEADERS = {
   "Accept": "application/json"
 };
 
-async function shikimoriFetch(input: string, init?: RequestInit) {
+async function shikimoriFetch(input: string, init?: RequestInit & { next?: any }) {
   const controller = new AbortController();
   const timeoutMs = 12_000;
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
@@ -204,11 +204,63 @@ export const GENRES_MAP: Record<string, string> = {
 
 // --- Helpers ---
 
+/**
+ * Пытается найти постер через Anilist API, если Shikimori подвел.
+ * Использует оригинальное название (Romaji/English) для поиска.
+ */
+async function getAnilistPoster(searchTitle: string): Promise<string | null> {
+  try {
+    const response = await fetch('https://graphql.anilist.co', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify({
+        query: `
+          query ($search: String) {
+            Media (search: $search, type: ANIME, sort: SEARCH_MATCH) {
+              coverImage {
+                extraLarge
+                large
+              }
+            }
+          }
+        `,
+        variables: { search: searchTitle }
+      }),
+      next: { revalidate: 86400 } // Кэшируем на сутки
+    });
+
+    if (!response.ok) return null;
+    
+    const json = await response.json();
+    const media = json?.data?.Media;
+    
+    if (media?.coverImage?.extraLarge) return media.coverImage.extraLarge;
+    if (media?.coverImage?.large) return media.coverImage.large;
+    
+    return null;
+  } catch (e) {
+    console.error("Anilist fallback failed for:", searchTitle);
+    return null;
+  }
+}
+
 async function transformAnime(item: ShikimoriAnime): Promise<Anime> {
   let posterUrl = normalizeShikimoriUrl(item.image.original);
 
-  if (posterUrl.includes("missing_original") || posterUrl.includes("missing_preview")) {
-    posterUrl = `https://placehold.co/400x600/18181b/orange/png?text=${encodeURIComponent(item.russian || item.name)}`;
+  // Проверяем на "битую" картинку Shikimori
+  if (posterUrl.includes("missing_original") || posterUrl.includes("missing_preview") || posterUrl.includes("x96")) {
+    // Пытаемся найти альтернативу на Anilist по оригинальному названию (item.name обычно Romaji)
+    const fallbackUrl = await getAnilistPoster(item.name);
+    
+    if (fallbackUrl) {
+      posterUrl = fallbackUrl;
+    } else {
+      // Если и там не нашли, ставим заглушку
+      posterUrl = `https://placehold.co/400x600/18181b/orange/png?text=${encodeURIComponent(item.russian || item.name)}`;
+    }
   }
 
   return {
@@ -222,7 +274,7 @@ async function transformAnime(item: ShikimoriAnime): Promise<Anime> {
     airedOn: item.aired_on || undefined,
     episodesCurrent: item.episodes_aired,
     episodesTotal: item.episodes || 0,
-    status: item.status === 'ongoing' ? 'Ongoing' : 'Completed',
+    status: item.status === 'anons' ? 'Announcement' : item.status === 'ongoing' ? 'Ongoing' : 'Completed',
     description: item.description?.replace(/\[.*?\]/g, "") || "Описание отсутствует...",
     genres: item.genres?.map(g => g.russian) || [],
     quality: item.kind?.toUpperCase() || "TV",
@@ -324,7 +376,10 @@ export async function getForumNews(limit = 4): Promise<NewsItem[]> {
 
 export async function getAnimeById(id: string) {
   try {
-    const res = await shikimoriFetch(`${BASE_URL}/animes/${id}`);
+    const res = await shikimoriFetch(`${BASE_URL}/animes/${id}`, {
+      next: { revalidate: 300 },
+      headers: HEADERS
+    });
     if (!res.ok) return null;
     const data: ShikimoriAnime = await res.json();
     return await transformAnime(data);
@@ -341,10 +396,14 @@ export async function getAnimeFranchise(id: string): Promise<FranchiseItem[]> {
     const data: ShikimoriFranchise = await res.json();
     const nodes = data.nodes.filter((node) => node.url?.startsWith('/animes/'));
 
-    const items: FranchiseItem[] = nodes.map((node) => {
+    const items: FranchiseItem[] = await Promise.all(nodes.map(async (node) => {
       let posterUrl = normalizeShikimoriUrl(node.image_url);
-      if (posterUrl.includes("missing")) {
-        posterUrl = `https://placehold.co/200x300/18181b/orange/png?text=${encodeURIComponent(node.name)}`;
+      
+      // Логика фоллбэка для франшизы
+      if (posterUrl.includes("missing") || posterUrl.includes("x96")) {
+         const fallback = await getAnilistPoster(node.name);
+         if (fallback) posterUrl = fallback;
+         else posterUrl = `https://placehold.co/200x300/18181b/orange/png?text=${encodeURIComponent(node.name)}`;
       }
 
       return {
@@ -356,7 +415,7 @@ export async function getAnimeFranchise(id: string): Promise<FranchiseItem[]> {
         weight: node.weight,
         isCurrent: node.id === data.current_id
       };
-    });
+    }));
 
     return items.sort((a, b) => {
       if ((a.year ?? 0) !== (b.year ?? 0)) return (a.year ?? 0) - (b.year ?? 0);
@@ -475,6 +534,7 @@ export async function getHeroRecommendation(watchedIds: string[], popularAnime?:
  * Исправлена проблема 422 и добавлены заголовки.
  */
 export async function getAnimeCatalog(filters: CatalogFilters): Promise<Anime[]> {
+
   const {
     page = 1,
     limit = 24,
@@ -499,20 +559,19 @@ export async function getAnimeCatalog(filters: CatalogFilters): Promise<Anime[]>
     if (order === 'rating') apiOrder = 'ranked';
     
     params.append('order', apiOrder);
-    // ----------------------------
 
     if (genre) params.append('genre', genre);
     if (status) params.append('status', status);
     if (kind) params.append('kind', kind);
-    if (year) params.append('season', `${year}_all`);
+    if (year) params.append('season', year);
     
     if (search) {
       params.append('search', search);
       // Если ищем по тексту, добавляем минимальный порог оценки, чтобы не показывать треш
-      params.append('score', '6');
+      params.append('score', '1'); // Снизил порог для поиска редкого, чтобы Anilist подхватил картинку
     }
 
-    const res = await fetch(`${BASE_URL}/animes?${params.toString()}`, {
+    const res = await shikimoriFetch(`${BASE_URL}/animes?${params.toString()}`, {
       next: { revalidate: 3600 },
       headers: HEADERS
     });

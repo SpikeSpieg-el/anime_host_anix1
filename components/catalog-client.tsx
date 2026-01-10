@@ -2,7 +2,9 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { AnimeCard } from '@/components/anime-card'
-import { getAnimeCatalog, Anime, CatalogFilters, GENRES_MAP } from '@/lib/shikimori' // Импортируем getAnimeCatalog напрямую или через server action
+import type { Anime, CatalogFilters } from '@/lib/shikimori'
+import { GENRES_MAP } from '@/lib/shikimori'
+import { fetchAnimeData } from '@/app/catalog/actions'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
@@ -33,6 +35,7 @@ const KIND_OPTIONS = [
 
 const YEAR_OPTIONS = [
   { value: 'all', label: 'Все годы' },
+  { value: '2026', label: '2026' },
   { value: '2025', label: '2025' },
   { value: '2024', label: '2024' },
   { value: '2023', label: '2023' },
@@ -63,8 +66,7 @@ export function CatalogClient({ initialFilters }: { initialFilters: CatalogFilte
     }
 
     try {
-      // Здесь вызываем функцию получения данных (Server Action или API helper)
-      const data = await getAnimeCatalog(currentFilters)
+      const { animes: data, hasMore: nextHasMore } = await fetchAnimeData(currentFilters)
 
       if (isLoadMore) {
         setAnimes(prev => [...prev, ...data])
@@ -72,8 +74,7 @@ export function CatalogClient({ initialFilters }: { initialFilters: CatalogFilte
         setAnimes(data)
       }
 
-      // Если вернулось меньше лимита, значит больше нет данных
-      setHasMore(data.length === (currentFilters.limit || 24))
+      setHasMore(nextHasMore)
     } catch (error) {
       console.error('Error fetching catalog:', error)
     } finally {
