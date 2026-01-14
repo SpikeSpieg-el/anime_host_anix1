@@ -12,6 +12,7 @@ import { HeroBanner } from "@/components/hero-banner"
 import { UserHistory } from "@/components/user-history"
 import { UpdatesBanner } from "@/components/updates-banner" // Предполагаем, что этот компонент может принимать новости
 import { BookmarksSection } from "@/components/bookmarks-section"
+import { AiAdvisor } from "@/components/ai-advisor"
 import { cookies } from 'next/headers'
 import Link from "next/link"
 
@@ -53,6 +54,12 @@ export default async function HomePage() {
 
       <div className="container mx-auto px-4 relative z-10 -mt-10">
         
+        {/* === ВСТАВИТЬ ЗДЕСЬ === */}
+        <div className="mb-12 flex justify-center md:justify-start">
+           <AiAdvisor />
+        </div>
+        {/* ===================== */}
+
         {/* 2. ИСТОРИЯ И ЗАКЛАДКИ */}
         <UserHistory />
         <BookmarksSection />
