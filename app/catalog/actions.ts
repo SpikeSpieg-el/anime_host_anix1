@@ -1,21 +1,20 @@
 'use server'
 
-import { getAnimeCatalog, CatalogFilters, Anime } from '@/lib/shikimori'
+import { getAnimeCatalog } from "@/lib/shikimori"
+import type { CatalogFilters } from "@/lib/shikimori"
 
-export async function fetchAnimeData(filters: CatalogFilters): Promise<{
-  animes: Anime[]
-  hasMore: boolean
-}> {
+export async function fetchAnimeData(filters: CatalogFilters) {
   try {
-    const animes = await getAnimeCatalog(filters)
-    
-    // Определяем, есть ли еще данные
-    // Если вернулось меньше 24 элементов, значит это последняя страница
-    const hasMore = animes.length === (filters.limit || 24)
-    
-    return { animes, hasMore }
+    const limit = filters.limit || 24;
+    const animes = await getAnimeCatalog(filters);
+
+    return {
+      animes,
+      // Если пришло меньше аниме, чем лимит, значит дальше ничего нет
+      hasMore: animes.length >= limit
+    };
   } catch (error) {
-    console.error('Failed to fetch anime data:', error)
-    return { animes: [], hasMore: false }
+    console.error("Action error:", error);
+    return { animes: [], hasMore: false };
   }
 }

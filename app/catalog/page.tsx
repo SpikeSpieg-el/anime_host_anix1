@@ -15,6 +15,7 @@ export default async function CatalogPage({ searchParams }: CatalogPageProps) {
   const status = typeof params.status === 'string' ? params.status : undefined
   const kind = typeof params.kind === 'string' ? params.kind : undefined
   const year = typeof params.year === 'string' ? params.year : undefined
+  const score = typeof params.score === 'string' ? params.score : undefined
   const search = typeof params.search === 'string' ? params.search : undefined
 
   // Формируем начальные фильтры
@@ -26,6 +27,7 @@ export default async function CatalogPage({ searchParams }: CatalogPageProps) {
     status,
     kind,
     year,
+    score,
     search
   }
 

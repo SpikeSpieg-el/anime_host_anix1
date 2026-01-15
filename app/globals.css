@@ -77,4 +77,39 @@
   body {
     @apply bg-background text-foreground;
   }
+
+  /* Кастомные скроллбары */
+  ::-webkit-scrollbar {
+    width: 8px !important;
+    height: 8px !important;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: rgba(24, 24, 27, 0.5) !important;
+    border-radius: 4px !important;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: rgba(120, 113, 108, 0.5) !important;
+    border-radius: 4px !important;
+    transition: background 0.2s ease !important;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(168, 162, 158, 0.7) !important;
+  }
+
+  ::-webkit-scrollbar-thumb:active {
+    background: rgba(168, 162, 158, 0.9) !important;
+  }
+
+  ::-webkit-scrollbar-corner {
+    background: rgba(24, 24, 27, 0.5) !important;
+  }
+
+  /* Firefox scrollbar */
+  * {
+    scrollbar-width: thin !important;
+    scrollbar-color: rgba(120, 113, 108, 0.5) rgba(24, 24, 27, 0.5) !important;
+  }
 }

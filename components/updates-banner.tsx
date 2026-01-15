@@ -1,9 +1,10 @@
 "use client"
 
-import { Sparkles, Calendar, TrendingUp, Play, ExternalLink, X } from "lucide-react"
+import { Sparkles, Calendar, TrendingUp, Play, ExternalLink, X, ChevronRight } from "lucide-react"
 import { useState } from "react"
 import Link from "next/link"
 import Image from "next/image"
+import { cn } from "@/lib/utils"
 
 interface AnimeShort {
   id: string
@@ -27,134 +28,145 @@ export function UpdatesBanner({ updates, announcements }: UpdatesBannerProps) {
   if (updates.length === 0 && announcements.length === 0) return null
 
   return (
-    // Изменено: mb-6 для мобилок, mb-12 для ПК
-    <div className="w-full rounded-2xl bg-gradient-to-r from-orange-900/40 via-red-900/40 to-pink-900/40 backdrop-blur-md mb-6 md:mb-12 relative overflow-hidden border border-orange-500/20 shadow-xl">
-      <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-10 pointer-events-none"></div>
-      <div className="absolute inset-0 bg-gradient-to-br from-orange-500/5 via-transparent to-pink-500/5 animate-pulse pointer-events-none"></div>
-      
-      {/* Изменено: p-4 для мобилок, p-6/p-8 для планшетов/ПК */}
-      <div className="relative z-10 p-4 sm:p-6 md:p-8">
+    <section className="relative w-full mb-12 animate-in fade-in slide-in-from-bottom-4 duration-700">
+      {/* Основной контейнер с эффектом стекла */}
+      <div className="relative overflow-hidden rounded-3xl border border-white/5 bg-zinc-900/40 backdrop-blur-xl shadow-2xl">
         
-        {/* Заголовок */}
-        <div className="flex flex-row items-center gap-3 mb-4 sm:mb-6 pr-8">
-          <div className="flex items-center gap-2 min-w-0 flex-shrink-0">
-            <Sparkles className="w-5 h-5 text-orange-400" />
-            <h3 className="text-lg sm:text-2xl font-bold text-white truncate">Лента обновлений</h3>
-          </div>
-          <div className="h-px bg-gradient-to-r from-orange-500/50 to-transparent flex-1"></div>
-        </div>
+        {/* Декоративные фоновые элементы */}
+        <div className="absolute top-0 right-0 -mt-20 -mr-20 w-80 h-80 bg-orange-500/10 rounded-full blur-[100px] pointer-events-none" />
+        <div className="absolute bottom-0 left-0 -mb-20 -ml-20 w-80 h-80 bg-purple-500/10 rounded-full blur-[100px] pointer-events-none" />
+        <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-[0.03] pointer-events-none" />
 
-        {/* Сетка: 1 колонка на мобилках, 2 на планшетах (md) */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
-          
-          {/* Левая колонка */}
-          <div className="space-y-3 sm:space-y-4">
-            <div className="flex items-center gap-2 mb-2">
-              <TrendingUp className="w-4 h-4 text-green-400" />
-              <h4 className="text-base sm:text-lg font-semibold text-green-400">Свежие серии</h4>
+        <div className="relative z-10 p-6 md:p-8">
+          {/* Заголовок секции */}
+          <div className="flex items-center justify-between mb-8">
+            <div className="flex items-center gap-3">
+              <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br from-orange-500/20 to-purple-500/20 border border-white/5 shadow-inner">
+                <Sparkles className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold text-white leading-none">Лента событий</h3>
+                <p className="text-xs text-zinc-500 font-medium mt-1">Новые серии и анонсы</p>
+              </div>
             </div>
             
-            <div className="flex flex-col gap-2 sm:gap-3">
-              {updates.map((anime) => (
-                <Link 
-                  key={anime.id}
-                  href={`/watch/${anime.id}`}
-                  // Добавлено: active:scale-[0.98] для тактильного отклика на телефоне
-                  className="flex items-center gap-3 p-2.5 sm:p-3 bg-white/5 rounded-xl border border-white/5 hover:bg-white/10 active:bg-white/15 transition-all active:scale-[0.98] sm:hover:scale-[1.01] hover:border-orange-500/30 group"
-                >
-                  <div className="relative w-10 h-14 sm:w-12 sm:h-16 rounded-md overflow-hidden flex-shrink-0 bg-zinc-800">
-                    <Image
-                      src={anime.poster}
-                      alt={anime.title}
-                      fill
-                      className="object-cover"
-                      sizes="(max-width: 640px) 40px, 48px"
-                    />
-                    <div className="absolute top-1 right-1 w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-green-500 animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.8)]"></div>
-                  </div>
-                  
-                  <div className="flex-1 min-w-0 flex flex-col justify-center h-full">
-                    <p className="text-white font-medium text-xs sm:text-sm truncate pr-1 group-hover:text-orange-400 transition-colors leading-tight mb-1.5">
-                      {anime.title}
-                    </p>
-                    <div className="flex items-center gap-1.5 text-[10px] sm:text-xs">
-                        <span className="text-zinc-300 bg-zinc-800/80 px-1.5 py-0.5 rounded border border-white/5">
-                           {anime.episodesCurrent ? `${anime.episodesCurrent} серия` : 'Новинка'}
-                        </span>
-                        <span className="text-zinc-600">•</span>
-                        <span className="text-zinc-400 truncate">Сегодня</span>
-                    </div>
-                  </div>
-                  
-                  {/* Иконка: На мобильном (default) видима всегда, на ПК (sm) скрыта и появляется при наведении */}
-                  <div className="flex items-center justify-center w-8 h-8 rounded-full bg-orange-500/10 text-orange-400 
-                                  opacity-100 sm:opacity-0 sm:-translate-x-2 sm:group-hover:opacity-100 sm:group-hover:translate-x-0 transition-all">
-                    <Play className="w-3.5 h-3.5 ml-0.5" fill="currentColor" />
-                  </div>
-                </Link>
-              ))}
-            </div>
+            <button 
+              onClick={() => setIsDismissed(true)}
+              className="group p-2 rounded-full hover:bg-white/5 transition-colors text-zinc-500 hover:text-white"
+              title="Скрыть блок"
+            >
+              <X size={20} className="transition-transform group-hover:rotate-90" />
+            </button>
           </div>
 
-          {/* Правая колонка */}
-          <div className="space-y-3 sm:space-y-4">
-            <div className="flex items-center gap-2 mb-2">
-              <Calendar className="w-4 h-4 text-purple-400" />
-              <h4 className="text-base sm:text-lg font-semibold text-purple-400">Скоро на экранах</h4>
-            </div>
-            
-            <div className="flex flex-col gap-2 sm:gap-3">
-              {announcements.map((anime) => (
-                <Link 
-                  key={anime.id}
-                  href={`/watch/${anime.id}`}
-                  className="flex items-center gap-3 p-2.5 sm:p-3 bg-white/5 rounded-xl border border-white/5 hover:bg-white/10 active:bg-white/15 transition-all active:scale-[0.98] sm:hover:scale-[1.01] hover:border-purple-500/30 group"
-                >
-                  <div className="relative w-10 h-14 sm:w-12 sm:h-16 rounded-md overflow-hidden flex-shrink-0 bg-zinc-800">
-                    <Image
-                      src={anime.poster}
-                      alt={anime.title}
-                      fill
-                      className="object-cover opacity-90 group-hover:opacity-100 transition-opacity"
-                      sizes="(max-width: 640px) 40px, 48px"
-                    />
-                  </div>
-                  
-                  <div className="flex-1 min-w-0 flex flex-col justify-center h-full">
-                    <p className="text-white font-medium text-xs sm:text-sm truncate pr-1 group-hover:text-purple-300 transition-colors leading-tight mb-1.5">
-                      {anime.title}
-                    </p>
-                    <div className="flex items-center gap-1.5 text-[10px] sm:text-xs">
-                         <span className="text-purple-300 bg-purple-500/10 border border-purple-500/20 px-1.5 py-0.5 rounded">
-                           Анонс
-                        </span>
-                        <span className="text-zinc-600">•</span>
-                        <span className="text-zinc-400">
-                          {anime.airedOn && !Number.isNaN(new Date(anime.airedOn).getTime())
-                            ? new Date(anime.airedOn).toLocaleDateString("ru-RU")
-                            : anime.year || "Скоро"}
-                        </span>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 relative">
+            {/* Разделитель по центру для десктопа */}
+            <div className="hidden lg:block absolute left-1/2 top-0 bottom-0 w-px bg-gradient-to-b from-transparent via-white/10 to-transparent" />
+
+            {/* ЛЕВАЯ КОЛОНКА: Свежие серии */}
+            <div className="space-y-5">
+              <div className="flex items-center gap-2 mb-4">
+                <TrendingUp className="w-4 h-4 text-orange-400" />
+                <span className="text-sm font-bold text-orange-400 uppercase tracking-widest">Только вышло</span>
+              </div>
+              
+              <div className="space-y-3">
+                {updates.slice(0, 3).map((anime, idx) => (
+                  <Link 
+                    key={anime.id}
+                    href={`/watch/${anime.id}`}
+                    className="group flex items-center gap-4 p-3 rounded-2xl bg-white/5 hover:bg-white/10 border border-transparent hover:border-white/5 transition-all duration-300 hover:scale-[1.02] hover:shadow-lg hover:shadow-black/20"
+                  >
+                    <div className="relative w-14 h-20 rounded-xl overflow-hidden shrink-0 shadow-md">
+                      <Image
+                        src={anime.poster}
+                        alt={anime.title}
+                        fill
+                        className="object-cover transition-transform duration-500 group-hover:scale-110"
+                        sizes="56px"
+                      />
+                      {/* Индикатор новизны */}
+                      {idx === 0 && (
+                        <div className="absolute inset-0 border-2 border-orange-500/50 rounded-xl animate-pulse" />
+                      )}
                     </div>
-                  </div>
-                  
-                  <div className="flex items-center justify-center w-8 h-8 rounded-full bg-purple-500/10 text-purple-400 
-                                  opacity-100 sm:opacity-0 sm:-translate-x-2 sm:group-hover:opacity-100 sm:group-hover:translate-x-0 transition-all">
-                    <ExternalLink className="w-3.5 h-3.5" />
-                  </div>
-                </Link>
-              ))}
+                    
+                    <div className="flex-1 min-w-0 py-1">
+                      <h4 className="text-sm font-bold text-white truncate group-hover:text-orange-400 transition-colors">
+                        {anime.title}
+                      </h4>
+                      <div className="flex items-center gap-2 mt-2">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-orange-500 text-black">
+                           EP {anime.episodesCurrent}
+                        </span>
+                        <span className="text-[10px] text-zinc-400">Сегодня</span>
+                      </div>
+                    </div>
+
+                    <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-zinc-500 group-hover:bg-orange-500 group-hover:text-white transition-all">
+                      <Play size={12} fill="currentColor" />
+                    </div>
+                  </Link>
+                ))}
+              </div>
+              
+              <Link href="/catalog?status=ongoing&sort=new" className="inline-flex items-center gap-1 text-xs font-bold text-zinc-500 hover:text-white transition-colors ml-1">
+                Показать расписание <ChevronRight size={12} />
+              </Link>
+            </div>
+
+            {/* ПРАВАЯ КОЛОНКА: Анонсы */}
+            <div className="space-y-5">
+              <div className="flex items-center gap-2 mb-4">
+                <Calendar className="w-4 h-4 text-purple-400" />
+                <span className="text-sm font-bold text-purple-400 uppercase tracking-widest">Скоро на экранах</span>
+              </div>
+              
+              <div className="space-y-3">
+                {announcements.slice(0, 3).map((anime) => (
+                  <Link 
+                    key={anime.id}
+                    href={`/watch/${anime.id}`}
+                    className="group flex items-center gap-4 p-3 rounded-2xl bg-white/5 hover:bg-white/10 border border-transparent hover:border-white/5 transition-all duration-300 hover:scale-[1.02] hover:shadow-lg hover:shadow-black/20"
+                  >
+                    <div className="relative w-14 h-20 rounded-xl overflow-hidden shrink-0 grayscale group-hover:grayscale-0 transition-all duration-500 shadow-md">
+                      <Image
+                        src={anime.poster}
+                        alt={anime.title}
+                        fill
+                        className="object-cover"
+                        sizes="56px"
+                      />
+                    </div>
+                    
+                    <div className="flex-1 min-w-0 py-1">
+                      <h4 className="text-sm font-bold text-white truncate group-hover:text-purple-400 transition-colors">
+                        {anime.title}
+                      </h4>
+                      <div className="flex items-center gap-2 mt-2">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-zinc-800 text-zinc-300 border border-zinc-700">
+                           {anime.year || 'TBA'}
+                        </span>
+                        <span className="text-[10px] text-zinc-400 truncate">
+                          {anime.airedOn ? new Date(anime.airedOn).toLocaleDateString("ru-RU") : "Скоро"}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-zinc-500 group-hover:bg-purple-500 group-hover:text-white transition-all">
+                      <ExternalLink size={12} />
+                    </div>
+                  </Link>
+                ))}
+              </div>
+
+               <Link href="/catalog?status=anons" className="inline-flex items-center gap-1 text-xs font-bold text-zinc-500 hover:text-white transition-colors ml-1">
+                Все анонсы <ChevronRight size={12} />
+              </Link>
             </div>
           </div>
         </div>
-
-        {/* Кнопка закрытия: увеличена зона клика для пальца */}
-        <button 
-          onClick={() => setIsDismissed(true)}
-          className="absolute top-2 right-2 sm:top-4 sm:right-4 text-zinc-500 hover:text-white bg-black/10 hover:bg-black/40 p-2 sm:p-1 rounded-full transition-all active:scale-90"
-        >
-          <X size={18} />
-        </button>
       </div>
-    </div>
+    </section>
   )
 }

@@ -1,23 +1,22 @@
 "use client"
 
 import Link from "next/link"
-import { useRouter } from "next/navigation"
-import { useState } from "react"
-import { Menu, X, ChevronDown, Flame, Tv, Zap } from "lucide-react"
+import { useRouter, usePathname } from "next/navigation"
+import { useState, useEffect } from "react"
+import { Menu, X, ChevronDown, Flame, Tv, Zap, Compass, Home, BookMarked, History } from "lucide-react"
 import { GENRES_MAP } from "@/lib/shikimori"
 import { SearchSuggestions } from "@/components/search-suggestions"
+import { cn } from "@/lib/utils" // Предполагаем, что у вас есть cn, или можно использовать шаблонные строки
 
+// Helper для сохранения истории поиска
 function saveSearchHistory(query: string) {
   if (typeof window === "undefined") return
-
   const normalized = query.trim()
   if (!normalized) return
-
   try {
     const raw = localStorage.getItem("search-history")
     const parsed = raw ? JSON.parse(raw) : []
     const current: string[] = Array.isArray(parsed) ? parsed.filter((x) => typeof x === "string") : []
-
     const next = [normalized, ...current.filter((q) => q !== normalized)].slice(0, 10)
     localStorage.setItem("search-history", JSON.stringify(next))
     window.dispatchEvent(new Event("search-history-updated"))
@@ -28,126 +27,299 @@ function saveSearchHistory(query: string) {
 
 export function Navbar() {
   const router = useRouter()
-  const [isOpen, setIsOpen] = useState(false)
+  const pathname = usePathname()
+  
+  const [isOpen, setIsOpen] = useState(false) // Мобильное меню
+  const [isGenresOpen, setIsGenresOpen] = useState(false) // Мобильные жанры
   const [searchValue, setSearchValue] = useState("")
+  const [scrolled, setScrolled] = useState(false)
 
-  // Логика поиска: Редирект в каталог
+  // Отслеживание скролла для изменения прозрачности хедера
+  useEffect(() => {
+    const handleScroll = () => setScrolled(window.scrollY > 20)
+    window.addEventListener("scroll", handleScroll)
+    return () => window.removeEventListener("scroll", handleScroll)
+  }, [])
+
+  // Блокировка скролла body при открытом меню
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = 'unset'
+    }
+    return () => { document.body.style.overflow = 'unset' }
+  }, [isOpen])
+
   const handleSearchSelect = (query: string) => {
     if (!query.trim()) return
     saveSearchHistory(query)
-    // ВАЖНО: Перенаправляем на каталог с параметром search
     router.push(`/catalog?search=${encodeURIComponent(query)}`)
     setIsOpen(false)
   }
 
+  // Плавный скролл наверх, если мы уже на главной
+  const handleLogoClick = (e: React.MouseEvent) => {
+    if (pathname === "/") {
+      e.preventDefault()
+      window.scrollTo({ top: 0, behavior: "smooth" })
+      setIsOpen(false)
+    }
+  }
+
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-white/5 bg-zinc-950/80 backdrop-blur-md">
-      <div className="container mx-auto px-4 h-16 flex items-center justify-between gap-4">
-        
-        {/* ЛОГОТИП */}
-        <Link href="/" className="flex items-center gap-3 z-50 group">
-           <div className="relative w-9 h-9 flex items-center justify-center">
-             <div className="absolute inset-0 bg-orange-600 rounded-xl rotate-6 opacity-50 blur-[4px] group-hover:opacity-80 transition-opacity"></div>
-             <div className="absolute inset-0 bg-red-600 rounded-xl -rotate-6 opacity-50 blur-[4px] group-hover:opacity-80 transition-opacity"></div>
-             <div className="relative w-full h-full bg-gradient-to-br from-zinc-800 to-black border border-white/10 rounded-xl flex items-center justify-center shadow-2xl">
-                <Zap className="w-5 h-5 text-orange-500 fill-orange-500" />
-             </div>
-           </div>
-           <div className="flex flex-col justify-center">
-             <h1 className="text-xl font-black tracking-tighter text-white leading-none">
-               ANI<span className="text-orange-500">X</span>
-             </h1>
-             <span className="text-[9px] font-bold tracking-[0.2em] text-zinc-500 uppercase leading-none group-hover:text-zinc-300 transition-colors">
-               Stream
-             </span>
-           </div>
-        </Link>
-
-        {/* Навигация (Desktop) */}
-        <nav className="hidden md:flex items-center gap-6 text-sm font-medium text-zinc-400">
-          <Link href="/" className="hover:text-white transition flex items-center gap-1.5">
-            Главная
-          </Link>
+    <>
+      <header 
+        className={cn(
+          "fixed top-0 left-0 right-0 z-50 w-full border-b border-white/5 transition-all duration-300 bg-zinc-950/90 backdrop-blur-xl shadow-lg shadow-black/20"
+        )}
+      >
+        <div className="container mx-auto px-4 h-16 md:h-20 flex items-center justify-between gap-4">
           
-          {/* Меню Жанров */}
-          <div className="group relative h-16 flex items-center cursor-pointer">
-            <span className="group-hover:text-white transition flex items-center gap-1">
-              Жанры <ChevronDown size={14} />
-            </span>
-            <div className="absolute top-full left-0 w-[450px] bg-zinc-950 border border-zinc-800 rounded-xl p-4 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all transform translate-y-2 group-hover:translate-y-0 shadow-2xl grid grid-cols-3 gap-2 z-50">
-              {Object.entries(GENRES_MAP).map(([name, id]) => (
-                <Link 
-                  key={id} 
-                  href={`/catalog?genre=${id}`}
-                  className="px-3 py-2 rounded-lg hover:bg-zinc-900 text-zinc-400 hover:text-orange-500 transition text-xs border border-transparent hover:border-zinc-800"
-                >
-                  {name}
-                </Link>
-              ))}
+          {/* 1. ЛОГОТИП */}
+          <Link href="/" onClick={handleLogoClick} className="flex items-center gap-3 z-50 group relative">
+             <div className="relative w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center">
+               <div className="absolute inset-0 bg-orange-600 rounded-xl rotate-6 opacity-50 blur-[6px] group-hover:opacity-80 transition-opacity duration-500"></div>
+               <div className="absolute inset-0 bg-red-600 rounded-xl -rotate-6 opacity-50 blur-[6px] group-hover:opacity-80 transition-opacity duration-500"></div>
+               <div className="relative w-full h-full bg-zinc-900 border border-white/10 rounded-xl flex items-center justify-center shadow-2xl overflow-hidden">
+                  <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                  <Zap className="w-5 h-5 sm:w-6 sm:h-6 text-orange-500 fill-orange-500 transform group-hover:scale-110 transition-transform" />
+               </div>
+             </div>
+             <div className="flex flex-col justify-center">
+               <h1 className="text-xl sm:text-2xl font-black tracking-tighter text-white leading-none">
+                 ANI<span className="text-orange-500">X</span>
+               </h1>
+               <span className="text-[9px] sm:text-[10px] font-bold tracking-[0.2em] text-zinc-500 uppercase leading-none group-hover:text-zinc-300 transition-colors">
+                 Stream
+               </span>
+             </div>
+          </Link>
+
+          {/* 2. НАВИГАЦИЯ (DESKTOP) */}
+          <nav className="hidden lg:flex items-center gap-1 bg-zinc-900/50 p-1 rounded-full border border-white/5 backdrop-blur-md">
+            <Link 
+              href="/" 
+              onClick={handleLogoClick}
+              className={cn(
+                "px-5 py-2 rounded-full text-sm font-medium transition-all flex items-center gap-2",
+                pathname === "/" 
+                  ? "bg-zinc-800 text-white shadow-lg" 
+                  : "text-zinc-400 hover:text-white hover:bg-zinc-800/50"
+              )}
+            >
+              Главная
+            </Link>
+            
+            {/* Dropdown Жанров */}
+            <div className="group relative px-4 py-2 cursor-pointer">
+              <span className={cn(
+                "flex items-center gap-1.5 text-sm font-medium transition-colors",
+                pathname.includes("genre") ? "text-white" : "text-zinc-400 group-hover:text-white"
+              )}>
+                Жанры <ChevronDown size={14} className="group-hover:rotate-180 transition-transform duration-300" />
+              </span>
+              
+              {/* Выпадающее меню */}
+              <div className="absolute top-full left-1/2 -translate-x-1/2 pt-4 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 transform translate-y-2 group-hover:translate-y-0 z-50">
+                <div className="w-[500px] bg-zinc-950/95 backdrop-blur-xl border border-white/10 rounded-2xl p-5 shadow-2xl grid grid-cols-3 gap-2">
+                  {Object.entries(GENRES_MAP).map(([name, id]) => (
+                    <Link 
+                      key={id} 
+                      href={`/catalog?genre=${id}`}
+                      className="px-3 py-2 rounded-lg hover:bg-white/10 text-zinc-400 hover:text-orange-400 transition text-xs font-medium border border-transparent hover:border-white/5 text-center"
+                    >
+                      {name}
+                    </Link>
+                  ))}
+                </div>
+              </div>
             </div>
-          </div>
 
-          <Link href="/catalog?sort=new&status=ongoing" className="hover:text-white transition flex items-center gap-1.5">
-            <Tv size={16} /> Онгоинги
-          </Link>
-          <Link href="/catalog?sort=popular" className="text-orange-500 hover:text-orange-400 transition flex items-center gap-1.5 font-bold">
-            <Flame size={16} /> Топ-100
-          </Link>
-        </nav>
+            <Link 
+              href="/catalog?sort=new&status=ongoing" 
+              className={cn(
+                "px-5 py-2 rounded-full text-sm font-medium transition-all flex items-center gap-2",
+                pathname === "/catalog" && !pathname.includes("popular")
+                  ? "bg-zinc-800 text-white shadow-lg" 
+                  : "text-zinc-400 hover:text-white hover:bg-zinc-800/50"
+              )}
+            >
+              <Tv size={16} /> Онгоинги
+            </Link>
+            
+            <Link 
+              href="/catalog?sort=popular" 
+              className={cn(
+                "px-5 py-2 rounded-full text-sm font-bold transition-all flex items-center gap-2",
+                pathname.includes("sort=popular")
+                  ? "bg-orange-600 text-white shadow-lg shadow-orange-900/20" 
+                  : "text-orange-500 hover:text-orange-400 hover:bg-orange-500/10"
+              )}
+            >
+              <Flame size={16} className={pathname.includes("sort=popular") ? "fill-white" : ""} /> Топ-100
+            </Link>
 
-        {/* Поиск */}
-        <div className="flex-1 max-w-md hidden md:block">
-          <SearchSuggestions
-            value={searchValue}
-            onChange={setSearchValue}
-            onSelect={handleSearchSelect}
-            placeholder="Поиск аниме..."
-          />
-        </div>
+            <Link 
+              href="/bookmarks" 
+              className={cn(
+                "px-5 py-2 rounded-full text-sm font-medium transition-all flex items-center gap-2",
+                pathname === "/bookmarks"
+                  ? "bg-zinc-800 text-white shadow-lg" 
+                  : "text-zinc-400 hover:text-white hover:bg-zinc-800/50"
+              )}
+            >
+              <BookMarked size={16} /> Закладки
+            </Link>
 
-        {/* Мобильное меню */}
-        <button className="md:hidden text-zinc-300" onClick={() => setIsOpen(!isOpen)}>
-          {isOpen ? <X /> : <Menu />}
-        </button>
-      </div>
+            <Link 
+              href="/history" 
+              className={cn(
+                "px-5 py-2 rounded-full text-sm font-medium transition-all flex items-center gap-2",
+                pathname === "/history"
+                  ? "bg-zinc-800 text-white shadow-lg" 
+                  : "text-zinc-400 hover:text-white hover:bg-zinc-800/50"
+              )}
+            >
+              <History size={16} /> История
+            </Link>
+          </nav>
 
-      {/* Мобильное выпадающее меню */}
-      {isOpen && (
-         <div className="md:hidden absolute top-16 left-0 w-full bg-zinc-950 border-b border-zinc-800 p-4 flex flex-col gap-4 shadow-2xl animate-in slide-in-from-top-5 h-[calc(100vh-64px)] overflow-y-auto">
+          {/* 3. ПОИСК (DESKTOP + TABLET) */}
+          <div className="flex-1 max-w-sm xl:max-w-md hidden md:block">
             <SearchSuggestions
               value={searchValue}
               onChange={setSearchValue}
               onSelect={handleSearchSelect}
-              placeholder="Поиск..."
-              className="w-full"
+              placeholder="Поиск аниме..."
             />
-            
-            <div className="space-y-4">
-                <Link href="/catalog?sort=popular" onClick={() => setIsOpen(false)} className="flex items-center gap-2 text-orange-500 font-bold text-lg">
-                    <Flame size={20} /> Популярное
-                </Link>
-                <Link href="/catalog?sort=new&status=ongoing" onClick={() => setIsOpen(false)} className="flex items-center gap-2 text-white font-medium text-lg">
-                    <Tv size={20} /> Онгоинги
-                </Link>
-            </div>
+          </div>
 
-            <div className="border-t border-zinc-800 pt-4">
-                <h3 className="text-zinc-500 text-xs font-bold uppercase tracking-wider mb-3">Жанры</h3>
-                <div className="grid grid-cols-2 gap-2">
-                {Object.entries(GENRES_MAP).map(([name, id]) => (
+          {/* 4. МОБИЛЬНЫЙ ТОГГЛ */}
+          <button 
+            className="md:hidden p-2 text-zinc-300 hover:text-white active:scale-95 transition-transform" 
+            onClick={() => setIsOpen(!isOpen)}
+            aria-label="Toggle menu"
+          >
+            {isOpen ? <X size={28} /> : <Menu size={28} />}
+          </button>
+        </div>
+      </header>
+
+      <div className="h-16 md:h-20" aria-hidden="true" />
+
+      {/* === МОБИЛЬНОЕ МЕНЮ (Full Screen) === */}
+      {isOpen && (
+         <div className="fixed inset-0 top-16 z-40 bg-zinc-950/95 backdrop-blur-xl md:hidden flex flex-col overflow-y-auto animate-in fade-in slide-in-from-bottom-5 duration-200">
+            <div className="p-4 space-y-6 pb-20">
+                
+                {/* Поиск для мобилок */}
+                <div className="relative z-50">
+                   <SearchSuggestions
+                      value={searchValue}
+                      onChange={setSearchValue}
+                      onSelect={handleSearchSelect}
+                      placeholder="Что ищем?"
+                      className="w-full h-12 text-lg"
+                   />
+                </div>
+                
+                {/* Основные ссылки */}
+                <div className="space-y-2">
                     <Link 
-                        key={id} 
-                        href={`/catalog?genre=${id}`}
-                        className="px-3 py-2 bg-zinc-900 rounded-lg text-sm text-center text-zinc-400 hover:text-white"
-                        onClick={() => setIsOpen(false)}
+                      href="/" 
+                      onClick={(e) => { handleLogoClick(e); setIsOpen(false); }} 
+                      className={cn(
+                        "flex items-center gap-4 px-4 py-4 rounded-xl text-lg font-medium transition-all active:scale-[0.98]",
+                        pathname === "/" ? "bg-zinc-900 text-white border border-zinc-800" : "text-zinc-400 hover:bg-zinc-900/50 hover:text-white"
+                      )}
                     >
-                        {name}
+                        <Home className="w-6 h-6 text-orange-500" /> Главная
                     </Link>
-                ))}
+
+                    <Link 
+                      href="/catalog?sort=popular" 
+                      onClick={() => setIsOpen(false)} 
+                      className={cn(
+                        "flex items-center gap-4 px-4 py-4 rounded-xl text-lg font-bold transition-all active:scale-[0.98]",
+                         pathname.includes("sort=popular") ? "bg-orange-500/10 text-orange-500 border border-orange-500/20" : "text-zinc-400 hover:bg-zinc-900/50 hover:text-orange-500"
+                      )}
+                    >
+                        <Flame className="w-6 h-6" /> Популярное
+                    </Link>
+
+                    <Link 
+                      href="/catalog?sort=new&status=ongoing" 
+                      onClick={() => setIsOpen(false)} 
+                      className="flex items-center gap-4 px-4 py-4 rounded-xl text-lg font-medium text-zinc-400 hover:bg-zinc-900/50 hover:text-white transition-all active:scale-[0.98]"
+                    >
+                        <Tv className="w-6 h-6 text-blue-500" /> Онгоинги
+                    </Link>
+
+                    <Link 
+                      href="/catalog" 
+                      onClick={() => setIsOpen(false)} 
+                      className="flex items-center gap-4 px-4 py-4 rounded-xl text-lg font-medium text-zinc-400 hover:bg-zinc-900/50 hover:text-white transition-all active:scale-[0.98]"
+                    >
+                        <Compass className="w-6 h-6 text-purple-500" /> Весь каталог
+                    </Link>
+
+                    <Link 
+                      href="/bookmarks" 
+                      onClick={() => setIsOpen(false)} 
+                      className={cn(
+                        "flex items-center gap-4 px-4 py-4 rounded-xl text-lg font-medium transition-all active:scale-[0.98]",
+                        pathname === "/bookmarks" ? "bg-zinc-900 text-white border border-zinc-800" : "text-zinc-400 hover:bg-zinc-900/50 hover:text-white"
+                      )}
+                    >
+                        <BookMarked className="w-6 h-6 text-orange-500" /> Закладки
+                    </Link>
+
+                    <Link 
+                      href="/history" 
+                      onClick={() => setIsOpen(false)} 
+                      className={cn(
+                        "flex items-center gap-4 px-4 py-4 rounded-xl text-lg font-medium transition-all active:scale-[0.98]",
+                        pathname === "/history" ? "bg-zinc-900 text-white border border-zinc-800" : "text-zinc-400 hover:bg-zinc-900/50 hover:text-white"
+                      )}
+                    >
+                        <History className="w-6 h-6 text-blue-500" /> История
+                    </Link>
+                </div>
+
+                <hr className="border-white/5" />
+
+                {/* Аккордеон Жанров */}
+                <div className="rounded-xl border border-white/5 overflow-hidden bg-zinc-900/20">
+                    <button 
+                      onClick={() => setIsGenresOpen(!isGenresOpen)}
+                      className="w-full flex items-center justify-between px-4 py-4 text-left text-lg font-medium text-zinc-300 hover:bg-zinc-900/50 transition-colors"
+                    >
+                       <span className="flex items-center gap-3">
+                          <BookMarked className="w-6 h-6 text-green-500" /> Жанры
+                       </span>
+                       <ChevronDown className={cn("transition-transform duration-300", isGenresOpen ? "rotate-180" : "")} />
+                    </button>
+                    
+                    <div className={cn(
+                      "grid grid-cols-2 gap-2 px-4 overflow-hidden transition-all duration-300 ease-in-out",
+                      isGenresOpen ? "max-h-[800px] py-4 opacity-100" : "max-h-0 py-0 opacity-0"
+                    )}>
+                       {Object.entries(GENRES_MAP).map(([name, id]) => (
+                          <Link 
+                            key={id} 
+                            href={`/catalog?genre=${id}`}
+                            onClick={() => setIsOpen(false)}
+                            className="text-sm py-2.5 px-3 rounded-lg bg-zinc-900 text-zinc-400 text-center border border-zinc-800 hover:border-orange-500/50 hover:text-white transition-colors"
+                          >
+                            {name}
+                          </Link>
+                       ))}
+                    </div>
                 </div>
             </div>
          </div>
       )}
-    </header>
+    </>
   )
 }

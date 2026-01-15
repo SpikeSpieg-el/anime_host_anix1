@@ -89,7 +89,7 @@ export function WatchPageClient({
   }
 
   return (
-    <div className="flex flex-col gap-6 mb-10">
+    <div className="flex flex-col gap-6 pt-20 md:pt-24 mb-10">
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div className="flex flex-col gap-2">
           <h1 className="text-2xl md:text-4xl font-black tracking-tight text-white">

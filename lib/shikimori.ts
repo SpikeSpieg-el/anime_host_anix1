@@ -172,6 +172,7 @@ export interface CatalogFilters {
   status?: string;
   kind?: string;
   year?: string;
+  score?: string;
   search?: string;
 }
 
@@ -650,10 +651,6 @@ export async function getHeroRecommendation(watchedIds: string[], bookmarkIds: s
   }
 }
 
-/**
- * Основной каталог и результаты поиска
- * Исправлена проблема 422 и добавлены заголовки.
- */
 export async function getAnimeCatalog(filters: CatalogFilters): Promise<Anime[]> {
 
   const {
@@ -664,6 +661,7 @@ export async function getAnimeCatalog(filters: CatalogFilters): Promise<Anime[]>
     status,
     kind,
     year,
+    score,
     search
   } = filters;
 
@@ -672,37 +670,50 @@ export async function getAnimeCatalog(filters: CatalogFilters): Promise<Anime[]>
     params.append('page', String(page));
     params.append('limit', String(limit));
 
-    // --- МАППИНГ ПАРАМЕТРОВ ---
-    // Преобразуем параметры из URL (понятные пользователю) в API (понятные Shikimori)
+    // 1. Сортировка
     let apiOrder = order;
-    if (order === 'popular') apiOrder = 'popularity';
-    if (order === 'new') apiOrder = 'aired_on';
-    if (order === 'rating') apiOrder = 'ranked';
-    
+    if (order === 'popularity') apiOrder = 'popularity';
+    if (order === 'aired_on') apiOrder = 'aired_on';
+    if (order === 'ranked') apiOrder = 'ranked';
     params.append('order', apiOrder);
 
-    if (genre) params.append('genre', genre);
-    if (status) params.append('status', status);
-    if (kind) params.append('kind', kind);
-    if (year) params.append('season', year);
-    
-    if (search) {
-      params.append('search', search);
-      // Если ищем по тексту, добавляем минимальный порог оценки, чтобы не показывать треш
-      params.append('score', '1'); // Снизил порог для поиска редкого, чтобы Anilist подхватил картинку
+    // 2. Фильтры (добавляем только если это не "all" и значение есть)
+    if (genre && genre !== 'all') params.append('genre', genre);
+    if (status && status !== 'all') params.append('status', status);
+    if (kind && kind !== 'all') params.append('kind', kind);
+    if (score && score !== 'all') params.append('score', score);
+
+    // 3. Обработка года (Shikimori параметр 'season')
+    if (year && year !== 'all') {
+      let seasonValue = year;
+      if (year === '2000s') seasonValue = '2000_2010';
+      if (year === '1990s') seasonValue = '1990_2000';
+      if (year === 'older') seasonValue = '1917_1990';
+      params.append('season', seasonValue);
     }
 
-    const res = await shikimoriFetch(`${BASE_URL}/animes?${params.toString()}`, {
-      next: { revalidate: 3600 },
+    // 4. Поиск
+    if (search && search.trim() !== '') {
+      params.append('search', search.trim());
+    }
+
+    const url = `${BASE_URL}/animes?${params.toString()}`;
+    
+    const res = await shikimoriFetch(url, {
+      next: { revalidate: 60 }, // Уменьшил кэш для каталога для актуальности
       headers: HEADERS
     });
 
     if (!res.ok) {
-        console.error(`Catalog fetch failed: ${res.status} ${res.statusText} URL: ${res.url}`);
-        throw new Error("Failed to fetch catalog");
+      console.error(`API Error: ${res.status}`, await res.text());
+      return [];
     }
     
     const data: ShikimoriAnime[] = await res.json();
+    
+    // Если ничего не пришло, возвращаем пустой массив
+    if (!Array.isArray(data)) return [];
+
     return await Promise.all(data.map(transformAnime));
   } catch (error) {
     console.error("Catalog fetch error:", error);

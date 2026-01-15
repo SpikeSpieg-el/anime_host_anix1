@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import Link from "next/link"
 import Image from "next/image"
-import { Clock, Search, History } from "lucide-react"
+import { Clock, Search, History, ChevronRight } from "lucide-react"
 
 function normalizePosterUrl(value: string): string {
   const raw = (value ?? "").trim()
@@ -25,6 +25,7 @@ function normalizePosterUrl(value: string): string {
 
 export function UserHistory() {
   const [history, setHistory] = useState<any[]>([])
+  const [fullHistory, setFullHistory] = useState<any[]>([])
   const [lastSearches, setLastSearches] = useState<string[]>([])
   const [mounted, setMounted] = useState(false)
 
@@ -37,10 +38,10 @@ export function UserHistory() {
         const storedHistory = JSON.parse(localStorage.getItem("watch-history") || "[]")
         const normalized = Array.isArray(storedHistory)
           ? storedHistory
-              .slice(0, 6)
               .map((item: any) => ({ ...item, poster: normalizePosterUrl(item?.poster) }))
           : []
-        setHistory(normalized) // Берем последние 6
+        setFullHistory(normalized)
+        setHistory(normalized.slice(0, 6)) // Берем последние 6 для отображения
       } catch (e) {
         console.error(e)
       }
@@ -70,6 +71,8 @@ export function UserHistory() {
   if (!mounted) return null
   if (history.length === 0 && lastSearches.length === 0) return null
 
+  const hasMoreHistory = fullHistory.length > 6
+
   return (
     <div className="mb-12 space-y-8">
       
@@ -83,7 +86,7 @@ export function UserHistory() {
             <Link 
               key={idx} 
               href={`/search?q=${encodeURIComponent(term)}`}
-              className="px-4 py-1.5 rounded-full bg-zinc-900 border border-zinc-800 text-zinc-300 text-sm hover:border-orange-500 hover:text-white transition whitespace-nowrap"
+              className="px-3 sm:px-4 py-1.5 rounded-full bg-zinc-900 border border-zinc-800 text-zinc-300 text-sm hover:border-orange-500 hover:text-white transition whitespace-nowrap"
             >
               {term}
             </Link>
@@ -94,12 +97,22 @@ export function UserHistory() {
       {/* Секция: Продолжить просмотр */}
       {history.length > 0 && (
         <section>
-          <div className="flex items-center gap-2 mb-4 text-zinc-400">
-            <History size={20} className="text-orange-500" />
-            <h2 className="text-lg font-bold text-white">Вы смотрели</h2>
+          <div className="flex items-center justify-between gap-4 mb-4">
+            <div className="flex items-center gap-2 text-zinc-400">
+              <History size={20} className="text-orange-500" />
+              <h2 className="text-lg sm:text-xl font-bold text-white">Вы смотрели</h2>
+            </div>
+            {hasMoreHistory && (
+              <Link 
+                href="/history"
+                className="text-orange-500 text-sm font-medium hover:text-orange-400 transition flex items-center gap-1 whitespace-nowrap"
+              >
+                Все {fullHistory.length} <ChevronRight className="w-4 h-4" />
+              </Link>
+            )}
           </div>
           
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3 sm:gap-4">
             {history.map((item) => (
               <Link
                 key={item.id}
@@ -132,6 +145,18 @@ export function UserHistory() {
               </Link>
             ))}
           </div>
+
+          {hasMoreHistory && (
+            <div className="mt-6 text-center sm:text-left">
+              <Link 
+                href="/history"
+                className="inline-flex items-center gap-2 px-6 py-3 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-orange-500 text-white font-medium rounded-xl transition-all"
+              >
+                Показать всю историю ({fullHistory.length} аниме)
+                <ChevronRight className="w-4 h-4" />
+              </Link>
+            </div>
+          )}
         </section>
       )}
     </div>
