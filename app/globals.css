@@ -112,4 +112,61 @@
     scrollbar-width: thin !important;
     scrollbar-color: rgba(120, 113, 108, 0.5) rgba(24, 24, 27, 0.5) !important;
   }
+
+  /* Анимация для текстового паттерна */
+  @keyframes slide {
+    0%, 100% {
+      transform: translate(-50%, -50%) skewX(-12deg) translateX(0px) translateY(0px);
+    }
+    25% {
+      transform: translate(-50%, -50%) skewX(-12deg) translateX(20px) translateY(-10px);
+    }
+    50% {
+      transform: translate(-50%, -50%) skewX(-12deg) translateX(-15px) translateY(15px);
+    }
+    75% {
+      transform: translate(-50%, -50%) skewX(-12deg) translateX(10px) translateY(5px);
+    }
+  }
+
+  /* Анимация для skeleton loading */
+  @keyframes shimmer {
+    0% {
+      background-position: -1000px 0;
+    }
+    100% {
+      background-position: 1000px 0;
+    }
+  }
+
+  /* Анимация для плавного появления */
+  @keyframes fade-in {
+    0% {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    100% {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .animate-slide {
+    animation: slide linear infinite;
+  }
+
+  .animate-fade-in {
+    animation: fade-in 0.6s ease-out forwards;
+  }
+
+  .skeleton {
+    background: linear-gradient(
+      90deg,
+      hsl(240 10% 3.9%) 0%,
+      hsl(240 10% 8%) 50%,
+      hsl(240 10% 3.9%) 100%
+    );
+    background-size: 1000px 100%;
+    animation: shimmer 2s ease-in-out infinite;
+  }
 }

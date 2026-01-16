@@ -2,13 +2,14 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { AnimeCard } from '@/components/anime-card'
+import { AnimeCardSkeleton, GridSkeleton } from '@/components/skeleton'
 import type { Anime, CatalogFilters } from '@/lib/shikimori'
 import { GENRES_MAP } from '@/lib/shikimori'
 import { fetchAnimeData } from '@/app/catalog/actions'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
-import { Search, Filter, Loader2, X } from 'lucide-react'
+import { Search, Filter, Loader2, X, RotateCcw } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 
 const ORDER_OPTIONS = [
@@ -130,6 +131,16 @@ export function CatalogClient({ initialFilters }: { initialFilters: CatalogFilte
     router.push('/catalog')
   }
 
+  const resetFilters = () => {
+    const defaultFilters: CatalogFilters = {
+      page: 1,
+      limit: 24,
+      order: 'popularity'
+    }
+    setFilters(defaultFilters)
+    router.push('/catalog')
+  }
+
   return (
     <div className="min-h-screen pb-20">
       {/* Панель управления */}
@@ -163,6 +174,15 @@ export function CatalogClient({ initialFilters }: { initialFilters: CatalogFilte
               >
                 <Filter className="w-4 h-4 mr-2" />
                 Фильтры
+              </Button>
+              <Button
+                variant="outline"
+                onClick={resetFilters}
+                className="border-zinc-800 hover:bg-zinc-800 text-zinc-400"
+                disabled={loading && !loadingMore}
+              >
+                <RotateCcw className="w-4 h-4 mr-2" />
+                Сбросить
               </Button>
               <Button
                 onClick={applyFilters}
@@ -237,9 +257,7 @@ export function CatalogClient({ initialFilters }: { initialFilters: CatalogFilte
         </div>
 
         {loading && !loadingMore ? (
-          <div className="flex justify-center items-center py-40">
-            <Loader2 className="w-10 h-10 animate-spin text-orange-500" />
-          </div>
+          <GridSkeleton items={24} />
         ) : animes.length > 0 ? (
           <>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-x-4 gap-y-8">
@@ -267,12 +285,19 @@ export function CatalogClient({ initialFilters }: { initialFilters: CatalogFilte
                 </Button>
               </div>
             )}
+
+            {/* Skeleton для подгрузки */}
+            {loadingMore && (
+              <div className="mt-8">
+                <GridSkeleton items={6} />
+              </div>
+            )}
           </>
         ) : (
           <div className="text-center py-20 bg-zinc-900/30 rounded-lg border border-zinc-800 border-dashed">
             <p className="text-zinc-400 text-lg font-medium">Ничего не найдено</p>
             <p className="text-zinc-600 text-sm mt-2">Попробуйте изменить параметры поиска</p>
-            <Button variant="link" onClick={() => router.push('/catalog')} className="mt-4 text-orange-500">
+            <Button variant="link" onClick={resetFilters} className="mt-4 text-orange-500">
               Сбросить фильтры
             </Button>
           </div>

@@ -24,13 +24,13 @@ export function Footer() {
               Твой путеводитель в мире аниме. Смотри лучшие тайтлы в высоком качестве с персональными рекомендациями.
             </p>
             <div className="flex items-center gap-4">
-              <a href="#" className="w-10 h-10 rounded-xl bg-zinc-900 flex items-center justify-center text-zinc-400 hover:bg-orange-500 hover:text-white transition-all">
+              <a href="https://t.me/anix_stream" target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-xl bg-zinc-900 flex items-center justify-center text-zinc-400 hover:bg-orange-500 hover:text-white transition-all">
                 <Send size={18} />
               </a>
-              <a href="#" className="w-10 h-10 rounded-xl bg-zinc-900 flex items-center justify-center text-zinc-400 hover:bg-orange-500 hover:text-white transition-all">
+              <a href="https://discord.gg/anix" target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-xl bg-zinc-900 flex items-center justify-center text-zinc-400 hover:bg-orange-500 hover:text-white transition-all">
                 <MessageCircle size={18} />
               </a>
-              <a href="#" className="w-10 h-10 rounded-xl bg-zinc-900 flex items-center justify-center text-zinc-400 hover:bg-orange-500 hover:text-white transition-all">
+              <a href="https://github.com/anix-stream" target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-xl bg-zinc-900 flex items-center justify-center text-zinc-400 hover:bg-orange-500 hover:text-white transition-all">
                 <Github size={18} />
               </a>
             </div>
@@ -51,10 +51,10 @@ export function Footer() {
           <div>
             <h4 className="text-white font-black uppercase tracking-widest text-xs mb-6">Помощь</h4>
             <ul className="space-y-4">
-              <li><Link href="#" className="text-zinc-500 hover:text-white transition-colors text-sm font-bold">Часто задаваемые вопросы</Link></li>
-              <li><Link href="#" className="text-zinc-500 hover:text-white transition-colors text-sm font-bold">Правообладателям (DMCA)</Link></li>
-              <li><Link href="#" className="text-zinc-500 hover:text-white transition-colors text-sm font-bold">Пользовательское соглашение</Link></li>
-              <li><Link href="#" className="text-zinc-500 hover:text-white transition-colors text-sm font-bold">Контакты</Link></li>
+              <li><Link href="/faq" className="text-zinc-500 hover:text-white transition-colors text-sm font-bold">Часто задаваемые вопросы</Link></li>
+              <li><Link href="/dmca" className="text-zinc-500 hover:text-white transition-colors text-sm font-bold">Правообладателям (DMCA)</Link></li>
+              <li><Link href="/terms" className="text-zinc-500 hover:text-white transition-colors text-sm font-bold">Пользовательское соглашение</Link></li>
+              <li><Link href="/contacts" className="text-zinc-500 hover:text-white transition-colors text-sm font-bold">Контакты</Link></li>
             </ul>
           </div>
 
