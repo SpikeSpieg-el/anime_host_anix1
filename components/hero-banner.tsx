@@ -13,6 +13,33 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { HeroBannerSkeleton } from "@/components/skeleton"
 
+// Функция для генерации запасного постера (такая же как в anime-card)
+function generateFallbackPoster(title: string): string {
+  const hash = title.split('').reduce((acc, char) => char.charCodeAt(0) + ((acc << 5) - acc), 0);
+  const index = Math.abs(hash) % 4;
+  const letter = title.slice(0, 1).toUpperCase();
+  
+  const styles = [
+    { bg: '#1a0505', textColor: '#fed7aa', accentColor: '#ea580c' },
+    { bg: '#020617', textColor: '#bfdbfe', accentColor: '#3b82f6' },
+    { bg: '#1e1b4b', textColor: '#e9d5ff', accentColor: '#8b5cf6' },
+    { bg: '#18181b', textColor: '#e4e4e7', accentColor: '#22c55e' }
+  ];
+  
+  const style = styles[index];
+  const svg = `
+    <svg width="400" height="600" viewBox="0 0 400 600" xmlns="http://www.w3.org/2000/svg">
+      <rect width="100%" height="100%" fill="${style.bg}"/>
+      <text x="50%" y="40%" font-family="sans-serif" font-weight="900" font-size="300" fill="${style.accentColor}" text-anchor="middle" dominant-baseline="middle" opacity="0.1">${letter}</text>
+      <text x="50%" y="55%" font-family="sans-serif" font-size="24" fill="${style.textColor}" text-anchor="middle" font-weight="bold">${title}</text>
+      <text x="50%" y="580" font-family="sans-serif" font-size="12" fill="${style.textColor}" opacity="0.6" text-anchor="middle">ANIME COLLECTION</text>
+    </svg>
+  `;
+  
+  const base64 = Buffer.from(svg).toString('base64');
+  return `data:image/svg+xml;base64,${base64}`;
+}
+
 interface HeroBannerProps {
   topOfWeekAnime: any
   recommendedAnime: any
@@ -21,29 +48,17 @@ interface HeroBannerProps {
 export function HeroBanner({ topOfWeekAnime, recommendedAnime }: HeroBannerProps) {
   const [mode, setMode] = useState<'top' | 'recommended'>('top')
   const [isDialogOpen, setIsDialogOpen] = useState(false)
-  const [isLoading, setIsLoading] = useState(true)
+  const [bgImageError, setBgImageError] = useState(false)
+  const [posterImageError, setPosterImageError] = useState(false)
   const router = useRouter()
   
   const anime = mode === 'top' ? topOfWeekAnime : recommendedAnime
   
-  useEffect(() => {
-    if (anime) {
-      const timer = setTimeout(() => {
-        setIsLoading(false)
-      }, 1)
-      return () => clearTimeout(timer)
-    }
-  }, [anime])
-  
-  const hasHighQualityBackdrop = !!anime?.backdrop;
-  const bgImage = anime?.backdrop || anime?.poster;
-  const posterImage = anime?.poster;
+  const hasHighQualityBackdrop = !!anime?.backdrop && !bgImageError;
+  const bgImage = bgImageError ? generateFallbackPoster(anime?.title || 'Anime') : (anime?.backdrop || anime?.poster);
+  const posterImage = posterImageError ? generateFallbackPoster(anime?.title || 'Anime') : anime?.poster;
 
   if (!anime) return <HeroBannerSkeleton />
-
-  if (isLoading) {
-    return <HeroBannerSkeleton />
-  }
 
   // Адаптивный размер заголовка
   const getTitleClass = (title: string) => {
@@ -73,6 +88,8 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime }: HeroBannerProps
             ${hasHighQualityBackdrop ? 'scale-105' : 'scale-110 blur-xl opacity-50'}
           `}
           sizes="100vw"
+          onError={() => setBgImageError(true)}
+          unoptimized={bgImageError}
         />
         {/* Градиенты для читаемости текста */}
         <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/90 to-zinc-950/30 lg:via-zinc-950/60 lg:to-transparent" />
@@ -118,6 +135,8 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime }: HeroBannerProps
                        className="object-cover"
                        sizes="(max-width: 768px) 160px, 350px"
                        quality={90}
+                       onError={() => setPosterImageError(true)}
+                       unoptimized={posterImageError}
                     />
                     <div className="absolute bottom-0 left-0 right-0 p-2 lg:p-4 bg-gradient-to-t from-black/90 via-black/60 to-transparent backdrop-blur-[1px]">
                        <div className="flex justify-between items-end">
@@ -224,7 +243,14 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime }: HeroBannerProps
                     
                     {/* Картинка в диалоге */}
                     <div className="shrink-0 h-32 sm:h-52 md:h-full md:col-span-5 relative">
-                      <Image src={posterImage} fill className="object-cover" alt="" />
+                      <Image 
+                        src={posterImage} 
+                        fill 
+                        className="object-cover" 
+                        alt="" 
+                        onError={() => setPosterImageError(true)}
+                        unoptimized={posterImageError}
+                      />
                       <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/20 to-transparent md:bg-gradient-to-r md:from-transparent md:to-zinc-950/95" />
                     </div>
 

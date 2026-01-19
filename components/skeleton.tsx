@@ -20,9 +20,9 @@ export function AnimeCardSkeleton() {
   return (
     <div className="group">
       <div className="relative aspect-[2/3] overflow-hidden rounded-lg skeleton" />
-      <div className="mt-2 space-y-2">
-        <Skeleton className="h-4 w-full" />
-        <Skeleton className="h-3 w-2/3" />
+      <div className="mt-2 min-h-[3.5rem] space-y-2">
+        <Skeleton className="h-10 w-full" />
+        <Skeleton className="h-4 w-2/3" />
       </div>
     </div>
   )

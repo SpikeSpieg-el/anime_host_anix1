@@ -156,7 +156,7 @@ async function shikimoriFetch(input: string, init?: RequestInit & { next?: any }
     // Если поймали лимит запросов
     if (res.status === 429 && retries > 0) {
       console.warn(`[Shikimori] 429 Rate Limit. Waiting 2s... (${retries} retries left)`);
-      await delay(2000); // Ждем 2 секунды перед повтором
+      await delay(1000); // Ждем 2 секунды перед повтором
       return shikimoriFetch(input, init, retries - 1);
     }
 
@@ -388,10 +388,12 @@ function isHighQualityImage(url: string, isPoster: boolean = true): boolean {
 /**
  * Логика выбора постера:
  * 1. Shikimori Original (если есть)
- * 2. Anilist (если на Shikimori заглушка)
- * 3. Генеративный SVG Арт (если нигде нет)
+ * 2. Kodik API (если на Shikimori заглушка)
+ * 3. Anilist (если Kodik тоже не дал результат)
+ * 4. MyAnimeList (дополнительный источник)
+ * 5. Генеративный SVG Арт (если нигде нет)
  */
-async function resolveBestPoster(shikimoriUrl: string, romajiName: string, russianName: string): Promise<string> {
+async function resolveBestPoster(shikimoriUrl: string, romajiName: string, russianName: string, shikimoriId: string): Promise<string> {
   const targetName = russianName || romajiName || "Anime";
   
   // 1. Пробуем Shikimori
@@ -400,15 +402,65 @@ async function resolveBestPoster(shikimoriUrl: string, romajiName: string, russi
     return upgradedUrl;
   }
 
-  // 2. Пробуем Anilist
+  // 2. Пробуем Kodik API
+  const kodikPoster = await getKodikPoster(shikimoriId, targetName);
+  if (kodikPoster) return kodikPoster;
+
+  // 3. Пробуем Anilist
   const namesToTry = [romajiName, russianName].filter(Boolean);
   for (const name of namesToTry) {
     const fallback = await getAnilistPoster(name);
     if (fallback) return fallback;
   }
 
-  // 3. Генерируем арт
+  // 4. Пробуем MyAnimeList
+  for (const name of namesToTry) {
+    const malPoster = await getMyAnimeListPoster(name);
+    if (malPoster) return malPoster;
+  }
+
+  // 5. Генерируем арт
   return generateArtPoster(targetName);
+}
+
+async function getKodikPoster(shikimoriId: string, targetName: string): Promise<string | null> {
+  try {
+    // Пробуем поиск по shikimori_id
+    const response = await fetch(`https://kodikapi.com/v2/animes?shikimori_id=${shikimoriId}&limit=1`, {
+      headers: {
+        'User-Agent': 'AnimePlatform/2.0'
+      }
+    });
+    if (!response.ok) return null;
+    const json = await response.json();
+    const results = json.results || [];
+    if (results.length > 0) {
+      const posterUrl = results[0].poster || results[0].poster_url;
+      if (posterUrl && !posterUrl.includes('missing')) {
+        return posterUrl;
+      }
+    }
+    return null;
+  } catch (e) {
+    return null;
+  }
+}
+
+async function getMyAnimeListPoster(searchTitle: string): Promise<string | null> {
+  try {
+    const response = await fetch(`https://api.jikan.moe/v4/anime?q=${encodeURIComponent(searchTitle)}&limit=1`, {
+      next: { revalidate: 86400 }
+    });
+    if (!response.ok) return null;
+    const json = await response.json();
+    const results = json.data || [];
+    if (results.length > 0) {
+      return results[0].images?.jpg?.large_url || results[0].images?.jpg?.image_url || null;
+    }
+    return null;
+  } catch (e) {
+    return null;
+  }
 }
 
 async function getAnilistPoster(searchTitle: string): Promise<string | null> {
@@ -513,11 +565,13 @@ async function getAnilistBackdrop(searchTitle: string): Promise<string | null> {
 // ==========================================
 
 async function transformAnime(item: ShikimoriAnime): Promise<Anime> {
-  // Упрощаем: не ждем Anilist для каждого элемента в списке, если есть постер Shikimori
-  const upgradedUrl = upgradeShikimoriUrl(item.image?.original);
-  const posterUrl = isHighQualityImage(upgradedUrl, true)
-    ? upgradedUrl
-    : generateArtPoster(item.russian || item.name);
+  // Используем улучшенную логику с множественными источниками постеров
+  const posterUrl = await resolveBestPoster(
+    item.image?.original,
+    item.name,
+    item.russian,
+    String(item.id)
+  );
 
   return {
     id: String(item.id),
@@ -654,13 +708,14 @@ export async function getAnimeFranchise(id: string): Promise<FranchiseItem[]> {
     
     const nodes = data.nodes.filter((node) => node.url?.startsWith('/animes/'));
 
-    const items: FranchiseItem[] = nodes.map((node) => {
-      let posterUrl = upgradeShikimoriUrl(node.image_url);
-
-      if (posterUrl.includes("missing") || !posterUrl) {
-         // Fallback на арт-генератор
-         posterUrl = generateArtPoster(node.name);
-      }
+    const items: FranchiseItem[] = await Promise.all(nodes.map(async (node) => {
+      // Используем ту же логику с множественными источниками для франшизы
+      const posterUrl = await resolveBestPoster(
+        node.image_url,
+        node.name,
+        node.name, // Для франшизы обычно только одно название
+        String(node.id)
+      );
 
       return {
         id: String(node.id),
@@ -671,7 +726,7 @@ export async function getAnimeFranchise(id: string): Promise<FranchiseItem[]> {
         weight: node.weight,
         isCurrent: node.id === data.current_id
       };
-    });
+    }));
 
     return items.sort((a, b) => {
       if ((a.year ?? 0) !== (b.year ?? 0)) return (a.year ?? 0) - (b.year ?? 0);

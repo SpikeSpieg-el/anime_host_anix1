@@ -20,21 +20,18 @@ export default async function HomePage() {
   const bookmarkIdsCookie = cookieStore.get('bookmark_ids')?.value;
   const bookmarkIds = bookmarkIdsCookie ? bookmarkIdsCookie.split(',').filter(Boolean) : [];
 
-  // 2. Параллельный запрос данных
-  const [
-    popularNow,
-    popularAlways,
-    ongoingAnime,
-    newsUpdates,
-    announcements,
-    topOfWeekList,
-  ] = await Promise.all([
+  // 2. Сначала загружаем только критические данные для первого экрана
+  const [popularNow, topOfWeekList] = await Promise.all([
     getPopularNow(12),
+    getTopOfWeek(30),
+  ]);
+
+  // 3. Остальные данные загружаем параллельно, но не блокируем рендер
+  const [popularAlways, ongoingAnime, newsUpdates, announcements] = await Promise.all([
     getPopularAlways(12),
     getOngoingList(12),
     getForumNews(5),
     getAnnouncements(3),
-    getTopOfWeek(30),
   ]);
 
   return (

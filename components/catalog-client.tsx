@@ -166,30 +166,39 @@ export function CatalogClient({ initialFilters }: { initialFilters: CatalogFilte
               )}
             </div>
             
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                onClick={() => setShowFilters(!showFilters)}
-                className={`border-zinc-800 hover:bg-zinc-800 ${showFilters ? 'bg-zinc-800 text-white' : 'text-zinc-400'}`}
-              >
-                <Filter className="w-4 h-4 mr-2" />
-                Фильтры
-              </Button>
-              <Button
-                variant="outline"
-                onClick={resetFilters}
-                className="border-zinc-800 hover:bg-zinc-800 text-zinc-400"
-                disabled={loading && !loadingMore}
-              >
-                <RotateCcw className="w-4 h-4 mr-2" />
-                Сбросить
-              </Button>
+            <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
+              <div className="flex gap-2 flex-1">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowFilters(!showFilters)}
+                  className={`border-zinc-800 hover:bg-zinc-800 ${showFilters ? 'bg-zinc-800 text-white' : 'text-zinc-400'} flex-1`}
+                >
+                  <Filter className="w-4 h-4 mr-2" />
+                  <span className="hidden sm:inline">Фильтры</span>
+                  <span className="sm:hidden">Фильтры</span>
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={resetFilters}
+                  className="border-zinc-800 hover:bg-zinc-800 text-zinc-400 flex-1"
+                  disabled={loading && !loadingMore}
+                >
+                  <RotateCcw className="w-4 h-4 mr-2" />
+                  <span className="hidden sm:inline">Сбросить</span>
+                  <span className="sm:hidden">Сбросить</span>
+                </Button>
+              </div>
               <Button
                 onClick={applyFilters}
-                className="bg-orange-600 hover:bg-orange-700 text-white min-w-[120px]"
+                className="bg-orange-600 hover:bg-orange-700 text-white min-w-[100px] sm:min-w-[120px]"
                 disabled={loading && !loadingMore}
               >
-                {loading && !loadingMore ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Применить'}
+                {loading && !loadingMore ? <Loader2 className="w-4 h-4 animate-spin" /> : (
+                  <>
+                    <span className="hidden sm:inline">Применить</span>
+                    <span className="sm:hidden">Применить</span>
+                  </>
+                )}
               </Button>
             </div>
           </div>

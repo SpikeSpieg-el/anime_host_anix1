@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { AnimeCard } from '@/components/anime-card'
-import { AnimeCardSkeleton, GridSkeleton, HeroBannerSkeleton } from '@/components/skeleton'
+import { GridSkeleton, HeroBannerSkeleton } from '@/components/skeleton'
 import { HeroBanner } from '@/components/hero-banner'
 import { UserHistory } from '@/components/user-history'
 import { BookmarksSection } from '@/components/bookmarks-section'
@@ -10,17 +10,11 @@ import { AiAdvisor } from '@/components/ai-advisor'
 import { UpdatesBanner } from '@/components/updates-banner'
 import { Footer } from '@/components/footer'
 import { 
-  getPopularNow, 
-  getPopularAlways, 
-  getOngoingList, 
-  getForumNews, 
-  getAnnouncements, 
-  getHeroRecommendation,
-  getTopOfWeek
+  getHeroRecommendation
 } from '@/lib/shikimori'
 import type { Anime } from '@/lib/shikimori'
 import Link from "next/link"
-import { MessageSquare, User, ExternalLink, ChevronRight, History, Newspaper, TrendingUp, Play, Star } from "lucide-react"
+import { MessageSquare, User, ExternalLink, ChevronRight, Newspaper, TrendingUp, Play, Star } from "lucide-react"
 
 interface HomePageClientProps {
   initialData: {
@@ -36,22 +30,20 @@ interface HomePageClientProps {
 }
 
 export function HomePageClient({ initialData }: HomePageClientProps) {
-  const [data, setData] = useState(initialData)
-  const [loading, setLoading] = useState(false)
   const [topOfWeekHero, setTopOfWeekHero] = useState<Anime | null>(null)
   const [recommendedHero, setRecommendedHero] = useState<Anime | null>(null)
 
   useEffect(() => {
     const loadHeroData = async () => {
-      const heroFallback = [...data.popularNow, ...data.popularAlways];
+      const heroFallback = [...initialData.popularNow, ...initialData.popularAlways];
       const recommended = await getHeroRecommendation(
-        data.watchedIds.map(String), 
-        data.bookmarkIds, 
+        initialData.watchedIds.map(String), 
+        initialData.bookmarkIds, 
         heroFallback
       );
       
-      const topOfWeek = data.topOfWeekList.length > 0 
-        ? data.topOfWeekList[Math.floor(Math.random() * data.topOfWeekList.length)] 
+      const topOfWeek = initialData.topOfWeekList.length > 0 
+        ? initialData.topOfWeekList[Math.floor(Math.random() * initialData.topOfWeekList.length)] 
         : heroFallback[0];
       
       setTopOfWeekHero(topOfWeek)
@@ -59,9 +51,9 @@ export function HomePageClient({ initialData }: HomePageClientProps) {
     }
 
     loadHeroData()
-  }, [data])
+  }, [initialData])
 
-  const popularNowList = data.popularNow.filter(a => a.id !== topOfWeekHero?.id && a.id !== recommendedHero?.id).slice(0, 12);
+  const popularNowList = initialData.popularNow.filter(a => a.id !== topOfWeekHero?.id && a.id !== recommendedHero?.id).slice(0, 12);
 
   return (
     <main className="min-h-screen bg-zinc-950 text-white pb-20 md:pb-24 overflow-x-hidden selection:bg-orange-500/30">
@@ -83,22 +75,22 @@ export function HomePageClient({ initialData }: HomePageClientProps) {
       <div className="container mx-auto px-3 sm:px-4 relative z-10 -mt-5 sm:-mt-10">
         
         {/* AiAdvisor */}
-        <section id="ai-advisor" className="mb-8 md:mb-12 flex justify-center md:justify-start w-full">
+        <section id="ai-advisor" className="mb-12 md:mb-16 flex justify-center md:justify-start w-full">
            <AiAdvisor />
         </section>
 
         {/* 2. ИСТОРИЯ И ЗАКЛАДКИ */}
-        <section id="history-bookmarks" className="space-y-8 md:space-y-12 mb-10 md:mb-16">
+        <section id="history-bookmarks" className="space-y-10 md:space-y-12 mb-14 md:mb-16">
           <UserHistory />
           <BookmarksSection />
         </section>
 
         {/* 3. ЛЕНТА ОБНОВЛЕНИЙ */}
-        <UpdatesBanner updates={data.ongoingAnime} announcements={data.announcements} />
+        <UpdatesBanner updates={initialData.ongoingAnime} announcements={initialData.announcements} />
 
         {/* 4. НОВОСТИ И ОБНОВЛЕНИЯ */}
-        {data.newsUpdates.length > 0 && (
-            <section id="news" className="mb-10 sm:mb-16">
+        {initialData.newsUpdates.length > 0 && (
+            <section id="news" className="mb-14 sm:mb-20">
                 <div className="flex flex-row items-center justify-between mb-4 sm:mb-6">
                     <div>
                         <h2 className="text-xl sm:text-3xl font-bold text-white mb-1 flex items-center gap-2 sm:gap-3">
@@ -123,7 +115,7 @@ export function HomePageClient({ initialData }: HomePageClientProps) {
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
-                    {data.newsUpdates.map((news) => (
+                    {initialData.newsUpdates.map((news) => (
                         <a 
                            key={news.id} 
                            href={news.url} 
@@ -162,7 +154,7 @@ export function HomePageClient({ initialData }: HomePageClientProps) {
         )}
 
         {/* 5. ПОПУЛЯРНОЕ СЕЙЧАС */}
-        <section id="popular" className="mb-8 sm:mb-16">
+        <section id="popular" className="mb-12 sm:mb-20">
           <div className="flex items-center justify-between mb-4 sm:mb-6">
             <div>
               <h2 className="text-xl sm:text-3xl font-bold text-white mb-0.5 sm:mb-1 flex items-center gap-2 sm:gap-3">
@@ -179,19 +171,15 @@ export function HomePageClient({ initialData }: HomePageClientProps) {
             </Link>
           </div>
           
-          {loading ? (
-            <GridSkeleton items={12} />
-          ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-x-4 gap-y-6 sm:gap-y-8">
               {popularNowList.map((anime) => (
                 <AnimeCard key={anime.id} anime={anime} />
               ))}
             </div>
-          )}
         </section>
 
         {/* 6. ОНГОИНГИ */}
-        <section id="ongoing" className="mb-8 sm:mb-16">
+        <section id="ongoing" className="mb-12 sm:mb-20">
           <div className="flex items-center justify-between mb-4 sm:mb-6">
              <div className="flex items-center gap-2 sm:gap-3">
                 <h2 className="text-xl sm:text-2xl font-bold text-white flex items-center gap-2 sm:gap-3">
@@ -207,19 +195,15 @@ export function HomePageClient({ initialData }: HomePageClientProps) {
                 Весь список <ChevronRight className="w-3 h-3 sm:w-4 sm:h-4" />
              </Link>
           </div>
-          {loading ? (
-            <GridSkeleton items={12} />
-          ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-4">
-              {data.ongoingAnime.map((anime) => (
-                <AnimeCard key={anime.id} anime={anime} />
-              ))}
-            </div>
-          )}
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-4">
+            {initialData.ongoingAnime.map((anime) => (
+              <AnimeCard key={anime.id} anime={anime} />
+            ))}
+          </div>
         </section>
 
         {/* 7. ПОПУЛЯРНЫЕ ВСЕГДА */}
-        <section id="legendary" className="mb-10 sm:mb-16">
+        <section id="legendary" className="mb-14 sm:mb-20">
           <div className="flex items-center justify-between mb-4 sm:mb-6">
             <div>
               <h2 className="text-xl sm:text-3xl font-bold text-white mb-0.5 sm:mb-1 flex items-center gap-2 sm:gap-3">
@@ -236,15 +220,11 @@ export function HomePageClient({ initialData }: HomePageClientProps) {
             </Link>
           </div>
           
-          {loading ? (
-            <GridSkeleton items={12} />
-          ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-x-4 gap-y-6 sm:gap-y-8">
-              {data.popularAlways.map((anime) => (
-                <AnimeCard key={anime.id} anime={anime} />
-              ))}
-            </div>
-          )}
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-x-4 gap-y-6 sm:gap-y-8">
+            {initialData.popularAlways.map((anime) => (
+              <AnimeCard key={anime.id} anime={anime} />
+            ))}
+          </div>
         </section>
         
         <Footer />
