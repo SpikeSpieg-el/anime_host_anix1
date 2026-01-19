@@ -10,11 +10,13 @@ import {
   ExternalLink, 
   HardDrive, 
   FileVideo, 
-  PlayCircle 
+  PlayCircle,
+
 } from "lucide-react"
 import type { Anime } from "@/lib/shikimori"
 import { KodikPlayer } from "@/components/kodik-player"
 import { EpisodeSelector } from "@/components/episode-selector"
+import { RegionWarning } from "@/components/region-warning"
 import { recordWatchStart } from "@/components/history-tracker"
 import { Button } from "@/components/ui/button"
 import { useBookmarks } from "@/components/bookmarks-provider"
@@ -53,6 +55,8 @@ export function WatchPageClient({
 
   const [selectedEpisode, setSelectedEpisode] = useState<number>(initialEpisode || 1)
   const [isStarted, setIsStarted] = useState(false)
+  const [selectedCountry, setSelectedCountry] = useState<string>('RU')
+  const [isRegionDetected, setIsRegionDetected] = useState(false)
   
   // Реф для скролла к плееру
   const playerRef = useRef<HTMLDivElement>(null)
@@ -109,6 +113,19 @@ export function WatchPageClient({
     } else {
       // Если истории нет, переходим в каталог
       router.push('/catalog')
+    }
+  }
+
+  const handleCountryChange = (country: string) => {
+    setSelectedCountry(country)
+    setIsRegionDetected(true)
+  }
+
+  const handleRegionDetected = (isRussia: boolean) => {
+    setIsRegionDetected(true)
+    // Если Россия и страна еще не установлена, устанавливаем RU
+    if (isRussia && selectedCountry === 'RU') {
+      setSelectedCountry('RU')
     }
   }
 
@@ -282,6 +299,9 @@ export function WatchPageClient({
         ref={playerRef} 
         className="w-full scroll-mt-24" // scroll-mt нужен для отступа при скролле
       >
+        {/* Предупреждение о регионе */}
+        <RegionWarning selectedCountry={selectedCountry} isRegionDetected={isRegionDetected} />
+        
         {hasEpisodes ? (
           <div className="rounded-2xl overflow-hidden border border-zinc-800 bg-black shadow-2xl relative aspect-video">
              <KodikPlayer
@@ -290,6 +310,8 @@ export function WatchPageClient({
                poster={anime.poster}
                episode={selectedEpisode}
                onStart={() => setIsStarted(true)}
+               onCountryChange={handleCountryChange}
+               onRegionDetected={handleRegionDetected}
              />
           </div>
         ) : (
