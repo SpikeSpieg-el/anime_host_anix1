@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from "react"
 import { PlayerLoading } from "@/components/player-loading"
 import { AlertCircle } from "lucide-react"
+import { RegionDetector } from "@/components/region-detector"
 
 interface KodikPlayerProps {
   shikimoriId: string
@@ -10,12 +11,15 @@ interface KodikPlayerProps {
   poster: string
   episode: number
   onStart?: () => void
+  onCountryChange?: (country: string) => void
+  onRegionDetected?: (isRussia: boolean) => void
 }
 
-export function KodikPlayer({ shikimoriId, title, poster, episode, onStart }: KodikPlayerProps) {
+export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCountryChange, onRegionDetected }: KodikPlayerProps) {
   const [isLoading, setIsLoading] = useState(true)
   const [isStarted, setIsStarted] = useState(false)
   const [hasError, setHasError] = useState(false)
+  const [selectedCountry, setSelectedCountry] = useState<string>('RU') // По умолчанию Россия
 
   const playerSrc = useMemo(() => {
     const params = new URLSearchParams({
@@ -23,14 +27,24 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart }: Ko
       episode: String(episode),
       types: 'anime,anime-serial',
       no_ads: 'true', 
-      block_blocked_countries: 'true',
-      hide_selectors: 'false', // Если true, встроенный переключатель серий Kodik исчезнет
+      block_blocked_countries: 'false', // Отключаем блокировку стран
+      hide_selectors: 'false',
       autoplay: '0',
-      domain: 'kodik.info' // Используем .info, он часто стабильнее для API
+      domain: 'kodik.info'
     })
-    // Используем протокол-независимый URL (//)
+    
+    // Добавляем параметр страны если выбрана не Россия
+    if (selectedCountry && selectedCountry !== 'RU') {
+      params.append('country', selectedCountry)
+    }
+    
     return `//kodik.info/find-player?${params.toString()}`
-  }, [shikimoriId, episode])
+  }, [shikimoriId, episode, selectedCountry])
+
+  const handleCountryChange = (countryCode: string) => {
+    setSelectedCountry(countryCode)
+    onCountryChange?.(countryCode)
+  }
 
   useEffect(() => {
     setIsLoading(true)
@@ -40,29 +54,36 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart }: Ko
   return (
     <div className="relative aspect-video w-full overflow-hidden rounded-2xl bg-zinc-950 border border-white/5 shadow-2xl">
       {!isStarted ? (
-        <div className="absolute inset-0 flex items-center justify-center group cursor-pointer" 
-             onClick={() => {
-               onStart?.()
-               setIsStarted(true)
-             }}
-        >
-          {/* Фон-постер */}
-          <img 
-            src={poster} 
-            className="absolute inset-0 w-full h-full object-cover opacity-30 blur-sm transition-opacity group-hover:opacity-40" 
-            alt="" 
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+        <div className="absolute inset-0 flex flex-col items-center justify-center">
+          {/* Детектор региона в углу */}
+          <div className="  z-20">
+            <RegionDetector onCountryChange={handleCountryChange} onRegionDetected={onRegionDetected} />
+          </div>
           
-          {/* Кнопка Play */}
-          <button
-            className="relative z-10 flex items-center gap-3 px-6 py-3 sm:px-8 sm:py-4 bg-orange-600 hover:bg-orange-500 text-white rounded-2xl font-bold transition-all transform group-hover:scale-105 shadow-[0_0_30px_rgba(234,88,12,0.4)]"
+          <div className="flex-1 flex items-center justify-center group cursor-pointer" 
+               onClick={() => {
+                 onStart?.()
+                 setIsStarted(true)
+               }}
           >
-            <svg className="w-6 h-6 fill-current" viewBox="0 0 24 24">
-               <path d="M8 5v14l11-7z" />
-            </svg>
-            <span className="text-sm sm:text-base">Смотреть {episode} серию</span>
-          </button>
+            {/* Фон-постер */}
+            <img 
+              src={poster} 
+              className="absolute inset-0 w-full h-full object-cover opacity-30 blur-sm transition-opacity group-hover:opacity-40" 
+              alt="" 
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+            
+            {/* Кнопка Play */}
+            <button
+              className="relative z-10 flex items-center gap-3 px-6 py-3 sm:px-8 sm:py-4 bg-orange-600 hover:bg-orange-500 text-white rounded-2xl font-bold transition-all transform group-hover:scale-105 shadow-[0_0_30px_rgba(234,88,12,0.4)]"
+            >
+              <svg className="w-6 h-6 fill-current" viewBox="0 0 24 24">
+                 <path d="M8 5v14l11-7z" />
+              </svg>
+              <span className="text-sm sm:text-base">Смотреть {episode} серию</span>
+            </button>
+          </div>
         </div>
       ) : (
         <>
