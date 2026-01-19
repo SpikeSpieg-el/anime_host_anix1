@@ -107,7 +107,10 @@ export default function HistoryPage() {
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-x-3 sm:gap-x-4 gap-y-6 sm:gap-y-8">
-            {history.map((item) => (
+          {history.map((item) => {
+            const total = item?.episodesTotal && item.episodesTotal > 0 ? item.episodesTotal : null
+            const progress = item?.episode && total ? Math.min(item.episode / total, 1) : null
+            return (
               <Link
                 key={item.id}
                 href={item.episode ? `/watch/${item.id}?episode=${item.episode}` : `/watch/${item.id}`}
@@ -120,9 +123,14 @@ export default function HistoryPage() {
                     fill
                     className="object-cover opacity-80 transition-transform duration-300 group-hover:scale-105 group-hover:opacity-100"
                   />
-                  <div className="absolute bottom-0 left-0 right-0 h-1 bg-zinc-800">
-                    <div className="h-full bg-orange-600 w-[40%]" />
-                  </div>
+                <div className="absolute bottom-0 left-0 right-0 h-1 bg-zinc-800 overflow-hidden">
+                  {progress !== null && (
+                    <div
+                      className="h-full bg-orange-600 transition-all duration-300"
+                      style={{ width: `${(progress * 100).toFixed(0)}%` }}
+                    />
+                  )}
+                </div>
                   <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                     <div className="bg-orange-600 p-2 rounded-full shadow-lg">
                       <Clock size={16} className="text-white" fill="currentColor" />
@@ -132,11 +140,14 @@ export default function HistoryPage() {
                 <div className="mt-2">
                   <h3 className="text-xs font-bold text-zinc-300 truncate group-hover:text-white">{item.title}</h3>
                   <p className="text-[10px] text-zinc-500">
-                    {item.episode ? `Остановились на серии ${item.episode}` : "Продолжить"}
+                    {item.episode
+                      ? `Остановились на серии ${item.episode}${total ? ` / ${total}` : ""}`
+                      : "Продолжить"}
                   </p>
                 </div>
               </Link>
-            ))}
+            )
+          })}
           </div>
         )}
       </div>

@@ -142,11 +142,11 @@ export function CatalogClient({ initialFilters }: { initialFilters: CatalogFilte
   }
 
   return (
-    <div className="min-h-screen pb-20">
+    <div className="min-h-screen pb-16 sm:pb-20">
       {/* Панель управления */}
-      <div className="sticky top-16 md:top-20 bg-zinc-950/95 backdrop-blur border-b border-zinc-800 z-30 p-4">
-        <div className="container mx-auto">
-          <div className="flex flex-col md:flex-row gap-4 mb-4">
+      <div className="sticky top-16 md:top-20 bg-zinc-950/95 backdrop-blur border-b border-zinc-800 z-30 px-3 py-3 sm:px-4 sm:py-4">
+        <div className="container mx-auto px-0">
+          <div className="flex flex-col md:flex-row gap-3 md:gap-4 mb-3 sm:mb-4">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-zinc-400 w-4 h-4" />
               <Input
@@ -154,7 +154,7 @@ export function CatalogClient({ initialFilters }: { initialFilters: CatalogFilte
                 value={filters.search || ''}
                 onChange={(e) => updateFilter('search', e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && applyFilters()}
-                className="pl-10 bg-zinc-900 border-zinc-800 text-white placeholder-zinc-500 focus:ring-orange-500"
+                className="h-10 sm:h-11 text-sm sm:text-base pl-10 bg-zinc-900 border-zinc-800 text-white placeholder-zinc-500 focus:ring-orange-500"
               />
               {filters.search && (
                 <button 
@@ -171,7 +171,7 @@ export function CatalogClient({ initialFilters }: { initialFilters: CatalogFilte
                 <Button
                   variant="outline"
                   onClick={() => setShowFilters(!showFilters)}
-                  className={`border-zinc-800 hover:bg-zinc-800 ${showFilters ? 'bg-zinc-800 text-white' : 'text-zinc-400'} flex-1`}
+                  className={`border-zinc-800 hover:bg-zinc-800 ${showFilters ? 'bg-zinc-800 text-white' : 'text-zinc-400'} flex-1 text-sm sm:text-base`}
                 >
                   <Filter className="w-4 h-4 mr-2" />
                   <span className="hidden sm:inline">Фильтры</span>
@@ -180,7 +180,7 @@ export function CatalogClient({ initialFilters }: { initialFilters: CatalogFilte
                 <Button
                   variant="outline"
                   onClick={resetFilters}
-                  className="border-zinc-800 hover:bg-zinc-800 text-zinc-400 flex-1"
+                  className="border-zinc-800 hover:bg-zinc-800 text-zinc-400 flex-1 text-sm sm:text-base"
                   disabled={loading && !loadingMore}
                 >
                   <RotateCcw className="w-4 h-4 mr-2" />
@@ -190,7 +190,7 @@ export function CatalogClient({ initialFilters }: { initialFilters: CatalogFilte
               </div>
               <Button
                 onClick={applyFilters}
-                className="bg-orange-600 hover:bg-orange-700 text-white min-w-[100px] sm:min-w-[120px]"
+                className="bg-orange-600 hover:bg-orange-700 text-white min-w-[100px] sm:min-w-[120px] text-sm sm:text-base"
                 disabled={loading && !loadingMore}
               >
                 {loading && !loadingMore ? <Loader2 className="w-4 h-4 animate-spin" /> : (
@@ -204,7 +204,7 @@ export function CatalogClient({ initialFilters }: { initialFilters: CatalogFilte
           </div>
 
           {showFilters && (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 p-4 bg-zinc-900/50 rounded-lg border border-zinc-800 animate-in fade-in slide-in-from-top-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4 p-3 sm:p-4 bg-zinc-900/50 rounded-lg border border-zinc-800 animate-in fade-in slide-in-from-top-2 max-h-[70vh] overflow-y-auto">
               <Select value={filters.order || 'popularity'} onValueChange={(v) => updateFilter('order', v)}>
                 <SelectTrigger className="bg-zinc-800 border-zinc-700 text-white"><SelectValue placeholder="Сортировка" /></SelectTrigger>
                 <SelectContent className="bg-zinc-800 border-zinc-700">
@@ -255,13 +255,15 @@ export function CatalogClient({ initialFilters }: { initialFilters: CatalogFilte
       </div>
 
       {/* Основной контент */}
-      <div className="container mx-auto px-4 py-8">
-        <div className="flex items-center justify-between mb-8">
-          <h1 className="text-2xl font-bold text-white border-l-4 border-orange-500 pl-4">
+      <div className="container mx-auto px-3 sm:px-4 py-6 sm:py-8">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-6 sm:mb-8">
+          <h1 className="text-xl sm:text-2xl font-bold text-white border-l-4 border-orange-500 pl-4">
             Результаты поиска
           </h1>
           {!loading && (
-            <span className="text-zinc-500 text-sm">Найдено: {animes.length}</span>
+            <span className="text-zinc-500 text-xs sm:text-sm sm:text-right">
+              Найдено: {animes.length}
+            </span>
           )}
         </div>
 
@@ -269,7 +271,7 @@ export function CatalogClient({ initialFilters }: { initialFilters: CatalogFilte
           <GridSkeleton items={24} />
         ) : animes.length > 0 ? (
           <>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-x-4 gap-y-8">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-x-3 sm:gap-x-4 gap-y-6 sm:gap-y-8">
               {animes.map((anime) => (
                 <AnimeCard key={anime.id} anime={anime} />
               ))}
@@ -281,7 +283,7 @@ export function CatalogClient({ initialFilters }: { initialFilters: CatalogFilte
                   onClick={loadMore}
                   disabled={loadingMore}
                   variant="outline"
-                  className="px-8 py-6 rounded-full bg-zinc-900 border-zinc-800 text-zinc-300 hover:bg-zinc-800 hover:text-white hover:border-orange-500/50 transition-all"
+                  className="px-5 py-3 text-sm sm:px-8 sm:py-4 sm:text-base rounded-full bg-zinc-900 border-zinc-800 text-zinc-300 hover:bg-zinc-800 hover:text-white hover:border-orange-500/50 transition-all"
                 >
                   {loadingMore ? (
                     <>
@@ -303,8 +305,8 @@ export function CatalogClient({ initialFilters }: { initialFilters: CatalogFilte
             )}
           </>
         ) : (
-          <div className="text-center py-20 bg-zinc-900/30 rounded-lg border border-zinc-800 border-dashed">
-            <p className="text-zinc-400 text-lg font-medium">Ничего не найдено</p>
+          <div className="text-center py-12 sm:py-20 bg-zinc-900/30 rounded-lg border border-zinc-800 border-dashed">
+            <p className="text-zinc-400 text-base sm:text-lg font-medium">Ничего не найдено</p>
             <p className="text-zinc-600 text-sm mt-2">Попробуйте изменить параметры поиска</p>
             <Button variant="link" onClick={resetFilters} className="mt-4 text-orange-500">
               Сбросить фильтры

@@ -6,11 +6,12 @@ type WatchHistoryItem = {
   poster: string
   timestamp: number
   episode?: number
+  episodesTotal?: number
 }
 
 export function recordWatchStart(
   anime: { id: string; title: string; poster: string },
-  options?: { episode?: number }
+  options?: { episode?: number; episodesTotal?: number }
 ) {
   try {
     const history: WatchHistoryItem[] = JSON.parse(localStorage.getItem("watch-history") || "[]")
@@ -22,6 +23,7 @@ export function recordWatchStart(
       poster: anime.poster,
       timestamp: Date.now(),
       episode: options?.episode && options.episode > 0 ? options.episode : undefined,
+      episodesTotal: options?.episodesTotal && options.episodesTotal > 0 ? options.episodesTotal : undefined,
     }
 
     localStorage.setItem("watch-history", JSON.stringify([newItem, ...filtered].slice(0, 20)))

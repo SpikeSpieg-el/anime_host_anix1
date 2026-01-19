@@ -1,17 +1,11 @@
 'use client'
 
-import { useState, useEffect } from 'react'
 import { AnimeCard } from '@/components/anime-card'
-import { GridSkeleton, HeroBannerSkeleton } from '@/components/skeleton'
-import { HeroBanner } from '@/components/hero-banner'
 import { UserHistory } from '@/components/user-history'
 import { BookmarksSection } from '@/components/bookmarks-section'
 import { AiAdvisor } from '@/components/ai-advisor'
 import { UpdatesBanner } from '@/components/updates-banner'
 import { Footer } from '@/components/footer'
-import { 
-  getHeroRecommendation
-} from '@/lib/shikimori'
 import type { Anime } from '@/lib/shikimori'
 import Link from "next/link"
 import { MessageSquare, User, ExternalLink, ChevronRight, Newspaper, TrendingUp, Play, Star } from "lucide-react"
@@ -23,61 +17,19 @@ interface HomePageClientProps {
     ongoingAnime: Anime[]
     newsUpdates: any[]
     announcements: any[]
-    topOfWeekList: Anime[]
-    watchedIds: number[]
-    bookmarkIds: string[]
   }
 }
 
 export function HomePageClient({ initialData }: HomePageClientProps) {
-  const [topOfWeekHero, setTopOfWeekHero] = useState<Anime | null>(null)
-  const [recommendedHero, setRecommendedHero] = useState<Anime | null>(null)
-
-  useEffect(() => {
-    const loadHeroData = async () => {
-      const heroFallback = [...initialData.popularNow, ...initialData.popularAlways];
-      const recommended = await getHeroRecommendation(
-        initialData.watchedIds.map(String), 
-        initialData.bookmarkIds, 
-        heroFallback
-      );
-      
-      const topOfWeek = initialData.topOfWeekList.length > 0 
-        ? initialData.topOfWeekList[Math.floor(Math.random() * initialData.topOfWeekList.length)] 
-        : heroFallback[0];
-      
-      setTopOfWeekHero(topOfWeek)
-      setRecommendedHero(recommended)
-    }
-
-    loadHeroData()
-  }, [initialData])
-
-  const popularNowList = initialData.popularNow.filter(a => a.id !== topOfWeekHero?.id && a.id !== recommendedHero?.id).slice(0, 12);
-
   return (
     <main className="min-h-screen bg-zinc-950 text-white pb-20 md:pb-24 overflow-x-hidden selection:bg-orange-500/30">
-      {/* 1. HERO SECTION */}
-      {(topOfWeekHero || recommendedHero) ? (
-        <section id="hero">
-          <HeroBanner 
-            topOfWeekAnime={topOfWeekHero} 
-            recommendedAnime={recommendedHero} 
-          />
-        </section>
-      ) : (
-        <section id="hero">
-          <HeroBannerSkeleton />
-        </section>
-      )}
-
       {/* АДАПТИВНЫЙ КОНТЕЙНЕР: px-3 на мобильных, px-4 на ПК */}
-      <div className="container mx-auto px-3 sm:px-4 relative z-10 -mt-5 sm:-mt-10">
+      <div className="container mx-auto px-3 sm:px-4 relative z-10">
         
-        {/* AiAdvisor */}
+        {/* AiAdvisor 
         <section id="ai-advisor" className="mb-12 md:mb-16 flex justify-center md:justify-start w-full">
            <AiAdvisor />
-        </section>
+        </section>*/}
 
         {/* 2. ИСТОРИЯ И ЗАКЛАДКИ */}
         <section id="history-bookmarks" className="space-y-10 md:space-y-12 mb-14 md:mb-16">
@@ -170,12 +122,11 @@ export function HomePageClient({ initialData }: HomePageClientProps) {
                 Показать все <ChevronRight className="w-3 h-3 sm:w-4 sm:h-4" />
             </Link>
           </div>
-          
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-x-4 gap-y-6 sm:gap-y-8">
-              {popularNowList.map((anime) => (
-                <AnimeCard key={anime.id} anime={anime} />
-              ))}
-            </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-x-4 gap-y-6 sm:gap-y-8">
+            {initialData.popularNow.slice(0, 12).map((anime) => (
+              <AnimeCard key={anime.id} anime={anime} />
+            ))}
+          </div>
         </section>
 
         {/* 6. ОНГОИНГИ */}

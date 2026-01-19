@@ -33,25 +33,10 @@ export default async function WatchPage({
           initialEpisode={Number.isFinite(episode) && (episode as number) > 0 ? (episode as number) : undefined}
         />
 
-        <div className="flex flex-col md:flex-row gap-8">
-           <div className="w-[200px] shrink-0 hidden md:block">
-              <div className="aspect-[2/3] relative rounded-xl overflow-hidden border border-white/10">
-                <Image src={anime.poster} fill alt={anime.title} className="object-cover" />
-              </div>
-           </div>
-
-           <div className="flex-1">
-              <div className="flex flex-wrap gap-2 mb-4">
-                {anime.genres.map((g: string) => (
-                  <span key={g} className="px-3 py-1 bg-zinc-800 rounded-full text-xs text-zinc-300 border border-zinc-700">
-                    {g}
-                  </span>
-                ))}
-              </div>
-              <p className="text-zinc-400 leading-relaxed whitespace-pre-line text-lg">
-                {anime.description}
-              </p>
-           </div>
+        <div className="mt-8">
+          <p className="text-zinc-400 leading-relaxed whitespace-pre-line text-lg">
+            {anime.description}
+          </p>
         </div>
 
         {watchOrder.length > 0 && (

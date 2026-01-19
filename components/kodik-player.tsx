@@ -47,7 +47,7 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart }: Ko
               onStart?.()
               setIsStarted(true)
             }}
-            className="group relative z-10 flex items-center gap-3 px-8 py-4 bg-orange-600 hover:bg-orange-500 text-white rounded-2xl font-bold transition-all hover:scale-105 active:scale-95 shadow-[0_0_30px_rgba(234,88,12,0.4)]"
+            className="group relative z-10 flex items-center gap-3 px-6 py-3 text-sm sm:px-8 sm:py-4 sm:text-base bg-orange-600 hover:bg-orange-500 text-white rounded-2xl font-bold transition-all hover:scale-105 active:scale-95 shadow-[0_0_30px_rgba(234,88,12,0.4)]"
           >
             <svg className="w-6 h-6 fill-current" viewBox="0 0 24 24">
                <path d="M8 5v14l11-7z" />

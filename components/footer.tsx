@@ -5,9 +5,9 @@ export function Footer() {
   const currentYear = new Date().getFullYear()
 
   return (
-    <footer className="bg-zinc-950 border-t border-white/5 pt-16 pb-8">
-      <div className="container mx-auto px-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12 mb-16">
+    <footer className="bg-zinc-950 border-t border-white/5 pt-12 sm:pt-16 pb-8">
+      <div className="container mx-auto px-3 sm:px-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 md:gap-10 lg:gap-12 mb-12 sm:mb-16">
           
           {/* Brand Column */}
           <div className="space-y-6">
@@ -38,29 +38,29 @@ export function Footer() {
 
           {/* Navigation */}
           <div>
-            <h4 className="text-white font-black uppercase tracking-widest text-xs mb-6">Навигация</h4>
-            <ul className="space-y-4">
-              <li><Link href="/catalog" className="text-zinc-500 hover:text-orange-500 transition-colors text-sm font-bold">Каталог аниме</Link></li>
-              <li><Link href="/catalog?status=ongoing" className="text-zinc-500 hover:text-orange-500 transition-colors text-sm font-bold">Расписание онгоингов</Link></li>
-              <li><Link href="/catalog?sort=popular" className="text-zinc-500 hover:text-orange-500 transition-colors text-sm font-bold">Популярные хиты</Link></li>
-              <li><Link href="/catalog?kind=movie" className="text-zinc-500 hover:text-orange-500 transition-colors text-sm font-bold">Полнометражные фильмы</Link></li>
+            <h4 className="text-white font-black uppercase tracking-widest text-[10px] sm:text-xs mb-4 sm:mb-6">Навигация</h4>
+            <ul className="space-y-3 sm:space-y-4">
+              <li><Link href="/catalog" className="text-zinc-500 hover:text-orange-500 transition-colors text-sm sm:text-[15px] font-bold">Каталог аниме</Link></li>
+              <li><Link href="/catalog?status=ongoing" className="text-zinc-500 hover:text-orange-500 transition-colors text-sm sm:text-[15px] font-bold">Расписание онгоингов</Link></li>
+              <li><Link href="/catalog?sort=popular" className="text-zinc-500 hover:text-orange-500 transition-colors text-sm sm:text-[15px] font-bold">Популярные хиты</Link></li>
+              <li><Link href="/catalog?kind=movie" className="text-zinc-500 hover:text-orange-500 transition-colors text-sm sm:text-[15px] font-bold">Полнометражные фильмы</Link></li>
             </ul>
           </div>
 
           {/* Important Links */}
           <div>
-            <h4 className="text-white font-black uppercase tracking-widest text-xs mb-6">Помощь</h4>
-            <ul className="space-y-4">
-              <li><Link href="/faq" className="text-zinc-500 hover:text-white transition-colors text-sm font-bold">Часто задаваемые вопросы</Link></li>
-              <li><Link href="/dmca" className="text-zinc-500 hover:text-white transition-colors text-sm font-bold">Правообладателям (DMCA)</Link></li>
-              <li><Link href="/terms" className="text-zinc-500 hover:text-white transition-colors text-sm font-bold">Пользовательское соглашение</Link></li>
-              <li><Link href="/contacts" className="text-zinc-500 hover:text-white transition-colors text-sm font-bold">Контакты</Link></li>
+            <h4 className="text-white font-black uppercase tracking-widest text-[10px] sm:text-xs mb-4 sm:mb-6">Помощь</h4>
+            <ul className="space-y-3 sm:space-y-4">
+              <li><Link href="/faq" className="text-zinc-500 hover:text-white transition-colors text-sm sm:text-[15px] font-bold">Часто задаваемые вопросы</Link></li>
+              <li><Link href="/dmca" className="text-zinc-500 hover:text-white transition-colors text-sm sm:text-[15px] font-bold">Правообладателям (DMCA)</Link></li>
+              <li><Link href="/terms" className="text-zinc-500 hover:text-white transition-colors text-sm sm:text-[15px] font-bold">Пользовательское соглашение</Link></li>
+              <li><Link href="/contacts" className="text-zinc-500 hover:text-white transition-colors text-sm sm:text-[15px] font-bold">Контакты</Link></li>
             </ul>
           </div>
 
           {/* Disclaimer */}
           <div>
-            <h4 className="text-white font-black uppercase tracking-widest text-xs mb-6">Правовая информация</h4>
+            <h4 className="text-white font-black uppercase tracking-widest text-[10px] sm:text-xs mb-4 sm:mb-6">Правовая информация</h4>
             <div className="p-4 rounded-2xl bg-zinc-900/50 border border-white/5">
               <p className="text-[11px] text-zinc-500 leading-relaxed italic">
                 Весь контент на сайте предоставлен из открытых источников. Мы не храним видеофайлы на наших серверах. Все права на аниме принадлежат их законным владельцам.
@@ -69,8 +69,8 @@ export function Footer() {
           </div>
         </div>
 
-        <div className="pt-8 border-t border-white/5 flex flex-col md:flex-row justify-between items-center gap-4">
-          <p className="text-zinc-600 text-[10px] font-bold tracking-widest uppercase">
+        <div className="pt-6 sm:pt-8 border-t border-white/5 flex flex-col md:flex-row justify-between items-center gap-3 sm:gap-4">
+          <p className="text-zinc-600 text-[9px] sm:text-[10px] font-bold tracking-widest uppercase text-center md:text-left">
             © {currentYear} ANIX STREAM. MADE BY ANIME FANS FOR ANIME FANS.
           </p>
           <div className="flex items-center gap-6">
