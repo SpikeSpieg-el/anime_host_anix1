@@ -349,6 +349,61 @@ export const GENRES_MAP: Record<string, string> = {
   "Пародия": "12",
   // "Эротика": "9", // Закомментировано для исключения хентай-контента из поиска
 };
+// ==========================================
+// Календарь (страница расписания)
+// ==========================================
+
+export interface CalendarItem {
+  next_episode: number;
+  next_episode_at: string; // ISO Date
+  duration: number;
+  anime: ShikimoriAnime;
+}
+
+export interface WeeklySchedule {
+  [dayIndex: number]: Anime[]; // 0 = Понедельник, 6 = Воскресенье
+}
+
+// --- Добавить в секцию API FUNCTIONS ---
+
+export async function getAnimeCalendar(): Promise<WeeklySchedule> {
+  try {
+    // Получаем календарь релизов
+    const res = await shikimoriFetch(`${BASE_URL}/calendar`);
+    if (!res.ok) return {};
+
+    const data: CalendarItem[] = await res.json();
+    
+    // Инициализируем пустую неделю (0 - Пн, 6 - Вс)
+    const schedule: WeeklySchedule = {
+      0: [], 1: [], 2: [], 3: [], 4: [], 5: [], 6: []
+    };
+
+    // Параллельно трансформируем аниме
+    await Promise.all(data.map(async (item) => {
+      const date = new Date(item.next_episode_at);
+      // getDay(): 0 = Вс, 1 = Пн. Нам нужно 0 = Пн, 6 = Вс
+      let dayIndex = date.getDay() - 1;
+      if (dayIndex === -1) dayIndex = 6;
+
+      const anime = await transformAnime(item.anime);
+      
+      // Перезаписываем episodesCurrent на номер серии, которая выходит
+      anime.episodesCurrent = item.next_episode;
+      
+      // Добавляем время выхода в описание или отдельное поле (опционально)
+      // Для простоты используем поле description для хранения времени, если нужно
+      // Но лучше просто сгруппировать
+      
+      schedule[dayIndex].push(anime);
+    }));
+
+    return schedule;
+  } catch (error) {
+    console.error("Calendar fetch error:", error);
+    return {};
+  }
+}
 
 // ==========================================
 // 4. IMAGE LOGIC (Resolve Best Poster/Backdrop)

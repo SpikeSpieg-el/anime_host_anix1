@@ -9,8 +9,9 @@ import { fetchAnimeData } from '@/app/catalog/actions'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
-import { Search, Filter, Loader2, X, RotateCcw } from 'lucide-react'
+import { Search, Filter, Loader2, X, RotateCcw, LayoutGrid, Grid3x3, Table, ArrowLeft } from 'lucide-react'
 import { useRouter } from 'next/navigation'
+import { cn } from '@/lib/utils'
 
 const ORDER_OPTIONS = [
   { value: 'popularity', label: 'Популярные' },
@@ -66,6 +67,13 @@ export function CatalogClient({ initialFilters }: { initialFilters: CatalogFilte
   const [hasMore, setHasMore] = useState(true)
   const [filters, setFilters] = useState<CatalogFilters>(initialFilters)
   const [showFilters, setShowFilters] = useState(false)
+  
+  // Состояние для режима отображения (comfortable = 2col, compact = 3col on mobile, table = tile table)
+  const [viewMode, setViewMode] = useState<'comfortable' | 'compact' | 'table'>('comfortable')
+  
+  // Состояние для скрытия панели фильтров при скролле
+  const [isFilterPanelVisible, setIsFilterPanelVisible] = useState(true)
+  const [lastScrollY, setLastScrollY] = useState(0)
 
   const fetchAnimes = useCallback(async (currentFilters: CatalogFilters, isLoadMore = false) => {
     if (isLoadMore) {
@@ -90,11 +98,32 @@ export function CatalogClient({ initialFilters }: { initialFilters: CatalogFilte
     }
   }, [])
 
-  // Синхронизация при изменении URL (initialFilters приходят из серверного компонента)
   useEffect(() => {
     setFilters(initialFilters)
     fetchAnimes(initialFilters, false)
   }, [initialFilters, fetchAnimes])
+
+  // Эффект для отслеживания скролла и скрытия/показа панели фильтров
+  useEffect(() => {
+    const handleScroll = () => {
+      const currentScrollY = window.scrollY
+      
+      // Скрываем панель при скролле вниз, показываем при скролле вверх
+      if (currentScrollY > lastScrollY && currentScrollY > 100) {
+        setIsFilterPanelVisible(false)
+      } else {
+        setIsFilterPanelVisible(true)
+      }
+      
+      setLastScrollY(currentScrollY)
+    }
+
+    window.addEventListener('scroll', handleScroll, { passive: true })
+    
+    return () => {
+      window.removeEventListener('scroll', handleScroll)
+    }
+  }, [lastScrollY])
 
   const applyFilters = () => {
     const params = new URLSearchParams()
@@ -141,10 +170,30 @@ export function CatalogClient({ initialFilters }: { initialFilters: CatalogFilte
     router.push('/catalog')
   }
 
+  const handleGoBack = () => {
+    // Проверяем, есть ли история для возврата
+    if (typeof window !== 'undefined' && window.history.length > 1) {
+      router.back()
+    } else {
+      // Если истории нет, переходим на главную
+      router.push('/')
+    }
+  }
+
+  // Стили сетки в зависимости от режима
+  const gridClass = viewMode === 'compact' 
+    ? "grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-2 sm:gap-4"
+    : viewMode === 'table'
+    ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4"
+    : "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-x-4 gap-y-6 sm:gap-y-8"
+
   return (
     <div className="min-h-screen pb-16 sm:pb-20">
       {/* Панель управления */}
-      <div className="sticky top-16 md:top-20 bg-zinc-950/95 backdrop-blur border-b border-zinc-800 z-30 px-3 py-3 sm:px-4 sm:py-4">
+      <div className={cn(
+        "sticky top-16 md:top-20 bg-zinc-950/95 backdrop-blur border-b border-zinc-800 z-30 px-3 py-3 sm:px-4 sm:py-4 transition-transform duration-300 ease-in-out",
+        isFilterPanelVisible ? "translate-y-0" : "-translate-y-full"
+      )}>
         <div className="container mx-auto px-0">
           <div className="flex flex-col md:flex-row gap-3 md:gap-4 mb-3 sm:mb-4">
             <div className="relative flex-1">
@@ -177,15 +226,16 @@ export function CatalogClient({ initialFilters }: { initialFilters: CatalogFilte
                   <span className="hidden sm:inline">Фильтры</span>
                   <span className="sm:hidden">Фильтры</span>
                 </Button>
+                
+                {/* Кнопка сброса */}
                 <Button
                   variant="outline"
                   onClick={resetFilters}
-                  className="border-zinc-800 hover:bg-zinc-800 text-zinc-400 flex-1 text-sm sm:text-base"
+                  className="border-zinc-800 hover:bg-zinc-800 text-zinc-400 px-3 text-sm sm:text-base"
                   disabled={loading && !loadingMore}
+                  title="Сбросить фильтры"
                 >
-                  <RotateCcw className="w-4 h-4 mr-2" />
-                  <span className="hidden sm:inline">Сбросить</span>
-                  <span className="sm:hidden">Сбросить</span>
+                  <RotateCcw className="w-4 h-4" />
                 </Button>
               </div>
               <Button
@@ -193,18 +243,14 @@ export function CatalogClient({ initialFilters }: { initialFilters: CatalogFilte
                 className="bg-orange-600 hover:bg-orange-700 text-white min-w-[100px] sm:min-w-[120px] text-sm sm:text-base"
                 disabled={loading && !loadingMore}
               >
-                {loading && !loadingMore ? <Loader2 className="w-4 h-4 animate-spin" /> : (
-                  <>
-                    <span className="hidden sm:inline">Применить</span>
-                    <span className="sm:hidden">Применить</span>
-                  </>
-                )}
+                {loading && !loadingMore ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Применить'}
               </Button>
             </div>
           </div>
 
           {showFilters && (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4 p-3 sm:p-4 bg-zinc-900/50 rounded-lg border border-zinc-800 animate-in fade-in slide-in-from-top-2 max-h-[70vh] overflow-y-auto">
+              {/* Селекты фильтров ... (код селектов остается прежним) */}
               <Select value={filters.order || 'popularity'} onValueChange={(v) => updateFilter('order', v)}>
                 <SelectTrigger className="bg-zinc-800 border-zinc-700 text-white"><SelectValue placeholder="Сортировка" /></SelectTrigger>
                 <SelectContent className="bg-zinc-800 border-zinc-700">
@@ -254,14 +300,62 @@ export function CatalogClient({ initialFilters }: { initialFilters: CatalogFilte
         </div>
       </div>
 
+      {/* Кнопка "Назад" над заголовком */}
+      <div className="container mx-auto px-3 sm:px-4 pt-4 sm:pt-6">
+        <button
+          onClick={handleGoBack}
+          className="inline-flex items-center gap-2 px-4 py-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-orange-500 text-zinc-400 hover:text-white font-medium rounded-xl transition-all"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Назад
+        </button>
+      </div>
+
       {/* Основной контент */}
       <div className="container mx-auto px-3 sm:px-4 py-6 sm:py-8">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-6 sm:mb-8">
-          <h1 className="text-xl sm:text-2xl font-bold text-white border-l-4 border-orange-500 pl-4">
-            Результаты поиска
-          </h1>
+          <div className="flex items-center justify-between w-full sm:w-auto">
+            <h1 className="text-xl sm:text-2xl font-bold text-white border-l-4 border-orange-500 pl-4">
+              Результаты
+            </h1>
+            
+            {/* ПЕРЕКЛЮЧАТЕЛЬ ВИДА (ТОЛЬКО НА ЭТОЙ СТРАНИЦЕ) */}
+            <div className="flex items-center gap-1 bg-zinc-900 rounded-lg p-1 border border-zinc-800 ml-4">
+                <button
+                   onClick={() => setViewMode('comfortable')}
+                   className={cn(
+                     "p-1.5 rounded-md transition-all",
+                     viewMode === 'comfortable' ? "bg-zinc-800 text-white shadow-sm" : "text-zinc-500 hover:text-zinc-300"
+                   )}
+                   title="Крупная сетка"
+                >
+                   <LayoutGrid className="w-5 h-5" />
+                </button>
+                <button
+                   onClick={() => setViewMode('compact')}
+                   className={cn(
+                     "p-1.5 rounded-md transition-all",
+                     viewMode === 'compact' ? "bg-zinc-800 text-white shadow-sm" : "text-zinc-500 hover:text-zinc-300"
+                   )}
+                   title="Компактная сетка"
+                >
+                   <Grid3x3 className="w-5 h-5" />
+                </button>
+                <button
+                   onClick={() => setViewMode('table')}
+                   className={cn(
+                     "p-1.5 rounded-md transition-all",
+                     viewMode === 'table' ? "bg-zinc-800 text-white shadow-sm" : "text-zinc-500 hover:text-zinc-300"
+                   )}
+                   title="Таблица плитками"
+                >
+                   <Table className="w-5 h-5" />
+                </button>
+            </div>
+          </div>
+          
           {!loading && (
-            <span className="text-zinc-500 text-xs sm:text-sm sm:text-right">
+            <span className="text-zinc-500 text-xs sm:text-sm sm:text-right hidden sm:inline-block">
               Найдено: {animes.length}
             </span>
           )}
@@ -271,9 +365,13 @@ export function CatalogClient({ initialFilters }: { initialFilters: CatalogFilte
           <GridSkeleton items={24} />
         ) : animes.length > 0 ? (
           <>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-x-3 sm:gap-x-4 gap-y-6 sm:gap-y-8">
+            <div className={gridClass}>
               {animes.map((anime) => (
-                <AnimeCard key={anime.id} anime={anime} />
+                <AnimeCard 
+                  key={anime.id} 
+                  anime={anime} 
+                  variant={viewMode === 'compact' ? 'compact' : viewMode === 'table' ? 'table' : 'default'}
+                />
               ))}
             </div>
 
@@ -297,10 +395,9 @@ export function CatalogClient({ initialFilters }: { initialFilters: CatalogFilte
               </div>
             )}
 
-            {/* Skeleton для подгрузки */}
             {loadingMore && (
               <div className="mt-8">
-                <GridSkeleton items={6} />
+                <GridSkeleton items={viewMode === 'compact' ? 8 : viewMode === 'table' ? 6 : 6} />
               </div>
             )}
           </>

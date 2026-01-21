@@ -17,14 +17,14 @@ export function Footer() {
               </div>
               <div className="flex flex-col">
                 <span className="text-xl font-black tracking-tighter text-white">ANI<span className="text-orange-500">X</span></span>
-                <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Premium Stream</span>
+                <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Stream</span>
               </div>
             </Link>
             <p className="text-zinc-500 text-sm leading-relaxed max-w-xs">
               Твой путеводитель в мире аниме. Смотри лучшие тайтлы в высоком качестве с персональными рекомендациями.
             </p>
             <div className="flex items-center gap-4">
-              <a href="https://t.me/anix_stream" target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-xl bg-zinc-900 flex items-center justify-center text-zinc-400 hover:bg-orange-500 hover:text-white transition-all">
+              {/* <a href="https://t.me/anix_stream" target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-xl bg-zinc-900 flex items-center justify-center text-zinc-400 hover:bg-orange-500 hover:text-white transition-all">
                 <Send size={18} />
               </a>
               <a href="https://discord.gg/anix" target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-xl bg-zinc-900 flex items-center justify-center text-zinc-400 hover:bg-orange-500 hover:text-white transition-all">
@@ -32,7 +32,7 @@ export function Footer() {
               </a>
               <a href="https://github.com/anix-stream" target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-xl bg-zinc-900 flex items-center justify-center text-zinc-400 hover:bg-orange-500 hover:text-white transition-all">
                 <Github size={18} />
-              </a>
+              </a> */}
             </div>
           </div>
 
