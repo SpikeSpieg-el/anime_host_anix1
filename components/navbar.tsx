@@ -3,10 +3,12 @@
 import Link from "next/link"
 import { useRouter, usePathname } from "next/navigation"
 import { useState, useEffect } from "react"
-import { Menu, X, ChevronDown, Flame, Tv, Zap, Compass, Home, BookMarked, History } from "lucide-react"
+import { Menu, X, ChevronDown, Flame, Tv, Zap, Compass, Home, BookMarked, History, Calendar, Settings } from "lucide-react"
 import { GENRES_MAP } from "@/lib/shikimori"
 import { SearchSuggestions } from "@/components/search-suggestions"
-import { cn } from "@/lib/utils" // Предполагаем, что у вас есть cn, или можно использовать шаблонные строки
+import { EpisodeUpdateBadge } from "@/components/episode-update-badge"
+import { useEpisodeUpdates } from "@/hooks/use-episode-updates"
+import { cn } from "@/lib/utils" 
 
 // Helper для сохранения истории поиска
 function saveSearchHistory(query: string) {
@@ -33,6 +35,8 @@ export function Navbar() {
   const [isGenresOpen, setIsGenresOpen] = useState(false) // Мобильные жанры
   const [searchValue, setSearchValue] = useState("")
   const [scrolled, setScrolled] = useState(false)
+  
+  const { updates, clearUpdate, clearAllUpdates } = useEpisodeUpdates()
 
   // Отслеживание скролла для изменения прозрачности хедера
   useEffect(() => {
@@ -108,44 +112,7 @@ export function Navbar() {
                   : "text-zinc-400 hover:text-white hover:bg-zinc-800/50"
               )}
             >
-              Главная
-            </Link>
-            
-            {/* Dropdown Жанров */}
-            <div className="group relative px-4 py-2 cursor-pointer">
-              <span className={cn(
-                "flex items-center gap-1.5 text-sm font-medium transition-colors",
-                pathname.includes("genre") ? "text-white" : "text-zinc-400 group-hover:text-white"
-              )}>
-                Жанры <ChevronDown size={14} className="group-hover:rotate-180 transition-transform duration-300" />
-              </span>
-              
-              {/* Выпадающее меню */}
-              <div className="absolute top-full left-1/2 -translate-x-1/2 pt-4 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 transform translate-y-2 group-hover:translate-y-0 z-50">
-                <div className="w-[500px] bg-zinc-950/95 backdrop-blur-xl border border-white/10 rounded-2xl p-5 shadow-2xl grid grid-cols-3 gap-2">
-                  {Object.entries(GENRES_MAP).map(([name, id]) => (
-                    <Link 
-                      key={id} 
-                      href={`/catalog?genre=${id}`}
-                      className="px-3 py-2 rounded-lg hover:bg-white/10 text-zinc-400 hover:text-orange-400 transition text-xs font-medium border border-transparent hover:border-white/5 text-center"
-                    >
-                      {name}
-                    </Link>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            <Link 
-              href="/catalog?sort=new&status=ongoing" 
-              className={cn(
-                "px-5 py-2 rounded-full text-sm font-medium transition-all flex items-center gap-2",
-                pathname === "/catalog" && !pathname.includes("popular")
-                  ? "bg-zinc-800 text-white shadow-lg" 
-                  : "text-zinc-400 hover:text-white hover:bg-zinc-800/50"
-              )}
-            >
-              <Tv size={16} /> Онгоинги
+              <Home size={16} /> Главная
             </Link>
             
             <Link 
@@ -161,28 +128,70 @@ export function Navbar() {
             </Link>
 
             <Link 
-              href="/bookmarks" 
+              href="/catalog?sort=new&status=ongoing" 
               className={cn(
                 "px-5 py-2 rounded-full text-sm font-medium transition-all flex items-center gap-2",
-                pathname === "/bookmarks"
+                pathname === "/catalog" && !pathname.includes("popular")
                   ? "bg-zinc-800 text-white shadow-lg" 
                   : "text-zinc-400 hover:text-white hover:bg-zinc-800/50"
               )}
             >
-              <BookMarked size={16} /> Закладки
+              <Tv size={16} /> Онгоинги
             </Link>
 
-            <Link 
-              href="/history" 
-              className={cn(
-                "px-5 py-2 rounded-full text-sm font-medium transition-all flex items-center gap-2",
-                pathname === "/history"
-                  ? "bg-zinc-800 text-white shadow-lg" 
-                  : "text-zinc-400 hover:text-white hover:bg-zinc-800/50"
-              )}
-            >
-              <History size={16} /> История
-            </Link>
+            {/* Dropdown "Ещё" */}
+            <div className="group relative px-4 py-2 cursor-pointer">
+              <span className={cn(
+                "flex items-center gap-1.5 text-sm font-medium transition-colors",
+                (pathname.includes("genre") || pathname === "/bookmarks" || pathname === "/schedule" || pathname === "/history") ? "text-white" : "text-zinc-400 group-hover:text-white"
+              )}>
+                <Settings size={16} /> Ещё <ChevronDown size={14} className="group-hover:rotate-180 transition-transform duration-300" />
+              </span>
+              
+              {/* Выпадающее меню */}
+              <div className="absolute top-full left-1/2 -translate-x-1/2 pt-4 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 transform translate-y-2 group-hover:translate-y-0 z-50">
+                <div className="w-64 bg-zinc-950/95 backdrop-blur-xl border border-white/10 rounded-2xl p-4 shadow-2xl space-y-2">
+                  {/* Жанры 
+                  <div className="border-b border-white/5 pb-2">
+                    <p className="text-xs font-medium text-zinc-500 uppercase tracking-wider mb-2">Жанры</p>
+                    <div className="grid grid-cols-2 gap-1">
+                      {Object.entries(GENRES_MAP).map(([name, id]) => (
+                        <Link 
+                          key={id} 
+                          href={`/catalog?genre=${id}`}
+                          className="px-3 py-1.5 rounded-lg hover:bg-white/10 text-zinc-400 hover:text-orange-400 transition text-xs font-medium border border-transparent hover:border-white/5 text-center"
+                        >
+                          {name}
+                        </Link>
+                      ))}
+                    </div>
+                  </div>*/}
+                  
+                  {/* Другие разделы */}
+                  <div className="space-y-1">
+                    <Link 
+                      href="/bookmarks" 
+                      className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/10 text-zinc-400 hover:text-white transition text-sm font-medium"
+                    >
+                      <BookMarked size={14} /> Закладки
+                    </Link>
+                    <Link 
+                      href="/schedule" 
+                      className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/10 text-zinc-400 hover:text-white transition text-sm font-medium"
+                    >
+                      <Calendar size={14} /> Расписание
+                    </Link>
+                    <Link 
+                      href="/history" 
+                      className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/10 text-zinc-400 hover:text-white transition text-sm font-medium"
+                    >
+                      <History size={14} /> История
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            </div>
+
           </nav>
 
           {/* 3. ПОИСК (DESKTOP + TABLET) */}
@@ -195,14 +204,30 @@ export function Navbar() {
             />
           </div>
 
-          {/* 4. МОБИЛЬНЫЙ ТОГГЛ */}
-          <button 
-            className="md:hidden p-2 text-zinc-300 hover:text-white active:scale-95 transition-transform" 
-            onClick={() => setIsOpen(!isOpen)}
-            aria-label="Toggle menu"
-          >
-            {isOpen ? <X size={28} /> : <Menu size={28} />}
-          </button>
+          {/* 4. УВЕДОМЛЕНИЯ О НОВЫХ СЕРИЯХ (DESKTOP) */}
+          <div className="hidden md:block">
+            <EpisodeUpdateBadge 
+              updates={updates} 
+              onClearUpdate={clearUpdate}
+              onClearAll={clearAllUpdates}
+            />
+          </div>
+
+          {/* 5. МОБИЛЬНЫЙ ТОГГЛ + УВЕДОМЛЕНИЯ */}
+          <div className="flex items-center gap-2 md:hidden">
+            <EpisodeUpdateBadge 
+              updates={updates} 
+              onClearUpdate={clearUpdate}
+              onClearAll={clearAllUpdates}
+            />
+            <button 
+              className="p-2 text-zinc-300 hover:text-white active:scale-95 transition-transform" 
+              onClick={() => setIsOpen(!isOpen)}
+              aria-label="Toggle menu"
+            >
+              {isOpen ? <X size={28} /> : <Menu size={28} />}
+            </button>
+          </div>
         </div>
       </header>
 
@@ -223,7 +248,7 @@ export function Navbar() {
                       className="w-full h-12 text-lg"
                    />
                 </div>
-                
+
                 {/* Основные ссылки */}
                 <div className="space-y-2">
                     <Link 
@@ -273,6 +298,17 @@ export function Navbar() {
                       )}
                     >
                         <BookMarked className="w-6 h-6 text-orange-500" /> Закладки
+                    </Link>
+
+                    <Link 
+                      href="/schedule" 
+                      onClick={() => setIsOpen(false)} 
+                      className={cn(
+                        "flex items-center gap-4 px-4 py-4 rounded-xl text-lg font-medium transition-all active:scale-[0.98]",
+                        pathname === "/schedule" ? "bg-zinc-900 text-white border border-zinc-800" : "text-zinc-400 hover:bg-zinc-900/50 hover:text-white"
+                      )}
+                    >
+                        <Calendar className="w-6 h-6 text-purple-500" /> Расписание
                     </Link>
 
                     <Link 

@@ -23,8 +23,10 @@ interface HomePageClientProps {
 export function HomePageClient({ initialData }: HomePageClientProps) {
   return (
     <main className="min-h-screen bg-zinc-950 text-white pb-20 md:pb-24 overflow-x-hidden selection:bg-orange-500/30">
-      {/* АДАПТИВНЫЙ КОНТЕЙНЕР: px-3 на мобильных, px-4 на ПК */}
       <div className="container mx-auto px-3 sm:px-4 relative z-10">
+        
+        {/* Demo Button for Testing 
+        <EpisodeUpdateDemo />*/}
         
         {/* AiAdvisor 
         <section id="ai-advisor" className="mb-12 md:mb-16 flex justify-center md:justify-start w-full">
@@ -55,7 +57,6 @@ export function HomePageClient({ initialData }: HomePageClientProps) {
                         <p className="text-zinc-500 text-xs sm:text-sm hidden xs:block">Главные события мира аниме</p>
                     </div>
                     
-                    {/* КНОПКА: Единый стиль (Фон + скругление) */}
                     <Link 
                       href="https://shikimori.one/forum/news" 
                       target="_blank" 
@@ -114,7 +115,6 @@ export function HomePageClient({ initialData }: HomePageClientProps) {
                 Популярное</h2>
               <p className="text-zinc-500 text-xs sm:text-sm">Хиты сезона</p>
             </div>
-            {/* КНОПКА: Оранжевая, стиль кнопки */}
             <Link 
               href="/catalog?sort=popular&status=ongoing" 
               className="flex items-center gap-1 sm:gap-2 bg-orange-500/10 hover:bg-orange-500/20 text-orange-500 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-bold transition-colors whitespace-nowrap"
@@ -122,7 +122,16 @@ export function HomePageClient({ initialData }: HomePageClientProps) {
                 Показать все <ChevronRight className="w-3 h-3 sm:w-4 sm:h-4" />
             </Link>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-x-4 gap-y-6 sm:gap-y-8">
+
+          {/* === MOBILE VIEW (< 640px): Список в 2 колонки === */}
+          <div className="grid grid-cols-2 gap-3 sm:hidden">
+            {initialData.popularNow.slice(0, 12).map((anime) => (
+              <AnimeCard key={anime.id} anime={anime} variant="table" />
+            ))}
+          </div>
+
+          {/* === TABLET & DESKTOP VIEW (>= 640px): Сетка 3 колонки -> 5+ колонок === */}
+          <div className="hidden sm:grid sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-x-4 gap-y-6 sm:gap-y-8">
             {initialData.popularNow.slice(0, 12).map((anime) => (
               <AnimeCard key={anime.id} anime={anime} />
             ))}
@@ -138,7 +147,6 @@ export function HomePageClient({ initialData }: HomePageClientProps) {
                   Онгоинги</h2>
                 <span className="px-2 py-0.5 bg-green-500/10 text-green-500 text-[10px] sm:text-xs font-bold rounded uppercase tracking-wider hidden sm:inline-block">Now</span>
              </div>
-             {/* КНОПКА: Нейтральная, стиль кнопки */}
              <Link 
                href="/catalog?status=ongoing" 
                className="flex items-center gap-1 sm:gap-2 bg-zinc-800/50 hover:bg-zinc-800 text-zinc-300 hover:text-white border border-white/5 hover:border-white/10 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-medium transition-colors whitespace-nowrap"
@@ -146,7 +154,16 @@ export function HomePageClient({ initialData }: HomePageClientProps) {
                 Весь список <ChevronRight className="w-3 h-3 sm:w-4 sm:h-4" />
              </Link>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-4">
+
+          {/* === MOBILE VIEW (< 640px): Список в 2 колонки === */}
+          <div className="grid grid-cols-2 gap-3 sm:hidden">
+            {initialData.ongoingAnime.map((anime) => (
+              <AnimeCard key={anime.id} anime={anime} variant="table" />
+            ))}
+          </div>
+
+          {/* === TABLET & DESKTOP VIEW (>= 640px): Сетка 3 колонки -> 6 колонок === */}
+          <div className="hidden sm:grid sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
             {initialData.ongoingAnime.map((anime) => (
               <AnimeCard key={anime.id} anime={anime} />
             ))}
@@ -162,7 +179,6 @@ export function HomePageClient({ initialData }: HomePageClientProps) {
                 Легендарное</h2>
               <p className="text-zinc-500 text-xs sm:text-sm">Шедевры аниме</p>
             </div>
-            {/* КНОПКА: Оранжевая, стиль кнопки */}
             <Link 
               href="/catalog?sort=popular" 
               className="flex items-center gap-1 sm:gap-2 bg-orange-500/10 hover:bg-orange-500/20 text-orange-500 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-bold transition-colors whitespace-nowrap"
@@ -171,7 +187,15 @@ export function HomePageClient({ initialData }: HomePageClientProps) {
             </Link>
           </div>
           
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-x-4 gap-y-6 sm:gap-y-8">
+          {/* === MOBILE VIEW (< 640px): Список в 2 колонки === */}
+          <div className="grid grid-cols-2 gap-3 sm:hidden">
+            {initialData.popularAlways.map((anime) => (
+              <AnimeCard key={anime.id} anime={anime} variant="table" />
+            ))}
+          </div>
+          
+          {/* === TABLET & DESKTOP VIEW (>= 640px): Сетка 3 колонки -> 5+ колонок === */}
+          <div className="hidden sm:grid sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-x-4 gap-y-6 sm:gap-y-8">
             {initialData.popularAlways.map((anime) => (
               <AnimeCard key={anime.id} anime={anime} />
             ))}

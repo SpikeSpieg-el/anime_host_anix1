@@ -1,7 +1,6 @@
 "use client"
 
-import { Sparkles, Calendar, TrendingUp, Play, ExternalLink, X, ChevronRight } from "lucide-react"
-import { useState } from "react"
+import { Sparkles, Calendar, TrendingUp, Play, ExternalLink, ChevronRight } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
 
@@ -21,14 +20,11 @@ interface UpdatesBannerProps {
 }
 
 export function UpdatesBanner({ updates, announcements }: UpdatesBannerProps) {
-  const [isDismissed, setIsDismissed] = useState(false)
-
-  if (isDismissed) return null
   if (updates.length === 0 && announcements.length === 0) return null
 
   return (
     <section className="w-full mb-10 sm:mb-16">
-      <div className="flex items-start justify-between gap-4 mb-4 sm:mb-6">
+      <div className="mb-4 sm:mb-6">
         <div>
           <h2 className="text-xl sm:text-3xl font-bold text-white mb-1 flex items-center gap-2 sm:gap-3">
             <Sparkles className="w-6 h-6 sm:w-7 sm:h-7 text-orange-400" />
@@ -37,14 +33,6 @@ export function UpdatesBanner({ updates, announcements }: UpdatesBannerProps) {
           <p className="text-zinc-500 text-xs sm:text-sm">Новые серии и анонсы</p>
         </div>
 
-        <button
-          onClick={() => setIsDismissed(true)}
-          className="p-2 rounded-full bg-zinc-800/50 hover:bg-zinc-800 text-zinc-400 hover:text-white border border-white/5 hover:border-white/10 transition-colors"
-          title="Скрыть блок"
-          aria-label="Скрыть ленту событий"
-        >
-          <X className="w-4 h-4" />
-        </button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
@@ -55,7 +43,7 @@ export function UpdatesBanner({ updates, announcements }: UpdatesBannerProps) {
               <h3 className="text-base sm:text-lg font-bold text-white">Только вышло</h3>
             </div>
             <Link
-              href="/catalog?status=ongoing&sort=new"
+              href="/schedule"
               className="text-xs sm:text-sm font-medium text-zinc-400 hover:text-white transition flex items-center gap-1"
             >
               Расписание <ChevronRight className="w-4 h-4" />

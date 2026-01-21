@@ -3,7 +3,9 @@
 import { useEffect, useState } from "react"
 import Link from "next/link"
 import Image from "next/image"
-import { Clock, Search, History, ChevronRight } from "lucide-react"
+import { Clock, Search, History, ChevronRight, Bell } from "lucide-react"
+import { useEpisodeUpdates } from "@/hooks/use-episode-updates"
+import { EpisodeUpdateBadge } from "@/components/episode-update-badge"
 
 function normalizePosterUrl(value: string): string {
   const raw = (value ?? "").trim()
@@ -28,6 +30,7 @@ export function UserHistory() {
   const [fullHistory, setFullHistory] = useState<any[]>([])
   const [lastSearches, setLastSearches] = useState<string[]>([])
   const [mounted, setMounted] = useState(false)
+  const { updates, checkAnimeUpdates, clearUpdate, clearAllUpdates, mounted: updatesMounted } = useEpisodeUpdates()
 
   useEffect(() => {
     setMounted(true)
@@ -67,6 +70,30 @@ export function UserHistory() {
       window.removeEventListener("storage", onUpdated)
     }
   }, [])
+
+  // Check for episode updates when component mounts or history changes
+  useEffect(() => {
+    if (mounted && updatesMounted && fullHistory.length > 0) {
+      // Create minimal anime list from history for update checking
+      const animeList = fullHistory.map((item: any) => ({
+        id: item.id,
+        shikimoriId: item.id,
+        title: item.title,
+        originalTitle: item.title,
+        poster: item.poster || '',
+        rating: 0,
+        year: new Date().getFullYear(),
+        episodesCurrent: item.episodesCurrent || 0,
+        episodesTotal: item.episodesTotal || 0,
+        status: 'Ongoing',
+        description: '',
+        genres: [],
+        quality: 'TV'
+      }))
+      
+      checkAnimeUpdates(animeList)
+    }
+  }, [mounted, updatesMounted, fullHistory, checkAnimeUpdates])
 
   if (!mounted) return null
   if (history.length === 0 && lastSearches.length === 0) return null
@@ -116,11 +143,18 @@ export function UserHistory() {
             {history.map((item) => {
               const total = item?.episodesTotal && item.episodesTotal > 0 ? item.episodesTotal : null
               const progress = item?.episode && total ? Math.min(item.episode / total, 1) : null
+              const update = updates.find(u => u.animeId === item.id)
+              
               return (
               <Link
                 key={item.id}
                 href={item.episode ? `/watch/${item.id}?episode=${item.episode}` : `/watch/${item.id}`}
                 className="group relative block"
+                onClick={() => {
+                  if (update) {
+                    clearUpdate(item.id)
+                  }
+                }}
               >
                 <div className="relative aspect-[16/9] md:aspect-[2/3] overflow-hidden rounded-lg bg-zinc-900 border border-zinc-800">
                   <Image
@@ -138,6 +172,12 @@ export function UserHistory() {
                       />
                     )}
                   </div>
+                  {/* Badge for new episodes */}
+                  {update && (
+                    <div className="absolute top-2 right-2 bg-orange-500 text-black text-[10px] font-bold px-2 py-1 rounded-full shadow-lg animate-pulse">
+                      Новая серия
+                    </div>
+                  )}
                   <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                     <div className="bg-orange-600 p-2 rounded-full shadow-lg">
                       <Clock size={16} className="text-white" fill="currentColor" />
@@ -150,6 +190,11 @@ export function UserHistory() {
                     {item.episode
                       ? `Остановились на серии ${item.episode}${total ? ` / ${total}` : ""}`
                       : "Продолжить"}
+                    {update && (
+                      <span className="text-orange-400 block">
+                        • Вышла {update.newEpisode}
+                      </span>
+                    )}
                   </p>
                 </div>
               </Link>

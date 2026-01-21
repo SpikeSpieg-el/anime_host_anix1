@@ -286,8 +286,19 @@ export function WatchPageClient({
                     Сейчас смотрю: <span className="text-white">{selectedEpisode} серию</span>
                 </div>
             ) : (
-                <div className="mt-2 inline-block px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs md:text-sm font-medium">
-                    Анонс
+                <div className="mt-2 space-y-2">
+                    <div className="inline-block px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs md:text-sm font-medium">
+                        Анонс
+                    </div>
+                    {anime.airedOn && (
+                        <div className="inline-block px-3 py-1 rounded-full bg-orange-500/10 border border-orange-500/20 text-orange-400 text-xs md:text-sm font-medium">
+                            Выход: {new Date(anime.airedOn).toLocaleDateString('ru-RU', {
+                                day: 'numeric',
+                                month: 'long',
+                                year: 'numeric'
+                            })}
+                        </div>
+                    )}
                 </div>
             )}
           </div>
