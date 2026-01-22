@@ -9,9 +9,13 @@ const nextConfig = {
         hostname: '**',
       },
     ],
+    qualities: [75, 90],
   },
   experimental: {
     allowedDevOrigins: ['192.168.0.16', 'anix.stream']
+  },
+  turbopack: {
+    root: process.cwd(),
   },
   async headers() {
     return [
