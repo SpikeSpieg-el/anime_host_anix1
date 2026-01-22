@@ -1,9 +1,16 @@
 "use client"
 
-import { Bell, Play, Check } from "lucide-react"
+import { useState } from "react"
+import { Bell, Play, Check, ChevronRight, Clock, Sparkles, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
 import Link from "next/link"
+import { cn } from "@/lib/utils"
 
 interface EpisodeUpdate {
   animeId: string
@@ -22,85 +29,145 @@ interface EpisodeUpdateBadgeProps {
 }
 
 export function EpisodeUpdateBadge({ updates, onClearUpdate, onClearAll, className }: EpisodeUpdateBadgeProps) {
-  if (updates.length === 0) return null
+  const [isOpen, setIsOpen] = useState(false)
 
-  const formatDate = (dateString: string) => {
+  if (updates.length === 0) {
+    // Пустой колокольчик (опционально, можно вообще не рендерить)
+    return (
+        <Button
+          variant="ghost"
+          size="icon"
+          className={cn("text-zinc-500 hover:text-white hover:bg-zinc-800", className)}
+        >
+          <Bell className="w-5 h-5" />
+        </Button>
+    )
+  }
+
+  const formatTimeAgo = (dateString: string) => {
     const date = new Date(dateString)
     const now = new Date()
-    const diffInHours = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60))
+    const diffInMinutes = Math.floor((now.getTime() - date.getTime()) / (1000 * 60))
     
-    if (diffInHours < 1) return "Только что"
+    if (diffInMinutes < 60) return `${diffInMinutes} мин. назад`
+    const diffInHours = Math.floor(diffInMinutes / 60)
     if (diffInHours < 24) return `${diffInHours} ч. назад`
-    if (diffInHours < 48) return "Вчера"
     return date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })
   }
 
   return (
-    <Dialog>
+    <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
         <Button
           variant="ghost"
           size="icon"
-          className={`relative text-zinc-400 hover:text-white hover:bg-zinc-800 ${className}`}
+          className={cn("relative text-zinc-300 hover:text-white hover:bg-zinc-800 active:scale-95 transition-all", className)}
         >
-          <Bell className="w-5 h-5" />
-          {updates.length > 0 && (
-            <span className="absolute -top-1 -right-1 bg-orange-500 text-black text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
-              {updates.length > 9 ? "9+" : updates.length}
-            </span>
-          )}
+          <Bell className="w-6 h-6" />
+          {/* Пульсирующий индикатор */}
+          <span className="absolute top-2 right-2 flex h-2.5 w-2.5">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-orange-500 border border-black"></span>
+          </span>
         </Button>
       </DialogTrigger>
 
-      <DialogContent className="bg-zinc-900 border-zinc-800 max-w-md max-h-[80vh] overflow-hidden flex flex-col">
-        <DialogHeader>
-          <DialogTitle className="text-white">
-            Новые серии ({updates.length})
-          </DialogTitle>
-        </DialogHeader>
+      <DialogContent className="bg-zinc-950/95 backdrop-blur-xl border-zinc-800 w-[95vw] sm:w-full sm:max-w-md p-0 gap-0 overflow-hidden shadow-2xl rounded-2xl flex flex-col max-h-[85vh]" showCloseButton={false}>
+        
+        {/* Хедер */}
+        <div className="flex items-center justify-between px-4 py-4 border-b border-white/5 bg-zinc-900/50">
+          <div className="flex items-center gap-2.5">
+            <div className="relative">
+               <Bell className="w-5 h-5 text-orange-500" />
+               <span className="absolute -top-1 -right-1 bg-orange-500 text-black text-[9px] font-bold h-3.5 min-w-[14px] px-0.5 rounded-full flex items-center justify-center">
+                 {updates.length}
+               </span>
+            </div>
+            <DialogTitle className="text-base font-bold tracking-tight">
+              Новые серии
+            </DialogTitle>
+          </div>
+          <Button 
+            variant="ghost" 
+            size="icon-sm" 
+            className="h-8 w-8 text-zinc-500 hover:text-white rounded-full hover:bg-white/10"
+            onClick={() => setIsOpen(false)}
+          >
+            <X className="w-4 h-4" />
+          </Button>
+        </div>
 
-        <div className="flex-1 overflow-y-auto space-y-2 max-h-[60vh]">
-          {updates.map((update) => (
+        {/* Список (с кастомным скроллом) */}
+        <div className="max-h-[60vh] overflow-y-auto custom-scrollbar p-2 space-y-2">
+          {updates.map((update, idx) => (
             <Link
               key={update.animeId}
               href={`/watch/${update.animeId}`}
-              className="block p-4 border-b border-zinc-800 last:border-b-0 hover:bg-zinc-800/50 transition-colors rounded-lg"
               onClick={() => {
                 onClearUpdate?.(update.animeId)
+                setIsOpen(false)
               }}
+              className="group relative flex items-center gap-3 p-3 rounded-xl bg-zinc-900/40 border border-white/5 hover:bg-zinc-800 hover:border-white/10 active:scale-[0.98] transition-all animate-in fade-in slide-in-from-bottom-2 duration-300 fill-mode-backwards"
+              style={{ animationDelay: `${idx * 50}ms` }}
             >
-              <div className="flex items-start gap-3">
-                <div className="flex-1 min-w-0">
-                  <h4 className="font-medium text-white text-sm break-words mb-1 hover:text-orange-500 transition-colors">
-                    {update.animeTitle}
-                  </h4>
-                  <div className="flex items-center gap-2 text-xs text-zinc-400">
-                    <Play className="w-3 h-3" />
-                    <span>
-                      Серия {update.oldEpisode + 1} - {update.newEpisode}
-                      {update.totalEpisodes && ` из ${update.totalEpisodes}`}
+              {/* Левая часть: Номер серии (вместо постера) */}
+              <div className="shrink-0 relative w-12 h-12 sm:w-14 sm:h-14 rounded-lg overflow-hidden flex items-center justify-center bg-gradient-to-br from-zinc-800 to-black border border-white/10 group-hover:border-orange-500/30 transition-colors">
+                 <div className="absolute inset-0 bg-orange-500/10 group-hover:bg-orange-500/20 transition-colors" />
+                 <div className="flex flex-col items-center">
+                    <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider">эпизод</span>
+                    <span className="text-lg sm:text-xl font-black text-orange-500 leading-none">
+                        {update.newEpisode}
                     </span>
-                  </div>
-                  <p className="text-[10px] text-zinc-500 mt-1">
-                    {formatDate(update.updatedAt)}
-                  </p>
+                 </div>
+              </div>
+
+              {/* Центр: Информация */}
+              <div className="flex-1 min-w-0 flex flex-col justify-center">
+                <h4 className="font-bold text-sm sm:text-[15px] pr-4 group-hover:text-orange-400 transition-colors">
+                  {update.animeTitle}
+                </h4>
+                
+                <div className="flex items-center gap-2 mt-1">
+                   {/* Прогресс */}
+                   <span className="inline-flex items-center text-[10px] sm:text-xs font-medium text-zinc-400 bg-zinc-950/50 px-1.5 py-0.5 rounded border border-white/5">
+                      <Sparkles className="w-2.5 h-2.5 mr-1 text-purple-400" />
+                      {update.oldEpisode} <ChevronRight className="w-2.5 h-2.5 mx-0.5 opacity-50"/> {update.newEpisode}
+                   </span>
+                   
+                   {/* Время */}
+                   <span className="flex items-center text-[10px] text-zinc-500">
+                      <Clock className="w-2.5 h-2.5 mr-1" />
+                      {formatTimeAgo(update.updatedAt)}
+                   </span>
                 </div>
+              </div>
+
+              {/* Правая часть: Play Button */}
+              <div className="shrink-0 pr-1">
+                 <div className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center text-zinc-400 group-hover:bg-orange-500 group-hover:text-black transition-all shadow-lg group-hover:shadow-orange-500/25">
+                    <Play className="w-3.5 h-3.5 fill-current ml-0.5" />
+                 </div>
               </div>
             </Link>
           ))}
         </div>
 
-        <div className="pt-4 border-t border-zinc-800">
+        {/* Футер */}
+        <div className="p-3 border-t border-white/5 bg-zinc-900/50 backdrop-blur-sm">
           <Button
             variant="ghost"
             size="sm"
-            onClick={onClearAll}
-            className="w-full text-orange-500 hover:text-orange-400 hover:bg-orange-500/10"
+            onClick={() => {
+                onClearAll?.()
+                setIsOpen(false)
+            }}
+            className="w-full text-zinc-400 hover:text-white hover:bg-white/5 h-10 rounded-xl transition-all font-medium text-xs sm:text-sm"
           >
             <Check className="w-4 h-4 mr-2" />
             Отметить всё как прочитанное
           </Button>
         </div>
+
       </DialogContent>
     </Dialog>
   )
