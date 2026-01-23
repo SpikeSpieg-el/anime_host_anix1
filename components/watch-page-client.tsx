@@ -330,9 +330,9 @@ export function WatchPageClient({
             <div className="w-16 h-16 rounded-full bg-zinc-800 flex items-center justify-center mb-4">
                <PlayCircle className="w-8 h-8 text-zinc-600" />
             </div>
-            <h3 className="text-lg font-bold text-white mb-2">Эпизоды недоступны</h3>
+            <h3 className="text-lg font-bold text-white mb-2">Серии недоступны</h3>
             <p className="text-zinc-500 text-sm max-w-md">
-              К сожалению, для этого аниме пока нет доступных эпизодов или плеер временно недоступен.
+              К сожалению, для этого аниме пока нет доступных серий или плеер временно недоступен.
             </p>
           </div>
         )}

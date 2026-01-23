@@ -117,7 +117,7 @@ export function ScheduleClient({ schedule }: ScheduleClientProps) {
                 <AnimeCard anime={anime} />
                 <div className="absolute top-2 left-2 z-10">
                    <div className="bg-orange-600 text-white text-[10px] font-bold px-2 py-1 rounded shadow-md border border-orange-500">
-                     EP {anime.episodesCurrent}
+                     Серия {anime.episodesCurrent}
                    </div>
                 </div>
               </div>

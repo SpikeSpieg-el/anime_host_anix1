@@ -73,7 +73,7 @@ export function UpdatesBanner({ updates, announcements }: UpdatesBannerProps) {
                   </div>
                   <div className="mt-1.5 flex items-center gap-2">
                     <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-orange-500 text-black">
-                      EP {anime.episodesCurrent}
+                      Серия {anime.episodesCurrent}
                     </span>
                     <span className="text-[10px] sm:text-xs text-zinc-500">Обновление</span>
                   </div>
