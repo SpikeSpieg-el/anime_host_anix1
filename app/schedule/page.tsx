@@ -7,7 +7,7 @@ import { Metadata } from "next"
 
 
 export const metadata: Metadata = {
-  title: "Расписание выхода серий | Anix",
+  title: "Расписание выхода серий | Weeb.X",
   description: "Календарь выхода новых серий аниме. Узнайте, что посмотреть сегодня.",
 }
 

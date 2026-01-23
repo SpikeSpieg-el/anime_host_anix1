@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { useRouter, usePathname } from "next/navigation"
 import { useState, useEffect } from "react"
-import { Menu, X, ChevronDown, Flame, Tv, Zap, Compass, Home, BookMarked, History, Calendar, Settings } from "lucide-react"
+import { Menu, X, ChevronDown, Flame, Tv, Zap, Compass, Home, BookMarked, History, Calendar, Settings, GraduationCap } from "lucide-react"
 import { GENRES_MAP } from "@/lib/shikimori"
 import { SearchSuggestions } from "@/components/search-suggestions"
 import { EpisodeUpdateBadge } from "@/components/episode-update-badge"
@@ -82,21 +82,18 @@ export function Navbar() {
           
           {/* 1. ЛОГОТИП */}
           <Link href="/" onClick={handleLogoClick} className="flex items-center gap-3 z-50 group relative">
-             <div className="relative w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center">
+             {/*<div className="relative w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center">
                <div className="absolute inset-0 bg-orange-600 rounded-xl rotate-6 opacity-50 blur-[6px] group-hover:opacity-80 transition-opacity duration-500"></div>
                <div className="absolute inset-0 bg-red-600 rounded-xl -rotate-6 opacity-50 blur-[6px] group-hover:opacity-80 transition-opacity duration-500"></div>
                <div className="relative w-full h-full bg-zinc-900 border border-white/10 rounded-xl flex items-center justify-center shadow-2xl overflow-hidden">
                   <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
                   <Zap className="w-5 h-5 sm:w-6 sm:h-6 text-orange-500 fill-orange-500 transform group-hover:scale-110 transition-transform" />
                </div>
-             </div>
+             </div>*/}
              <div className="flex flex-col justify-center">
-               <h1 className="text-xl sm:text-2xl font-black tracking-tighter text-white leading-none">
-                 ANI<span className="text-orange-500">X</span>
+               <h1 className="text-xl sm:text-2xl font-black tracking-tighter text-white leading-none font-unbounded">
+                 Weeb.<span className="text-orange-500">X</span>
                </h1>
-               <span className="text-[9px] sm:text-[10px] font-bold tracking-[0.2em] text-zinc-500 uppercase leading-none group-hover:text-zinc-300 transition-colors">
-                 Stream
-               </span>
              </div>
           </Link>
 
@@ -143,7 +140,7 @@ export function Navbar() {
             <div className="group relative px-4 py-2 cursor-pointer">
               <span className={cn(
                 "flex items-center gap-1.5 text-sm font-medium transition-colors",
-                (pathname.includes("genre") || pathname === "/bookmarks" || pathname === "/schedule" || pathname === "/history") ? "text-white" : "text-zinc-400 group-hover:text-white"
+                (pathname.includes("genre") || pathname === "/bookmarks" || pathname === "/schedule" || pathname === "/history" || pathname === "/beginners") ? "text-white" : "text-zinc-400 group-hover:text-white"
               )}>
                 <Settings size={16} /> Ещё <ChevronDown size={14} className="group-hover:rotate-180 transition-transform duration-300" />
               </span>
@@ -169,6 +166,12 @@ export function Navbar() {
                   
                   {/* Другие разделы */}
                   <div className="space-y-1">
+                    <Link 
+                      href="/beginners" 
+                      className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/10 text-zinc-400 hover:text-white transition text-sm font-medium"
+                    >
+                      <GraduationCap size={14} /> Для новичков
+                    </Link>
                     <Link 
                       href="/bookmarks" 
                       className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/10 text-zinc-400 hover:text-white transition text-sm font-medium"
@@ -287,6 +290,17 @@ export function Navbar() {
                       className="flex items-center gap-4 px-4 py-4 rounded-xl text-lg font-medium text-zinc-400 hover:bg-zinc-900/50 hover:text-white transition-all active:scale-[0.98]"
                     >
                         <Compass className="w-6 h-6 text-purple-500" /> Весь каталог
+                    </Link>
+
+                    <Link 
+                      href="/beginners" 
+                      onClick={() => setIsOpen(false)} 
+                      className={cn(
+                        "flex items-center gap-4 px-4 py-4 rounded-xl text-lg font-medium transition-all active:scale-[0.98]",
+                        pathname === "/beginners" ? "bg-zinc-900 text-white border border-zinc-800" : "text-zinc-400 hover:bg-zinc-900/50 hover:text-white"
+                      )}
+                    >
+                        <GraduationCap className="w-6 h-6 text-green-500" /> Для новичков
                     </Link>
 
                     <Link 

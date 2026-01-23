@@ -96,7 +96,7 @@ export function AnimeCard({ anime, className, variant = 'default', showUpdateBad
                 {anime.title}
               </h3>
               <p className="text-zinc-500 text-xs mb-2">
-                {anime.year} • {anime.episodesCurrent > 0 ? `${anime.episodesCurrent} эп.` : 'Анонс'}
+                {anime.year} • {anime.episodesCurrent > 0 ? `${anime.episodesCurrent} Серия.` : 'Анонс'}
                 {anime.status === 'Announcement' && anime.airedOn && (
                   <span className="text-orange-400 ml-1">
                     • Выход: {new Date(anime.airedOn).toLocaleDateString('ru-RU', {
@@ -233,7 +233,7 @@ export function AnimeCard({ anime, className, variant = 'default', showUpdateBad
           {anime.title}
         </h3>
         <p className={cn("text-zinc-500 mt-0.5", isCompact ? "text-[10px]" : "text-xs")}>
-          {anime.year} • {anime.episodesCurrent > 0 ? `${anime.episodesCurrent} эп.` : 'Анонс'}
+          {anime.year} • {anime.episodesCurrent > 0 ? `${anime.episodesCurrent} Серия.` : 'Анонс'}
         </p>
       </div>
     </Link>

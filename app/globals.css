@@ -169,4 +169,9 @@
     background-size: 1000px 100%;
     animation: shimmer 2s ease-in-out infinite;
   }
+
+  /* Unbounded font for logos */
+  .font-unbounded {
+    font-family: 'Unbounded', sans-serif;
+  }
 }

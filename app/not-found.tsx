@@ -107,7 +107,7 @@ export default function NotFound() {
         {/* ТЕКСТОВАЯ ЧАСТЬ */}
         <div className="text-center space-y-3 md:space-y-4 px-4 mb-10 md:mb-12">
           <h1 className="text-3xl md:text-5xl lg:text-6xl font-black tracking-tighter uppercase italic text-white drop-shadow-2xl">
-            Серия <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-orange-600">не найден</span>
+            Серия <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-orange-600">не найдена</span>
           </h1>
           <p className="text-base md:text-lg text-zinc-400 font-medium leading-relaxed max-w-md mx-auto">
             Похоже, эта страница была удалена авторами или перемещена в другой таймлайн.

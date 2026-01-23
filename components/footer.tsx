@@ -16,7 +16,7 @@ export function Footer() {
                 <Zap className="w-6 h-6 text-orange-500 fill-orange-500" />
               </div>
               <div className="flex flex-col">
-                <span className="text-xl font-black tracking-tighter text-white">ANI<span className="text-orange-500">X</span></span>
+                <span className="text-xl font-black tracking-tighter text-white font-unbounded">Weeb.<span className="text-orange-500">X</span></span>
                 <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Stream</span>
               </div>
             </Link>
@@ -27,10 +27,10 @@ export function Footer() {
               {/* <a href="https://t.me/anix_stream" target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-xl bg-zinc-900 flex items-center justify-center text-zinc-400 hover:bg-orange-500 hover:text-white transition-all">
                 <Send size={18} />
               </a>
-              <a href="https://discord.gg/anix" target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-xl bg-zinc-900 flex items-center justify-center text-zinc-400 hover:bg-orange-500 hover:text-white transition-all">
+              <a href="https://discord.gg/Weeb.X" target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-xl bg-zinc-900 flex items-center justify-center text-zinc-400 hover:bg-orange-500 hover:text-white transition-all">
                 <MessageCircle size={18} />
               </a>
-              <a href="https://github.com/anix-stream" target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-xl bg-zinc-900 flex items-center justify-center text-zinc-400 hover:bg-orange-500 hover:text-white transition-all">
+              <a href="https://github.com/Weeb.X-stream" target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-xl bg-zinc-900 flex items-center justify-center text-zinc-400 hover:bg-orange-500 hover:text-white transition-all">
                 <Github size={18} />
               </a> */}
             </div>
@@ -71,7 +71,7 @@ export function Footer() {
 
         <div className="pt-6 sm:pt-8 border-t border-white/5 flex flex-col md:flex-row justify-between items-center gap-3 sm:gap-4">
           <p className="text-zinc-600 text-[9px] sm:text-[10px] font-bold tracking-widest uppercase text-center md:text-left">
-            © {currentYear} ANIX STREAM. MADE BY ANIME FANS FOR ANIME FANS.
+            © {currentYear} Weeb.X STREAM. MADE BY ANIME FANS FOR ANIME FANS.
           </p>
           <div className="flex items-center gap-6">
             <span className="flex items-center gap-2 text-[10px] font-bold text-zinc-600 uppercase tracking-widest">

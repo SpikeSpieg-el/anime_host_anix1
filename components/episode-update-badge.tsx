@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
@@ -32,15 +33,55 @@ export function EpisodeUpdateBadge({ updates, onClearUpdate, onClearAll, classNa
   const [isOpen, setIsOpen] = useState(false)
 
   if (updates.length === 0) {
-    // Пустой колокольчик (опционально, можно вообще не рендерить)
+    // Пустой колокольчик с диалогом "нет уведомлений"
     return (
-        <Button
-          variant="ghost"
-          size="icon"
-          className={cn("text-zinc-500 hover:text-white hover:bg-zinc-800", className)}
+      <Dialog open={isOpen} onOpenChange={setIsOpen}>
+        <DialogTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            className={cn("text-zinc-500 hover:text-white hover:bg-zinc-800 active:scale-95 transition-all", className)}
+          >
+            <Bell className="w-5 h-5" />
+          </Button>
+        </DialogTrigger>
+
+        <DialogContent 
+          className="bg-zinc-950/95 backdrop-blur-xl border-zinc-800 w-[95vw] sm:w-full sm:max-w-md p-0 gap-0 overflow-hidden shadow-2xl rounded-2xl flex flex-col max-h-[85vh]" 
+          showCloseButton={false}
         >
-          <Bell className="w-5 h-5" />
-        </Button>
+          <DialogDescription className="sr-only">
+            Нет новых уведомлений о новых сериях аниме
+          </DialogDescription>
+          
+          {/* Хедер */}
+          <div className="flex items-center justify-between px-4 py-4 border-b border-white/5 bg-zinc-900/50">
+            <div className="flex items-center gap-2.5">
+              <Bell className="w-5 h-5 text-zinc-400" />
+              <DialogTitle className="text-base font-bold tracking-tight">
+                Уведомления
+              </DialogTitle>
+            </div>
+            <Button 
+              variant="ghost" 
+              size="icon-sm" 
+              className="h-8 w-8 text-zinc-500 hover:text-white rounded-full hover:bg-white/10"
+              onClick={() => setIsOpen(false)}
+            >
+              <X className="w-4 h-4" />
+            </Button>
+          </div>
+
+          {/* Контент: нет уведомлений */}
+          <div className="flex flex-col items-center justify-center py-12 px-4">
+            <div className="w-16 h-16 rounded-full bg-zinc-900/50 border border-white/5 flex items-center justify-center mb-4">
+              <img src="/anix2.png" alt="No notifications" className="w-10 h-10 opacity-60" />
+            </div>
+            <p className="text-zinc-400 text-center font-medium mb-2">Нет новых уведомлений</p>
+            <p className="text-zinc-600 text-center text-sm">Здесь появятся уведомления о новых сериях ваших аниме</p>
+          </div>
+        </DialogContent>
+      </Dialog>
     )
   }
 
@@ -72,7 +113,13 @@ export function EpisodeUpdateBadge({ updates, onClearUpdate, onClearAll, classNa
         </Button>
       </DialogTrigger>
 
-      <DialogContent className="bg-zinc-950/95 backdrop-blur-xl border-zinc-800 w-[95vw] sm:w-full sm:max-w-md p-0 gap-0 overflow-hidden shadow-2xl rounded-2xl flex flex-col max-h-[85vh]" showCloseButton={false}>
+      <DialogContent 
+        className="bg-zinc-950/95 backdrop-blur-xl border-zinc-800 w-[95vw] sm:w-full sm:max-w-md p-0 gap-0 overflow-hidden shadow-2xl rounded-2xl flex flex-col max-h-[85vh]" 
+        showCloseButton={false}
+      >
+        <DialogDescription className="sr-only">
+          Список новых серий доступных для просмотра
+        </DialogDescription>
         
         {/* Хедер */}
         <div className="flex items-center justify-between px-4 py-4 border-b border-white/5 bg-zinc-900/50">

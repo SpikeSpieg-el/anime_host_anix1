@@ -239,7 +239,7 @@ export function AiAdvisor() {
                   </span>
                   <span>{anime.year}</span>
                   <span>•</span>
-                  <span>{anime.episodesCurrent > 0 ? `${anime.episodesCurrent} эп.` : 'Анонс'}</span>
+                  <span>{anime.episodesCurrent > 0 ? `${anime.episodesCurrent} Серия.` : 'Анонс'}</span>
               </div>
            </div>
 

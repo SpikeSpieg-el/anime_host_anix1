@@ -12,13 +12,22 @@ interface EpisodeUpdate {
   updatedAt: string
 }
 
+interface UseEpisodeUpdatesReturn {
+  updates: EpisodeUpdate[]
+  checkAnimeUpdates: (manualAnimeList?: any[]) => Promise<void>
+  clearUpdate: (id: string) => void
+  clearAllUpdates: () => void
+  mounted: boolean
+  isChecking: boolean
+}
+
 // Ключи localStorage
 const EPISODE_UPDATES_KEY = "episode_updates_v1"
 const LAST_CHECK_KEY = "last_episode_check_ts"
 const BOOKMARK_SNAPSHOT_KEY = "bookmarks_snapshot_v1"
 const UPDATE_EVENT = "episode_updates_changed" // Имя события для синхронизации
 
-export function useEpisodeUpdates() {
+export function useEpisodeUpdates(): UseEpisodeUpdatesReturn {
   const [updates, setUpdates] = useState<EpisodeUpdate[]>([])
   const [mounted, setMounted] = useState(false)
   const [isChecking, setIsChecking] = useState(false)
@@ -120,7 +129,7 @@ export function useEpisodeUpdates() {
 
     const lastCheck = localStorage.getItem(LAST_CHECK_KEY)
     const now = Date.now()
-    // Проверка раз в 15 минут (уменьшил время для тестов)
+    // Проверка раз в 15 минут
     if (lastCheck && (now - Number(lastCheck) < 15 * 60 * 1000) && !manualAnimeList) {
       return 
     }
@@ -129,10 +138,8 @@ export function useEpisodeUpdates() {
     try {
       let itemsToCheck = getIdsToCheck()
       
-      // Если передан ручной список (например, из закладок), добавляем/обновляем его
       if (manualAnimeList && manualAnimeList.length > 0) {
-        // Мы используем getIdsToCheck как базу, но если пришли данные из компонента,
-        // убеждаемся, что они учтены (хотя getIdsToCheck и так берет из LS)
+        // Логика объединения, если нужно, но пока полагаемся на LS
       }
 
       if (itemsToCheck.length === 0) {
@@ -160,7 +167,6 @@ export function useEpisodeUpdates() {
           if (newBookmarksSnapshot[anime.id]) {
             baselineEpisode = newBookmarksSnapshot[anime.id]
           } else {
-            // Первая инициализация закладки - запоминаем текущее состояние
             newBookmarksSnapshot[anime.id] = anime.episodesCurrent
             return 
           }
@@ -222,7 +228,7 @@ export function useEpisodeUpdates() {
     setUpdates((prev) => {
       const next = prev.filter((u) => u.animeId !== id)
       localStorage.setItem(EPISODE_UPDATES_KEY, JSON.stringify(next))
-      window.dispatchEvent(new Event(UPDATE_EVENT)) // Уведомляем всех
+      window.dispatchEvent(new Event(UPDATE_EVENT))
       return next
     })
   }, [])
