@@ -267,7 +267,7 @@ export function WatchPageClient({
               </span>
               <span className="w-1 h-1 rounded-full bg-zinc-700" />
               <span>
-                {anime.episodesCurrent || "?"} / {anime.episodesTotal || "?"} эп.
+                {anime.episodesCurrent || "?"} / {anime.episodesTotal || "?"} Серия.
               </span>
               
               {anime.genres && anime.genres.length > 0 && (

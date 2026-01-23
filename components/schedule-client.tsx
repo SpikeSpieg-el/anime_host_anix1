@@ -3,10 +3,12 @@
 import { useState, useEffect } from "react"
 import { Anime } from "@/lib/shikimori"
 import { AnimeCard } from "@/components/anime-card"
-import { Calendar, Clock, AlertCircle } from "lucide-react"
+import { Calendar, Clock, AlertCircle, Bookmark } from "lucide-react"
 import { cn } from "@/lib/utils"
 import Link from "next/link"
 import { ArrowLeft } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { useBookmarks } from "@/components/bookmarks-provider"
 
 interface ScheduleClientProps {
   schedule: { [key: number]: Anime[] }
@@ -26,6 +28,7 @@ export function ScheduleClient({ schedule }: ScheduleClientProps) {
   // Определяем текущий день недели (0 = Пн, ..., 6 = Вс)
   const [currentDay, setCurrentDay] = useState<number>(0)
   const [mounted, setMounted] = useState(false)
+  const { isSaved, toggle } = useBookmarks()
 
   useEffect(() => {
     // JS getDay(): 0 = Вс, 1 = Пн. Конвертируем в наш формат (0 = Пн)
@@ -93,14 +96,24 @@ export function ScheduleClient({ schedule }: ScheduleClientProps) {
                 <span className="text-[10px] mt-1 opacity-60 font-medium uppercase tracking-wider hidden md:block">
                   {day.name}
                 </span>
-                {count > 0 && (
-                  <span className={cn(
-                    "mt-1 text-[10px] px-1.5 py-0.5 rounded-full",
-                    isActive ? "bg-white/20 text-white" : "bg-zinc-800 text-zinc-500"
-                  )}>
-                    {count}
-                  </span>
-                )}
+                {(() => {
+                  const today = new Date()
+                  const currentWeekDay = today.getDay() // 0 = Вс, 1 = Пн, ..., 6 = Сб
+                  const targetDate = new Date(today)
+                  const dayOffset = day.id - (currentWeekDay === 0 ? 6 : currentWeekDay - 1)
+                  targetDate.setDate(today.getDate() + dayOffset)
+                  const date = targetDate.getDate()
+                  const month = targetDate.getMonth() + 1
+                  
+                  return (
+                    <span className={cn(
+                      "mt-1 text-[10px] px-1.5 py-0.5 rounded-full font-medium",
+                      isActive ? "bg-white/20 text-white" : "bg-zinc-800 text-zinc-500"
+                    )}>
+                      {date}.{month < 10 ? '0' : ''}{month}
+                    </span>
+                  )
+                })()}
               </button>
             )
           })}
@@ -111,17 +124,35 @@ export function ScheduleClient({ schedule }: ScheduleClientProps) {
       <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
         {sortedAnimes.length > 0 ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-x-4 gap-y-6 sm:gap-y-8">
-            {sortedAnimes.map((anime) => (
-              <div key={anime.id} className="relative group">
-                {/* Оверлей с номером серии, специфичный для расписания */}
-                <AnimeCard anime={anime} />
-                <div className="absolute top-2 left-2 z-10">
-                   <div className="bg-orange-600 text-white text-[10px] font-bold px-2 py-1 rounded shadow-md border border-orange-500">
-                     Серия {anime.episodesCurrent}
-                   </div>
+            {sortedAnimes.map((anime) => {
+              const saved = isSaved(anime.id)
+              return (
+                <div key={anime.id} className="relative group">
+                  {/* Оверлей с номером серии, специфичный для расписания */}
+                  <AnimeCard anime={anime} />
+                  <div className="absolute top-2 left-2 z-10 flex flex-col gap-1">
+                     <div className="bg-orange-600 text-white text-[10px] font-bold px-2 py-1 rounded shadow-md border border-orange-500">
+                       Серия {anime.episodesCurrent + 1}
+                     </div>
+                     <Button
+                       size="sm"
+                       className="h-6 w-6 bg-black/60 hover:bg-black/70 text-white border border-white/10 backdrop-blur-sm"
+                       aria-label={saved ? "Убрать из закладок" : "Сохранить на потом"}
+                       onClick={(e) => {
+                         e.preventDefault()
+                         e.stopPropagation()
+                         toggle(anime)
+                       }}
+                     >
+                       <Bookmark className={cn(
+                         saved ? "fill-orange-500 text-orange-500" : "text-white",
+                         "w-3 h-3"
+                       )} />
+                     </Button>
+                  </div>
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center py-20 text-center border border-dashed border-zinc-800 rounded-2xl bg-zinc-900/30">

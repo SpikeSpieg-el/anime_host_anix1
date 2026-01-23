@@ -108,10 +108,10 @@ export function GlobalLoading() {
   if (!isLoading) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/90 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-zinc-950/90 backdrop-blur-sm">
       <div className="flex flex-col items-center gap-4">
         {/* Анимированный логотип */}
-        <a className="flex items-center gap-3 z-50 group" href="/">
+        <div className="flex items-center gap-3 z-50 group">
           <div className="relative w-9 h-9 flex items-center justify-center">
             <div className="absolute inset-0 bg-orange-600 rounded-xl rotate-6 opacity-50 blur-[4px] group-hover:opacity-80 transition-opacity"></div>
             <div className="absolute inset-0 bg-red-600 rounded-xl -rotate-6 opacity-50 blur-[4px] group-hover:opacity-80 transition-opacity"></div>
@@ -120,10 +120,10 @@ export function GlobalLoading() {
             </div>
           </div>
           <div className="flex flex-col justify-center">
-            <h1 className="text-xl font-black tracking-tighter text-white leading-none">ANI<span className="text-orange-500">X</span></h1>
+            <h1 className="text-xl font-black tracking-tighter text-white leading-none font-unbounded">Weeb.<span className="text-orange-500">X</span></h1>
             <span className="text-[9px] font-bold tracking-[0.2em] text-zinc-500 uppercase leading-none group-hover:text-zinc-300 transition-colors">Stream</span>
           </div>
-        </a>
+        </div>
         
         {/* Спиннер загрузки */}
         <div className="relative w-12 h-12">

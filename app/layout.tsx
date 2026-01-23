@@ -1,19 +1,21 @@
 import type React from "react"
 import type { Metadata, Viewport } from "next"
-import { Geist, Geist_Mono } from "next/font/google"
+import { Geist, Geist_Mono, Unbounded } from "next/font/google"
 import { Analytics } from "@vercel/analytics/next"
 import { Suspense } from "react" // ✅ Import Suspense
 import { GlobalLoading } from "@/components/global-loading"
 import { BookmarksProvider } from "@/components/bookmarks-provider"
 import "./globals.css"
+import { WelcomeModal } from "@/components/welcome-modal"
 
 const _geist = Geist({ subsets: ["latin"] })
 const _geistMono = Geist_Mono({ subsets: ["latin"] })
+const _unbounded = Unbounded({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "Anix",
+  title: "Weeb.X",
   description: "Your distraction-free streaming destination for anime and movies",
-  generator: "Anix_stream",
+  generator: "Weeb.X_stream",
   icons: {
     icon: [
       {
@@ -49,7 +51,7 @@ export default function RootLayout({
         <Suspense fallback={null}>
           <GlobalLoading />
         </Suspense>
-        
+        <WelcomeModal />
         <BookmarksProvider>{children}</BookmarksProvider>
         <Analytics />
       </body>

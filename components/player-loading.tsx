@@ -16,7 +16,7 @@ export function PlayerLoading() {
             </div>
           </div>
           <div className="flex flex-col justify-center">
-            <h1 className="text-xl font-black tracking-tighter text-white leading-none">ANI<span className="text-orange-500">X</span></h1>
+            <h1 className="text-xl font-black tracking-tighter text-white leading-none font-unbounded">Weeb.<span className="text-orange-500">X</span></h1>
             <span className="text-[9px] font-bold tracking-[0.2em] text-zinc-500 uppercase leading-none group-hover:text-zinc-300 transition-colors">Stream</span>
           </div>
         </a>
