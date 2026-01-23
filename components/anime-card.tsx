@@ -74,7 +74,7 @@ export function AnimeCard({ anime, className, variant = 'default', showUpdateBad
             />
             
             {/* Status badge */}
-            <div className="absolute top-1 right-1">
+            <div className="absolute top-1 right-1 flex flex-col items-end gap-1">
               <span className={cn(
                 "rounded px-1 py-0.5 font-bold uppercase tracking-wide shadow-sm text-[8px]",
                 anime.status === 'Ongoing' ? 'bg-orange-500 text-black' : 'bg-zinc-700 text-white'
@@ -82,8 +82,8 @@ export function AnimeCard({ anime, className, variant = 'default', showUpdateBad
                 {anime.quality || 'TV'}
               </span>
               {showUpdateBadge && updateInfo && (
-                <span className="bg-green-500 text-white text-[8px] font-bold px-1 py-0.5 rounded shadow-sm animate-pulse mt-1 block">
-                  +{updateInfo.newEpisode - anime.episodesCurrent}
+                <span className="bg-orange-500 text-black text-[8px] font-bold px-1 py-0.5 rounded shadow-sm animate-pulse">
+                  новых серий + {updateInfo.newEpisode - anime.episodesCurrent}
                 </span>
               )}
             </div>
@@ -159,7 +159,7 @@ export function AnimeCard({ anime, className, variant = 'default', showUpdateBad
         <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-transparent opacity-60" />
 
         {/* Статус (справа сверху) */}
-        <div className="absolute top-2 right-2">
+        <div className="absolute top-2 right-2 flex flex-col items-end gap-1">
           <span className={cn(
             "rounded px-1.5 py-0.5 font-bold uppercase tracking-wide shadow-sm",
             isCompact ? "text-[8px]" : "text-[10px]",
@@ -169,10 +169,10 @@ export function AnimeCard({ anime, className, variant = 'default', showUpdateBad
           </span>
           {showUpdateBadge && updateInfo && (
             <span className={cn(
-              "bg-green-500 text-white font-bold px-1.5 py-0.5 rounded shadow-sm animate-pulse mt-1 block",
+              "bg-orange-500 text-black font-bold px-1.5 py-0.5 rounded shadow-sm animate-pulse",
               isCompact ? "text-[8px]" : "text-[10px]"
             )}>
-              +{updateInfo.newEpisode - anime.episodesCurrent}
+              новых серий + {updateInfo.newEpisode - anime.episodesCurrent}
             </span>
           )}
         </div>

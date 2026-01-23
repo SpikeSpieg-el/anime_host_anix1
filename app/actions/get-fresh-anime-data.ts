@@ -2,7 +2,7 @@
 interface AnimeUpdateData {
 id: string
 title: string
-episodesCurrent: number // Текущее кол-во вышедших эпизодов
+episodesCurrent: number // Текущее кол-во вышедших серий
 episodesTotal: number // Всего запланировано
 status: string // ongoing, released, anons
 }
@@ -17,7 +17,7 @@ try {
 // но для примера берем первые 50 (обычно этого хватает для истории)
 const uniqueIds = Array.from(new Set(ids)).slice(0, 50).join(",")
 
-// Используем GraphQL для получения точных данных о эпизодах
+// Используем GraphQL для получения точных данных о сериях
 const response = await fetch("https://shikimori.one/api/graphql", {
   method: "POST",
   headers: {

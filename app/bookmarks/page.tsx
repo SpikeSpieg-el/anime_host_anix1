@@ -3,6 +3,7 @@
 import { useMemo } from "react"
 import { AnimeCard } from "@/components/anime-card"
 import { useBookmarks } from "@/components/bookmarks-provider"
+import { useEpisodeUpdates } from "@/hooks/use-episode-updates"
 import { Navbar } from "@/components/navbar"
 import { Footer } from "@/components/footer"
 import Link from "next/link"
@@ -10,6 +11,21 @@ import { Bookmark, ArrowLeft } from "lucide-react"
 
 export default function BookmarksPage() {
   const { items } = useBookmarks()
+  const { updates } = useEpisodeUpdates()
+
+  // Helper function to get update info for an anime
+  const getUpdateInfo = (animeId: string) => {
+    const update = updates.find(u => u.animeId === animeId)
+    if (!update) return undefined
+    
+    const anime = items.find(a => a.id === animeId)
+    if (!anime) return undefined
+    
+    return {
+      newEpisode: update.newEpisode,
+      totalEpisodes: update.totalEpisodes
+    }
+  }
 
   return (
     <main className="min-h-screen bg-zinc-950 text-white pb-20 md:pb-24">
@@ -48,7 +64,12 @@ export default function BookmarksPage() {
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-x-3 sm:gap-x-4 gap-y-6 sm:gap-y-8">
             {items.map((anime) => (
-              <AnimeCard key={anime.id} anime={anime} />
+              <AnimeCard 
+                key={anime.id} 
+                anime={anime} 
+                showUpdateBadge={!!getUpdateInfo(anime.id)}
+                updateInfo={getUpdateInfo(anime.id)}
+              />
             ))}
           </div>
         )}

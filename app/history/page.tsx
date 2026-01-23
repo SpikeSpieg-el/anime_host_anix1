@@ -6,6 +6,7 @@ import Image from "next/image"
 import { Clock, History, Trash2, ArrowLeft } from "lucide-react"
 import { Navbar } from "@/components/navbar"
 import { Footer } from "@/components/footer"
+import { useEpisodeUpdates } from "@/hooks/use-episode-updates"
 
 function normalizePosterUrl(value: string): string {
   const raw = (value ?? "").trim()
@@ -27,6 +28,21 @@ function normalizePosterUrl(value: string): string {
 export default function HistoryPage() {
   const [history, setHistory] = useState<any[]>([])
   const [mounted, setMounted] = useState(false)
+  const { updates } = useEpisodeUpdates()
+
+  // Helper function to get update info for an anime
+  const getUpdateInfo = (animeId: string) => {
+    const update = updates.find(u => u.animeId === animeId)
+    if (!update) return undefined
+    
+    const historyItem = history.find(h => h.id === animeId)
+    if (!historyItem) return undefined
+    
+    return {
+      newEpisode: update.newEpisode,
+      totalEpisodes: update.totalEpisodes
+    }
+  }
 
   useEffect(() => {
     setMounted(true)
@@ -110,6 +126,7 @@ export default function HistoryPage() {
           {history.map((item) => {
             const total = item?.episodesTotal && item.episodesTotal > 0 ? item.episodesTotal : null
             const progress = item?.episode && total ? Math.min(item.episode / total, 1) : null
+            const updateInfo = getUpdateInfo(item.id)
             return (
               <Link
                 key={item.id}
@@ -136,6 +153,15 @@ export default function HistoryPage() {
                       <Clock size={16} className="text-white" fill="currentColor" />
                     </div>
                   </div>
+                  
+                  {/* New episode badge */}
+                  {updateInfo && (
+                    <div className="absolute top-2 right-2">
+                      <span className="bg-orange-500 text-black text-[10px] font-bold px-1.5 py-0.5 rounded shadow-sm animate-pulse block">
+                        новых серий + {updateInfo.newEpisode - (item.episode || 0)}
+                      </span>
+                    </div>
+                  )}
                 </div>
                 <div className="mt-2">
                   <h3 className="text-xs font-bold text-zinc-300 truncate group-hover:text-white">{item.title}</h3>

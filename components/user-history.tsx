@@ -147,7 +147,7 @@ return (
               {/* БЕЙДЖ НОВОЙ СЕРИИ */}
               {update && (
                 <div className="absolute top-2 right-2 z-20 bg-orange-500 text-black text-[9px] font-black px-2 py-0.5 rounded-sm shadow-lg animate-pulse uppercase tracking-wide">
-                  NEW EP {update.newEpisode}
+                  Новая серия
                 </div>
               )}
 

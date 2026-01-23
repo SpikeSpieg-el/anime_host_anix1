@@ -212,7 +212,7 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime }: HeroBannerProps
                 </span>
                 <span className="flex items-center gap-1 text-orange-400 bg-orange-500/5 border border-orange-500/20 px-2 py-1 sm:px-3 sm:py-1.5 rounded-md">
                   <Zap size={12} fill="currentColor" />
-                  {anime.episodesTotal > 0 ? `${anime.episodesTotal} EP` : 'ONGOING'}
+                  {anime.episodesTotal > 0 ? `${anime.episodesTotal} Серия` : 'ONGOING'}
                 </span>
               </div>
             </div>

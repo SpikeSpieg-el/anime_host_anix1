@@ -114,7 +114,7 @@ export function EpisodeUpdateBadge({ updates, onClearUpdate, onClearAll, classNa
               <div className="shrink-0 relative w-12 h-12 sm:w-14 sm:h-14 rounded-lg overflow-hidden flex items-center justify-center bg-gradient-to-br from-zinc-800 to-black border border-white/10 group-hover:border-orange-500/30 transition-colors">
                  <div className="absolute inset-0 bg-orange-500/10 group-hover:bg-orange-500/20 transition-colors" />
                  <div className="flex flex-col items-center">
-                    <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider">эпизод</span>
+                    <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider">серия</span>
                     <span className="text-lg sm:text-xl font-black text-orange-500 leading-none">
                         {update.newEpisode}
                     </span>

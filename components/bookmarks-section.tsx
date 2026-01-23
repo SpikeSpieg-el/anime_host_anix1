@@ -48,14 +48,15 @@ export function BookmarksSection() {
         {displayList.map((anime) => {
           const update = updates.find(u => u.animeId === anime.id)
           return (
-            <div key={anime.id} className="relative">
-              <AnimeCard anime={anime} />
-              {update && (
-                <div className="absolute top-1 right-1 z-10 bg-orange-500 text-black text-[8px] font-bold px-1.5 py-0.5 rounded-full shadow-lg animate-pulse">
-                  Новая серия
-                </div>
-              )}
-            </div>
+            <AnimeCard 
+              key={anime.id} 
+              anime={anime}
+              showUpdateBadge={!!update}
+              updateInfo={update ? {
+                newEpisode: update.newEpisode,
+                totalEpisodes: update.totalEpisodes
+              } : undefined}
+            />
           )
         })}
       </div>
