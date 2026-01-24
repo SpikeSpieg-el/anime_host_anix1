@@ -7,7 +7,7 @@ import { useEpisodeUpdates } from "@/hooks/use-episode-updates"
 
 
 import { useHistory } from "@/components/history-provider"
- test-source/main
+ 
 function normalizePosterUrl(value: string): string {
   const raw = (value ?? "").trim()
   if (!raw) return raw
@@ -98,7 +98,7 @@ try {
 
 const onUpdated = () => {
   // Пересчитываем поиск при обновлении
- test-source/main
+ 
   try {
     const storedSearch = JSON.parse(localStorage.getItem("search-history") || "[]")
     const next = Array.isArray(storedSearch) ? storedSearch.filter((x) => typeof x === "string") : []
@@ -111,7 +111,7 @@ load()
 
 const onUpdated = () => load()
 
- test-source/main
+ 
 window.addEventListener("search-history-updated", onUpdated)
 window.addEventListener("storage", onUpdated)
 

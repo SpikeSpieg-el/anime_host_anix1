@@ -6,7 +6,7 @@ import type { Anime } from "@/lib/shikimori"
 
 import { supabase } from "@/lib/supabase"
 import { useAuth } from "@/components/auth-provider"
- test-source/main
+ 
 
 type BookmarkAnime = Anime
 
@@ -89,7 +89,7 @@ export function BookmarksProvider({ children }: { children: React.ReactNode }) {
       document.cookie = `bookmark_ids=${bookmarkIds}; path=/; max-age=31536000; SameSite=Lax`
     }
   }, [items, user])
- test-source/main
+ 
 
   const isSaved = useCallback(
     (id: string) => {
@@ -102,7 +102,7 @@ export function BookmarksProvider({ children }: { children: React.ReactNode }) {
   const add = useCallback((anime: BookmarkAnime) => {
 
   const add = useCallback(async (anime: BookmarkAnime) => {
- test-source/main
+ 
     setItems((prev) => {
       if (prev.some((a) => a.id === anime.id)) return prev
       return [anime, ...prev]
@@ -169,7 +169,7 @@ export function BookmarksProvider({ children }: { children: React.ReactNode }) {
       }
     }
   }, [user]) // Добавлена зависимость от user
- test-source/main
+ 
 
   const value = useMemo<BookmarksContextValue>(() => ({ items, isSaved, add, remove, toggle }), [items, isSaved, add, remove, toggle])
 

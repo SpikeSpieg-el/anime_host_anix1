@@ -5,7 +5,7 @@ import Link from "next/link"
 import { Play, Info, Star, Zap, TrendingUp, Sparkles, ChevronRight, Hash, Eye } from "lucide-react"
 
 import { Play, Info, Star, Zap, TrendingUp, Sparkles, ChevronRight, Hash, Eye, Bookmark } from "lucide-react"
- test-source/main
+ 
 import {
   Dialog,
   DialogContent,
@@ -20,7 +20,7 @@ import { HeroBannerSkeleton } from "@/components/skeleton"
 
 import { useBookmarks } from "@/components/bookmarks-provider"
 import { cn } from "@/lib/utils"
- test-source/main
+ 
 
 // Функция для генерации запасного постера (такая же как в anime-card)
 function generateFallbackPoster(title: string): string {
@@ -69,7 +69,7 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime }: HeroBannerProps
   
   const anime = mode === 'top' ? topOfWeekAnime : recommendedAnime
   const saved = !!anime?.id && isSaved(String(anime.id))
- test-source/main
+ 
   
   const hasHighQualityBackdrop = !!anime?.backdrop && !bgImageError;
   const bgImage = bgImageError ? generateFallbackPoster(anime?.title || 'Anime') : (anime?.backdrop || anime?.poster);
@@ -149,7 +149,7 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime }: HeroBannerProps
                className="relative w-[160px] aspect-[2/3] sm:w-[240px] lg:w-[340px] group/poster transition-all duration-500"
                aria-label="Подробнее об аниме"
              >
- test-source/main
+ 
                 {/* Эффект свечения */}
                 <div className="absolute inset-0 bg-gradient-to-br from-orange-600 to-orange-700 rounded-xl lg:rounded-2xl transform rotate-6 translate-x-2 translate-y-2 opacity-60 blur-md lg:group-hover/poster:rotate-12 lg:group-hover/poster:translate-x-6 transition-all duration-500" />
                 
@@ -179,7 +179,7 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime }: HeroBannerProps
              </div>
 
              </button>
- test-source/main
+ 
           </div>
 
           {/* --- ЛЕВАЯ ЧАСТЬ: ИНФОРМАЦИЯ --- */}
@@ -297,7 +297,7 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime }: HeroBannerProps
                             Подробная информация об аниме {anime.title}, включая описание, жанры и рейтинг
                           </DialogDescription>
 
- test-source/main
+ 
                           
                           <div className="flex flex-wrap gap-2 mb-4">
                              {anime.genres?.slice(0, 4).map((g: string) => (
@@ -334,7 +334,7 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime }: HeroBannerProps
                               </a>
                             </div>
                           )}
- test-source/main
+ 
                        </div>
 
                        {/* ФУТЕР ДИАЛОГА (Кнопка Смотреть) */}
@@ -374,7 +374,7 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime }: HeroBannerProps
                           </button>
                         </div>
                        </div>
- test-source/main
+ 
                     </div>
                   </div>
                 </DialogContent>

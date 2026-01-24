@@ -28,7 +28,7 @@ export function RegionDetector({ onCountryChange, onRegionDetected }: RegionDete
       let data: any = null
       
 
- test-source/main
+ 
       // Создаем таймаут вручную для совместимости
       const createTimeoutController = (timeoutMs: number) => {
         if (typeof AbortSignal !== 'undefined' && 'timeout' in AbortSignal) {
@@ -101,7 +101,7 @@ export function RegionDetector({ onCountryChange, onRegionDetected }: RegionDete
       const data = await response.json()
       if (!data) {
         throw new Error('Region API returned empty payload')
- test-source/main
+ 
       }
       
       const country = data.country_name || data.country || 'Unknown'

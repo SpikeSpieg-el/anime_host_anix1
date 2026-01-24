@@ -6,7 +6,7 @@ import { getFreshAnimeData } from "@/app/actions/get-fresh-anime-data"
 
 import { supabase } from "@/lib/supabase"
 import { useAuth } from "@/components/auth-provider"
- test-source/main
+ 
 
 interface EpisodeUpdate {
   animeId: string
@@ -39,7 +39,7 @@ export function useEpisodeUpdates(): UseEpisodeUpdatesReturn {
 
 
   const { user } = useAuth()
- test-source/main
+ 
 
   // Функция загрузки из LocalStorage
   const loadFromStorage = useCallback(() => {
@@ -50,7 +50,7 @@ export function useEpisodeUpdates(): UseEpisodeUpdatesReturn {
 
 
 
- test-source/main
+ 
         // Сравниваем, изменились ли данные, чтобы избежать лишних ререндеров
         setUpdates(prev => {
           if (JSON.stringify(prev) !== JSON.stringify(parsed)) {
@@ -105,7 +105,7 @@ export function useEpisodeUpdates(): UseEpisodeUpdatesReturn {
     } else {
       loadFromStorage()
     }
- test-source/main
+ 
 
     // Слушаем изменения в других компонентах
     const handleStorageChange = (e: StorageEvent) => {
@@ -120,7 +120,7 @@ export function useEpisodeUpdates(): UseEpisodeUpdatesReturn {
 
     window.addEventListener(UPDATE_EVENT, user ? (loadFromDb as any) : (loadFromStorage as any))
 
- test-source/main
+ 
     // Слушаем изменения storage (для синхронизации между вкладками)
     window.addEventListener("storage", handleStorageChange)
 
@@ -135,7 +135,7 @@ export function useEpisodeUpdates(): UseEpisodeUpdatesReturn {
       window.removeEventListener("storage", handleStorageChange)
     }
   }, [loadFromStorage, loadFromDb, user])
- test-source/main
+ 
 
   // Сохранение обновлений
   const saveUpdates = useCallback((newUpdates: EpisodeUpdate[]) => {
@@ -183,7 +183,7 @@ export function useEpisodeUpdates(): UseEpisodeUpdatesReturn {
     [user, loadFromDb]
   )
 
- test-source/main
+ 
   // 2. Сбор ID для проверки
   const getIdsToCheck = useCallback((): { id: string; watchedEpisode: number; source: 'history' | 'bookmark' }[] => {
     try {
@@ -199,7 +199,7 @@ export function useEpisodeUpdates(): UseEpisodeUpdatesReturn {
           itemsMap.set(String(item.id), { 
 
           itemsMap.set(String(item.id), {
- test-source/main
+ 
             watchedEpisode: item.episode || 0,
             source: 'history'
           })
@@ -229,7 +229,7 @@ export function useEpisodeUpdates(): UseEpisodeUpdatesReturn {
 
       return Array.from(itemsMap.entries()).map(([id, data]) => ({
         id,
- test-source/main
+ 
         watchedEpisode: data.watchedEpisode,
         source: data.source
       }))
@@ -296,7 +296,7 @@ export function useEpisodeUpdates(): UseEpisodeUpdatesReturn {
     }
   }, [user])
 
- test-source/main
+ 
   // 3. Проверка обновлений
   const checkForUpdates = useCallback(async (manualAnimeList?: any[]) => {
     if (typeof window === "undefined") return
@@ -309,7 +309,7 @@ export function useEpisodeUpdates(): UseEpisodeUpdatesReturn {
       return 
 
       return
- test-source/main
+ 
     }
 
     setIsChecking(true)
@@ -320,7 +320,7 @@ export function useEpisodeUpdates(): UseEpisodeUpdatesReturn {
 
       let itemsToCheck = user ? await getIdsToCheckFromDb() : getIdsToCheck()
 
- test-source/main
+ 
       if (manualAnimeList && manualAnimeList.length > 0) {
         // Логика объединения, если нужно, но пока полагаемся на LS
       }
@@ -332,7 +332,7 @@ export function useEpisodeUpdates(): UseEpisodeUpdatesReturn {
 
         setIsChecking(false)
         return
- test-source/main
+ 
       }
 
       const ids = itemsToCheck.map((i) => i.id)
@@ -342,7 +342,7 @@ export function useEpisodeUpdates(): UseEpisodeUpdatesReturn {
       let currentUpdates = JSON.parse(localStorage.getItem(EPISODE_UPDATES_KEY) || "[]") as EpisodeUpdate[]
 
       let currentUpdates = user ? ([] as EpisodeUpdate[]) : (JSON.parse(localStorage.getItem(EPISODE_UPDATES_KEY) || "[]") as EpisodeUpdate[])
- test-source/main
+ 
       const bookmarksSnapshot = JSON.parse(localStorage.getItem(BOOKMARK_SNAPSHOT_KEY) || "{}")
       const newBookmarksSnapshot = { ...bookmarksSnapshot }
       let hasChanges = false
@@ -364,7 +364,7 @@ export function useEpisodeUpdates(): UseEpisodeUpdatesReturn {
             return 
 
             return
- test-source/main
+ 
           }
         }
 
@@ -399,7 +399,7 @@ export function useEpisodeUpdates(): UseEpisodeUpdatesReturn {
 
           if (userItem.source === 'bookmark') {
             newBookmarksSnapshot[anime.id] = anime.episodesCurrent
- test-source/main
+ 
           }
         }
       })
@@ -417,7 +417,7 @@ export function useEpisodeUpdates(): UseEpisodeUpdatesReturn {
         }
       }
 
- test-source/main
+ 
       localStorage.setItem(LAST_CHECK_KEY, String(Date.now()))
       localStorage.setItem(BOOKMARK_SNAPSHOT_KEY, JSON.stringify(newBookmarksSnapshot))
 
@@ -430,7 +430,7 @@ export function useEpisodeUpdates(): UseEpisodeUpdatesReturn {
   }, [getIdsToCheck, saveUpdates])
 
   }, [getIdsToCheck, getIdsToCheckFromDb, saveUpdates, saveUpdatesToDb, user])
- test-source/main
+ 
 
   // Автозапуск
   useEffect(() => {
@@ -489,7 +489,7 @@ export function useEpisodeUpdates(): UseEpisodeUpdatesReturn {
     }
     saveUpdates([])
   }, [saveUpdates, user])
- test-source/main
+ 
 
   return {
     updates,

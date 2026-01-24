@@ -11,7 +11,7 @@ import {
 
 
   getAnimeById,
- test-source/main
+ 
   type Anime,
 } from "@/lib/shikimori"
 import { FloatingNav } from "@/components/floating-nav"
@@ -56,7 +56,7 @@ export default async function HomePage() {
       : topOfWeekHero
     : null
 
- test-source/main
+ 
   const recommendedHero = await getHeroRecommendation(
     watchedIds.map(String),
     bookmarkIds,
@@ -84,7 +84,7 @@ export default async function HomePage() {
         {topOfWeekHeroWithDetails || recommendedHero ? (
           <HeroBanner
             topOfWeekAnime={topOfWeekHeroWithDetails}
- test-source/main
+ 
             recommendedAnime={recommendedHero}
           />
         ) : (

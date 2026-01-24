@@ -4,7 +4,7 @@
 
 import { useHistory } from "@/components/history-provider"
 
- test-source/main
+ 
 type WatchHistoryItem = {
   id: string
   title: string
@@ -24,7 +24,7 @@ export function recordWatchStart(
     const filtered = history.filter((item) => item.id !== anime.id)
 
 
- test-source/main
+ 
     const newItem: WatchHistoryItem = {
       id: anime.id,
       title: anime.title,
@@ -45,7 +45,7 @@ export function recordWatchStart(
     console.log('History item added:', newItem)
   } catch (e) {
     console.error("Error adding to history:", e)
- test-source/main
+ 
   }
 }
 
@@ -54,6 +54,6 @@ export function HistoryTracker({ anime }: { anime: any }) {
 
   const { add } = useHistory()
   
- test-source/main
+ 
   return null // Этот компонент ничего не рисует, только логика
 }

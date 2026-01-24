@@ -18,7 +18,7 @@ import { KodikPlayer } from "@/components/kodik-player"
 
 
 import { BackupPlayer } from "@/components/backup-player"
- test-source/main
+ 
 import { EpisodeSelector } from "@/components/episode-selector"
 import { RegionWarning } from "@/components/region-warning"
 import { recordWatchStart } from "@/components/history-tracker"
@@ -64,7 +64,7 @@ export function WatchPageClient({
 
 
   const [useBackupPlayer, setUseBackupPlayer] = useState(false)
- test-source/main
+ 
   
   // Реф для скролла к плееру
   const playerRef = useRef<HTMLDivElement>(null)
@@ -187,7 +187,7 @@ export function WatchPageClient({
             </div>
           )}
 
- test-source/main
+ 
           {/* Кнопка "В закладки" */}
           <Button
             size="sm"
@@ -386,7 +386,7 @@ export function WatchPageClient({
                 isActive={true}
               />
             )}
- test-source/main
+ 
           </div>
         ) : (
           <div className="aspect-video w-full rounded-2xl bg-zinc-900/50 border border-zinc-800 flex flex-col items-center justify-center p-6 text-center">

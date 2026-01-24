@@ -16,7 +16,7 @@ const nextConfig = {
     allowedDevOrigins: ['192.168.0.16', 'anix.stream']
   },
 
- test-source/main
+ 
   turbopack: {
     root: process.cwd(),
   },

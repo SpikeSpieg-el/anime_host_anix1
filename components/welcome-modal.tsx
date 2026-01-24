@@ -5,7 +5,7 @@ import { Zap, ChevronRight, PlayCircle, Star } from "lucide-react"
 
 
 import { AuthModal } from "@/components/auth-modal"
- test-source/main
+ 
 
 // Вспомогательный компонент для скрытия заголовка (для a11y)
 const VisuallyHidden = ({ children }: { children: React.ReactNode }) => (
@@ -75,7 +75,7 @@ export function WelcomeModal() {
 
 
   const [showAuthModal, setShowAuthModal] = useState(false)
- test-source/main
+ 
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
   // --- Эффект монтирования и проверки LocalStorage ---
@@ -146,7 +146,7 @@ export function WelcomeModal() {
     setShowAuthModal(true)
   }
 
- test-source/main
+ 
   // Предотвращаем рендер на сервере (Next.js) до проверки состояния
   if (!mounted) return null
 
@@ -160,7 +160,7 @@ export function WelcomeModal() {
         className={`fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm transition-all duration-300 ${
 
         className={`fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/60 backdrop-blur-sm transition-all duration-300 ${
- test-source/main
+ 
           isOpen ? "opacity-100 visible" : "opacity-0 invisible pointer-events-none"
         }`}
       >
@@ -170,7 +170,7 @@ export function WelcomeModal() {
           className={`relative w-full max-w-[420px] h-[85vh] sm:h-[800px] bg-zinc-950 rounded-[2rem] overflow-hidden shadow-2xl border border-white/5 transition-all duration-500 ease-out transform ${
 
           className={`relative w-full h-[95vh] sm:h-[90vh] md:h-[85vh] lg:h-[80vh] max-w-[95vw] sm:max-w-[420px] md:max-w-[450px] lg:max-w-[480px] bg-zinc-950 rounded-[1.5rem] sm:rounded-[2rem] overflow-hidden shadow-2xl border border-white/5 transition-all duration-500 ease-out transform ${
- test-source/main
+ 
             isOpen ? "scale-100 opacity-100" : "scale-95 opacity-0"
           }`}
         >
@@ -208,7 +208,7 @@ export function WelcomeModal() {
             
             {/* Логотип */}
             <div className="flex justify-center pt-2 sm:pt-4">
- test-source/main
+ 
               <div className="relative group cursor-default">
                 {/* Свечение */}
                 <div className="absolute -inset-1 bg-gradient-to-r from-orange-600 to-purple-600 rounded-xl blur opacity-20 group-hover:opacity-40 transition duration-1000" />
@@ -220,7 +220,7 @@ export function WelcomeModal() {
 
                 <div className="relative w-10 h-10 sm:w-12 sm:h-12 bg-zinc-950/50 backdrop-blur-md border border-white/10 rounded-xl flex items-center justify-center shadow-lg">
                   <Zap className="w-5 h-5 sm:w-6 sm:h-6 text-orange-500 fill-orange-500/20" />
- test-source/main
+ 
                 </div>
               </div>
             </div>
@@ -244,7 +244,7 @@ export function WelcomeModal() {
                   Weeb.<span className="text-transparent bg-clip-text bg-gradient-to-br from-orange-400 to-orange-600">X</span>
                 </h2>
                 <p className="text-zinc-400 text-[10px] sm:text-xs font-bold uppercase tracking-[0.2em] sm:tracking-[0.3em]">
- test-source/main
+ 
                   Premium Anime Stream
                 </p>
               </div>
@@ -270,7 +270,7 @@ export function WelcomeModal() {
                   <div className="text-left">
                     <div className="text-white text-xs sm:text-sm font-bold group-hover:text-orange-200 transition-colors">Без рекламы</div>
                     <div className="text-zinc-500 text-[10px] sm:text-xs">Ничто не отвлечет от просмотра</div>
- test-source/main
+ 
                   </div>
                 </div>
                 
@@ -291,7 +291,7 @@ export function WelcomeModal() {
                   <div className="text-left">
                     <div className="text-white text-xs sm:text-sm font-bold group-hover:text-blue-200 transition-colors">Лучший подбор</div>
                     <div className="text-zinc-500 text-[10px] sm:text-xs">Только топовые тайтлы сезона</div>
- test-source/main
+ 
                   </div>
                 </div>
               </div>
@@ -324,7 +324,7 @@ export function WelcomeModal() {
                 >
                   Войти / Зарегистрироваться
                   <ChevronRight className="w-3.5 h-3.5 sm:w-4 sm:h-4 group-hover:translate-x-1 transition-transform" />
- test-source/main
+ 
                 </button>
               </div>
 
@@ -339,7 +339,7 @@ export function WelcomeModal() {
       {showAuthModal && (
         <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} />
       )}
- test-source/main
+ 
     </>
   )
 }

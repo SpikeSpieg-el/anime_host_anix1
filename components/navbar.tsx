@@ -7,7 +7,7 @@ import { useState, useEffect } from "react"
 import { Menu, X, ChevronDown, Flame, Tv, Zap, Compass, Home, BookMarked, History, Calendar, Settings, GraduationCap } from "lucide-react"
 
 import { Menu, X, ChevronDown, Flame, Tv, Zap, Compass, Home, BookMarked, History, Calendar, Settings, GraduationCap, LogOut, User as UserIcon } from "lucide-react"
- test-source/main
+ 
 import { GENRES_MAP } from "@/lib/shikimori"
 import { SearchSuggestions } from "@/components/search-suggestions"
 import { EpisodeUpdateBadge } from "@/components/episode-update-badge"
@@ -27,7 +27,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
- test-source/main
+ 
 
 // Helper для сохранения истории поиска
 function saveSearchHistory(query: string) {
@@ -52,7 +52,7 @@ export function Navbar() {
 
 
   const { user, signOut, profile } = useAuth()
- test-source/main
+ 
   
   const [isOpen, setIsOpen] = useState(false) // Мобильное меню
   const [isGenresOpen, setIsGenresOpen] = useState(false) // Мобильные жанры
@@ -270,7 +270,7 @@ export function Navbar() {
               <AuthModal />
             )}
             
- test-source/main
+ 
             <EpisodeUpdateBadge 
               updates={updates} 
               onClearUpdate={clearUpdate}
@@ -320,7 +320,7 @@ export function Navbar() {
               </div>
             )}
             
- test-source/main
+ 
             <EpisodeUpdateBadge 
               updates={updates} 
               onClearUpdate={clearUpdate}

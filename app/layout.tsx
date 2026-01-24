@@ -13,7 +13,7 @@ import { HistoryProvider } from "@/components/history-provider"
 import "./globals.css"
 import { WelcomeModal } from "@/components/welcome-modal"
 import { AuthProvider } from "@/components/auth-provider"
- test-source/main
+ 
 
 const _geist = Geist({ subsets: ["latin"] })
 const _geistMono = Geist_Mono({ subsets: ["latin"] })
@@ -67,7 +67,7 @@ export default function RootLayout({
             <BookmarksProvider>{children}</BookmarksProvider>
           </HistoryProvider>
         </AuthProvider>
- test-source/main
+ 
         <Analytics />
       </body>
     </html>
