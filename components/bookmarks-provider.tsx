@@ -2,11 +2,11 @@
 
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react"
 import type { Anime } from "@/lib/shikimori"
-<<<<<<< HEAD
-=======
+
+
 import { supabase } from "@/lib/supabase"
 import { useAuth } from "@/components/auth-provider"
->>>>>>> test-source/main
+ test-source/main
 
 type BookmarkAnime = Anime
 
@@ -35,7 +35,7 @@ function safeParseBookmarks(raw: string | null): BookmarkAnime[] {
 
 export function BookmarksProvider({ children }: { children: React.ReactNode }) {
   const [items, setItems] = useState<BookmarkAnime[]>([])
-<<<<<<< HEAD
+
 
   useEffect(() => {
     setItems(safeParseBookmarks(window.localStorage.getItem(STORAGE_KEY)))
@@ -48,7 +48,7 @@ export function BookmarksProvider({ children }: { children: React.ReactNode }) {
     const bookmarkIds = items.map(a => a.id).join(',')
     document.cookie = `bookmark_ids=${bookmarkIds}; path=/; max-age=31536000; SameSite=Lax`
   }, [items])
-=======
+
   const { user } = useAuth() // Получаем юзера
 
   // 1. Загрузка данных
@@ -89,7 +89,7 @@ export function BookmarksProvider({ children }: { children: React.ReactNode }) {
       document.cookie = `bookmark_ids=${bookmarkIds}; path=/; max-age=31536000; SameSite=Lax`
     }
   }, [items, user])
->>>>>>> test-source/main
+ test-source/main
 
   const isSaved = useCallback(
     (id: string) => {
@@ -98,16 +98,16 @@ export function BookmarksProvider({ children }: { children: React.ReactNode }) {
     [items],
   )
 
-<<<<<<< HEAD
+
   const add = useCallback((anime: BookmarkAnime) => {
-=======
+
   const add = useCallback(async (anime: BookmarkAnime) => {
->>>>>>> test-source/main
+ test-source/main
     setItems((prev) => {
       if (prev.some((a) => a.id === anime.id)) return prev
       return [anime, ...prev]
     })
-<<<<<<< HEAD
+
   }, [])
 
   const remove = useCallback((id: string) => {
@@ -123,7 +123,7 @@ export function BookmarksProvider({ children }: { children: React.ReactNode }) {
     },
     [],
   )
-=======
+
 
     if (user) {
       await supabase.from('bookmarks').insert({
@@ -169,7 +169,7 @@ export function BookmarksProvider({ children }: { children: React.ReactNode }) {
       }
     }
   }, [user]) // Добавлена зависимость от user
->>>>>>> test-source/main
+ test-source/main
 
   const value = useMemo<BookmarksContextValue>(() => ({ items, isSaved, add, remove, toggle }), [items, isSaved, add, remove, toggle])
 

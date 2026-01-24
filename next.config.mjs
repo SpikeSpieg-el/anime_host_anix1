@@ -11,12 +11,12 @@ const nextConfig = {
     ],
     qualities: [75, 90],
   },
-<<<<<<< HEAD
+
   experimental: {
     allowedDevOrigins: ['192.168.0.16', 'anix.stream']
   },
-=======
->>>>>>> test-source/main
+
+ test-source/main
   turbopack: {
     root: process.cwd(),
   },

@@ -1,11 +1,11 @@
 "use client"
 import Image from "next/image"
 import Link from "next/link"
-<<<<<<< HEAD
+
 import { Play, Info, Star, Zap, TrendingUp, Sparkles, ChevronRight, Hash, Eye } from "lucide-react"
-=======
+
 import { Play, Info, Star, Zap, TrendingUp, Sparkles, ChevronRight, Hash, Eye, Bookmark } from "lucide-react"
->>>>>>> test-source/main
+ test-source/main
 import {
   Dialog,
   DialogContent,
@@ -16,11 +16,11 @@ import {
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { HeroBannerSkeleton } from "@/components/skeleton"
-<<<<<<< HEAD
-=======
+
+
 import { useBookmarks } from "@/components/bookmarks-provider"
 import { cn } from "@/lib/utils"
->>>>>>> test-source/main
+ test-source/main
 
 // Функция для генерации запасного постера (такая же как в anime-card)
 function generateFallbackPoster(title: string): string {
@@ -59,17 +59,17 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime }: HeroBannerProps
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [bgImageError, setBgImageError] = useState(false)
   const [posterImageError, setPosterImageError] = useState(false)
-<<<<<<< HEAD
+
   const router = useRouter()
   
   const anime = mode === 'top' ? topOfWeekAnime : recommendedAnime
-=======
+
   const { isSaved, toggle } = useBookmarks()
   const router = useRouter()
   
   const anime = mode === 'top' ? topOfWeekAnime : recommendedAnime
   const saved = !!anime?.id && isSaved(String(anime.id))
->>>>>>> test-source/main
+ test-source/main
   
   const hasHighQualityBackdrop = !!anime?.backdrop && !bgImageError;
   const bgImage = bgImageError ? generateFallbackPoster(anime?.title || 'Anime') : (anime?.backdrop || anime?.poster);
@@ -140,16 +140,16 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime }: HeroBannerProps
           
           {/* --- ПРАВАЯ ЧАСТЬ: ПОСТЕР (На мобильном сверху, но компактнее) --- */}
           <div className="order-first lg:order-last lg:absolute lg:right-4 lg:top-1/2 lg:-translate-y-1/2 lg:w-5/12 flex justify-center mb-4 lg:mb-0 perspective-1000 z-20 w-full">
-<<<<<<< HEAD
+
              <div className="relative w-[160px] aspect-[2/3] sm:w-[240px] lg:w-[340px] group/poster transition-all duration-500">
-=======
+
              <button
                type="button"
                onClick={() => setIsDialogOpen(true)}
                className="relative w-[160px] aspect-[2/3] sm:w-[240px] lg:w-[340px] group/poster transition-all duration-500"
                aria-label="Подробнее об аниме"
              >
->>>>>>> test-source/main
+ test-source/main
                 {/* Эффект свечения */}
                 <div className="absolute inset-0 bg-gradient-to-br from-orange-600 to-orange-700 rounded-xl lg:rounded-2xl transform rotate-6 translate-x-2 translate-y-2 opacity-60 blur-md lg:group-hover/poster:rotate-12 lg:group-hover/poster:translate-x-6 transition-all duration-500" />
                 
@@ -175,11 +175,11 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime }: HeroBannerProps
                        </div>
                     </div>
                 </div>
-<<<<<<< HEAD
+
              </div>
-=======
+
              </button>
->>>>>>> test-source/main
+ test-source/main
           </div>
 
           {/* --- ЛЕВАЯ ЧАСТЬ: ИНФОРМАЦИЯ --- */}
@@ -292,12 +292,12 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime }: HeroBannerProps
                           <DialogTitle className="text-xl sm:text-3xl font-black uppercase mb-3 leading-tight text-white">
                             {anime.title}
                           </DialogTitle>
-<<<<<<< HEAD
+
                           <DialogDescription className="sr-only">
                             Подробная информация об аниме {anime.title}, включая описание, жанры и рейтинг
                           </DialogDescription>
-=======
->>>>>>> test-source/main
+
+ test-source/main
                           
                           <div className="flex flex-wrap gap-2 mb-4">
                              {anime.genres?.slice(0, 4).map((g: string) => (
@@ -307,11 +307,11 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime }: HeroBannerProps
                              ))}
                           </div>
 
-<<<<<<< HEAD
+
                           <p className="text-zinc-300 text-xs sm:text-sm leading-relaxed mb-4 opacity-90">
                             {anime.description || "Описание отсутствует..."}
                           </p>
-=======
+
                           {/* ПРОВЕРКА ОПИСАНИЯ */}
                           {anime.description && anime.description !== "Описание отсутствует..." ? (
                             <p className="text-zinc-300 text-xs sm:text-sm leading-relaxed mb-4 opacity-90">
@@ -334,12 +334,12 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime }: HeroBannerProps
                               </a>
                             </div>
                           )}
->>>>>>> test-source/main
+ test-source/main
                        </div>
 
                        {/* ФУТЕР ДИАЛОГА (Кнопка Смотреть) */}
                        <div className="shrink-0 p-4 sm:p-8 sm:pt-4 bg-gradient-to-t from-zinc-950 to-transparent z-10">
-<<<<<<< HEAD
+
                          <button 
                            onClick={() => { setIsDialogOpen(false); router.push(`/watch/${anime.id}`) }}
                            className="w-full flex items-center justify-center gap-2 sm:gap-3 bg-gradient-to-r from-orange-600 to-orange-500 hover:from-orange-500 hover:to-orange-400 text-white font-black py-3 sm:py-4 rounded-xl uppercase tracking-wider shadow-lg hover:shadow-orange-500/20 transition-all active:scale-95 group/btn"
@@ -351,7 +351,7 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime }: HeroBannerProps
                          </button>
                        </div>
 
-=======
+
                         <div className="flex flex-row gap-3">
                           <button 
                             type="button"
@@ -374,7 +374,7 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime }: HeroBannerProps
                           </button>
                         </div>
                        </div>
->>>>>>> test-source/main
+ test-source/main
                     </div>
                   </div>
                 </DialogContent>

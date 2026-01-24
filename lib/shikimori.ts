@@ -9,9 +9,9 @@ const HEADERS = {
   "Accept": "application/json"
 };
 
-// ==========================================
+// 
 // 1. ARTISTIC POSTER GENERATOR (Генерация обложек)
-// ==========================================
+// 
 
 function wrapText(text: string, maxCharsPerLine: number): string[] {
   const words = text.split(' ');
@@ -132,17 +132,17 @@ function generateArtPoster(title: string): string {
   return `data:image/svg+xml;base64,${base64}`;
 }
 
-// ==========================================
+// 
 // 2. FETCH HELPERS
-// ==========================================
+// 
 
 const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
 
-<<<<<<< HEAD
+
 async function shikimoriFetch(input: string, init?: RequestInit & { next?: any }, retries = 2) {
   const controller = new AbortController();
   const timeoutMs = 15_000;
-=======
+
 type ShikimoriCacheEntry = {
   freshUntil: number;
   staleUntil: number;
@@ -183,7 +183,7 @@ function setCachedShikimoriJson(key: string, value: unknown, ttlMs: number, stal
 async function shikimoriFetch(input: string, init?: RequestInit & { next?: any }, retries = 1) {
   const controller = new AbortController();
   const timeoutMs = 8_000;
->>>>>>> test-source/main
+ test-source/main
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
@@ -196,24 +196,24 @@ async function shikimoriFetch(input: string, init?: RequestInit & { next?: any }
       signal: controller.signal
     });
 
-<<<<<<< HEAD
+
     // Если поймали лимит запросов
     if (res.status === 429 && retries > 0) {
       console.warn(`[Shikimori] 429 Rate Limit. Waiting 2s... (${retries} retries left)`);
       await delay(1000); // Ждем 2 секунды перед повтором
       return shikimoriFetch(input, init, retries - 1);
     }
-=======
+
     if (res.status === 429) return res;
->>>>>>> test-source/main
+ test-source/main
 
     return res;
   } catch (error) {
     if (retries > 0) {
-<<<<<<< HEAD
+
       await delay(1000);
-=======
->>>>>>> test-source/main
+
+ test-source/main
       return shikimoriFetch(input, init, retries - 1);
     }
     throw error;
@@ -222,8 +222,8 @@ async function shikimoriFetch(input: string, init?: RequestInit & { next?: any }
   }
 }
 
-<<<<<<< HEAD
-=======
+
+
 async function shikimoriJson<T>(
   input: string,
   init?: RequestInit & { next?: any },
@@ -267,7 +267,7 @@ async function shikimoriJson<T>(
   }
 }
 
->>>>>>> test-source/main
+ test-source/main
 function normalizeShikimoriUrl(value: string): string {
   const raw = (value ?? "").trim();
   if (!raw) return raw;
@@ -292,9 +292,9 @@ function upgradeShikimoriUrl(url: string): string {
     .replace('_preview', '_original');
 }
 
-// ==========================================
+// 
 // 3. INTERFACES
-// ==========================================
+// 
 
 export interface ShikimoriAnime {
   id: number;
@@ -445,13 +445,13 @@ export const GENRES_MAP: Record<string, string> = {
   "Пародия": "12",
   // "Эротика": "9", // Закомментировано для исключения хентай-контента из поиска
 };
-<<<<<<< HEAD
-=======
 
->>>>>>> test-source/main
-// ==========================================
+
+
+ test-source/main
+// 
 // Календарь (страница расписания)
-// ==========================================
+// 
 
 export interface CalendarItem {
   next_episode: number;
@@ -469,17 +469,17 @@ export interface WeeklySchedule {
 export async function getAnimeCalendar(): Promise<WeeklySchedule> {
   try {
     // Получаем календарь релизов
-<<<<<<< HEAD
+
     const res = await shikimoriFetch(`${BASE_URL}/calendar`);
     if (!res.ok) return {};
 
     const data: CalendarItem[] = await res.json();
     
-=======
+
     const data = await shikimoriJson<CalendarItem[]>(`${BASE_URL}/calendar`, { next: { revalidate: 1800 } }, { ttlMs: 60_000, staleTtlMs: 6 * 60 * 60_000, fallback: [] });
     if (!Array.isArray(data)) return {};
 
->>>>>>> test-source/main
+ test-source/main
     // Инициализируем пустую неделю (0 - Пн, 6 - Вс)
     const schedule: WeeklySchedule = {
       0: [], 1: [], 2: [], 3: [], 4: [], 5: [], 6: []
@@ -511,9 +511,9 @@ export async function getAnimeCalendar(): Promise<WeeklySchedule> {
   }
 }
 
-// ==========================================
+// 
 // 4. IMAGE LOGIC (Resolve Best Poster/Backdrop)
-// ==========================================
+// 
 
 function isHighQualityImage(url: string, isPoster: boolean = true): boolean {
   if (!url) return false;
@@ -721,9 +721,9 @@ async function getAnilistBackdrop(searchTitle: string): Promise<string | null> {
   }
 }
 
-// ==========================================
+// 
 // 5. TRANSFORMERS
-// ==========================================
+// 
 
 async function transformAnime(item: ShikimoriAnime): Promise<Anime> {
   // Используем улучшенную логику с множественными источниками постеров
@@ -779,19 +779,19 @@ function transformTopic(topic: ShikimoriTopic): NewsItem {
   };
 }
 
-// ==========================================
+// 
 // 6. API FUNCTIONS
-// ==========================================
+// 
 
 export async function getAnimeList(limit = 20, order = 'popularity') {
   try {
-<<<<<<< HEAD
+
     const res = await shikimoriFetch(`${BASE_URL}/animes?limit=${limit}&order=${order}&status=ongoing,released&score=6`);
     if (!res.ok) throw new Error("Failed to fetch");
     const data: ShikimoriAnime[] = await res.json();
-=======
+
     const data = await shikimoriJson<ShikimoriAnime[]>(`${BASE_URL}/animes?limit=${limit}&order=${order}&status=ongoing,released&score=6`, { next: { revalidate: 1800 } }, { ttlMs: 60_000, staleTtlMs: 60 * 60_000, fallback: [] });
->>>>>>> test-source/main
+ test-source/main
     return await Promise.all(data.map(transformAnime));
   } catch (error) {
     console.error(error);
@@ -801,16 +801,16 @@ export async function getAnimeList(limit = 20, order = 'popularity') {
 
 export async function getPopularNow(limit = 12): Promise<Anime[]> {
   try {
-<<<<<<< HEAD
+
     const res = await shikimoriFetch(`${BASE_URL}/animes?limit=${limit}&order=popularity&status=ongoing&score=7`, {
       next: { revalidate: 1800 }
     });
     if (!res.ok) return [];
 
     const data: ShikimoriAnime[] = await res.json();
-=======
+
     const data = await shikimoriJson<ShikimoriAnime[]>(`${BASE_URL}/animes?limit=${limit}&order=popularity&status=ongoing&score=7`, { next: { revalidate: 1800 } }, { ttlMs: 60_000, staleTtlMs: 60 * 60_000, fallback: [] });
->>>>>>> test-source/main
+ test-source/main
     return await Promise.all(data.map(transformAnime));
   } catch (error) {
     return [];
@@ -819,15 +819,15 @@ export async function getPopularNow(limit = 12): Promise<Anime[]> {
 
 export async function getPopularAlways(limit = 12): Promise<Anime[]> {
   try {
-<<<<<<< HEAD
+
     const res = await shikimoriFetch(`${BASE_URL}/animes?limit=${limit}&order=popularity&status=released&score=8`, {
       next: { revalidate: 1800 }
     });
     if (!res.ok) return [];
     const data: ShikimoriAnime[] = await res.json();
-=======
+
     const data = await shikimoriJson<ShikimoriAnime[]>(`${BASE_URL}/animes?limit=${limit}&order=popularity&status=released&score=8`, { next: { revalidate: 1800 } }, { ttlMs: 60_000, staleTtlMs: 60 * 60_000, fallback: [] });
->>>>>>> test-source/main
+ test-source/main
     return await Promise.all(data.map(transformAnime));
   } catch (error) {
     return [];
@@ -836,15 +836,15 @@ export async function getPopularAlways(limit = 12): Promise<Anime[]> {
 
 export async function getOngoingList(limit = 12): Promise<Anime[]> {
   try {
-<<<<<<< HEAD
+
     const res = await shikimoriFetch(`${BASE_URL}/animes?limit=${limit}&status=ongoing&order=ranked`, {
       next: { revalidate: 1800 }
     });
     if (!res.ok) return [];
     const data: ShikimoriAnime[] = await res.json();
-=======
+
     const data = await shikimoriJson<ShikimoriAnime[]>(`${BASE_URL}/animes?limit=${limit}&status=ongoing&order=ranked`, { next: { revalidate: 1800 } }, { ttlMs: 60_000, staleTtlMs: 60 * 60_000, fallback: [] });
->>>>>>> test-source/main
+ test-source/main
     return await Promise.all(data.map(transformAnime));
   } catch (error) {
     return [];
@@ -853,13 +853,13 @@ export async function getOngoingList(limit = 12): Promise<Anime[]> {
 
 export async function getForumNews(limit = 4): Promise<NewsItem[]> {
   try {
-<<<<<<< HEAD
+
     const res = await shikimoriFetch(`${BASE_URL}/topics?forum=news&limit=${limit}`);
     if (!res.ok) return [];
     const data: ShikimoriTopic[] = await res.json();
-=======
+
     const data = await shikimoriJson<ShikimoriTopic[]>(`${BASE_URL}/topics?forum=news&limit=${limit}`, { next: { revalidate: 1800 } }, { ttlMs: 60_000, staleTtlMs: 6 * 60 * 60_000, fallback: [] });
->>>>>>> test-source/main
+ test-source/main
     return data.map(transformTopic);
   } catch (error) {
     return [];
@@ -868,17 +868,17 @@ export async function getForumNews(limit = 4): Promise<NewsItem[]> {
 
 export async function getAnimeById(id: string) {
   try {
-<<<<<<< HEAD
+
     const res = await shikimoriFetch(`${BASE_URL}/animes/${id}`, {
       next: { revalidate: 3600 },
       headers: HEADERS
     });
     if (!res.ok) return null;
     const data: ShikimoriAnime = await res.json();
-=======
+
     const data = await shikimoriJson<ShikimoriAnime | null>(`${BASE_URL}/animes/${id}`, { next: { revalidate: 3600 }, headers: HEADERS }, { ttlMs: 10 * 60_000, staleTtlMs: 24 * 60 * 60_000, fallback: null });
     if (!data) return null;
->>>>>>> test-source/main
+ test-source/main
     return await transformAnime(data);
   } catch (error) {
     return null;
@@ -887,17 +887,17 @@ export async function getAnimeById(id: string) {
 
 export async function getAnimeFranchise(id: string): Promise<FranchiseItem[]> {
   try {
-<<<<<<< HEAD
+
     const res = await shikimoriFetch(`${BASE_URL}/animes/${id}/franchise`);
     if (!res.ok) return [];
 
     const data: ShikimoriFranchise = await res.json();
     
-=======
+
     const data = await shikimoriJson<ShikimoriFranchise | null>(`${BASE_URL}/animes/${id}/franchise`, { next: { revalidate: 21600 } }, { ttlMs: 10 * 60_000, staleTtlMs: 24 * 60 * 60_000, fallback: null });
     if (!data) return [];
 
->>>>>>> test-source/main
+ test-source/main
     const nodes = data.nodes.filter((node) => node.url?.startsWith('/animes/'));
 
     const items: FranchiseItem[] = await Promise.all(nodes.map(async (node) => {
@@ -932,12 +932,12 @@ export async function getAnimeFranchise(id: string): Promise<FranchiseItem[]> {
 
 export async function searchAnime(query: string) {
   try {
-<<<<<<< HEAD
+
     const res = await shikimoriFetch(`${BASE_URL}/animes?search=${encodeURIComponent(query)}&limit=10&score=6`);
     const data = await res.json();
-=======
+
     const data = await shikimoriJson<ShikimoriAnime[]>(`${BASE_URL}/animes?search=${encodeURIComponent(query)}&limit=10&score=6`, { next: { revalidate: 60 } }, { ttlMs: 30_000, staleTtlMs: 10 * 60_000, fallback: [] });
->>>>>>> test-source/main
+ test-source/main
     return await Promise.all(data.map(transformAnime));
   } catch (error) {
     return [];
@@ -946,12 +946,12 @@ export async function searchAnime(query: string) {
 
 export async function getAnnouncements(limit = 3) {
   try {
-<<<<<<< HEAD
+
     const res = await shikimoriFetch(`${BASE_URL}/animes?limit=${limit}&order=popularity&status=anons`);
     const data = await res.json();
-=======
+
     const data = await shikimoriJson<ShikimoriAnime[]>(`${BASE_URL}/animes?limit=${limit}&order=popularity&status=anons`, { next: { revalidate: 21600 } }, { ttlMs: 60_000, staleTtlMs: 24 * 60 * 60_000, fallback: [] });
->>>>>>> test-source/main
+ test-source/main
     return await Promise.all(data.map(transformAnime));
   } catch (error) {
     return [];
@@ -962,13 +962,13 @@ export async function getAnimeByIds(ids: string[]) {
   if (ids.length === 0) return [];
   const idsString = ids.join(',');
   try {
-<<<<<<< HEAD
+
     const res = await shikimoriFetch(`${BASE_URL}/animes?ids=${idsString}&limit=${ids.length}`);
     if (!res.ok) return [];
     const data: ShikimoriAnime[] = await res.json();
-=======
+
     const data = await shikimoriJson<ShikimoriAnime[]>(`${BASE_URL}/animes?ids=${idsString}&limit=${ids.length}`, { next: { revalidate: 3600 } }, { ttlMs: 5 * 60_000, staleTtlMs: 24 * 60 * 60_000, fallback: [] });
->>>>>>> test-source/main
+ test-source/main
     return await Promise.all(data.map(transformAnime));
   } catch (error) {
     return [];
@@ -978,16 +978,16 @@ export async function getAnimeByIds(ids: string[]) {
 // --- OPTIMIZED TOP OF WEEK (Фикс 429 ошибки) ---
 export async function getTopOfWeek(limit = 30): Promise<Anime[]> {
   try {
-<<<<<<< HEAD
+
     const res = await shikimoriFetch(`${BASE_URL}/animes?limit=${limit}&order=popularity&status=ongoing&score=7`, {
       next: { revalidate: 3600 } // Кэшируем на час
     });
     if (!res.ok) return [];
 
     const data: ShikimoriAnime[] = await res.json();
-=======
+
     const data = await shikimoriJson<ShikimoriAnime[]>(`${BASE_URL}/animes?limit=${limit}&order=popularity&status=ongoing&score=7`, { next: { revalidate: 3600 } }, { ttlMs: 60_000, staleTtlMs: 24 * 60 * 60_000, fallback: [] });
->>>>>>> test-source/main
+ test-source/main
     const animeList = await Promise.all(data.map(transformAnime));
 
     const animeWithBackdrop = [];
@@ -1012,16 +1012,16 @@ export async function getTopOfWeek(limit = 30): Promise<Anime[]> {
 // Функции рекомендаций
 async function canRecommendFranchise(animeId: string, watchedIds: string[]): Promise<boolean> {
   try {
-<<<<<<< HEAD
+
     const res = await shikimoriFetch(`${BASE_URL}/animes/${animeId}/franchise`);
     if (!res.ok) return true;
 
     const data: ShikimoriFranchise = await res.json();
-=======
+
     const data = await shikimoriJson<ShikimoriFranchise | null>(`${BASE_URL}/animes/${animeId}/franchise`, { next: { revalidate: 21600 } }, { ttlMs: 10 * 60_000, staleTtlMs: 24 * 60 * 60_000, fallback: null });
     if (!data) return true;
 
->>>>>>> test-source/main
+ test-source/main
     const currentNode = data.nodes.find((node) => node.id === parseInt(animeId));
     
     if (!currentNode) return true;
@@ -1069,7 +1069,7 @@ export async function getHeroRecommendation(watchedIds: string[], bookmarkIds: s
     }
 
     const lastWatchedId = watchedIds[0];
-<<<<<<< HEAD
+
     const response = await shikimoriFetch(`${BASE_URL}/animes/${lastWatchedId}`);
 
     if (!response.ok) {
@@ -1086,7 +1086,7 @@ export async function getHeroRecommendation(watchedIds: string[], bookmarkIds: s
     );
 
     if (!recommendedRes.ok) {
-=======
+
     const lastAnime = await shikimoriJson<any | null>(`${BASE_URL}/animes/${lastWatchedId}`, { next: { revalidate: 3600 } }, { ttlMs: 10 * 60_000, staleTtlMs: 24 * 60 * 60_000, fallback: null });
 
     if (!lastAnime) {
@@ -1103,16 +1103,16 @@ export async function getHeroRecommendation(watchedIds: string[], bookmarkIds: s
     );
 
     if (!Array.isArray(recommended) || recommended.length === 0) {
->>>>>>> test-source/main
+ test-source/main
       if (!popularAnime || popularAnime.length === 0) return null;
       return await fetchFullDetails(popularAnime[0]);
     }
 
-<<<<<<< HEAD
+
     const recommended = await recommendedRes.json();
 
-=======
->>>>>>> test-source/main
+
+ test-source/main
     if (recommended.length > 0) {
       const validRecommendations: any[] = [];
       
@@ -1148,10 +1148,10 @@ export async function getHeroRecommendation(watchedIds: string[], bookmarkIds: s
 // --- FIXED CATALOG FILTERS (Фикс 422 ошибки) ---
 
 export async function getAnimeCatalog(filters: CatalogFilters): Promise<Anime[]> {
-<<<<<<< HEAD
-=======
 
->>>>>>> test-source/main
+
+
+ test-source/main
   const {
     page = 1,
     limit = 24,
@@ -1206,7 +1206,7 @@ export async function getAnimeCatalog(filters: CatalogFilters): Promise<Anime[]>
     }
 
     const url = `${BASE_URL}/animes?${params.toString()}`;
-<<<<<<< HEAD
+
     
     const res = await shikimoriFetch(url, {
       next: { revalidate: 60 },
@@ -1219,10 +1219,10 @@ export async function getAnimeCatalog(filters: CatalogFilters): Promise<Anime[]>
     }
     
     const data: ShikimoriAnime[] = await res.json();
-=======
+
 
     const data = await shikimoriJson<ShikimoriAnime[]>(url, { next: { revalidate: 60 }, headers: HEADERS }, { ttlMs: 30_000, staleTtlMs: 10 * 60_000, fallback: [] });
->>>>>>> test-source/main
+ test-source/main
     if (!Array.isArray(data)) return [];
 
     return await Promise.all(data.map(transformAnime));

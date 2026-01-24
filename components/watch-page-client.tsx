@@ -15,10 +15,10 @@ import {
 } from "lucide-react"
 import type { Anime } from "@/lib/shikimori"
 import { KodikPlayer } from "@/components/kodik-player"
-<<<<<<< HEAD
-=======
+
+
 import { BackupPlayer } from "@/components/backup-player"
->>>>>>> test-source/main
+ test-source/main
 import { EpisodeSelector } from "@/components/episode-selector"
 import { RegionWarning } from "@/components/region-warning"
 import { recordWatchStart } from "@/components/history-tracker"
@@ -61,10 +61,10 @@ export function WatchPageClient({
   const [isStarted, setIsStarted] = useState(false)
   const [selectedCountry, setSelectedCountry] = useState<string>('RU')
   const [isRegionDetected, setIsRegionDetected] = useState(false)
-<<<<<<< HEAD
-=======
+
+
   const [useBackupPlayer, setUseBackupPlayer] = useState(false)
->>>>>>> test-source/main
+ test-source/main
   
   // Реф для скролла к плееру
   const playerRef = useRef<HTMLDivElement>(null)
@@ -153,8 +153,8 @@ export function WatchPageClient({
         </Button>
 
         <div className="flex items-center gap-2">
-<<<<<<< HEAD
-=======
+
+
           {/* Переключатель плееров */}
           {hasEpisodes && (
             <div className="flex items-center gap-1 bg-zinc-900 border border-zinc-800 rounded-lg p-1">
@@ -187,7 +187,7 @@ export function WatchPageClient({
             </div>
           )}
 
->>>>>>> test-source/main
+ test-source/main
           {/* Кнопка "В закладки" */}
           <Button
             size="sm"
@@ -358,7 +358,7 @@ export function WatchPageClient({
         
         {hasEpisodes ? (
           <div className="rounded-2xl overflow-hidden border border-zinc-800 bg-black shadow-2xl relative aspect-video">
-<<<<<<< HEAD
+
              <KodikPlayer
                shikimoriId={anime.shikimoriId}
                title={anime.title}
@@ -368,7 +368,7 @@ export function WatchPageClient({
                onCountryChange={handleCountryChange}
                onRegionDetected={handleRegionDetected}
              />
-=======
+
             {!useBackupPlayer ? (
               <KodikPlayer
                 shikimoriId={anime.shikimoriId}
@@ -386,7 +386,7 @@ export function WatchPageClient({
                 isActive={true}
               />
             )}
->>>>>>> test-source/main
+ test-source/main
           </div>
         ) : (
           <div className="aspect-video w-full rounded-2xl bg-zinc-900/50 border border-zinc-800 flex flex-col items-center justify-center p-6 text-center">

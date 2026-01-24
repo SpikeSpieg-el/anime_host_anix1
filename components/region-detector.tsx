@@ -22,13 +22,13 @@ export function RegionDetector({ onCountryChange, onRegionDetected }: RegionDete
 
   const detectRegion = async () => {
     try {
-<<<<<<< HEAD
+
       // Пробуем несколько сервисов для определения региона
       let response: Response | null = null
       let data: any = null
       
-=======
->>>>>>> test-source/main
+
+ test-source/main
       // Создаем таймаут вручную для совместимости
       const createTimeoutController = (timeoutMs: number) => {
         if (typeof AbortSignal !== 'undefined' && 'timeout' in AbortSignal) {
@@ -39,7 +39,7 @@ export function RegionDetector({ onCountryChange, onRegionDetected }: RegionDete
           return { signal: controller.signal }
         }
       }
-<<<<<<< HEAD
+
       
       // Сервис 1: ipapi.co
       try {
@@ -89,7 +89,7 @@ export function RegionDetector({ onCountryChange, onRegionDetected }: RegionDete
       // Если все сервисы не сработали, используем заглушку
       if (!data) {
         throw new Error('All IP services failed')
-=======
+
 
       // Делаем запрос на свой API (server-side proxy), чтобы избежать CORS
       const { signal } = createTimeoutController(5000)
@@ -101,7 +101,7 @@ export function RegionDetector({ onCountryChange, onRegionDetected }: RegionDete
       const data = await response.json()
       if (!data) {
         throw new Error('Region API returned empty payload')
->>>>>>> test-source/main
+ test-source/main
       }
       
       const country = data.country_name || data.country || 'Unknown'

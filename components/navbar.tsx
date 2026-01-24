@@ -3,18 +3,18 @@
 import Link from "next/link"
 import { useRouter, usePathname } from "next/navigation"
 import { useState, useEffect } from "react"
-<<<<<<< HEAD
+
 import { Menu, X, ChevronDown, Flame, Tv, Zap, Compass, Home, BookMarked, History, Calendar, Settings, GraduationCap } from "lucide-react"
-=======
+
 import { Menu, X, ChevronDown, Flame, Tv, Zap, Compass, Home, BookMarked, History, Calendar, Settings, GraduationCap, LogOut, User as UserIcon } from "lucide-react"
->>>>>>> test-source/main
+ test-source/main
 import { GENRES_MAP } from "@/lib/shikimori"
 import { SearchSuggestions } from "@/components/search-suggestions"
 import { EpisodeUpdateBadge } from "@/components/episode-update-badge"
 import { useEpisodeUpdates } from "@/hooks/use-episode-updates"
-<<<<<<< HEAD
+
 import { cn } from "@/lib/utils" 
-=======
+
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/components/auth-provider"
 import { AuthModal } from "@/components/auth-modal"
@@ -27,7 +27,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
->>>>>>> test-source/main
+ test-source/main
 
 // Helper для сохранения истории поиска
 function saveSearchHistory(query: string) {
@@ -49,10 +49,10 @@ function saveSearchHistory(query: string) {
 export function Navbar() {
   const router = useRouter()
   const pathname = usePathname()
-<<<<<<< HEAD
-=======
+
+
   const { user, signOut, profile } = useAuth()
->>>>>>> test-source/main
+ test-source/main
   
   const [isOpen, setIsOpen] = useState(false) // Мобильное меню
   const [isGenresOpen, setIsGenresOpen] = useState(false) // Мобильные жанры
@@ -230,10 +230,10 @@ export function Navbar() {
             />
           </div>
 
-<<<<<<< HEAD
+
           {/* 4. УВЕДОМЛЕНИЯ О НОВЫХ СЕРИЯХ (DESKTOP) */}
           <div className="hidden md:block">
-=======
+
           {/* 4. ПРОФИЛЬ/АВТОРИЗАЦИЯ + УВЕДОМЛЕНИЯ О НОВЫХ СЕРИЯХ (DESKTOP) */}
           <div className="flex items-center gap-2 hidden md:block">
             {user ? (
@@ -270,7 +270,7 @@ export function Navbar() {
               <AuthModal />
             )}
             
->>>>>>> test-source/main
+ test-source/main
             <EpisodeUpdateBadge 
               updates={updates} 
               onClearUpdate={clearUpdate}
@@ -278,10 +278,10 @@ export function Navbar() {
             />
           </div>
 
-<<<<<<< HEAD
+
           {/* 5. МОБИЛЬНЫЙ ТОГГЛ + УВЕДОМЛЕНИЯ */}
           <div className="flex items-center gap-2 md:hidden">
-=======
+
           {/* 5. МОБИЛЬНЫЙ ТОГГЛ + УВЕДОМЛЕНИЯ + ПРОФИЛЬ */}
           <div className="flex items-center gap-2 md:hidden">
             {user ? (
@@ -320,7 +320,7 @@ export function Navbar() {
               </div>
             )}
             
->>>>>>> test-source/main
+ test-source/main
             <EpisodeUpdateBadge 
               updates={updates} 
               onClearUpdate={clearUpdate}
