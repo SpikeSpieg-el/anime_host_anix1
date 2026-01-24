@@ -1,9 +1,37 @@
 import { createClient } from '@supabase/supabase-js'
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-export const supabase = createClient(supabaseUrl, supabaseKey)
+// Create a mock client for build process when env vars are missing
+const createMockClient = () => {
+  const mockClient = {
+    auth: {
+      getSession: () => Promise.resolve({ data: { session: null } }),
+      onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
+      signOut: () => Promise.resolve(),
+    },
+    from: () => ({
+      select: () => ({
+        eq: () => ({
+          single: () => Promise.resolve({ data: null, error: null }),
+          order: () => Promise.resolve({ data: [], error: null })
+        })
+      }),
+      insert: () => Promise.resolve({ data: null, error: null }),
+      upsert: () => Promise.resolve({ data: null, error: null }),
+      delete: () => ({
+        match: () => Promise.resolve({ data: null, error: null }),
+        eq: () => Promise.resolve({ data: null, error: null })
+      })
+    })
+  }
+  return mockClient as any
+}
+
+export const supabase = supabaseUrl && supabaseKey 
+  ? createClient(supabaseUrl, supabaseKey)
+  : createMockClient()
 
 // --- ФУНКЦИЯ СИНХРОНИЗАЦИИ ---
 // Берет данные из LocalStorage и отправляет в БД при входе
