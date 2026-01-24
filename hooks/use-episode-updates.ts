@@ -125,17 +125,11 @@ export function useEpisodeUpdates(): UseEpisodeUpdatesReturn {
     window.addEventListener("storage", handleStorageChange)
 
     return () => {
-
       window.removeEventListener(UPDATE_EVENT, loadFromStorage)
-      window.removeEventListener("storage", handleStorageChange)
-    }
-  }, [loadFromStorage])
-
       window.removeEventListener(UPDATE_EVENT, user ? (loadFromDb as any) : (loadFromStorage as any))
-      window.removeEventListener("storage", handleStorageChange)
     }
-  }, [loadFromStorage, loadFromDb, user])
- 
+  }, [loadFromStorage, user])
+
 
   // Сохранение обновлений
   const saveUpdates = useCallback((newUpdates: EpisodeUpdate[]) => {

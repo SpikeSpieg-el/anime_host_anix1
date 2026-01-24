@@ -156,22 +156,14 @@ export function WelcomeModal() {
       
       {/* Оверлей / Backdrop */}
       <div 
-
-        className={`fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm transition-all duration-300 ${
-
         className={`fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/60 backdrop-blur-sm transition-all duration-300 ${
- 
           isOpen ? "opacity-100 visible" : "opacity-0 invisible pointer-events-none"
         }`}
       >
         {/* Сама карточка модалки */}
         <div 
-
-          className={`relative w-full max-w-[420px] h-[85vh] sm:h-[800px] bg-zinc-950 rounded-[2rem] overflow-hidden shadow-2xl border border-white/5 transition-all duration-500 ease-out transform ${
-
           className={`relative w-full h-[95vh] sm:h-[90vh] md:h-[85vh] lg:h-[80vh] max-w-[95vw] sm:max-w-[420px] md:max-w-[450px] lg:max-w-[480px] bg-zinc-950 rounded-[1.5rem] sm:rounded-[2rem] overflow-hidden shadow-2xl border border-white/5 transition-all duration-500 ease-out transform ${
- 
-            isOpen ? "scale-100 opacity-100" : "scale-95 opacity-0"
+          isOpen ? "scale-100 opacity-100" : "scale-95 opacity-0"
           }`}
         >
           <VisuallyHidden>

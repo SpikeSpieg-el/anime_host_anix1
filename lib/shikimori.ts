@@ -798,6 +798,7 @@ export async function getPopularNow(limit = 12): Promise<Anime[]> {
   } catch (error) {
     return [];
   }
+} 
 
 export async function getPopularAlways(limit = 12): Promise<Anime[]> {
   try {

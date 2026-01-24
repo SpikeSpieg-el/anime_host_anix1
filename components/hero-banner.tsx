@@ -176,10 +176,8 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime }: HeroBannerProps
                     </div>
                 </div>
 
-             </div>
-
              </button>
- 
+
           </div>
 
           {/* --- ЛЕВАЯ ЧАСТЬ: ИНФОРМАЦИЯ --- */}

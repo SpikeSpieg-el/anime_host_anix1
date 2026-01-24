@@ -257,5 +257,4 @@ return (
     </section>
   )}
 </div>
-)
 }
