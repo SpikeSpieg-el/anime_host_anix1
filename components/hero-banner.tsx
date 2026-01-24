@@ -2,10 +2,8 @@
 import Image from "next/image"
 import Link from "next/link"
 
-import { Play, Info, Star, Zap, TrendingUp, Sparkles, ChevronRight, Hash, Eye } from "lucide-react"
-
 import { Play, Info, Star, Zap, TrendingUp, Sparkles, ChevronRight, Hash, Eye, Bookmark } from "lucide-react"
- 
+
 import {
   Dialog,
   DialogContent,
@@ -45,7 +43,7 @@ function generateFallbackPoster(title: string): string {
     </svg>
   `;
   
-  const base64 = Buffer.from(svg).toString('base64');
+  const base64 = globalThis.btoa(unescape(encodeURIComponent(svg)));
   return `data:image/svg+xml;base64,${base64}`;
 }
 
@@ -61,12 +59,7 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime }: HeroBannerProps
   const [posterImageError, setPosterImageError] = useState(false)
 
   const router = useRouter()
-  
-  const anime = mode === 'top' ? topOfWeekAnime : recommendedAnime
-
   const { isSaved, toggle } = useBookmarks()
-  const router = useRouter()
-  
   const anime = mode === 'top' ? topOfWeekAnime : recommendedAnime
   const saved = !!anime?.id && isSaved(String(anime.id))
  
@@ -178,6 +171,7 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime }: HeroBannerProps
 
              </button>
 
+            </div>
           </div>
 
           {/* --- ЛЕВАЯ ЧАСТЬ: ИНФОРМАЦИЯ --- */}
@@ -337,19 +331,6 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime }: HeroBannerProps
 
                        {/* ФУТЕР ДИАЛОГА (Кнопка Смотреть) */}
                        <div className="shrink-0 p-4 sm:p-8 sm:pt-4 bg-gradient-to-t from-zinc-950 to-transparent z-10">
-
-                         <button 
-                           onClick={() => { setIsDialogOpen(false); router.push(`/watch/${anime.id}`) }}
-                           className="w-full flex items-center justify-center gap-2 sm:gap-3 bg-gradient-to-r from-orange-600 to-orange-500 hover:from-orange-500 hover:to-orange-400 text-white font-black py-3 sm:py-4 rounded-xl uppercase tracking-wider shadow-lg hover:shadow-orange-500/20 transition-all active:scale-95 group/btn"
-                         >
-                           {/* Иконка глаза или плей */}
-                           <Eye className="w-5 h-5 group-hover/btn:scale-110 transition-transform" />
-                           <span>Смотреть</span>
-                           <ChevronRight size={18} className="opacity-70 group-hover/btn:translate-x-1 transition-transform" />
-                         </button>
-                       </div>
-
-
                         <div className="flex flex-row gap-3">
                           <button 
                             type="button"
@@ -368,7 +349,6 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime }: HeroBannerProps
                             aria-label={saved ? "Убрать из закладок" : "Добавить в закладки"}
                           >
                             <Bookmark className={cn(saved ? "fill-orange-500 text-orange-500" : "text-white", "w-5 h-5")} />
-                            
                           </button>
                         </div>
                        </div>

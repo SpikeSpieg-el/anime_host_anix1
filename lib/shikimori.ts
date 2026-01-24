@@ -848,14 +848,6 @@ export async function getForumNews(limit = 4): Promise<NewsItem[]> {
 
 export async function getAnimeById(id: string) {
   try {
-
-    const res = await shikimoriFetch(`${BASE_URL}/animes/${id}`, {
-      next: { revalidate: 3600 },
-      headers: HEADERS
-    });
-    if (!res.ok) return null;
-    const data: ShikimoriAnime = await res.json();
-
     const data = await shikimoriJson<ShikimoriAnime | null>(`${BASE_URL}/animes/${id}`, { next: { revalidate: 3600 }, headers: HEADERS }, { ttlMs: 10 * 60_000, staleTtlMs: 24 * 60 * 60_000, fallback: null });
     if (!data) return null;
  
@@ -867,16 +859,8 @@ export async function getAnimeById(id: string) {
 
 export async function getAnimeFranchise(id: string): Promise<FranchiseItem[]> {
   try {
-
-    const res = await shikimoriFetch(`${BASE_URL}/animes/${id}/franchise`);
-    if (!res.ok) return [];
-
-    const data: ShikimoriFranchise = await res.json();
-    
-
     const data = await shikimoriJson<ShikimoriFranchise | null>(`${BASE_URL}/animes/${id}/franchise`, { next: { revalidate: 21600 } }, { ttlMs: 10 * 60_000, staleTtlMs: 24 * 60 * 60_000, fallback: null });
     if (!data) return [];
-
  
     const nodes = data.nodes.filter((node) => node.url?.startsWith('/animes/'));
 
@@ -912,10 +896,6 @@ export async function getAnimeFranchise(id: string): Promise<FranchiseItem[]> {
 
 export async function searchAnime(query: string) {
   try {
-
-    const res = await shikimoriFetch(`${BASE_URL}/animes?search=${encodeURIComponent(query)}&limit=10&score=6`);
-    const data = await res.json();
-
     const data = await shikimoriJson<ShikimoriAnime[]>(`${BASE_URL}/animes?search=${encodeURIComponent(query)}&limit=10&score=6`, { next: { revalidate: 60 } }, { ttlMs: 30_000, staleTtlMs: 10 * 60_000, fallback: [] });
  
     return await Promise.all(data.map(transformAnime));
@@ -926,10 +906,6 @@ export async function searchAnime(query: string) {
 
 export async function getAnnouncements(limit = 3) {
   try {
-
-    const res = await shikimoriFetch(`${BASE_URL}/animes?limit=${limit}&order=popularity&status=anons`);
-    const data = await res.json();
-
     const data = await shikimoriJson<ShikimoriAnime[]>(`${BASE_URL}/animes?limit=${limit}&order=popularity&status=anons`, { next: { revalidate: 21600 } }, { ttlMs: 60_000, staleTtlMs: 24 * 60 * 60_000, fallback: [] });
  
     return await Promise.all(data.map(transformAnime));
@@ -938,27 +914,9 @@ export async function getAnnouncements(limit = 3) {
   }
 }
 
-  if (ids.length === 0) return [];
-  const idsString = ids.join(',');
-  try {
-
-    const res = await shikimoriFetch(`${BASE_URL}/animes?ids=${idsString}&limit=${ids.length}`);
-    if (!res.ok) return [];
-
-  }
-}
-
 // --- OPTIMIZED TOP OF WEEK (Фикс 429 ошибки) ---
 export async function getTopOfWeek(limit = 30): Promise<Anime[]> {
   try {
-
-    const res = await shikimoriFetch(`${BASE_URL}/animes?limit=${limit}&order=popularity&status=ongoing&score=7`, {
-      next: { revalidate: 3600 } // Кэшируем на час
-    });
-    if (!res.ok) return [];
-
-    const data: ShikimoriAnime[] = await res.json();
-
     const data = await shikimoriJson<ShikimoriAnime[]>(`${BASE_URL}/animes?limit=${limit}&order=popularity&status=ongoing&score=7`, { next: { revalidate: 3600 } }, { ttlMs: 60_000, staleTtlMs: 24 * 60 * 60_000, fallback: [] });
  
     const animeList = await Promise.all(data.map(transformAnime));
@@ -985,16 +943,9 @@ export async function getTopOfWeek(limit = 30): Promise<Anime[]> {
 // Функции рекомендаций
 async function canRecommendFranchise(animeId: string, watchedIds: string[]): Promise<boolean> {
   try {
-
-    const res = await shikimoriFetch(`${BASE_URL}/animes/${animeId}/franchise`);
-    if (!res.ok) return true;
-
-    const data: ShikimoriFranchise = await res.json();
-
     const data = await shikimoriJson<ShikimoriFranchise | null>(`${BASE_URL}/animes/${animeId}/franchise`, { next: { revalidate: 21600 } }, { ttlMs: 10 * 60_000, staleTtlMs: 24 * 60 * 60_000, fallback: null });
     if (!data) return true;
 
- 
     const currentNode = data.nodes.find((node) => node.id === parseInt(animeId));
     
     if (!currentNode) return true;
@@ -1043,49 +994,20 @@ export async function getHeroRecommendation(watchedIds: string[], bookmarkIds: s
 
     const lastWatchedId = watchedIds[0];
 
-    const response = await shikimoriFetch(`${BASE_URL}/animes/${lastWatchedId}`);
-
-    if (!response.ok) {
-      if (!popularAnime || popularAnime.length === 0) return null;
-      return await fetchFullDetails(popularAnime[0]);
-    }
-
-    const lastAnime = await response.json();
-    const genreIds = lastAnime.genres?.map((g: any) => g.id).slice(0, 3).join(',');
-
-    const recommendedRes = await shikimoriFetch(
-      `${BASE_URL}/animes?genre=${genreIds}&order=popularity&limit=20&exclude_ids=${excludedIds.join(',')}`,
-      undefined
-    );
-
-    if (!recommendedRes.ok) {
-
     const lastAnime = await shikimoriJson<any | null>(`${BASE_URL}/animes/${lastWatchedId}`, { next: { revalidate: 3600 } }, { ttlMs: 10 * 60_000, staleTtlMs: 24 * 60 * 60_000, fallback: null });
 
     if (!lastAnime) {
       if (!popularAnime || popularAnime.length === 0) return null;
       return await fetchFullDetails(popularAnime[0]);
     }
-    const genreIds = lastAnime.genres?.map((g: any) => g.id).slice(0, 3).join(',');
-    
 
+    const genreIds = lastAnime.genres?.map((g: any) => g.id).slice(0, 3).join(',');
     const recommended = await shikimoriJson<any[]>(
       `${BASE_URL}/animes?genre=${genreIds}&order=popularity&limit=20&exclude_ids=${excludedIds.join(',')}`,
       { next: { revalidate: 1800 } },
       { ttlMs: 60_000, staleTtlMs: 60 * 60_000, fallback: [] }
     );
 
-    if (!Array.isArray(recommended) || recommended.length === 0) {
- 
-      if (!popularAnime || popularAnime.length === 0) return null;
-      return await fetchFullDetails(popularAnime[0]);
-    }
-
-
-    const recommended = await recommendedRes.json();
-
-
- 
     if (recommended.length > 0) {
       const validRecommendations: any[] = [];
       
