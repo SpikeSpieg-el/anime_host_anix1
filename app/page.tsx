@@ -8,6 +8,7 @@ import {
   getAnnouncements,
   getTopOfWeek,
   getHeroRecommendation,
+  getAnimeById,
   type Anime,
 } from "@/lib/shikimori"
 import { FloatingNav } from "@/components/floating-nav"
@@ -39,6 +40,17 @@ export default async function HomePage() {
       ? topOfWeekList[Math.floor(Math.random() * topOfWeekList.length)]
       : heroFallback[0] ?? null
 
+  const topOfWeekHeroFull = topOfWeekHero ? await getAnimeById(topOfWeekHero.id) : null
+  const topOfWeekHeroWithDetails = topOfWeekHero
+    ? topOfWeekHeroFull
+      ? {
+          ...topOfWeekHero,
+          ...topOfWeekHeroFull,
+          backdrop: topOfWeekHero.backdrop ?? topOfWeekHeroFull.backdrop,
+        }
+      : topOfWeekHero
+    : null
+
   const recommendedHero = await getHeroRecommendation(
     watchedIds.map(String),
     bookmarkIds,
@@ -58,9 +70,9 @@ export default async function HomePage() {
       <Navbar />
       <FloatingNav />
       <section id="hero">
-        {topOfWeekHero || recommendedHero ? (
+        {topOfWeekHeroWithDetails || recommendedHero ? (
           <HeroBanner
-            topOfWeekAnime={topOfWeekHero}
+            topOfWeekAnime={topOfWeekHeroWithDetails}
             recommendedAnime={recommendedHero}
           />
         ) : (

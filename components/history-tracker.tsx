@@ -1,5 +1,7 @@
 "use client"
 
+import { useHistory } from "@/components/history-provider"
+
 type WatchHistoryItem = {
   id: string
   title: string
@@ -14,9 +16,6 @@ export function recordWatchStart(
   options?: { episode?: number; episodesTotal?: number }
 ) {
   try {
-    const history: WatchHistoryItem[] = JSON.parse(localStorage.getItem("watch-history") || "[]")
-    const filtered = history.filter((item) => item.id !== anime.id)
-
     const newItem: WatchHistoryItem = {
       id: anime.id,
       title: anime.title,
@@ -26,12 +25,17 @@ export function recordWatchStart(
       episodesTotal: options?.episodesTotal && options.episodesTotal > 0 ? options.episodesTotal : undefined,
     }
 
-    localStorage.setItem("watch-history", JSON.stringify([newItem, ...filtered].slice(0, 20)))
+    // Отправляем событие для HistoryProvider (если он активен)
+    window.dispatchEvent(new CustomEvent('add-to-history', { detail: newItem }))
+    
+    console.log('History item added:', newItem)
   } catch (e) {
-    console.error(e)
+    console.error("Error adding to history:", e)
   }
 }
 
 export function HistoryTracker({ anime }: { anime: any }) {
+  const { add } = useHistory()
+  
   return null // Этот компонент ничего не рисует, только логика
 }

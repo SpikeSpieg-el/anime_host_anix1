@@ -22,10 +22,6 @@ export function RegionDetector({ onCountryChange, onRegionDetected }: RegionDete
 
   const detectRegion = async () => {
     try {
-      // Пробуем несколько сервисов для определения региона
-      let response: Response | null = null
-      let data: any = null
-      
       // Создаем таймаут вручную для совместимости
       const createTimeoutController = (timeoutMs: number) => {
         if (typeof AbortSignal !== 'undefined' && 'timeout' in AbortSignal) {
@@ -36,55 +32,17 @@ export function RegionDetector({ onCountryChange, onRegionDetected }: RegionDete
           return { signal: controller.signal }
         }
       }
-      
-      // Сервис 1: ipapi.co
-      try {
-        const { signal } = createTimeoutController(5000)
-        response = await fetch('https://ipapi.co/json/', { signal })
-        if (response.ok) {
-          data = await response.json()
-        }
-      } catch (error) {
-        console.warn('ipapi.co failed:', error)
+
+      // Делаем запрос на свой API (server-side proxy), чтобы избежать CORS
+      const { signal } = createTimeoutController(5000)
+      const response = await fetch('/api/region', { signal, cache: 'no-store' })
+      if (!response.ok) {
+        throw new Error('Region API failed')
       }
-      
-      // Сервис 2: ip-api.com (backup)
+
+      const data = await response.json()
       if (!data) {
-        try {
-          const { signal } = createTimeoutController(5000)
-          response = await fetch('http://ip-api.com/json/', { signal })
-          if (response.ok) {
-            const apiData = await response.json()
-            data = {
-              country_name: apiData.country,
-              country_code: apiData.countryCode
-            }
-          }
-        } catch (error) {
-          console.warn('ip-api.com failed:', error)
-        }
-      }
-      
-      // Сервис 3: ipgeolocation.io (backup)
-      if (!data) {
-        try {
-          const { signal } = createTimeoutController(5000)
-          response = await fetch('https://api.ipgeolocation.io/ipgeo', { signal })
-          if (response.ok) {
-            const geoData = await response.json()
-            data = {
-              country_name: geoData.country_name,
-              country_code: geoData.country_code2
-            }
-          }
-        } catch (error) {
-          console.warn('ipgeolocation.io failed:', error)
-        }
-      }
-      
-      // Если все сервисы не сработали, используем заглушку
-      if (!data) {
-        throw new Error('All IP services failed')
+        throw new Error('Region API returned empty payload')
       }
       
       const country = data.country_name || data.country || 'Unknown'
