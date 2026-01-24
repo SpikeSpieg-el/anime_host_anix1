@@ -3,12 +3,31 @@
 import Link from "next/link"
 import { useRouter, usePathname } from "next/navigation"
 import { useState, useEffect } from "react"
+<<<<<<< HEAD
 import { Menu, X, ChevronDown, Flame, Tv, Zap, Compass, Home, BookMarked, History, Calendar, Settings, GraduationCap } from "lucide-react"
+=======
+import { Menu, X, ChevronDown, Flame, Tv, Zap, Compass, Home, BookMarked, History, Calendar, Settings, GraduationCap, LogOut, User as UserIcon } from "lucide-react"
+>>>>>>> test-source/main
 import { GENRES_MAP } from "@/lib/shikimori"
 import { SearchSuggestions } from "@/components/search-suggestions"
 import { EpisodeUpdateBadge } from "@/components/episode-update-badge"
 import { useEpisodeUpdates } from "@/hooks/use-episode-updates"
+<<<<<<< HEAD
 import { cn } from "@/lib/utils" 
+=======
+import { cn } from "@/lib/utils"
+import { useAuth } from "@/components/auth-provider"
+import { AuthModal } from "@/components/auth-modal"
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+>>>>>>> test-source/main
 
 // Helper для сохранения истории поиска
 function saveSearchHistory(query: string) {
@@ -30,6 +49,10 @@ function saveSearchHistory(query: string) {
 export function Navbar() {
   const router = useRouter()
   const pathname = usePathname()
+<<<<<<< HEAD
+=======
+  const { user, signOut, profile } = useAuth()
+>>>>>>> test-source/main
   
   const [isOpen, setIsOpen] = useState(false) // Мобильное меню
   const [isGenresOpen, setIsGenresOpen] = useState(false) // Мобильные жанры
@@ -207,8 +230,47 @@ export function Navbar() {
             />
           </div>
 
+<<<<<<< HEAD
           {/* 4. УВЕДОМЛЕНИЯ О НОВЫХ СЕРИЯХ (DESKTOP) */}
           <div className="hidden md:block">
+=======
+          {/* 4. ПРОФИЛЬ/АВТОРИЗАЦИЯ + УВЕДОМЛЕНИЯ О НОВЫХ СЕРИЯХ (DESKTOP) */}
+          <div className="flex items-center gap-2 hidden md:block">
+            {user ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button className="w-9 h-9 rounded-full bg-gradient-to-tr from-orange-500 to-purple-600 p-[2px] overflow-hidden">
+                     <Avatar className="w-full h-full">
+                       <AvatarImage src={profile?.avatar_url || undefined} alt="User Avatar" />
+                       <AvatarFallback className="bg-zinc-900 text-white font-semibold">
+                         {profile?.username ? profile.username.slice(0, 2).toUpperCase() : user.email?.slice(0, 2).toUpperCase()}
+                       </AvatarFallback>
+                     </Avatar>
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56 bg-zinc-950 border-zinc-800 text-zinc-200">
+                  <DropdownMenuLabel className="font-normal">
+                    <div className="flex flex-col space-y-1">
+                      <p className="text-sm font-medium leading-none text-white">Аккаунт</p>
+                      <p className="text-xs leading-none text-zinc-500 truncate">{user.email}</p>
+                    </div>
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator className="bg-zinc-800" />
+                  <DropdownMenuItem asChild className="cursor-pointer hover:bg-zinc-900 focus:bg-zinc-900">
+                     <Link href="/settings">Настройки профиля</Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator className="bg-zinc-800" />
+                  <DropdownMenuItem onClick={signOut} className="cursor-pointer text-red-500 focus:text-red-400 focus:bg-red-500/10">
+                    <LogOut className="mr-2 h-4 w-4" />
+                    <span>Выйти</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : (
+              <AuthModal />
+            )}
+            
+>>>>>>> test-source/main
             <EpisodeUpdateBadge 
               updates={updates} 
               onClearUpdate={clearUpdate}
@@ -216,8 +278,49 @@ export function Navbar() {
             />
           </div>
 
+<<<<<<< HEAD
           {/* 5. МОБИЛЬНЫЙ ТОГГЛ + УВЕДОМЛЕНИЯ */}
           <div className="flex items-center gap-2 md:hidden">
+=======
+          {/* 5. МОБИЛЬНЫЙ ТОГГЛ + УВЕДОМЛЕНИЯ + ПРОФИЛЬ */}
+          <div className="flex items-center gap-2 md:hidden">
+            {user ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button className="w-8 h-8 rounded-full bg-gradient-to-tr from-orange-500 to-purple-600 p-[1.5px] overflow-hidden">
+                     <Avatar className="w-full h-full">
+                       <AvatarImage src={profile?.avatar_url || undefined} alt="User Avatar" />
+                       <AvatarFallback className="bg-zinc-900 text-white font-semibold text-xs">
+                         {profile?.username ? profile.username.slice(0, 2).toUpperCase() : user.email?.slice(0, 2).toUpperCase()}
+                       </AvatarFallback>
+                     </Avatar>
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48 bg-zinc-950 border-zinc-800 text-zinc-200">
+                  <DropdownMenuLabel className="font-normal">
+                    <div className="flex flex-col space-y-1">
+                      <p className="text-xs font-medium leading-none text-white">Аккаунт</p>
+                      <p className="text-xs leading-none text-zinc-500 truncate">{user.email}</p>
+                    </div>
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator className="bg-zinc-800" />
+                  <DropdownMenuItem asChild className="cursor-pointer hover:bg-zinc-900 focus:bg-zinc-900 text-sm">
+                     <Link href="/settings">Настройки</Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator className="bg-zinc-800" />
+                  <DropdownMenuItem onClick={signOut} className="cursor-pointer text-red-500 focus:text-red-400 focus:bg-red-500/10 text-sm">
+                    <LogOut className="mr-2 h-3 w-3" />
+                    <span>Выйти</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : (
+              <div className="scale-75 origin-right">
+                <AuthModal />
+              </div>
+            )}
+            
+>>>>>>> test-source/main
             <EpisodeUpdateBadge 
               updates={updates} 
               onClearUpdate={clearUpdate}

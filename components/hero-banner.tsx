@@ -1,7 +1,11 @@
 "use client"
 import Image from "next/image"
 import Link from "next/link"
+<<<<<<< HEAD
 import { Play, Info, Star, Zap, TrendingUp, Sparkles, ChevronRight, Hash, Eye } from "lucide-react"
+=======
+import { Play, Info, Star, Zap, TrendingUp, Sparkles, ChevronRight, Hash, Eye, Bookmark } from "lucide-react"
+>>>>>>> test-source/main
 import {
   Dialog,
   DialogContent,
@@ -12,6 +16,11 @@ import {
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { HeroBannerSkeleton } from "@/components/skeleton"
+<<<<<<< HEAD
+=======
+import { useBookmarks } from "@/components/bookmarks-provider"
+import { cn } from "@/lib/utils"
+>>>>>>> test-source/main
 
 // Функция для генерации запасного постера (такая же как в anime-card)
 function generateFallbackPoster(title: string): string {
@@ -50,9 +59,17 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime }: HeroBannerProps
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [bgImageError, setBgImageError] = useState(false)
   const [posterImageError, setPosterImageError] = useState(false)
+<<<<<<< HEAD
   const router = useRouter()
   
   const anime = mode === 'top' ? topOfWeekAnime : recommendedAnime
+=======
+  const { isSaved, toggle } = useBookmarks()
+  const router = useRouter()
+  
+  const anime = mode === 'top' ? topOfWeekAnime : recommendedAnime
+  const saved = !!anime?.id && isSaved(String(anime.id))
+>>>>>>> test-source/main
   
   const hasHighQualityBackdrop = !!anime?.backdrop && !bgImageError;
   const bgImage = bgImageError ? generateFallbackPoster(anime?.title || 'Anime') : (anime?.backdrop || anime?.poster);
@@ -123,7 +140,16 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime }: HeroBannerProps
           
           {/* --- ПРАВАЯ ЧАСТЬ: ПОСТЕР (На мобильном сверху, но компактнее) --- */}
           <div className="order-first lg:order-last lg:absolute lg:right-4 lg:top-1/2 lg:-translate-y-1/2 lg:w-5/12 flex justify-center mb-4 lg:mb-0 perspective-1000 z-20 w-full">
+<<<<<<< HEAD
              <div className="relative w-[160px] aspect-[2/3] sm:w-[240px] lg:w-[340px] group/poster transition-all duration-500">
+=======
+             <button
+               type="button"
+               onClick={() => setIsDialogOpen(true)}
+               className="relative w-[160px] aspect-[2/3] sm:w-[240px] lg:w-[340px] group/poster transition-all duration-500"
+               aria-label="Подробнее об аниме"
+             >
+>>>>>>> test-source/main
                 {/* Эффект свечения */}
                 <div className="absolute inset-0 bg-gradient-to-br from-orange-600 to-orange-700 rounded-xl lg:rounded-2xl transform rotate-6 translate-x-2 translate-y-2 opacity-60 blur-md lg:group-hover/poster:rotate-12 lg:group-hover/poster:translate-x-6 transition-all duration-500" />
                 
@@ -149,7 +175,11 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime }: HeroBannerProps
                        </div>
                     </div>
                 </div>
+<<<<<<< HEAD
              </div>
+=======
+             </button>
+>>>>>>> test-source/main
           </div>
 
           {/* --- ЛЕВАЯ ЧАСТЬ: ИНФОРМАЦИЯ --- */}
@@ -262,9 +292,12 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime }: HeroBannerProps
                           <DialogTitle className="text-xl sm:text-3xl font-black uppercase mb-3 leading-tight text-white">
                             {anime.title}
                           </DialogTitle>
+<<<<<<< HEAD
                           <DialogDescription className="sr-only">
                             Подробная информация об аниме {anime.title}, включая описание, жанры и рейтинг
                           </DialogDescription>
+=======
+>>>>>>> test-source/main
                           
                           <div className="flex flex-wrap gap-2 mb-4">
                              {anime.genres?.slice(0, 4).map((g: string) => (
@@ -274,13 +307,39 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime }: HeroBannerProps
                              ))}
                           </div>
 
+<<<<<<< HEAD
                           <p className="text-zinc-300 text-xs sm:text-sm leading-relaxed mb-4 opacity-90">
                             {anime.description || "Описание отсутствует..."}
                           </p>
+=======
+                          {/* ПРОВЕРКА ОПИСАНИЯ */}
+                          {anime.description && anime.description !== "Описание отсутствует..." ? (
+                            <p className="text-zinc-300 text-xs sm:text-sm leading-relaxed mb-4 opacity-90">
+                              {anime.description}
+                            </p>
+                          ) : (
+                            <div className="my-4 p-5 rounded-2xl border border-white/5 bg-white/[0.02] flex flex-col items-center text-center">
+                              <Info className="w-6 h-6 text-zinc-600 mb-2" />
+                              <p className="text-zinc-400 text-[11px] sm:text-xs mb-4">
+                                У нас пока нет описания для этого аниме, но вы можете прочитать его на популярном ресурсе:
+                              </p>
+                              <a 
+                                href={`https://shikimori.one/animes?search=${encodeURIComponent(anime.title)}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-2 px-5 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all active:scale-95"
+                              >
+                                <TrendingUp size={14} className="text-orange-500" />
+                                Открыть на Shikimori
+                              </a>
+                            </div>
+                          )}
+>>>>>>> test-source/main
                        </div>
 
                        {/* ФУТЕР ДИАЛОГА (Кнопка Смотреть) */}
                        <div className="shrink-0 p-4 sm:p-8 sm:pt-4 bg-gradient-to-t from-zinc-950 to-transparent z-10">
+<<<<<<< HEAD
                          <button 
                            onClick={() => { setIsDialogOpen(false); router.push(`/watch/${anime.id}`) }}
                            className="w-full flex items-center justify-center gap-2 sm:gap-3 bg-gradient-to-r from-orange-600 to-orange-500 hover:from-orange-500 hover:to-orange-400 text-white font-black py-3 sm:py-4 rounded-xl uppercase tracking-wider shadow-lg hover:shadow-orange-500/20 transition-all active:scale-95 group/btn"
@@ -292,6 +351,30 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime }: HeroBannerProps
                          </button>
                        </div>
 
+=======
+                        <div className="flex flex-row gap-3">
+                          <button 
+                            type="button"
+                            onClick={() => { setIsDialogOpen(false); router.push(`/watch/${anime.id}`) }}
+                            className="flex-1 flex items-center justify-center gap-2 sm:gap-3 bg-gradient-to-r from-orange-600 to-orange-500 hover:from-orange-500 hover:to-orange-400 text-white font-black py-3 sm:py-4 rounded-xl uppercase tracking-wider shadow-lg hover:shadow-orange-500/20 transition-all active:scale-95 group/btn"
+                          >
+                            {/* Иконка глаза или плей */}
+                            <Eye className="w-5 h-5 group-hover/btn:scale-110 transition-transform" />
+                            <span>Смотреть</span>
+                            <ChevronRight size={18} className="opacity-70 group-hover/btn:translate-x-1 transition-transform" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => toggle(anime)}
+                            className="w-12 h-12 flex items-center justify-center bg-white/5 hover:bg-white/10 backdrop-blur-md border border-white/10 text-white font-bold rounded-xl uppercase tracking-wider transition-all active:scale-95"
+                            aria-label={saved ? "Убрать из закладок" : "Добавить в закладки"}
+                          >
+                            <Bookmark className={cn(saved ? "fill-orange-500 text-orange-500" : "text-white", "w-5 h-5")} />
+                            
+                          </button>
+                        </div>
+                       </div>
+>>>>>>> test-source/main
                     </div>
                   </div>
                 </DialogContent>

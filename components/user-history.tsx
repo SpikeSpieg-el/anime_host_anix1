@@ -4,6 +4,10 @@ import Link from "next/link"
 import Image from "next/image"
 import { Clock, Search, History, ChevronRight } from "lucide-react"
 import { useEpisodeUpdates } from "@/hooks/use-episode-updates"
+<<<<<<< HEAD
+=======
+import { useHistory } from "@/components/history-provider"
+>>>>>>> test-source/main
 function normalizePosterUrl(value: string): string {
   const raw = (value ?? "").trim()
   if (!raw) return raw
@@ -13,6 +17,7 @@ function normalizePosterUrl(value: string): string {
   return raw
 }
 export function UserHistory() {
+<<<<<<< HEAD
 const [history, setHistory] = useState<any[]>([])
 const [fullHistory, setFullHistory] = useState<any[]>([])
 const [lastSearches, setLastSearches] = useState<string[]>([])
@@ -37,6 +42,63 @@ const load = () => {
   } catch (e) { console.error(e) }
 
   // 2. Загрузка Поиска
+=======
+const { items: historyItems } = useHistory()
+const [lastSearches, setLastSearches] = useState<string[]>([])
+const [mounted, setMounted] = useState(false)
+const [fallbackHistory, setFallbackHistory] = useState<any[]>([])
+// Подключаем хук обновлений
+const { updates, clearUpdate, checkAnimeUpdates, isChecking } = useEpisodeUpdates()
+
+console.log('UserHistory render - historyItems:', historyItems)
+
+// Fallback на localStorage, если HistoryProvider не работает
+useEffect(() => {
+  if (mounted && (!historyItems || historyItems.length === 0)) {
+    try {
+      const storedHistory = JSON.parse(localStorage.getItem("watch-history") || "[]")
+      console.log('Loading fallback history from localStorage:', storedHistory)
+      const normalized = Array.isArray(storedHistory)
+        ? storedHistory.map((item: any) => ({ 
+            ...item, 
+            poster: normalizePosterUrl(item?.poster) 
+          }))
+        : []
+      setFallbackHistory(normalized)
+      console.log('Normalized fallback history:', normalized)
+    } catch (e) { 
+      console.error("Error loading fallback history:", e)
+    }
+  }
+}, [mounted, historyItems])
+
+// Используем данные из HistoryProvider или fallback
+const sourceHistory = historyItems && historyItems.length > 0 ? historyItems : fallbackHistory
+
+// Нормализуем данные истории
+const history = sourceHistory.map((item: any) => ({ 
+  ...item, 
+  poster: normalizePosterUrl(item?.poster) 
+})).slice(0, 6)
+
+const fullHistory = sourceHistory.map((item: any) => ({ 
+  ...item, 
+  poster: normalizePosterUrl(item?.poster) 
+}))
+
+useEffect(() => {
+setMounted(true)
+
+// Загрузка Поиска (остается как есть)
+try {
+  const storedSearch = JSON.parse(localStorage.getItem("search-history") || "[]")
+  const next = Array.isArray(storedSearch) ? storedSearch.filter((x) => typeof x === "string") : []
+  setLastSearches(next.slice(0, 5))
+} catch (e) { console.error(e) }
+
+const onUpdated = () => {
+  // Пересчитываем поиск при обновлении
+>>>>>>> test-source/main
   try {
     const storedSearch = JSON.parse(localStorage.getItem("search-history") || "[]")
     const next = Array.isArray(storedSearch) ? storedSearch.filter((x) => typeof x === "string") : []
@@ -44,9 +106,12 @@ const load = () => {
   } catch (e) { console.error(e) }
 }
 
+<<<<<<< HEAD
 load()
 
 const onUpdated = () => load()
+=======
+>>>>>>> test-source/main
 window.addEventListener("search-history-updated", onUpdated)
 window.addEventListener("storage", onUpdated)
 

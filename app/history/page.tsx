@@ -7,6 +7,10 @@ import { Clock, History, Trash2, ArrowLeft } from "lucide-react"
 import { Navbar } from "@/components/navbar"
 import { Footer } from "@/components/footer"
 import { useEpisodeUpdates } from "@/hooks/use-episode-updates"
+<<<<<<< HEAD
+=======
+import { useHistory } from "@/components/history-provider"
+>>>>>>> test-source/main
 
 function normalizePosterUrl(value: string): string {
   const raw = (value ?? "").trim()
@@ -26,7 +30,15 @@ function normalizePosterUrl(value: string): string {
 }
 
 export default function HistoryPage() {
+<<<<<<< HEAD
   const [history, setHistory] = useState<any[]>([])
+=======
+  const { items: historyItems, clear } = useHistory()
+  const history = historyItems.map((item: any) => ({
+    ...item,
+    poster: normalizePosterUrl(item?.poster)
+  }))
+>>>>>>> test-source/main
   const [mounted, setMounted] = useState(false)
   const { updates } = useEpisodeUpdates()
 
@@ -46,6 +58,7 @@ export default function HistoryPage() {
 
   useEffect(() => {
     setMounted(true)
+<<<<<<< HEAD
 
     const load = () => {
       try {
@@ -67,12 +80,18 @@ export default function HistoryPage() {
     return () => {
       window.removeEventListener("storage", onUpdated)
     }
+=======
+>>>>>>> test-source/main
   }, [])
 
   const clearHistory = () => {
     if (confirm("Вы уверены, что хотите очистить всю историю просмотров?")) {
+<<<<<<< HEAD
       localStorage.removeItem("watch-history")
       setHistory([])
+=======
+      clear()
+>>>>>>> test-source/main
     }
   }
 
