@@ -45,7 +45,7 @@ export function BookmarksProvider({ children }: { children: React.ReactNode }) {
           .eq('user_id', user.id)
         
         if (data) {
-          const remoteItems = data.map(row => row.anime_data)
+          const remoteItems = data.map((row: any) => row.anime_data)
           setItems(remoteItems)
         }
       } else {
@@ -121,7 +121,7 @@ export function BookmarksProvider({ children }: { children: React.ReactNode }) {
             user_id: user.id,
             anime_id: anime.id,
             anime_data: anime
-         }).select().single().then(({error}) => {
+         }).select().single().then(({error}: {error: any}) => {
              // Если запись уже есть (конфликт), ничего страшного
              if(error && error.code !== '23505') console.error(error) 
          })

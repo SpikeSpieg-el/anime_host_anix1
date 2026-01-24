@@ -356,7 +356,7 @@ export function useEpisodeUpdates(): UseEpisodeUpdatesReturn {
         .from("episode_updates")
         .delete()
         .match({ user_id: user.id, anime_id: id })
-        .then(({ error }) => {
+        .then(({ error }: { error: any }) => {
           if (error) console.error("Failed to clear update:", error)
           loadFromDb().then(() => setTimeout(() => window.dispatchEvent(new Event(UPDATE_EVENT)), 0))
         })
@@ -377,7 +377,7 @@ export function useEpisodeUpdates(): UseEpisodeUpdatesReturn {
         .from("episode_updates")
         .delete()
         .eq("user_id", user.id)
-        .then(({ error }) => {
+        .then(({ error }: { error: any }) => {
           if (error) console.error("Failed to clear all updates:", error)
           setUpdates([])
           setTimeout(() => window.dispatchEvent(new Event(UPDATE_EVENT)), 0)

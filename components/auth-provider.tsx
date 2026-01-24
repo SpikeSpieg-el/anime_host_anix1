@@ -161,14 +161,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     // 1. Проверка текущей сессии
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(({ data: { session } }: { data: { session: any } }) => {
       setSession(session)
       setUser(session?.user ?? null)
       setLoading(false)
     })
 
     // 2. Подписка на изменения (Вход / Выход)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event: any, session: any) => {
       setSession(session)
       setUser(session?.user ?? null)
       setLoading(false)
