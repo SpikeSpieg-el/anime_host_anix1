@@ -2,11 +2,8 @@
 
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react"
 import type { Anime } from "@/lib/shikimori"
-
-
 import { supabase } from "@/lib/supabase"
 import { useAuth } from "@/components/auth-provider"
- 
 
 type BookmarkAnime = Anime
 
@@ -35,20 +32,6 @@ function safeParseBookmarks(raw: string | null): BookmarkAnime[] {
 
 export function BookmarksProvider({ children }: { children: React.ReactNode }) {
   const [items, setItems] = useState<BookmarkAnime[]>([])
-
-
-  useEffect(() => {
-    setItems(safeParseBookmarks(window.localStorage.getItem(STORAGE_KEY)))
-  }, [])
-
-  useEffect(() => {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(items))
-    
-    // Синхронизируем ID закладок в cookies для server-side доступа
-    const bookmarkIds = items.map(a => a.id).join(',')
-    document.cookie = `bookmark_ids=${bookmarkIds}; path=/; max-age=31536000; SameSite=Lax`
-  }, [items])
-
   const { user } = useAuth() // Получаем юзера
 
   // 1. Загрузка данных
@@ -89,7 +72,6 @@ export function BookmarksProvider({ children }: { children: React.ReactNode }) {
       document.cookie = `bookmark_ids=${bookmarkIds}; path=/; max-age=31536000; SameSite=Lax`
     }
   }, [items, user])
- 
 
   const isSaved = useCallback(
     (id: string) => {
@@ -141,14 +123,13 @@ export function BookmarksProvider({ children }: { children: React.ReactNode }) {
             anime_data: anime
          }).select().single().then(({error}) => {
              // Если запись уже есть (конфликт), ничего страшного
-             if(error && error.code !== '23505') console.error(error)
+             if(error && error.code !== '23505') console.error(error) 
          })
       } else { // удалено из стейта, delete из БД
          await supabase.from('bookmarks').delete().match({ user_id: user.id, anime_id: anime.id })
       }
     }
-  }, [user])
- 
+  }, [user]) // Добавлена зависимость от user
 
   const value = useMemo<BookmarksContextValue>(() => ({ items, isSaved, add, remove, toggle }), [items, isSaved, add, remove, toggle])
 

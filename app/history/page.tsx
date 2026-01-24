@@ -7,10 +7,7 @@ import { Clock, History, Trash2, ArrowLeft } from "lucide-react"
 import { Navbar } from "@/components/navbar"
 import { Footer } from "@/components/footer"
 import { useEpisodeUpdates } from "@/hooks/use-episode-updates"
-
-
 import { useHistory } from "@/components/history-provider"
- 
 
 function normalizePosterUrl(value: string): string {
   const raw = (value ?? "").trim()
@@ -30,15 +27,11 @@ function normalizePosterUrl(value: string): string {
 }
 
 export default function HistoryPage() {
-
-  const [history, setHistory] = useState<any[]>([])
-
   const { items: historyItems, clear } = useHistory()
-  const historyList = historyItems.map((item: any) => ({
+  const history = historyItems.map((item: any) => ({
     ...item,
     poster: normalizePosterUrl(item?.poster)
   }))
- 
   const [mounted, setMounted] = useState(false)
   const { updates } = useEpisodeUpdates()
 
@@ -47,7 +40,7 @@ export default function HistoryPage() {
     const update = updates.find(u => u.animeId === animeId)
     if (!update) return undefined
     
-    const historyItem = historyList.find(h => h.id === animeId)
+    const historyItem = history.find(h => h.id === animeId)
     if (!historyItem) return undefined
     
     return {
@@ -58,40 +51,11 @@ export default function HistoryPage() {
 
   useEffect(() => {
     setMounted(true)
-
-
-    const load = () => {
-      try {
-        const storedHistory = JSON.parse(localStorage.getItem("watch-history") || "[]")
-        const normalized = Array.isArray(storedHistory)
-          ? storedHistory.map((item: any) => ({ ...item, poster: normalizePosterUrl(item?.poster) }))
-          : []
-        setHistory(normalized)
-      } catch (e) {
-        console.error(e)
-      }
-    }
-
-    load()
-
-    const onUpdated = () => load()
-    window.addEventListener("storage", onUpdated)
-
-    return () => {
-      window.removeEventListener("storage", onUpdated)
-    }
-
- 
   }, [])
 
   const clearHistory = () => {
     if (confirm("Вы уверены, что хотите очистить всю историю просмотров?")) {
-
-      localStorage.removeItem("watch-history")
-      setHistory([])
-
       clear()
- 
     }
   }
 

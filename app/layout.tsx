@@ -4,13 +4,11 @@ import { Geist, Geist_Mono, Unbounded } from "next/font/google"
 import { Analytics } from "@vercel/analytics/next"
 import { Suspense } from "react" // ✅ Import Suspense
 import { GlobalLoading } from "@/components/global-loading"
-
+import { BookmarksProvider } from "@/components/bookmarks-provider"
+import { HistoryProvider } from "@/components/history-provider"
 import "./globals.css"
 import { WelcomeModal } from "@/components/welcome-modal"
-
-import { HistoryProvider } from "@/components/history-provider"
 import { AuthProvider } from "@/components/auth-provider"
-
 
 const _geist = Geist({ subsets: ["latin"] })
 const _geistMono = Geist_Mono({ subsets: ["latin"] })
@@ -56,15 +54,11 @@ export default function RootLayout({
           <GlobalLoading />
         </Suspense>
         <WelcomeModal />
-
-        <BookmarksProvider>{children}</BookmarksProvider>
-
         <AuthProvider>
           <HistoryProvider>
             <BookmarksProvider>{children}</BookmarksProvider>
           </HistoryProvider>
         </AuthProvider>
- 
         <Analytics />
       </body>
     </html>

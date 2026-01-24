@@ -1,9 +1,7 @@
 "use client"
 import Image from "next/image"
 import Link from "next/link"
-
 import { Play, Info, Star, Zap, TrendingUp, Sparkles, ChevronRight, Hash, Eye, Bookmark } from "lucide-react"
-
 import {
   Dialog,
   DialogContent,
@@ -14,11 +12,8 @@ import {
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { HeroBannerSkeleton } from "@/components/skeleton"
-
-
 import { useBookmarks } from "@/components/bookmarks-provider"
 import { cn } from "@/lib/utils"
- 
 
 // Функция для генерации запасного постера (такая же как в anime-card)
 function generateFallbackPoster(title: string): string {
@@ -43,7 +38,7 @@ function generateFallbackPoster(title: string): string {
     </svg>
   `;
   
-  const base64 = globalThis.btoa(unescape(encodeURIComponent(svg)));
+  const base64 = Buffer.from(svg).toString('base64');
   return `data:image/svg+xml;base64,${base64}`;
 }
 
@@ -57,12 +52,11 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime }: HeroBannerProps
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [bgImageError, setBgImageError] = useState(false)
   const [posterImageError, setPosterImageError] = useState(false)
-
-  const router = useRouter()
   const { isSaved, toggle } = useBookmarks()
+  const router = useRouter()
+  
   const anime = mode === 'top' ? topOfWeekAnime : recommendedAnime
   const saved = !!anime?.id && isSaved(String(anime.id))
- 
   
   const hasHighQualityBackdrop = !!anime?.backdrop && !bgImageError;
   const bgImage = bgImageError ? generateFallbackPoster(anime?.title || 'Anime') : (anime?.backdrop || anime?.poster);
@@ -133,16 +127,12 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime }: HeroBannerProps
           
           {/* --- ПРАВАЯ ЧАСТЬ: ПОСТЕР (На мобильном сверху, но компактнее) --- */}
           <div className="order-first lg:order-last lg:absolute lg:right-4 lg:top-1/2 lg:-translate-y-1/2 lg:w-5/12 flex justify-center mb-4 lg:mb-0 perspective-1000 z-20 w-full">
-
-             <div className="relative w-[160px] aspect-[2/3] sm:w-[240px] lg:w-[340px] group/poster transition-all duration-500">
-
              <button
                type="button"
                onClick={() => setIsDialogOpen(true)}
                className="relative w-[160px] aspect-[2/3] sm:w-[240px] lg:w-[340px] group/poster transition-all duration-500"
                aria-label="Подробнее об аниме"
              >
- 
                 {/* Эффект свечения */}
                 <div className="absolute inset-0 bg-gradient-to-br from-orange-600 to-orange-700 rounded-xl lg:rounded-2xl transform rotate-6 translate-x-2 translate-y-2 opacity-60 blur-md lg:group-hover/poster:rotate-12 lg:group-hover/poster:translate-x-6 transition-all duration-500" />
                 
@@ -168,10 +158,7 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime }: HeroBannerProps
                        </div>
                     </div>
                 </div>
-
              </button>
-
-            </div>
           </div>
 
           {/* --- ЛЕВАЯ ЧАСТЬ: ИНФОРМАЦИЯ --- */}
@@ -284,12 +271,6 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime }: HeroBannerProps
                           <DialogTitle className="text-xl sm:text-3xl font-black uppercase mb-3 leading-tight text-white">
                             {anime.title}
                           </DialogTitle>
-
-                          <DialogDescription className="sr-only">
-                            Подробная информация об аниме {anime.title}, включая описание, жанры и рейтинг
-                          </DialogDescription>
-
- 
                           
                           <div className="flex flex-wrap gap-2 mb-4">
                              {anime.genres?.slice(0, 4).map((g: string) => (
@@ -298,11 +279,6 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime }: HeroBannerProps
                                </span>
                              ))}
                           </div>
-
-
-                          <p className="text-zinc-300 text-xs sm:text-sm leading-relaxed mb-4 opacity-90">
-                            {anime.description || "Описание отсутствует..."}
-                          </p>
 
                           {/* ПРОВЕРКА ОПИСАНИЯ */}
                           {anime.description && anime.description !== "Описание отсутствует..." ? (
@@ -326,7 +302,6 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime }: HeroBannerProps
                               </a>
                             </div>
                           )}
- 
                        </div>
 
                        {/* ФУТЕР ДИАЛОГА (Кнопка Смотреть) */}
@@ -349,10 +324,10 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime }: HeroBannerProps
                             aria-label={saved ? "Убрать из закладок" : "Добавить в закладки"}
                           >
                             <Bookmark className={cn(saved ? "fill-orange-500 text-orange-500" : "text-white", "w-5 h-5")} />
+                            
                           </button>
                         </div>
                        </div>
- 
                     </div>
                   </div>
                 </DialogContent>

@@ -2,10 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react"
 import { Zap, ChevronRight, PlayCircle, Star } from "lucide-react"
-
-
 import { AuthModal } from "@/components/auth-modal"
- 
 
 // Вспомогательный компонент для скрытия заголовка (для a11y)
 const VisuallyHidden = ({ children }: { children: React.ReactNode }) => (
@@ -72,10 +69,7 @@ class Particle {
 export function WelcomeModal() {
   const [isOpen, setIsOpen] = useState(false)
   const [mounted, setMounted] = useState(false)
-
-
   const [showAuthModal, setShowAuthModal] = useState(false)
- 
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
   // --- Эффект монтирования и проверки LocalStorage ---
@@ -138,15 +132,12 @@ export function WelcomeModal() {
     localStorage.setItem("Weeb.X-visited-v2", "true")
   }
 
-
-
   const handleSignUp = () => {
     setIsOpen(false)
     localStorage.setItem("Weeb.X-visited-v2", "true")
     setShowAuthModal(true)
   }
 
- 
   // Предотвращаем рендер на сервере (Next.js) до проверки состояния
   if (!mounted) return null
 
@@ -163,7 +154,7 @@ export function WelcomeModal() {
         {/* Сама карточка модалки */}
         <div 
           className={`relative w-full h-[95vh] sm:h-[90vh] md:h-[85vh] lg:h-[80vh] max-w-[95vw] sm:max-w-[420px] md:max-w-[450px] lg:max-w-[480px] bg-zinc-950 rounded-[1.5rem] sm:rounded-[2rem] overflow-hidden shadow-2xl border border-white/5 transition-all duration-500 ease-out transform ${
-          isOpen ? "scale-100 opacity-100" : "scale-95 opacity-0"
+            isOpen ? "scale-100 opacity-100" : "scale-95 opacity-0"
           }`}
         >
           <VisuallyHidden>
@@ -190,7 +181,6 @@ export function WelcomeModal() {
           </div>
 
           {/* --- КОНТЕНТ --- */}
-
           <div className="relative z-20 flex flex-col justify-between h-full p-4 sm:p-6 md:p-8">
             
             {/* Логотип */}
@@ -265,16 +255,16 @@ export function WelcomeModal() {
                   <ChevronRight className="w-3.5 h-3.5 sm:w-4 sm:h-4 group-hover:translate-x-1 transition-transform" />
                 </button>
               </div>
+
             </div>
           </div>
         </div>
       </div>
-
+      
       {/* Auth Modal */}
       {showAuthModal && (
         <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} />
       )}
- 
     </>
   )
 }

@@ -15,10 +15,7 @@ import {
 } from "lucide-react"
 import type { Anime } from "@/lib/shikimori"
 import { KodikPlayer } from "@/components/kodik-player"
-
-
 import { BackupPlayer } from "@/components/backup-player"
- 
 import { EpisodeSelector } from "@/components/episode-selector"
 import { RegionWarning } from "@/components/region-warning"
 import { recordWatchStart } from "@/components/history-tracker"
@@ -61,10 +58,7 @@ export function WatchPageClient({
   const [isStarted, setIsStarted] = useState(false)
   const [selectedCountry, setSelectedCountry] = useState<string>('RU')
   const [isRegionDetected, setIsRegionDetected] = useState(false)
-
-
   const [useBackupPlayer, setUseBackupPlayer] = useState(false)
- 
   
   // Реф для скролла к плееру
   const playerRef = useRef<HTMLDivElement>(null)
@@ -153,8 +147,6 @@ export function WatchPageClient({
         </Button>
 
         <div className="flex items-center gap-2">
-
-
           {/* Переключатель плееров */}
           {hasEpisodes && (
             <div className="flex items-center gap-1 bg-zinc-900 border border-zinc-800 rounded-lg p-1">
@@ -187,7 +179,6 @@ export function WatchPageClient({
             </div>
           )}
 
- 
           {/* Кнопка "В закладки" */}
           <Button
             size="sm"
@@ -358,17 +349,6 @@ export function WatchPageClient({
         
         {hasEpisodes ? (
           <div className="rounded-2xl overflow-hidden border border-zinc-800 bg-black shadow-2xl relative aspect-video">
-
-             <KodikPlayer
-               shikimoriId={anime.shikimoriId}
-               title={anime.title}
-               poster={anime.poster}
-               episode={selectedEpisode}
-               onStart={() => setIsStarted(true)}
-               onCountryChange={handleCountryChange}
-               onRegionDetected={handleRegionDetected}
-             />
-
             {!useBackupPlayer ? (
               <KodikPlayer
                 shikimoriId={anime.shikimoriId}
@@ -386,7 +366,6 @@ export function WatchPageClient({
                 isActive={true}
               />
             )}
- 
           </div>
         ) : (
           <div className="aspect-video w-full rounded-2xl bg-zinc-900/50 border border-zinc-800 flex flex-col items-center justify-center p-6 text-center">

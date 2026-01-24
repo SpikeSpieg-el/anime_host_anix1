@@ -4,10 +4,7 @@ import Link from "next/link"
 import Image from "next/image"
 import { Clock, Search, History, ChevronRight } from "lucide-react"
 import { useEpisodeUpdates } from "@/hooks/use-episode-updates"
-
-
 import { useHistory } from "@/components/history-provider"
- 
 function normalizePosterUrl(value: string): string {
   const raw = (value ?? "").trim()
   if (!raw) return raw
@@ -17,32 +14,6 @@ function normalizePosterUrl(value: string): string {
   return raw
 }
 export function UserHistory() {
-
-const [history, setHistory] = useState<any[]>([])
-const [fullHistory, setFullHistory] = useState<any[]>([])
-const [lastSearches, setLastSearches] = useState<string[]>([])
-const [mounted, setMounted] = useState(false)
-// Подключаем хук обновлений
-const { updates, clearUpdate, checkAnimeUpdates, isChecking } = useEpisodeUpdates()
-useEffect(() => {
-setMounted(true)
-
-const load = () => {
-  // 1. Загрузка Истории
-  try {
-    const storedHistory = JSON.parse(localStorage.getItem("watch-history") || "[]")
-    const normalized = Array.isArray(storedHistory)
-      ? storedHistory.map((item: any) => ({ 
-          ...item, 
-          poster: normalizePosterUrl(item?.poster) 
-        }))
-      : []
-    setFullHistory(normalized)
-    setHistory(normalized.slice(0, 6)) 
-  } catch (e) { console.error(e) }
-
-  // 2. Загрузка Поиска
-
 const { items: historyItems } = useHistory()
 const [lastSearches, setLastSearches] = useState<string[]>([])
 const [mounted, setMounted] = useState(false)
@@ -98,7 +69,6 @@ try {
 
 const onUpdated = () => {
   // Пересчитываем поиск при обновлении
- 
   try {
     const storedSearch = JSON.parse(localStorage.getItem("search-history") || "[]")
     const next = Array.isArray(storedSearch) ? storedSearch.filter((x) => typeof x === "string") : []
@@ -106,12 +76,6 @@ const onUpdated = () => {
   } catch (e) { console.error(e) }
 }
 
-
-load()
-
-const onUpdated = () => load()
-
- 
 window.addEventListener("search-history-updated", onUpdated)
 window.addEventListener("storage", onUpdated)
 
@@ -257,4 +221,5 @@ return (
     </section>
   )}
 </div>
+)
 }

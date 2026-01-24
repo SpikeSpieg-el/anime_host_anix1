@@ -2,11 +2,8 @@
 
 import { useEffect, useState, useCallback } from "react"
 import { getFreshAnimeData } from "@/app/actions/get-fresh-anime-data"
-
-
 import { supabase } from "@/lib/supabase"
 import { useAuth } from "@/components/auth-provider"
- 
 
 interface EpisodeUpdate {
   animeId: string
@@ -36,10 +33,29 @@ export function useEpisodeUpdates(): UseEpisodeUpdatesReturn {
   const [updates, setUpdates] = useState<EpisodeUpdate[]>([])
   const [mounted, setMounted] = useState(false)
   const [isChecking, setIsChecking] = useState(false)
-
-
   const { user } = useAuth()
- 
+
+  // Функция загрузки из LocalStorage
+  const loadFromStorage = useCallback(() => {
+    const stored = localStorage.getItem(EPISODE_UPDATES_KEY)
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored)
+
+        // Сравниваем, изменились ли данные, чтобы избежать лишних ререндеров
+        setUpdates(prev => {
+          if (JSON.stringify(prev) !== JSON.stringify(parsed)) {
+            return parsed
+          }
+          return prev
+        })
+      } catch (e) {
+        console.error("Error parsing updates:", e)
+      }
+    } else {
+      setUpdates([])
+    }
+  }, [])
 
   const loadFromDb = useCallback(async () => {
     if (!user) return
@@ -66,32 +82,6 @@ export function useEpisodeUpdates(): UseEpisodeUpdatesReturn {
     setUpdates(mapped)
   }, [user])
 
-
-  // Функция загрузки из LocalStorage
-  const loadFromStorage = useCallback(() => {
-    const stored = localStorage.getItem(EPISODE_UPDATES_KEY)
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored)
-
-
-
-        // Сравниваем, изменились ли данные, чтобы избежать лишних ререндеров
-        setUpdates(prev => {
-          if (JSON.stringify(prev) !== JSON.stringify(parsed)) {
-            return parsed
-          }
-          return prev
-        })
-      } catch (e) {
-        console.error("Error parsing updates:", e)
-      }
-    } else {
-      setUpdates([])
-    }
-  }, [])
-
-
   // 1. Инициализация и подписка на события
   useEffect(() => {
     setMounted(true)
@@ -101,7 +91,6 @@ export function useEpisodeUpdates(): UseEpisodeUpdatesReturn {
       loadFromStorage()
     }
 
-
     // Слушаем изменения в других компонентах
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key === EPISODE_UPDATES_KEY) {
@@ -110,30 +99,24 @@ export function useEpisodeUpdates(): UseEpisodeUpdatesReturn {
     }
 
     // Слушаем наше кастомное событие (для синхронизации в одной вкладке)
-    window.addEventListener(UPDATE_EVENT, loadFromStorage)
-
     window.addEventListener(UPDATE_EVENT, user ? (loadFromDb as any) : (loadFromStorage as any))
 
     // Слушаем изменения storage (для синхронизации между вкладками)
     window.addEventListener("storage", handleStorageChange)
 
     return () => {
-      window.removeEventListener(UPDATE_EVENT, loadFromStorage)
       window.removeEventListener(UPDATE_EVENT, user ? (loadFromDb as any) : (loadFromStorage as any))
       window.removeEventListener("storage", handleStorageChange)
     }
-  }, [loadFromStorage, user, loadFromDb])
-
+  }, [loadFromStorage, loadFromDb, user])
 
   // Сохранение обновлений
   const saveUpdates = useCallback((newUpdates: EpisodeUpdate[]) => {
     setUpdates(newUpdates)
     localStorage.setItem(EPISODE_UPDATES_KEY, JSON.stringify(newUpdates))
     // Уведомляем другие компоненты (например, Navbar)
-
-    window.dispatchEvent(new Event(UPDATE_EVENT))
+    setTimeout(() => window.dispatchEvent(new Event(UPDATE_EVENT)), 0)
   }, [])
-
 
   const saveUpdatesToDb = useCallback(
     async (newUpdates: EpisodeUpdate[]) => {
@@ -163,10 +146,10 @@ export function useEpisodeUpdates(): UseEpisodeUpdatesReturn {
       }
 
       await loadFromDb()
+      setTimeout(() => window.dispatchEvent(new Event(UPDATE_EVENT)), 0)
     },
     [user, loadFromDb]
   )
-
 
   // 2. Сбор ID для проверки
   const getIdsToCheck = useCallback((): { id: string; watchedEpisode: number; source: 'history' | 'bookmark' }[] => {
@@ -275,22 +258,21 @@ export function useEpisodeUpdates(): UseEpisodeUpdatesReturn {
 
     setIsChecking(true)
     try {
-      const itemsToCheck = user ? await getIdsToCheckFromDb() : getIdsToCheck()
+      let itemsToCheck = user ? await getIdsToCheckFromDb() : getIdsToCheck()
+
       if (manualAnimeList && manualAnimeList.length > 0) {
         // Логика объединения, если нужно, но пока полагаемся на LS
       }
 
       if (itemsToCheck.length === 0) {
+        setIsChecking(false)
         return
       }
 
       const ids = itemsToCheck.map((i) => i.id)
       const freshData = await getFreshAnimeData(ids)
 
-      const currentUpdates = user
-        ? ([] as EpisodeUpdate[])
-        : (JSON.parse(localStorage.getItem(EPISODE_UPDATES_KEY) || "[]") as EpisodeUpdate[])
-
+      let currentUpdates = user ? ([] as EpisodeUpdate[]) : (JSON.parse(localStorage.getItem(EPISODE_UPDATES_KEY) || "[]") as EpisodeUpdate[])
       const bookmarksSnapshot = JSON.parse(localStorage.getItem(BOOKMARK_SNAPSHOT_KEY) || "{}")
       const newBookmarksSnapshot = { ...bookmarksSnapshot }
       let hasChanges = false
@@ -352,6 +334,7 @@ export function useEpisodeUpdates(): UseEpisodeUpdatesReturn {
 
       localStorage.setItem(LAST_CHECK_KEY, String(Date.now()))
       localStorage.setItem(BOOKMARK_SNAPSHOT_KEY, JSON.stringify(newBookmarksSnapshot))
+
     } catch (error) {
       console.error("Update check failed:", error)
     } finally {
@@ -367,29 +350,26 @@ export function useEpisodeUpdates(): UseEpisodeUpdatesReturn {
     }
   }, [mounted, checkForUpdates])
 
-  const clearUpdate = useCallback(
-    (id: string) => {
-      if (user) {
-        supabase
-          .from("episode_updates")
-          .delete()
-          .match({ user_id: user.id, anime_id: id })
-          .then(({ error }) => {
-            if (error) console.error("Failed to clear update:", error)
-            loadFromDb().then(() => window.dispatchEvent(new Event(UPDATE_EVENT)))
-          })
-        return
-      }
+  const clearUpdate = useCallback((id: string) => {
+    if (user) {
+      supabase
+        .from("episode_updates")
+        .delete()
+        .match({ user_id: user.id, anime_id: id })
+        .then(({ error }) => {
+          if (error) console.error("Failed to clear update:", error)
+          loadFromDb().then(() => setTimeout(() => window.dispatchEvent(new Event(UPDATE_EVENT)), 0))
+        })
+      return
+    }
 
-      setUpdates((prev) => {
-        const next = prev.filter((u) => u.animeId !== id)
-        localStorage.setItem(EPISODE_UPDATES_KEY, JSON.stringify(next))
-        window.dispatchEvent(new Event(UPDATE_EVENT))
-        return next
-      })
-    },
-    [user, loadFromDb]
-  )
+    setUpdates((prev) => {
+      const next = prev.filter((u) => u.animeId !== id)
+      localStorage.setItem(EPISODE_UPDATES_KEY, JSON.stringify(next))
+      setTimeout(() => window.dispatchEvent(new Event(UPDATE_EVENT)), 0)
+      return next
+    })
+  }, [user, loadFromDb])
 
   const clearAllUpdates = useCallback(() => {
     if (user) {
@@ -400,7 +380,7 @@ export function useEpisodeUpdates(): UseEpisodeUpdatesReturn {
         .then(({ error }) => {
           if (error) console.error("Failed to clear all updates:", error)
           setUpdates([])
-          window.dispatchEvent(new Event(UPDATE_EVENT))
+          setTimeout(() => window.dispatchEvent(new Event(UPDATE_EVENT)), 0)
         })
       return
     }
