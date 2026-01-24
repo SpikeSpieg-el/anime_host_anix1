@@ -76,15 +76,9 @@ export default async function HomePage() {
       <Navbar />
       <FloatingNav />
       <section id="hero">
-
-        {topOfWeekHero || recommendedHero ? (
-          <HeroBanner
-            topOfWeekAnime={topOfWeekHero}
-
         {topOfWeekHeroWithDetails || recommendedHero ? (
           <HeroBanner
             topOfWeekAnime={topOfWeekHeroWithDetails}
- 
             recommendedAnime={recommendedHero}
           />
         ) : (

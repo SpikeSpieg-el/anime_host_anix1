@@ -88,20 +88,17 @@ export function RegionDetector({ onCountryChange, onRegionDetected }: RegionDete
       
       // Если все сервисы не сработали, используем заглушку
       if (!data) {
-        throw new Error('All IP services failed')
+        // Делаем запрос на свой API (server-side proxy), чтобы избежать CORS
+        const { signal } = createTimeoutController(5000)
+        const apiResponse = await fetch('/api/region', { signal, cache: 'no-store' })
+        if (!apiResponse.ok) {
+          throw new Error('Region API failed')
+        }
 
-
-      // Делаем запрос на свой API (server-side proxy), чтобы избежать CORS
-      const { signal } = createTimeoutController(5000)
-      const response = await fetch('/api/region', { signal, cache: 'no-store' })
-      if (!response.ok) {
-        throw new Error('Region API failed')
-      }
-
-      const data = await response.json()
-      if (!data) {
-        throw new Error('Region API returned empty payload')
- 
+        data = await apiResponse.json()
+        if (!data) {
+          throw new Error('Region API returned empty payload')
+        }
       }
       
       const country = data.country_name || data.country || 'Unknown'

@@ -136,12 +136,9 @@ function generateArtPoster(title: string): string {
 // 2. FETCH HELPERS
 // 
 
+
 const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
 
-
-async function shikimoriFetch(input: string, init?: RequestInit & { next?: any }, retries = 2) {
-  const controller = new AbortController();
-  const timeoutMs = 15_000;
 
 type ShikimoriCacheEntry = {
   freshUntil: number;
@@ -473,9 +470,6 @@ export async function getAnimeCalendar(): Promise<WeeklySchedule> {
     const res = await shikimoriFetch(`${BASE_URL}/calendar`);
     if (!res.ok) return {};
 
-    const data: CalendarItem[] = await res.json();
-    
-
     const data = await shikimoriJson<CalendarItem[]>(`${BASE_URL}/calendar`, { next: { revalidate: 1800 } }, { ttlMs: 60_000, staleTtlMs: 6 * 60 * 60_000, fallback: [] });
     if (!Array.isArray(data)) return {};
 
@@ -786,10 +780,6 @@ function transformTopic(topic: ShikimoriTopic): NewsItem {
 export async function getAnimeList(limit = 20, order = 'popularity') {
   try {
 
-    const res = await shikimoriFetch(`${BASE_URL}/animes?limit=${limit}&order=${order}&status=ongoing,released&score=6`);
-    if (!res.ok) throw new Error("Failed to fetch");
-    const data: ShikimoriAnime[] = await res.json();
-
     const data = await shikimoriJson<ShikimoriAnime[]>(`${BASE_URL}/animes?limit=${limit}&order=${order}&status=ongoing,released&score=6`, { next: { revalidate: 1800 } }, { ttlMs: 60_000, staleTtlMs: 60 * 60_000, fallback: [] });
  
     return await Promise.all(data.map(transformAnime));
@@ -802,20 +792,12 @@ export async function getAnimeList(limit = 20, order = 'popularity') {
 export async function getPopularNow(limit = 12): Promise<Anime[]> {
   try {
 
-    const res = await shikimoriFetch(`${BASE_URL}/animes?limit=${limit}&order=popularity&status=ongoing&score=7`, {
-      next: { revalidate: 1800 }
-    });
-    if (!res.ok) return [];
-
-    const data: ShikimoriAnime[] = await res.json();
-
     const data = await shikimoriJson<ShikimoriAnime[]>(`${BASE_URL}/animes?limit=${limit}&order=popularity&status=ongoing&score=7`, { next: { revalidate: 1800 } }, { ttlMs: 60_000, staleTtlMs: 60 * 60_000, fallback: [] });
  
     return await Promise.all(data.map(transformAnime));
   } catch (error) {
     return [];
   }
-}
 
 export async function getPopularAlways(limit = 12): Promise<Anime[]> {
   try {
@@ -824,7 +806,6 @@ export async function getPopularAlways(limit = 12): Promise<Anime[]> {
       next: { revalidate: 1800 }
     });
     if (!res.ok) return [];
-    const data: ShikimoriAnime[] = await res.json();
 
     const data = await shikimoriJson<ShikimoriAnime[]>(`${BASE_URL}/animes?limit=${limit}&order=popularity&status=released&score=8`, { next: { revalidate: 1800 } }, { ttlMs: 60_000, staleTtlMs: 60 * 60_000, fallback: [] });
  
@@ -841,7 +822,6 @@ export async function getOngoingList(limit = 12): Promise<Anime[]> {
       next: { revalidate: 1800 }
     });
     if (!res.ok) return [];
-    const data: ShikimoriAnime[] = await res.json();
 
     const data = await shikimoriJson<ShikimoriAnime[]>(`${BASE_URL}/animes?limit=${limit}&status=ongoing&order=ranked`, { next: { revalidate: 1800 } }, { ttlMs: 60_000, staleTtlMs: 60 * 60_000, fallback: [] });
  
@@ -856,7 +836,6 @@ export async function getForumNews(limit = 4): Promise<NewsItem[]> {
 
     const res = await shikimoriFetch(`${BASE_URL}/topics?forum=news&limit=${limit}`);
     if (!res.ok) return [];
-    const data: ShikimoriTopic[] = await res.json();
 
     const data = await shikimoriJson<ShikimoriTopic[]>(`${BASE_URL}/topics?forum=news&limit=${limit}`, { next: { revalidate: 1800 } }, { ttlMs: 60_000, staleTtlMs: 6 * 60 * 60_000, fallback: [] });
  
@@ -958,20 +937,13 @@ export async function getAnnouncements(limit = 3) {
   }
 }
 
-export async function getAnimeByIds(ids: string[]) {
   if (ids.length === 0) return [];
   const idsString = ids.join(',');
   try {
 
     const res = await shikimoriFetch(`${BASE_URL}/animes?ids=${idsString}&limit=${ids.length}`);
     if (!res.ok) return [];
-    const data: ShikimoriAnime[] = await res.json();
 
-    const data = await shikimoriJson<ShikimoriAnime[]>(`${BASE_URL}/animes?ids=${idsString}&limit=${ids.length}`, { next: { revalidate: 3600 } }, { ttlMs: 5 * 60_000, staleTtlMs: 24 * 60 * 60_000, fallback: [] });
- 
-    return await Promise.all(data.map(transformAnime));
-  } catch (error) {
-    return [];
   }
 }
 

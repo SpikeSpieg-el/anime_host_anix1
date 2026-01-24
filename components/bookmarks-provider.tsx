@@ -98,32 +98,11 @@ export function BookmarksProvider({ children }: { children: React.ReactNode }) {
     [items],
   )
 
-
-  const add = useCallback((anime: BookmarkAnime) => {
-
   const add = useCallback(async (anime: BookmarkAnime) => {
- 
     setItems((prev) => {
       if (prev.some((a) => a.id === anime.id)) return prev
       return [anime, ...prev]
     })
-
-  }, [])
-
-  const remove = useCallback((id: string) => {
-    setItems((prev) => prev.filter((a) => a.id !== id))
-  }, [])
-
-  const toggle = useCallback(
-    (anime: BookmarkAnime) => {
-      setItems((prev) => {
-        if (prev.some((a) => a.id === anime.id)) return prev.filter((a) => a.id !== anime.id)
-        return [anime, ...prev]
-      })
-    },
-    [],
-  )
-
 
     if (user) {
       await supabase.from('bookmarks').insert({
@@ -162,13 +141,13 @@ export function BookmarksProvider({ children }: { children: React.ReactNode }) {
             anime_data: anime
          }).select().single().then(({error}) => {
              // Если запись уже есть (конфликт), ничего страшного
-             if(error && error.code !== '23505') console.error(error) 
+             if(error && error.code !== '23505') console.error(error)
          })
       } else { // удалено из стейта, delete из БД
          await supabase.from('bookmarks').delete().match({ user_id: user.id, anime_id: anime.id })
       }
     }
-  }, [user]) // Добавлена зависимость от user
+  }, [user])
  
 
   const value = useMemo<BookmarksContextValue>(() => ({ items, isSaved, add, remove, toggle }), [items, isSaved, add, remove, toggle])

@@ -34,7 +34,7 @@ export default function HistoryPage() {
   const [history, setHistory] = useState<any[]>([])
 
   const { items: historyItems, clear } = useHistory()
-  const history = historyItems.map((item: any) => ({
+  const historyList = historyItems.map((item: any) => ({
     ...item,
     poster: normalizePosterUrl(item?.poster)
   }))
@@ -47,7 +47,7 @@ export default function HistoryPage() {
     const update = updates.find(u => u.animeId === animeId)
     if (!update) return undefined
     
-    const historyItem = history.find(h => h.id === animeId)
+    const historyItem = historyList.find(h => h.id === animeId)
     if (!historyItem) return undefined
     
     return {
