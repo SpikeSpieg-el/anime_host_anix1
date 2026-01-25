@@ -86,7 +86,7 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime }: HeroBannerProps
   };
 
   return (
-    <div className="relative w-full min-h-[550px] lg:h-[750px] mb-8 lg:mb-12 overflow-hidden bg-zinc-950 border-b border-zinc-800 group animate-fade-in">
+    <div className="relative w-full min-h-[550px] lg:h-[750px] mb-8 lg:mb-12 overflow-hidden bg-background border-b border-border group animate-fade-in">
       
       {/* --- ФОН --- */}
       <div className="absolute inset-0 z-[1] pointer-events-none opacity-[0.07]">
@@ -108,8 +108,8 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime }: HeroBannerProps
           unoptimized={bgImageError}
         />
         {/* Градиенты для читаемости текста */}
-        <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/90 to-zinc-950/30 lg:via-zinc-950/60 lg:to-transparent" />
-        <div className="absolute inset-0 bg-gradient-to-r from-zinc-950/90 via-zinc-950/70 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-background via-background/90 to-background/30 lg:via-background/60 lg:to-transparent dark:from-zinc-950 dark:via-zinc-950/90 dark:to-zinc-950/30 lg:dark:via-zinc-950/60 lg:dark:to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-r from-background/90 via-background/70 to-transparent dark:from-zinc-950/90 dark:via-zinc-950/70" />
       </div>
 
       
@@ -129,7 +129,7 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime }: HeroBannerProps
                 {/* Эффект свечения */}
                 <div className="absolute inset-0 bg-gradient-to-br from-orange-600 to-orange-700 rounded-xl lg:rounded-2xl transform rotate-6 translate-x-2 translate-y-2 opacity-60 blur-md lg:group-hover/poster:rotate-12 lg:group-hover/poster:translate-x-6 transition-all duration-500" />
                 
-                <div className="relative w-full h-full rounded-xl lg:rounded-2xl overflow-hidden shadow-2xl border border-white/10 bg-zinc-900">
+                <div className="relative w-full h-full rounded-xl lg:rounded-2xl overflow-hidden shadow-2xl border border-border bg-secondary dark:border-white/10 dark:bg-zinc-900">
                     <Image 
                        src={posterImage}
                        alt={anime.title}
@@ -143,8 +143,8 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime }: HeroBannerProps
                     <div className="absolute bottom-0 left-0 right-0 p-2 lg:p-4 bg-gradient-to-t from-black/90 via-black/60 to-transparent backdrop-blur-[1px]">
                        <div className="flex justify-between items-end">
                           <div className="flex flex-col">
-                             <span className="text-[8px] lg:text-[10px] text-zinc-400 font-mono uppercase">ID</span>
-                             <span className="text-white text-[10px] lg:text-sm font-mono font-bold flex items-center gap-1">
+                             <span className="text-[8px] lg:text-[10px] text-muted-foreground font-mono uppercase dark:text-zinc-400">ID</span>
+                             <span className="text-foreground text-[10px] lg:text-sm font-mono font-bold flex items-center gap-1 dark:text-white">
                                <Hash size={10} className="text-orange-500"/> {anime.id}
                              </span>
                           </div>
@@ -161,7 +161,7 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime }: HeroBannerProps
             <h1 
               className={`
                 ${getTitleClass(anime.title)}
-                font-black text-white mb-3 lg:mb-4
+                font-black text-foreground mb-3 lg:mb-4 dark:text-white
                 uppercase tracking-tight
                 drop-shadow-[0_5px_15px_rgba(0,0,0,0.8)]
                 max-w-full lg:max-w-[90%]
@@ -172,25 +172,25 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime }: HeroBannerProps
             </h1>
 
             {/* 2. ТАБЫ (ТОП / ДЛЯ ВАС) - Прямо под заголовком */}
-            <div className="flex items-center gap-1.5 mb-5 lg:mb-6 bg-zinc-900/60 backdrop-blur-md p-1.5 rounded-xl border border-white/10 shadow-lg justify-center lg:justify-start">
+            <div className="flex items-center gap-1.5 mb-5 lg:mb-6 bg-secondary/60 backdrop-blur-md p-1.5 rounded-xl border border-border shadow-lg justify-center lg:justify-start dark:bg-zinc-900/60 dark:border-white/10">
               <button
                 onClick={() => setMode('top')}
                 className={`flex items-center gap-1.5 px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg text-[10px] sm:text-xs lg:text-sm font-black uppercase tracking-wider transition-all duration-300 ${
                   mode === 'top' 
-                    ? 'bg-white text-black shadow-md scale-100' 
-                    : 'text-zinc-400 hover:text-white hover:bg-white/5 scale-95'
+                    ? 'bg-background text-foreground shadow-md scale-100 dark:bg-white dark:text-black' 
+                    : 'text-muted-foreground hover:text-foreground hover:bg-accent scale-95 dark:text-zinc-400 dark:hover:text-white dark:hover:bg-white/5'
                 }`}
               >
                 <TrendingUp size={14} className={mode === 'top' ? 'text-orange-600' : 'opacity-50'} />
                 ТОП
               </button>
-              <div className="w-px h-4 bg-white/10 mx-0.5"></div>
+              <div className="w-px h-4 bg-border mx-0.5 dark:bg-white/10"></div>
               <button
                 onClick={() => setMode('recommended')}
                 className={`flex items-center gap-1.5 px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg text-[10px] sm:text-xs lg:text-sm font-black uppercase tracking-wider transition-all duration-300 ${
                   mode === 'recommended' 
-                    ? 'bg-white text-black shadow-md scale-100' 
-                    : 'text-zinc-400 hover:text-white hover:bg-white/5 scale-95'
+                    ? 'bg-background text-foreground shadow-md scale-100 dark:bg-white dark:text-black' 
+                    : 'text-muted-foreground hover:text-foreground hover:bg-accent scale-95 dark:text-zinc-400 dark:hover:text-white dark:hover:bg-white/5'
                 }`}
               >
                 <Sparkles size={14} className={mode === 'recommended' ? 'text-blue-500' : 'opacity-50'} />
@@ -205,14 +205,14 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime }: HeroBannerProps
                 <span>{anime.rating}</span>
               </div>
               
-              <div className="flex items-center gap-2 text-zinc-300 font-mono text-[10px] sm:text-sm uppercase tracking-wider font-bold">
-                <span className="bg-white/5 border border-white/10 px-2 py-1 sm:px-3 sm:py-1.5 rounded-md backdrop-blur-sm">
+              <div className="flex items-center gap-2 text-muted-foreground font-mono text-[10px] sm:text-sm uppercase tracking-wider font-bold dark:text-zinc-300">
+                <span className="bg-secondary/5 border border-border px-2 py-1 sm:px-3 sm:py-1.5 rounded-md backdrop-blur-sm dark:bg-white/5 dark:border-white/10">
                     {anime.year}
                 </span>
                 <span className="bg-white/5 border border-white/10 px-2 py-1 sm:px-3 sm:py-1.5 rounded-md backdrop-blur-sm hidden sm:inline-block">
                     {anime.quality}
                 </span>
-                <span className="flex items-center gap-1 text-orange-400 bg-orange-500/5 border border-orange-500/20 px-2 py-1 sm:px-3 sm:py-1.5 rounded-md">
+                <span className="flex items-center gap-1 text-primary bg-primary/5 border border-primary/20 px-2 py-1 sm:px-3 sm:py-1.5 rounded-md dark:text-orange-400 dark:bg-orange-500/5 dark:border-orange-500/20">
                   <Zap size={12} fill="currentColor" />
                   {anime.episodesTotal > 0 ? `${anime.episodesTotal} ${getEpisodeText(anime.episodesTotal)}` : 'ONGOING'}
                 </span>
@@ -223,7 +223,7 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime }: HeroBannerProps
             <div className="w-full sm:w-auto flex flex-row items-stretch justify-center gap-3">
               <Link 
                 href={`/watch/${anime.id}`} 
-                className="flex-1 sm:flex-none flex justify-center items-center gap-2 lg:gap-3 bg-white text-black hover:bg-zinc-200 px-6 py-3.5 lg:px-8 lg:py-4 rounded-xl lg:rounded-2xl font-black text-xs lg:text-sm uppercase tracking-wider shadow-[0_0_20px_-5px_rgba(255,255,255,0.3)] transition-transform active:scale-95"
+                className="flex-1 sm:flex-none flex justify-center items-center gap-2 lg:gap-3 bg-background text-foreground hover:bg-accent px-6 py-3.5 lg:px-8 lg:py-4 rounded-xl lg:rounded-2xl font-black text-xs lg:text-sm uppercase tracking-wider shadow-[0_0_20px_-5px_rgba(0,0,0,0.1)] transition-transform active:scale-95 dark:bg-white dark:text-black dark:hover:bg-zinc-200"
               >
                 <Play fill="currentColor" className="w-4 h-4 lg:w-5 lg:h-5 text-orange-600" />
                 <span>СМОТРЕТЬ</span>
@@ -231,7 +231,7 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime }: HeroBannerProps
 
               <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                 <DialogTrigger asChild>
-                  <button className="flex-1 sm:flex-none flex justify-center items-center gap-2 bg-white/5 hover:bg-white/10 backdrop-blur-md border border-white/10 text-white px-6 py-3.5 lg:px-8 lg:py-4 rounded-xl lg:rounded-2xl font-bold text-xs lg:text-sm uppercase tracking-wider transition-transform active:scale-95">
+                  <button className="flex-1 sm:flex-none flex justify-center items-center gap-2 bg-secondary/5 hover:bg-secondary/10 backdrop-blur-md border border-border text-foreground px-6 py-3.5 lg:px-8 lg:py-4 rounded-xl lg:rounded-2xl font-bold text-xs lg:text-sm uppercase tracking-wider transition-transform active:scale-95 dark:bg-white/5 dark:hover:bg-white/10 dark:border-white/10 dark:text-white">
                     <Info className="w-4 h-4 lg:w-5 lg:h-5" />
                     <span>ИНФО</span>
                   </button>
@@ -239,7 +239,7 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime }: HeroBannerProps
                 
                 {/* --- МОДАЛЬНОЕ ОКНО --- */}
                 {/* max-h-[90dvh] и h-auto для мобил, чтобы не вылезало за границы браузера */}
-                <DialogContent className="bg-zinc-950/95 backdrop-blur-2xl border border-white/10 text-white w-[95vw] sm:max-w-4xl p-0 overflow-hidden shadow-2xl rounded-3xl flex flex-col h-full max-h-[85dvh] sm:h-auto sm:max-h-[90vh]">
+                <DialogContent className="bg-background/95 backdrop-blur-2xl border text-foreground w-[95vw] sm:max-w-4xl p-0 overflow-hidden shadow-2xl rounded-3xl flex flex-col h-full max-h-[85dvh] sm:h-auto sm:max-h-[90vh]">
                   
                   <div className="flex flex-col md:grid md:grid-cols-12 h-full w-full">
                     
@@ -253,7 +253,7 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime }: HeroBannerProps
                         onError={() => setPosterImageError(true)}
                         unoptimized={posterImageError}
                       />
-                      <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/20 to-transparent md:bg-gradient-to-r md:from-transparent md:to-zinc-950/95" />
+                      <div className="absolute inset-0 bg-gradient-to-t from-background via-background/20 to-transparent md:bg-gradient-to-r md:from-transparent md:to-background/95 dark:from-zinc-950 dark:via-zinc-950/20 dark:md:to-zinc-950/95" />
                     </div>
 
                     {/* Правая часть с текстом */}
@@ -261,13 +261,13 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime }: HeroBannerProps
                        
                        {/* Скролл контента */}
                        <div className="flex-1 overflow-y-auto p-5 sm:p-8 custom-scrollbar">
-                          <DialogTitle className="text-xl sm:text-3xl font-black uppercase mb-3 leading-tight text-white">
+                          <DialogTitle className="text-xl sm:text-3xl font-black uppercase mb-3 leading-tight text-foreground dark:text-white">
                             {anime.title}
                           </DialogTitle>
                           
                           <div className="flex flex-wrap gap-2 mb-4">
                              {anime.genres?.slice(0, 4).map((g: string) => (
-                               <span key={g} className="px-2 py-1 rounded-md bg-white/5 border border-white/10 text-[10px] sm:text-xs uppercase font-bold text-zinc-300">
+                               <span key={g} className="px-2 py-1 rounded-md bg-secondary/5 border border-border text-[10px] sm:text-xs uppercase font-bold text-muted-foreground dark:bg-white/5 dark:border-white/10 dark:text-zinc-300">
                                  {g}
                                </span>
                              ))}
@@ -275,20 +275,20 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime }: HeroBannerProps
 
                           {/* ПРОВЕРКА ОПИСАНИЯ */}
                           {anime.description && anime.description !== "Описание отсутствует..." ? (
-                            <p className="text-zinc-300 text-xs sm:text-sm leading-relaxed mb-4 opacity-90">
+                            <p className="text-muted-foreground text-xs sm:text-sm leading-relaxed mb-4 opacity-90 dark:text-zinc-300">
                               {anime.description}
                             </p>
                           ) : (
-                            <div className="my-4 p-5 rounded-2xl border border-white/5 bg-white/[0.02] flex flex-col items-center text-center">
-                              <Info className="w-6 h-6 text-zinc-600 mb-2" />
-                              <p className="text-zinc-400 text-[11px] sm:text-xs mb-4">
+                            <div className="my-4 p-5 rounded-2xl border border-border bg-secondary/[0.02] flex flex-col items-center text-center dark:border-white/5 dark:bg-white/[0.02]">
+                              <Info className="w-6 h-6 text-muted-foreground mb-2 dark:text-zinc-600" />
+                              <p className="text-muted-foreground text-[11px] sm:text-xs mb-4 dark:text-zinc-400">
                                 У нас пока нет описания для этого аниме, но вы можете прочитать его на популярном ресурсе:
                               </p>
                               <a 
                                 href={`https://shikimori.one/animes?search=${encodeURIComponent(anime.title)}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="inline-flex items-center gap-2 px-5 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all active:scale-95"
+                                className="inline-flex items-center gap-2 px-5 py-2 bg-secondary hover:bg-accent text-foreground rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all active:scale-95 dark:bg-zinc-800 dark:hover:bg-zinc-700 dark:text-white"
                               >
                                 <TrendingUp size={14} className="text-orange-500" />
                                 Открыть на Shikimori
@@ -298,7 +298,7 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime }: HeroBannerProps
                        </div>
 
                        {/* ФУТЕР ДИАЛОГА (Кнопка Смотреть) */}
-                       <div className="shrink-0 p-4 sm:p-8 sm:pt-4 bg-gradient-to-t from-zinc-950 to-transparent z-10">
+                       <div className="shrink-0 p-4 sm:p-8 sm:pt-4 bg-gradient-to-t from-background to-transparent z-10 dark:from-zinc-950">
                         <div className="flex flex-row gap-3">
                           <button 
                             type="button"
@@ -313,10 +313,10 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime }: HeroBannerProps
                           <button
                             type="button"
                             onClick={() => toggle(anime)}
-                            className="w-12 h-12 flex items-center justify-center bg-white/5 hover:bg-white/10 backdrop-blur-md border border-white/10 text-white font-bold rounded-xl uppercase tracking-wider transition-all active:scale-95"
+                            className="w-12 h-12 flex items-center justify-center bg-secondary/5 hover:bg-secondary/10 backdrop-blur-md border border-border text-foreground font-bold rounded-xl uppercase tracking-wider transition-all active:scale-95 dark:bg-white/5 dark:hover:bg-white/10 dark:border-white/10 dark:text-white"
                             aria-label={saved ? "Убрать из закладок" : "Добавить в закладки"}
                           >
-                            <Bookmark className={cn(saved ? "fill-orange-500 text-orange-500" : "text-white", "w-5 h-5")} />
+                            <Bookmark className={cn(saved ? "fill-primary text-primary dark:fill-orange-500 dark:text-orange-500" : "text-foreground dark:text-white", "w-5 h-5")} />
                             
                           </button>
                         </div>

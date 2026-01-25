@@ -30,10 +30,10 @@ export function RegionWarning({ selectedCountry, isRegionDetected = false }: Reg
           <span className="leading-tight">Предупреждение, регион</span>
         </div>
         <div className="space-y-2">
-          <p className="text-zinc-300 text-sm sm:text-base leading-relaxed opacity-90">
+          <p className="text-foreground text-sm sm:text-base leading-relaxed opacity-90">
             Обнаружен российский регион. Возможна блокировка контента и ограничение доступа к плееру.
           </p>
-          <p className="text-zinc-400 text-sm sm:text-base leading-relaxed opacity-75">
+          <p className="text-muted-foreground text-sm sm:text-base leading-relaxed opacity-75">
             Рекомендуется изменить страну через сторонний сервис для стабильного доступа и чтобы не было рекламы 💫😶‍🌫️.
           </p>
         </div>

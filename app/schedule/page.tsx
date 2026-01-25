@@ -15,7 +15,7 @@ export default async function SchedulePage() {
   const schedule = await getAnimeCalendar()
 
   return (
-    <main className="min-h-screen bg-zinc-950 text-white pb-20 md:pb-24">
+    <main className="min-h-screen bg-background text-foreground pb-20 md:pb-24">
       <Navbar />
        
       <div className="container mx-auto px-3 sm:px-4 py-8">

@@ -10,6 +10,7 @@ import "./globals.css"
 import { WelcomeModal } from "@/components/welcome-modal"
 import { AuthProvider } from "@/components/auth-provider"
 import { CookieConsent } from "@/components/cookie-consent"
+import { ThemeProvider } from "@/components/theme-provider"
 
 const _geist = Geist({ subsets: ["latin"] })
 const _geistMono = Geist_Mono({ subsets: ["latin"] })
@@ -48,20 +49,27 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en">
-      <body className={`font-sans antialiased bg-black min-h-screen`}>
-        {/* ✅ Fix: Wrap GlobalLoading in Suspense because it uses searchParams */}
-        <Suspense fallback={null}>
-          <GlobalLoading />
-        </Suspense>
-        <WelcomeModal />
-        <CookieConsent />
-        <AuthProvider>
-          <HistoryProvider>
-            <BookmarksProvider>{children}</BookmarksProvider>
-          </HistoryProvider>
-        </AuthProvider>
-        <Analytics />
+    <html lang="en" suppressHydrationWarning>
+      <body className={`font-sans antialiased min-h-screen`}>
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="dark"
+          enableSystem
+          disableTransitionOnChange
+        >
+          {/* ✅ Fix: Wrap GlobalLoading in Suspense because it uses searchParams */}
+          <Suspense fallback={null}>
+            <GlobalLoading />
+          </Suspense>
+          <WelcomeModal />
+          <CookieConsent />
+          <AuthProvider>
+            <HistoryProvider>
+              <BookmarksProvider>{children}</BookmarksProvider>
+            </HistoryProvider>
+          </AuthProvider>
+          <Analytics />
+        </ThemeProvider>
       </body>
     </html>
   )

@@ -66,7 +66,7 @@ export default async function HomePage() {
   ])
 
   return (
-    <main className="min-h-screen bg-zinc-950 text-white pb-20 md:pb-24 overflow-x-hidden selection:bg-orange-500/30">
+    <main className="min-h-screen bg-background text-foreground pb-20 md:pb-24 overflow-x-hidden selection:bg-orange-500/30">
       <Navbar />
       <FloatingNav />
       <section id="hero">

@@ -98,7 +98,7 @@ export function SearchSuggestions({
   return (
     <div className={`relative ${className} z-50`}>
       <div className="relative group">
-        <Search className="absolute left-3 top-2.5 h-4 w-4 text-zinc-500 group-focus-within:text-orange-500 transition-colors pointer-events-none" />
+        <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground group-focus-within:text-primary transition-colors pointer-events-none" />
         <input
           ref={inputRef}
           type="text"
@@ -107,12 +107,12 @@ export function SearchSuggestions({
           onChange={(e) => onChange(e.target.value)}
           onFocus={() => value.trim().length >= 2 && setIsOpen(true)}
           onKeyDown={handleKeyDown}
-          className="w-full h-9 rounded-xl bg-zinc-900/50 border border-zinc-800/50 pl-10 pr-10 text-sm text-white focus:bg-zinc-900 focus:outline-none focus:ring-1 focus:ring-orange-500/50 focus:border-orange-500/50 transition-all placeholder:text-zinc-600 shadow-inner"
+          className="w-full h-9 rounded-xl bg-secondary/50 border border-border pl-10 pr-10 text-sm text-foreground focus:bg-secondary focus:outline-none focus:ring-1 focus:ring-primary/50 focus:border-primary/50 transition-all placeholder:text-muted-foreground shadow-inner"
         />
         {value && (
           <button
             onClick={() => { onChange(""); inputRef.current?.focus(); }}
-            className="absolute right-3 top-2.5 text-zinc-500 hover:text-white transition-colors"
+            className="absolute right-3 top-2.5 text-muted-foreground hover:text-foreground transition-colors"
           >
             <X size={14} />
           </button>
@@ -123,19 +123,19 @@ export function SearchSuggestions({
         <>
           <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
           
-          <div className="absolute top-full left-0 right-0 mt-2 bg-zinc-950/95 backdrop-blur-xl border border-zinc-800 rounded-xl shadow-2xl z-50 max-h-[80vh] overflow-y-auto overflow-x-hidden">
+          <div className="absolute top-full left-0 right-0 mt-2 bg-background/95 backdrop-blur-xl border rounded-xl shadow-2xl z-50 max-h-[80vh] overflow-y-auto overflow-x-hidden">
             
             {/* Результаты поиска */}
             {suggestions.length > 0 ? (
               <div className="p-2">
-                <div className="px-3 py-2 text-xs font-bold text-zinc-500 uppercase tracking-wider">
+                <div className="px-3 py-2 text-xs font-bold text-muted-foreground uppercase tracking-wider">
                     Быстрый переход
                 </div>
                 {suggestions.map((anime) => (
                   <button
                     key={anime.id}
                     onClick={() => handleAnimeClick(anime.id)}
-                    className="w-full text-left p-2 rounded-lg hover:bg-zinc-900 transition-colors group flex items-start gap-3 mb-1"
+                    className="w-full text-left p-2 rounded-lg hover:bg-secondary transition-colors group flex items-start gap-3 mb-1"
                   >
                     <img
                         src={anime.poster}
@@ -143,14 +143,14 @@ export function SearchSuggestions({
                         className="w-10 h-14 object-cover rounded shadow-lg group-hover:scale-105 transition-transform"
                     />
                     <div className="flex-1 min-w-0 py-0.5">
-                        <div className="text-sm font-semibold text-zinc-200 group-hover:text-orange-400 transition-colors truncate">
+                        <div className="text-sm font-semibold text-foreground group-hover:text-primary transition-colors truncate">
                           {anime.title}
                         </div>
                         <div className="flex items-center gap-2 mt-1">
-                          <span className="text-[10px] bg-zinc-800 px-1.5 py-0.5 rounded text-zinc-400">
+                          <span className="text-[10px] bg-secondary px-1.5 py-0.5 rounded text-muted-foreground">
                              {anime.year}
                           </span>
-                          <span className="text-[10px] text-zinc-500 flex items-center gap-1">
+                          <span className="text-[10px] text-muted-foreground flex items-center gap-1">
                              ★ {anime.rating}
                           </span>
                         </div>
@@ -160,7 +160,7 @@ export function SearchSuggestions({
                 
                 <button 
                     onClick={() => { saveSearchHistory(value); onSelect(value) }}
-                    className="w-full mt-2 p-3 text-center text-sm font-medium text-orange-500 bg-orange-500/10 hover:bg-orange-500/20 rounded-lg transition-colors flex items-center justify-center gap-2"
+                    className="w-full mt-2 p-3 text-center text-sm font-medium text-primary bg-primary/10 hover:bg-primary/20 rounded-lg transition-colors flex items-center justify-center gap-2"
                 >
                     <Search size={14} />
                     Смотреть все результаты для "{value}"
@@ -170,10 +170,10 @@ export function SearchSuggestions({
                 // Если ничего не найдено
                 !loading && (
                     <div className="p-6 text-center">
-                        <p className="text-zinc-500 text-sm mb-2">Ничего не найдено</p>
+                        <p className="text-muted-foreground text-sm mb-2">Ничего не найдено</p>
                         <button 
                             onClick={() => { saveSearchHistory(value); onSelect(value) }}
-                            className="text-orange-500 text-sm hover:underline"
+                            className="text-primary text-sm hover:underline"
                         >
                             Искать в каталоге &rarr;
                         </button>

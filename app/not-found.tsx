@@ -20,13 +20,13 @@ export default function NotFound() {
   }, [])
 
   // Обновленный стиль кнопок с групповым ховером для иконок
-  const btnClass = "group relative flex items-center justify-center gap-3 bg-zinc-900/80 backdrop-blur-md border border-zinc-800 hover:bg-orange-500 hover:border-orange-500 text-zinc-400 hover:text-black px-6 py-4 rounded-xl text-sm font-bold uppercase tracking-widest transition-all duration-300 w-full md:w-auto active:scale-[0.98] shadow-lg shadow-black/20 hover:shadow-orange-500/20";
+  const btnClass = "group relative flex items-center justify-center gap-3 bg-secondary/80 backdrop-blur-md border border-border hover:bg-primary hover:border-primary text-muted-foreground hover:text-primary-foreground px-6 py-4 rounded-xl text-sm font-bold uppercase tracking-widest transition-all duration-300 w-full md:w-auto active:scale-[0.98] shadow-lg shadow-black/20 hover:shadow-primary/20";
   
   // Класс для иконок, чтобы они меняли цвет вместе с текстом
   const iconClass = "w-5 h-5 text-orange-500 transition-colors duration-300 group-hover:text-black";
 
   return (
-    <main className="relative min-h-[100dvh] w-full bg-zinc-950 text-white flex flex-col items-center justify-center p-4 overflow-hidden selection:bg-orange-500/30">
+    <main className="relative min-h-[100dvh] w-full bg-background text-foreground flex flex-col items-center justify-center p-4 overflow-hidden selection:bg-orange-500/30">
       
       {/* --- ГЛОБАЛЬНЫЕ СТИЛИ И АНИМАЦИИ --- */}
       <style jsx global>{`
@@ -66,12 +66,12 @@ export default function NotFound() {
           <div className="absolute -inset-1 bg-gradient-to-r from-orange-500 to-purple-600 rounded-[32px] blur opacity-20 group-hover:opacity-40 transition duration-1000 group-hover:duration-200"></div>
           
           {/* Контейнер картинки */}
-          <div className="relative h-full w-full bg-zinc-900/90 backdrop-blur-sm border border-white/10 rounded-[30px] overflow-hidden shadow-2xl shadow-black flex items-center justify-center animate-float">
+          <div className="relative h-full w-full bg-secondary/90 backdrop-blur-sm border border-border rounded-[30px] overflow-hidden shadow-2xl shadow-black flex items-center justify-center animate-float">
             
             {/* Скелетон загрузки */}
             {!isImageLoaded && (
-              <div className="absolute inset-0 bg-zinc-800 animate-pulse flex items-center justify-center">
-                <AlertCircle className="w-8 h-8 text-zinc-700" />
+              <div className="absolute inset-0 bg-muted animate-pulse flex items-center justify-center">
+                <AlertCircle className="w-8 h-8 text-muted-foreground" />
               </div>
             )}
 
@@ -88,13 +88,13 @@ export default function NotFound() {
             )}
             
             {/* Оверлей (Виньетка) */}
-            <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-transparent to-transparent opacity-90" />
+            <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent opacity-90" />
             
             {/* UI Элементы поверх картинки */}
             <div className="absolute top-4 right-5 flex gap-1">
                 <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></div>
-                <div className="w-2 h-2 rounded-full bg-zinc-600"></div>
-                <div className="w-2 h-2 rounded-full bg-zinc-600"></div>
+                <div className="w-2 h-2 rounded-full bg-muted"></div>
+                <div className="w-2 h-2 rounded-full bg-muted"></div>
             </div>
 
             <div className="absolute bottom-6 left-6 md:bottom-8 md:left-8 text-left">
@@ -135,11 +135,11 @@ export default function NotFound() {
 
       {/* --- СЛОЙ 3: ДЕКОРАТИВНЫЕ ЭЛЕМЕНТЫ (Футер) --- */}
       <div className="absolute bottom-6 left-0 right-0 flex justify-between items-end px-6 md:px-10 opacity-50 pointer-events-none hidden sm:flex">
-        <div className="text-zinc-700 font-mono text-[10px] uppercase space-y-1">
+        <div className="text-muted-foreground font-mono text-[10px] uppercase space-y-1">
             <p>ID: ERR_X72_YZ</p>
             <p>LOC: UNKNOWN_SECTOR</p>
         </div>
-        <div className="text-zinc-800 font-mono text-[10px] uppercase text-right">
+        <div className="text-muted-foreground font-mono text-[10px] uppercase text-right">
             <p>DESIGN: SYSTEM_V2</p>
         </div>
       </div>

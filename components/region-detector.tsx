@@ -114,7 +114,7 @@ export function RegionDetector({ onCountryChange, onRegionDetected }: RegionDete
 
   if (isChecking) {
     return (
-      <div className="flex items-center gap-2 text-zinc-600 text-xs bg-zinc-900/60 backdrop-blur-md px-2 py-1.5 rounded-md border border-zinc-800/30">
+      <div className="flex items-center gap-2 text-muted-foreground text-xs bg-card/60 backdrop-blur-md px-2 py-1.5 rounded-md border border-border/30">
         <Globe className="w-3 h-3 animate-pulse" />
         <span className="opacity-75">Проверка...</span>
       </div>
@@ -123,7 +123,7 @@ export function RegionDetector({ onCountryChange, onRegionDetected }: RegionDete
 
   if (detectedCountry === 'Unknown') {
     return (
-      <div className="flex items-center gap-1.5 text-zinc-500 text-xs bg-zinc-900/60 backdrop-blur-md px-2 py-1.5 rounded-md border border-zinc-800/30">
+      <div className="flex items-center gap-1.5 text-muted-foreground text-xs bg-card/60 backdrop-blur-md px-2 py-1.5 rounded-md border border-border/30">
         <Globe className="w-3 h-3" />
         <span className="opacity-75">Регион не определен</span>
       </div>
@@ -132,7 +132,7 @@ export function RegionDetector({ onCountryChange, onRegionDetected }: RegionDete
 
   // Показываем текущий статус (минималистичный)
   return (
-    <div className="flex items-center gap-1.5 text-zinc-600 text-xs bg-zinc-900/60 backdrop-blur-md px-2 py-1.5 rounded-md border border-zinc-800/30">
+    <div className="flex items-center gap-1.5 text-muted-foreground text-xs bg-card/60 backdrop-blur-md px-2 py-1.5 rounded-md border border-border/30">
       <Globe className="w-3 h-3" />
       <span className="opacity-75">
         {detectedCountry?.slice(0, 10) || 'Unknown'}

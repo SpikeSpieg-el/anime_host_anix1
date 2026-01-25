@@ -79,10 +79,10 @@ export function HistorySkeleton({ items = 6 }: { items?: number }) {
     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3 sm:gap-4">
       {Array.from({ length: items }).map((_, i) => (
         <div key={i} className="group relative block">
-          <div className="relative aspect-[16/9] md:aspect-[2/3] overflow-hidden rounded-lg bg-zinc-900 border border-zinc-800 skeleton" />
+          <div className="relative aspect-[16/9] md:aspect-[2/3] overflow-hidden rounded-lg bg-card border border-border skeleton" />
           <div className="mt-2">
-            <div className="h-3 w-full bg-zinc-800 rounded animate-pulse mb-1" />
-            <div className="h-2 w-2/3 bg-zinc-800 rounded animate-pulse" />
+            <div className="h-3 w-full bg-muted rounded animate-pulse mb-1" />
+            <div className="h-2 w-2/3 bg-muted rounded animate-pulse" />
           </div>
         </div>
       ))}
@@ -97,8 +97,8 @@ export function BookmarksSkeleton({ items = 6 }: { items?: number }) {
         <div key={i} className="group">
           <div className="relative aspect-[2/3] overflow-hidden rounded-lg skeleton" />
           <div className="mt-2 min-h-[3.5rem] space-y-2">
-            <div className="h-4 w-full bg-zinc-800 rounded animate-pulse" />
-            <div className="h-3 w-2/3 bg-zinc-800 rounded animate-pulse" />
+            <div className="h-4 w-full bg-muted rounded animate-pulse" />
+            <div className="h-3 w-2/3 bg-muted rounded animate-pulse" />
           </div>
         </div>
       ))}

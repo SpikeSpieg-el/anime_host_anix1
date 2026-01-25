@@ -71,10 +71,10 @@ export function AnimeCard({ anime, className, variant = 'default', showUpdateBad
   // Table variant - horizontal layout
   if (isTable) {
     return (
-      <Link href={`/watch/${anime.id}`} className={cn("group relative block bg-zinc-900/50 rounded-lg border border-zinc-800 hover:border-orange-500/50 transition-all p-3", className)}>
+      <Link href={`/watch/${anime.id}`} className={cn("group relative block bg-secondary/50 rounded-lg border hover:border-primary/50 transition-all p-3", className, "border-border dark:bg-zinc-900/50 dark:border-zinc-800 dark:hover:border-orange-500/50")}>
         <div className="flex gap-3">
           {/* Poster */}
-          <div className="relative w-16 h-20 sm:w-20 sm:h-28 flex-shrink-0 overflow-hidden rounded-md bg-zinc-800">
+          <div className="relative w-16 h-20 sm:w-20 sm:h-28 flex-shrink-0 overflow-hidden rounded-md bg-secondary dark:bg-zinc-800">
             <Image
               src={posterSrc}
               alt={anime.title}
@@ -89,7 +89,7 @@ export function AnimeCard({ anime, className, variant = 'default', showUpdateBad
             <div className="absolute top-1 right-1 flex flex-col items-end gap-1">
               <span className={cn(
                 "rounded px-1 py-0.5 font-bold uppercase tracking-wide shadow-sm text-[8px]",
-                anime.status === 'Ongoing' ? 'bg-orange-500 text-black' : 'bg-zinc-700 text-white'
+                anime.status === 'Ongoing' ? 'bg-orange-500 text-black' : 'bg-secondary text-secondary-foreground dark:bg-zinc-700 dark:text-white'
               )}>
                 {anime.quality || 'TV'}
               </span>
@@ -104,13 +104,13 @@ export function AnimeCard({ anime, className, variant = 'default', showUpdateBad
           {/* Content */}
           <div className="flex-1 min-w-0 flex flex-col justify-between">
             <div className="flex-1">
-              <h3 className="font-bold text-white text-sm group-hover:text-orange-500 transition-colors line-clamp-2 leading-tight mb-1">
+              <h3 className="font-bold text-foreground text-sm group-hover:text-primary transition-colors line-clamp-2 leading-tight mb-1 dark:text-white dark:group-hover:text-orange-500">
                 {anime.title}
               </h3>
-              <p className="text-zinc-500 text-xs mb-2">
+              <p className="text-muted-foreground text-xs mb-2 dark:text-zinc-500">
                 {anime.year} • {anime.episodesCurrent > 0 ? `${anime.episodesCurrent} ${getEpisodeText(anime.episodesCurrent)}` : 'Анонс'}
                 {anime.status === 'Announcement' && anime.airedOn && (
-                  <span className="text-orange-400 ml-1">
+                  <span className="text-primary ml-1 dark:text-orange-400">
                     • Выход: {new Date(anime.airedOn).toLocaleDateString('ru-RU', {
                       day: 'numeric',
                       month: 'long',
@@ -125,7 +125,7 @@ export function AnimeCard({ anime, className, variant = 'default', showUpdateBad
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1">
                 <Star className="w-3 h-3 fill-yellow-500 text-yellow-500" />
-                <span className="font-bold text-white text-xs">
+                <span className="font-bold text-foreground text-xs dark:text-white">
                   {anime.rating}
                 </span>
               </div>
@@ -134,7 +134,7 @@ export function AnimeCard({ anime, className, variant = 'default', showUpdateBad
                 type="button"
                 variant="secondary"
                 size="icon-sm"
-                className="bg-black/60 hover:bg-black/70 text-white border border-white/10 backdrop-blur-sm h-6 w-6"
+                className="bg-secondary/60 hover:bg-secondary/70 text-foreground border border-border backdrop-blur-sm h-6 w-6 dark:bg-black/60 dark:hover:bg-black/70 dark:text-white dark:border-white/10"
                 aria-label={saved ? "Убрать из закладок" : "Сохранить на потом"}
                 onClick={(e) => {
                   e.preventDefault()
@@ -143,7 +143,7 @@ export function AnimeCard({ anime, className, variant = 'default', showUpdateBad
                 }}
               >
                 <Bookmark className={cn(
-                  saved ? "fill-orange-500 text-orange-500" : "text-white",
+                  saved ? "fill-primary text-primary dark:fill-orange-500 dark:text-orange-500" : "text-foreground dark:text-white",
                   "w-3 h-3"
                 )} />
               </Button>
@@ -156,7 +156,7 @@ export function AnimeCard({ anime, className, variant = 'default', showUpdateBad
 
   return (
     <Link href={`/watch/${anime.id}`} className={cn("group relative block h-full flex flex-col", className)}>
-      <div className="relative aspect-[2/3] w-full overflow-hidden rounded-lg bg-zinc-900 shadow-lg">
+      <div className="relative aspect-[2/3] w-full overflow-hidden rounded-lg bg-secondary shadow-lg dark:bg-zinc-900">
         <Image
           src={posterSrc}
           alt={anime.title}
@@ -175,7 +175,7 @@ export function AnimeCard({ anime, className, variant = 'default', showUpdateBad
           <span className={cn(
             "rounded px-1.5 py-0.5 font-bold uppercase tracking-wide shadow-sm",
             isCompact ? "text-[8px]" : "text-[10px]",
-            anime.status === 'Ongoing' ? 'bg-orange-500 text-black' : 'bg-zinc-700 text-white'
+            anime.status === 'Ongoing' ? 'bg-orange-500 text-black' : 'bg-secondary text-secondary-foreground dark:bg-zinc-700 dark:text-white'
           )}>
             {anime.quality || 'TV'}
           </span>
@@ -195,7 +195,7 @@ export function AnimeCard({ anime, className, variant = 'default', showUpdateBad
             variant="secondary"
             size="icon-sm"
             className={cn(
-              "bg-black/60 hover:bg-black/70 text-white border border-white/10 backdrop-blur-sm",
+              "bg-secondary/60 hover:bg-secondary/70 text-foreground border border-border backdrop-blur-sm dark:bg-black/60 dark:hover:bg-black/70 dark:text-white dark:border-white/10",
               isCompact ? "h-6 w-6" : "h-7 w-7"
             )}
             aria-label={saved ? "Убрать из закладок" : "Сохранить на потом"}
@@ -206,7 +206,7 @@ export function AnimeCard({ anime, className, variant = 'default', showUpdateBad
             }}
           >
             <Bookmark className={cn(
-              saved ? "fill-orange-500 text-orange-500" : "text-white",
+              saved ? "fill-primary text-primary dark:fill-orange-500 dark:text-orange-500" : "text-foreground dark:text-white",
               isCompact ? "w-3 h-3" : "w-4 h-4"
             )} />
           </Button>
@@ -215,7 +215,7 @@ export function AnimeCard({ anime, className, variant = 'default', showUpdateBad
         {/* Рейтинг (внизу) */}
         <div className="absolute bottom-2 left-2 flex items-center gap-1">
            <Star className="w-3 h-3 fill-yellow-500 text-yellow-500" />
-           <span className={cn("font-bold text-white shadow-black drop-shadow-md", isCompact ? "text-[10px]" : "text-xs")}>
+           <span className={cn("font-bold text-foreground shadow-black drop-shadow-md dark:text-white", isCompact ? "text-[10px]" : "text-xs")}>
              {anime.rating}
            </span>
         </div>
@@ -224,7 +224,7 @@ export function AnimeCard({ anime, className, variant = 'default', showUpdateBad
         {anime.status === 'Announcement' && anime.airedOn && (
           <div className="absolute bottom-2 right-2">
             <span className={cn(
-              "bg-black/80 backdrop-blur-sm text-white px-2 py-1 rounded text-xs font-medium",
+              "bg-secondary/80 backdrop-blur-sm text-foreground px-2 py-1 rounded text-xs font-medium dark:bg-black/80 dark:text-white",
               isCompact ? "text-[8px] px-1.5 py-0.5" : "text-xs"
             )}>
               {new Date(anime.airedOn).toLocaleDateString('ru-RU', {
@@ -239,12 +239,12 @@ export function AnimeCard({ anime, className, variant = 'default', showUpdateBad
 
       <div className={cn("mt-2 flex-1 min-h-0", isCompact ? "mt-1.5" : "mt-2")}>
         <h3 className={cn(
-          "font-bold text-white line-clamp-2 group-hover:text-orange-500 transition-colors leading-tight",
+          "font-bold text-foreground line-clamp-2 group-hover:text-primary transition-colors leading-tight dark:text-white dark:group-hover:text-orange-500",
           isCompact ? "text-xs" : "text-sm"
         )}>
           {anime.title}
         </h3>
-        <p className={cn("text-zinc-500 mt-0.5", isCompact ? "text-[10px]" : "text-xs")}>
+        <p className={cn("text-muted-foreground mt-0.5 dark:text-zinc-500", isCompact ? "text-[10px]" : "text-xs")}>
           {anime.year} • {anime.episodesCurrent > 0 ? `${anime.episodesCurrent} ${getEpisodeText(anime.episodesCurrent)}` : 'Анонс'}
         </p>
       </div>

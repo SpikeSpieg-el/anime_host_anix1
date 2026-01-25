@@ -60,7 +60,7 @@ export function ScheduleClient({ schedule }: ScheduleClientProps) {
     <div className="space-y-8">
       {/* Кнопка "На главную" */}
       <div className="flex justify-start">
-        <Link href="/" className="inline-flex items-center gap-2 px-4 py-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-orange-500 text-zinc-400 hover:text-white font-medium rounded-xl transition-all">
+        <Link href="/" className="inline-flex items-center gap-2 px-4 py-2 bg-card hover:bg-card/80 border border-border hover:border-primary text-muted-foreground hover:text-foreground font-medium rounded-xl transition-all">
           <ArrowLeft className="w-4 h-4" />
           На главную
         </Link>
@@ -69,23 +69,23 @@ export function ScheduleClient({ schedule }: ScheduleClientProps) {
       {/* Заголовок и текущая дата */}
       <div className="flex flex-col md:flex-row items-start md:items-end justify-between gap-4">
         <div>
-          <h1 className="text-3xl md:text-4xl font-black text-white flex items-center gap-3">
+          <h1 className="text-3xl md:text-4xl font-black text-foreground flex items-center gap-3">
             <Calendar className="w-8 h-8 md:w-10 md:h-10 text-orange-500" />
             Расписание
           </h1>
-          <p className="text-zinc-500 mt-2 text-sm md:text-base">
+          <p className="text-muted-foreground mt-2 text-sm md:text-base">
             График выхода новых серий онгоингов
           </p>
         </div>
         
-        <div className="flex items-center gap-2 text-sm font-medium px-4 py-2 bg-zinc-900 rounded-full border border-zinc-800 text-zinc-400">
+        <div className="flex items-center gap-2 text-sm font-medium px-4 py-2 bg-card rounded-full border border-border text-muted-foreground">
            <Clock className="w-4 h-4 text-orange-500" />
            <span>Сегодня: {DAYS[currentDay].name}</span>
         </div>
       </div>
 
       {/* Навигация по дням (Табы) */}
-      <div className="sticky top-16 z-30 bg-zinc-950/95 backdrop-blur-sm pb-4 pt-2 overflow-x-auto">
+      <div className="sticky top-16 z-30 bg-background/95 backdrop-blur-sm pb-4 pt-2 overflow-x-auto">
         <div className="flex md:grid md:grid-cols-7 gap-2 min-w-max md:min-w-0 md:px-0">
           {DAYS.map((day) => {
             const isActive = currentDay === day.id
@@ -98,8 +98,8 @@ export function ScheduleClient({ schedule }: ScheduleClientProps) {
                 className={cn(
                   "flex flex-col items-center justify-center py-3 px-4 md:px-2 rounded-xl transition-all min-w-[80px] md:min-w-0 border",
                   isActive 
-                    ? "bg-orange-600 border-orange-500 text-white shadow-lg shadow-orange-900/20" 
-                    : "bg-zinc-900 border-zinc-800 text-zinc-400 hover:bg-zinc-800 hover:text-white"
+                    ? "bg-primary border-primary text-primary-foreground shadow-lg shadow-primary/20" 
+                    : "bg-card border-border text-muted-foreground hover:bg-card/80 hover:text-foreground"
                 )}
               >
                 <span className={cn("text-sm font-bold", isActive ? "opacity-100" : "opacity-70")}>
@@ -120,7 +120,7 @@ export function ScheduleClient({ schedule }: ScheduleClientProps) {
                   return (
                     <span className={cn(
                       "mt-1 text-[10px] px-1.5 py-0.5 rounded-full font-medium",
-                      isActive ? "bg-white/20 text-white" : "bg-zinc-800 text-zinc-500"
+                      isActive ? "bg-primary-foreground/20 text-primary-foreground" : "bg-muted text-muted-foreground"
                     )}>
                       {date}.{month < 10 ? '0' : ''}{month}
                     </span>
@@ -143,12 +143,12 @@ export function ScheduleClient({ schedule }: ScheduleClientProps) {
                   {/* Оверлей с номером серии, специфичный для расписания */}
                   <AnimeCard anime={anime} />
                   <div className="absolute top-2 left-2 z-10 flex flex-col gap-1">
-                     <div className="bg-orange-600 text-white text-[10px] font-bold px-2 py-1 rounded shadow-md border border-orange-500">
+                     <div className="bg-primary text-primary-foreground text-[10px] font-bold px-2 py-1 rounded shadow-md border border-primary">
                        {getEpisodeText(anime.episodesCurrent + 1)} {anime.episodesCurrent + 1}
                      </div>
                      <Button
                        size="sm"
-                       className="h-6 w-6 bg-black/60 hover:bg-black/70 text-white border border-white/10 backdrop-blur-sm"
+                       className="h-6 w-6 bg-background/60 hover:bg-background/70 text-foreground border border-border backdrop-blur-sm"
                        aria-label={saved ? "Убрать из закладок" : "Сохранить на потом"}
                        onClick={(e) => {
                          e.preventDefault()
@@ -157,7 +157,7 @@ export function ScheduleClient({ schedule }: ScheduleClientProps) {
                        }}
                      >
                        <Bookmark className={cn(
-                         saved ? "fill-orange-500 text-orange-500" : "text-white",
+                         saved ? "fill-primary text-primary" : "text-foreground",
                          "w-3 h-3"
                        )} />
                      </Button>
@@ -167,12 +167,12 @@ export function ScheduleClient({ schedule }: ScheduleClientProps) {
             })}
           </div>
         ) : (
-          <div className="flex flex-col items-center justify-center py-20 text-center border border-dashed border-zinc-800 rounded-2xl bg-zinc-900/30">
-            <div className="w-16 h-16 rounded-full bg-zinc-800 flex items-center justify-center mb-4">
-               <AlertCircle className="w-8 h-8 text-zinc-600" />
+          <div className="flex flex-col items-center justify-center py-20 text-center border border-dashed border-border rounded-2xl bg-card/30">
+            <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
+               <AlertCircle className="w-8 h-8 text-muted-foreground" />
             </div>
-            <h3 className="text-xl font-bold text-zinc-300">Нет релизов</h3>
-            <p className="text-zinc-500 mt-2 max-w-sm">
+            <h3 className="text-xl font-bold text-foreground">Нет релизов</h3>
+            <p className="text-muted-foreground mt-2 max-w-sm">
               В этот день недели пока не запланировано выхода новых серий или данные обновляются.
             </p>
           </div>

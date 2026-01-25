@@ -112,9 +112,9 @@ if (!mounted) {
       {/* Секция: Продолжить просмотр - скелет */}
       <section>
         <div className="flex items-center justify-between gap-4 mb-4">
-          <div className="flex items-center gap-2 text-zinc-400">
+          <div className="flex items-center gap-2 text-muted-foreground">
             <History size={20} className="text-orange-500" />
-            <h2 className="text-lg sm:text-xl font-bold text-white">Вы смотрели</h2>
+            <h2 className="text-lg sm:text-xl font-bold text-foreground">Вы смотрели</h2>
           </div>
         </div>
         <HistorySkeleton items={6} />
@@ -128,9 +128,9 @@ if (historyLoading) {
       {/* Секция: Продолжить просмотр - скелет */}
       <section>
         <div className="flex items-center justify-between gap-4 mb-4">
-          <div className="flex items-center gap-2 text-zinc-400">
+          <div className="flex items-center gap-2 text-muted-foreground">
             <History size={20} className="text-orange-500" />
-            <h2 className="text-lg sm:text-xl font-bold text-white">Вы смотрели</h2>
+            <h2 className="text-lg sm:text-xl font-bold text-foreground">Вы смотрели</h2>
           </div>
         </div>
         <HistorySkeleton items={6} />
@@ -145,14 +145,14 @@ return (
 {/* Секция: Вы недавно искали */}
   {lastSearches.length > 0 && (
     <div className="flex items-center gap-3 overflow-x-auto pb-2 hide-scrollbar">
-      <div className="flex items-center gap-2 text-zinc-500 text-sm font-medium whitespace-nowrap mr-2 select-none">
+      <div className="flex items-center gap-2 text-muted-foreground text-sm font-medium whitespace-nowrap mr-2 select-none">
         <Search size={16} /> Недавний поиск:
       </div>
       {lastSearches.map((term, idx) => (
         <Link 
           key={idx} 
           href={`/catalog?search=${encodeURIComponent(term)}`}
-          className="px-3 sm:px-4 py-1.5 rounded-full bg-zinc-900 border border-zinc-800 text-zinc-300 text-sm hover:border-orange-500 hover:text-white transition whitespace-nowrap"
+          className="px-3 sm:px-4 py-1.5 rounded-full bg-card border border-border text-muted-foreground text-sm hover:border-primary hover:text-foreground transition whitespace-nowrap"
         >
           {term}
         </Link>
@@ -164,11 +164,11 @@ return (
   {history.length > 0 && (
     <section>
       <div className="flex items-center justify-between gap-4 mb-4">
-        <div className="flex items-center gap-2 text-zinc-400">
+        <div className="flex items-center gap-2 text-muted-foreground">
           <History size={20} className="text-orange-500" />
-          <h2 className="text-lg sm:text-xl font-bold text-white">
+          <h2 className="text-lg sm:text-xl font-bold text-foreground">
             Вы смотрели
-            {isChecking && <span className="ml-2 text-xs font-normal text-zinc-600 animate-pulse">(Проверка новых серий...)</span>}
+            {isChecking && <span className="ml-2 text-xs font-normal text-muted-foreground animate-pulse">(Проверка новых серий...)</span>}
           </h2>
         </div>
         {hasMoreHistory && (
@@ -199,7 +199,7 @@ return (
               if (update) clearUpdate(item.id)
             }}
           >
-            <div className="relative aspect-[16/9] md:aspect-[2/3] overflow-hidden rounded-lg bg-zinc-900 border border-zinc-800">
+            <div className="relative aspect-[16/9] md:aspect-[2/3] overflow-hidden rounded-lg bg-card border border-border">
               <Image
                 src={item.poster}
                 alt={item.title}
@@ -208,7 +208,7 @@ return (
               />
               
               {/* Прогресс бар */}
-              <div className="absolute bottom-0 left-0 right-0 h-1 bg-zinc-800 overflow-hidden z-10">
+              <div className="absolute bottom-0 left-0 right-0 h-1 bg-border overflow-hidden z-10">
                 {progress !== null && (
                   <div
                     className="h-full bg-orange-600 transition-all duration-300"
@@ -219,21 +219,21 @@ return (
 
               {/* БЕЙДЖ НОВОЙ СЕРИИ */}
               {update && (
-                <div className="absolute top-2 right-2 z-20 bg-orange-500 text-black text-[9px] font-black px-2 py-0.5 rounded-sm shadow-lg animate-pulse uppercase tracking-wide">
+                <div className="absolute top-2 right-2 z-20 bg-primary text-primary-foreground text-[9px] font-black px-2 py-0.5 rounded-sm shadow-lg animate-pulse uppercase tracking-wide">
                   Новая серия
                 </div>
               )}
 
               <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10">
                 <div className="bg-orange-600 p-2 rounded-full shadow-lg transform scale-90 group-hover:scale-100 transition-transform">
-                  <Clock size={16} className="text-white" fill="currentColor" />
+                  <Clock size={16} className="text-primary-foreground" fill="currentColor" />
                 </div>
               </div>
             </div>
             
             <div className="mt-2">
-               <h3 className="text-xs font-bold text-zinc-300 truncate group-hover:text-white transition-colors">{item.title}</h3>
-              <div className="text-[10px] text-zinc-500 mt-0.5 flex flex-col">
+               <h3 className="text-xs font-bold text-muted-foreground truncate group-hover:text-foreground transition-colors">{item.title}</h3>
+              <div className="text-[10px] text-muted-foreground mt-0.5 flex flex-col">
                 <span>
                   {item.episode
                     ? `${item.episode} ${getEpisodeText(item.episode)}${total ? ` из ${total}` : ""}`
@@ -255,7 +255,7 @@ return (
         <div className="mt-6 text-center sm:text-left">
           <Link 
             href="/history"
-            className="inline-flex items-center gap-2 px-6 py-3 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-orange-500 text-white font-medium rounded-xl transition-all"
+            className="inline-flex items-center gap-2 px-6 py-3 bg-card hover:bg-card/80 border border-border hover:border-primary text-foreground font-medium rounded-xl transition-all"
           >
             Показать всю историю
             <ChevronRight className="w-4 h-4" />

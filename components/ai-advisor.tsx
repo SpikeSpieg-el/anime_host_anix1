@@ -192,7 +192,7 @@ export function AiAdvisor() {
       >
         {/* ЛЕВАЯ ЧАСТЬ: ПОСТЕР */}
         {/* w-full на мобильном, фиксированная w-[140px] на ПК */}
-        <div className="relative w-full sm:w-[140px] shrink-0 aspect-[2/3] sm:aspect-auto sm:self-stretch bg-zinc-950">
+        <div className="relative w-full sm:w-[140px] shrink-0 aspect-[2/3] sm:aspect-auto sm:self-stretch bg-secondary">
            <Image
               src={anime.poster}
               alt={anime.title}
@@ -243,7 +243,7 @@ export function AiAdvisor() {
               </div>
            </div>
 
-           <div className="relative flex-1 bg-zinc-950/50 rounded-lg p-2.5 sm:p-3 border border-white/5 flex flex-col min-h-[80px]">
+           <div className="relative flex-1 bg-secondary/50 rounded-lg p-2.5 sm:p-3 border border-border flex flex-col min-h-[80px]">
               <div className="flex items-center gap-2 mb-1.5 shrink-0">
                   <Sparkles className={`w-3 h-3 ${accentColor}`} />
                   <span className={`text-[10px] font-bold uppercase tracking-widest ${accentColor} opacity-90`}>
@@ -289,7 +289,7 @@ export function AiAdvisor() {
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
         <button className="w-full md:w-auto group relative overflow-hidden rounded-xl bg-gradient-to-br from-indigo-600 via-purple-600 to-orange-500 p-[1px] shadow-2xl transition-all hover:scale-[1.02] active:scale-95 outline-none">
-          <div className="relative flex items-center justify-center md:justify-start gap-3 rounded-[11px] bg-zinc-950/90 px-6 py-4 backdrop-blur-sm transition-all group-hover:bg-zinc-950/80">
+          <div className="relative flex items-center justify-center md:justify-start gap-3 rounded-[11px] bg-secondary/90 px-6 py-4 backdrop-blur-sm transition-all group-hover:bg-secondary/80">
             <div className="relative flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 shadow-lg shrink-0">
               <Sparkles className="h-5 w-5 text-white animate-pulse" />
             </div>
@@ -310,9 +310,9 @@ export function AiAdvisor() {
           Добавлен класс sm:max-w-7xl, который перебивает стандартный sm:max-w-lg.
           Теперь окно будет еще шире на ПК.
       */}
-      <DialogContent className="bg-zinc-950 border-zinc-800 text-white w-[95vw] sm:max-w-7xl md:max-w-7xl max-h-[85vh] p-0 gap-0 overflow-hidden flex flex-col shadow-2xl">
+      <DialogContent className="bg-background border text-foreground w-[95vw] sm:max-w-7xl md:max-w-7xl max-h-[85vh] p-0 gap-0 overflow-hidden flex flex-col shadow-2xl">
         
-        <div className="flex-shrink-0 px-6 py-4 border-b border-zinc-800 bg-zinc-950/80 backdrop-blur-xl z-10">
+        <div className="flex-shrink-0 px-6 py-4 border-b border-border bg-secondary/80 backdrop-blur-xl z-10">
           <DialogHeader className="m-0 space-y-0">
             <div className="flex items-center justify-between">
               <DialogTitle className="flex items-center gap-2 text-xl font-bold">
@@ -331,7 +331,7 @@ export function AiAdvisor() {
           </DialogHeader>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4 md:p-6 custom-scrollbar bg-zinc-950">
+        <div className="flex-1 overflow-y-auto p-4 md:p-6 custom-scrollbar bg-background">
             {error && !loading && (
                <div className="flex flex-col items-center justify-center py-10 animate-in fade-in">
                   <AlertCircle className="w-10 h-10 text-red-500 mb-4" />

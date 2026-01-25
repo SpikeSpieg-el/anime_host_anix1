@@ -153,7 +153,7 @@ export function WatchPageClient({
           onClick={handleGoBack}
           size="sm"
           variant="ghost"
-          className="gap-2 bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-800 hover:border-zinc-700 transition-all"
+          className="gap-2 bg-card border border-border text-muted-foreground hover:text-foreground hover:bg-card/80 hover:border-border transition-all"
         >
           <ArrowLeft className="w-4 h-4" />
           <span>Назад</span>
@@ -162,7 +162,7 @@ export function WatchPageClient({
         <div className="flex items-center gap-2">
           {/* Переключатель плееров */}
           {hasEpisodes && (
-            <div className="flex items-center gap-1 bg-zinc-900 border border-zinc-800 rounded-lg p-1">
+            <div className="flex items-center gap-1 bg-card border border-border rounded-lg p-1">
               <Button
                 size="sm"
                 variant={!useBackupPlayer ? "default" : "ghost"}
@@ -170,8 +170,8 @@ export function WatchPageClient({
                 className={cn(
                   "gap-2 text-xs transition-all",
                   !useBackupPlayer 
-                    ? "bg-orange-600 text-white hover:bg-orange-700" 
-                    : "text-zinc-400 hover:text-white hover:bg-zinc-800"
+                    ? "bg-primary text-primary-foreground hover:bg-primary/90" 
+                    : "text-muted-foreground hover:text-foreground hover:bg-card/80"
                 )}
               >
                 Основной
@@ -183,8 +183,8 @@ export function WatchPageClient({
                 className={cn(
                   "gap-2 text-xs transition-all",
                   useBackupPlayer 
-                    ? "bg-orange-600 text-white hover:bg-orange-700" 
-                    : "text-zinc-400 hover:text-white hover:bg-zinc-800"
+                    ? "bg-primary text-primary-foreground hover:bg-primary/90" 
+                    : "text-muted-foreground hover:text-foreground hover:bg-card/80"
                 )}
               >
                 Запасной
@@ -200,8 +200,8 @@ export function WatchPageClient({
             className={cn(
               "gap-2 transition-all border",
               saved 
-                ? "bg-orange-500/10 border-orange-500/50 text-orange-500 hover:bg-orange-500/20 hover:text-orange-400" 
-                : "bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-800 hover:border-zinc-700"
+                ? "bg-primary/10 border-primary/50 text-primary hover:bg-primary/20 hover:text-primary" 
+                : "bg-card border-border text-muted-foreground hover:text-foreground hover:bg-card/80 hover:border-border"
             )}
           >
             <Bookmark className={cn("w-4 h-4", saved && "fill-current")} />
@@ -214,16 +214,16 @@ export function WatchPageClient({
               <Button
                 size="sm"
                 variant="ghost"
-                className="gap-2 bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-800 hover:border-zinc-700 transition-all"
+                className="gap-2 bg-card border border-border text-muted-foreground hover:text-foreground hover:bg-card/80 hover:border-border transition-all"
               >
                 <Download className="w-4 h-4" />
                 <span className="hidden sm:inline">Скачать</span>
               </Button>
             </DialogTrigger>
-            <DialogContent className="bg-zinc-950 border-zinc-800 text-white w-[90vw] max-w-md rounded-2xl">
+            <DialogContent className="bg-card border-border text-foreground w-[90vw] max-w-md rounded-2xl">
               <DialogHeader>
                 <DialogTitle className="text-xl">Скачать аниме</DialogTitle>
-                <DialogDescription className="text-zinc-400">
+                <DialogDescription className="text-muted-foreground">
                   Поиск торрентов на внешних ресурсах.
                 </DialogDescription>
               </DialogHeader>
@@ -231,7 +231,7 @@ export function WatchPageClient({
               <div className="flex flex-col gap-5 py-2">
                 {/* Весь сезон */}
                 <div className="space-y-3">
-                  <h3 className="text-xs uppercase tracking-wider font-bold text-zinc-500 flex items-center gap-2">
+                  <h3 className="text-xs uppercase tracking-wider font-bold text-muted-foreground flex items-center gap-2">
                     <HardDrive className="w-3 h-3" />
                     Весь сезон
                   </h3>
@@ -240,19 +240,19 @@ export function WatchPageClient({
                       href={getTrackerLink('rutracker', anime.title)}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center justify-between px-4 py-3 rounded-xl bg-zinc-900/50 border border-zinc-800 hover:border-orange-500/40 hover:bg-zinc-800 transition-all group"
+                      className="flex items-center justify-between px-4 py-3 rounded-xl bg-card/50 border border-border hover:border-primary/40 hover:bg-card/80 transition-all group"
                     >
                       <span className="font-medium text-sm">RuTracker</span>
-                      <ExternalLink className="w-3 h-3 text-zinc-600 group-hover:text-orange-500 transition-colors" />
+                      <ExternalLink className="w-3 h-3 text-muted-foreground group-hover:text-primary transition-colors" />
                     </a>
                     <a
                       href={getTrackerLink('rutor', anime.title)}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center justify-between px-4 py-3 rounded-xl bg-zinc-900/50 border border-zinc-800 hover:border-orange-500/40 hover:bg-zinc-800 transition-all group"
+                      className="flex items-center justify-between px-4 py-3 rounded-xl bg-card/50 border border-border hover:border-primary/40 hover:bg-card/80 transition-all group"
                     >
                       <span className="font-medium text-sm">Rutor</span>
-                      <ExternalLink className="w-3 h-3 text-zinc-600 group-hover:text-orange-500 transition-colors" />
+                      <ExternalLink className="w-3 h-3 text-muted-foreground group-hover:text-primary transition-colors" />
                     </a>
                   </div>
                 </div>
@@ -260,7 +260,7 @@ export function WatchPageClient({
                 {/* Текущая серия */}
                 {hasEpisodes && (
                    <div className="space-y-3">
-                    <h3 className="text-xs uppercase tracking-wider font-bold text-zinc-500 flex items-center gap-2">
+                    <h3 className="text-xs uppercase tracking-wider font-bold text-muted-foreground flex items-center gap-2">
                       <FileVideo className="w-3 h-3" />
                       Текущая серия ({selectedEpisode})
                     </h3>
@@ -268,7 +268,7 @@ export function WatchPageClient({
                       href={getTrackerLink('rutor', `${anime.title} ${selectedEpisode} серия`)}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center justify-center gap-2 w-full p-3 rounded-xl bg-orange-600 hover:bg-orange-700 text-white font-medium transition-colors shadow-lg shadow-orange-900/20"
+                      className="flex items-center justify-center gap-2 w-full p-3 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground font-medium transition-colors shadow-lg shadow-primary/20"
                     >
                       <Download className="w-4 h-4" />
                       Найти серию на Rutor
@@ -282,16 +282,16 @@ export function WatchPageClient({
       </div>
 
       {/* --- Anime Header Info --- */}
-      <div className="relative overflow-hidden rounded-3xl bg-zinc-900/30 border border-white/5 p-4 md:p-8">
+      <div className="relative overflow-hidden rounded-3xl bg-card/30 border border-border p-4 md:p-8">
         {/* Фоновый блюр (опционально, если не нужно - убери этот блок) */}
         <div 
-            className="absolute top-0 left-0 right-0 h-32 bg-gradient-to-b from-orange-500/10 to-transparent opacity-50 pointer-events-none" 
+            className="absolute top-0 left-0 right-0 h-32 bg-gradient-to-b from-primary/10 to-transparent opacity-50 pointer-events-none" 
             aria-hidden="true" 
         />
 
         <div className="flex flex-row items-center gap-4 md:gap-8 relative z-10">
           {/* Poster */}
-          <div className="relative w-24 aspect-[2/3] md:w-44 shrink-0 rounded-lg md:rounded-xl overflow-hidden shadow-2xl bg-zinc-800 ring-1 ring-white/10">
+          <div className="relative w-24 aspect-[2/3] md:w-44 shrink-0 rounded-lg md:rounded-xl overflow-hidden shadow-2xl bg-muted ring-1 ring-border">
             <Image
               src={anime.poster}
               alt={anime.title}
@@ -304,23 +304,23 @@ export function WatchPageClient({
 
           {/* Info Text */}
           <div className="flex flex-col gap-2 md:gap-4 flex-1 min-w-0 pt-1">
-            <h1 className="text-xl md:text-3xl lg:text-4xl font-black text-white leading-tight">
+            <h1 className="text-xl md:text-3xl lg:text-4xl font-black text-foreground leading-tight">
               {anime.title}
             </h1>
             
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs md:text-sm text-zinc-400 font-medium">
-              <span className="px-2 py-0.5 rounded-md bg-zinc-800 text-zinc-300">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs md:text-sm text-muted-foreground font-medium">
+              <span className="px-2 py-0.5 rounded-md bg-muted text-foreground">
                 {anime.year}
               </span>
-              <span className="w-1 h-1 rounded-full bg-zinc-700" />
+              <span className="w-1 h-1 rounded-full bg-border" />
               <span>
                 {anime.episodesCurrent || "?"} / {anime.episodesTotal || "?"} {getEpisodeText(parseInt(anime.episodesTotal?.toString() || "0"))}
               </span>
               
               {anime.genres && anime.genres.length > 0 && (
                 <>
-                  <span className="hidden sm:block w-1 h-1 rounded-full bg-zinc-700" />
-                  <span className="hidden sm:block text-zinc-500">
+                  <span className="hidden sm:block w-1 h-1 rounded-full bg-border" />
+                  <span className="hidden sm:block text-muted-foreground">
                     {anime.genres.slice(0, 3).join(", ")}
                   </span>
                 </>
@@ -328,17 +328,17 @@ export function WatchPageClient({
             </div>
 
             {hasEpisodes ? (
-                <div className="mt-1 md:mt-2 inline-flex items-center gap-2 text-orange-400 text-sm md:text-base font-semibold">
+                <div className="mt-1 md:mt-2 inline-flex items-center gap-2 text-primary text-sm md:text-base font-semibold">
                     <PlayCircle className="w-4 h-4 md:w-5 md:h-5 fill-orange-500/20" />
-                    Сейчас смотрю: <span className="text-white">{selectedEpisode} серию</span>
+                    Сейчас смотрю: <span className="text-foreground">{selectedEpisode} серию</span>
                 </div>
             ) : (
                 <div className="mt-2 space-y-2">
-                    <div className="inline-block px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs md:text-sm font-medium">
+                    <div className="inline-block px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary text-xs md:text-sm font-medium">
                         Анонс
                     </div>
                     {anime.airedOn && (
-                        <div className="inline-block px-3 py-1 rounded-full bg-orange-500/10 border border-orange-500/20 text-orange-400 text-xs md:text-sm font-medium">
+                        <div className="inline-block px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary text-xs md:text-sm font-medium">
                             Выход: {new Date(anime.airedOn).toLocaleDateString('ru-RU', {
                                 day: 'numeric',
                                 month: 'long',
@@ -357,7 +357,7 @@ export function WatchPageClient({
                     <Link
                       key={genre}
                       href={`/catalog?genre=${encodeURIComponent(genre)}`}
-                      className="inline-flex items-center px-3 py-1.5 rounded-full bg-zinc-800/50 border border-zinc-700 hover:border-orange-500/40 hover:bg-orange-500/10 text-zinc-300 hover:text-orange-400 text-xs md:text-sm font-medium transition-all duration-200"
+                      className="inline-flex items-center px-3 py-1.5 rounded-full bg-muted/50 border border-border hover:border-primary/40 hover:bg-primary/10 text-muted-foreground hover:text-primary text-xs md:text-sm font-medium transition-all duration-200"
                     >
                       {genre}
                     </Link>
@@ -378,7 +378,7 @@ export function WatchPageClient({
         <RegionWarning selectedCountry={selectedCountry} isRegionDetected={isRegionDetected} />
         
         {hasEpisodes ? (
-          <div className="rounded-2xl overflow-hidden border border-zinc-800 bg-black shadow-2xl relative aspect-video">
+          <div className="rounded-2xl overflow-hidden border border-border bg-background shadow-2xl relative aspect-video">
             {!useBackupPlayer ? (
               <KodikPlayer
                 shikimoriId={anime.shikimoriId}
@@ -398,12 +398,12 @@ export function WatchPageClient({
             )}
           </div>
         ) : (
-          <div className="aspect-video w-full rounded-2xl bg-zinc-900/50 border border-zinc-800 flex flex-col items-center justify-center p-6 text-center">
-            <div className="w-16 h-16 rounded-full bg-zinc-800 flex items-center justify-center mb-4">
-               <PlayCircle className="w-8 h-8 text-zinc-600" />
+          <div className="aspect-video w-full rounded-2xl bg-card/50 border border-border flex flex-col items-center justify-center p-6 text-center">
+            <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
+               <PlayCircle className="w-8 h-8 text-muted-foreground" />
             </div>
-            <h3 className="text-lg font-bold text-white mb-2">Серии недоступны</h3>
-            <p className="text-zinc-500 text-sm max-w-md">
+            <h3 className="text-lg font-bold text-foreground mb-2">Серии недоступны</h3>
+            <p className="text-muted-foreground text-sm max-w-md">
               К сожалению, для этого аниме пока нет доступных серий или плеер временно недоступен.
             </p>
           </div>
@@ -412,13 +412,13 @@ export function WatchPageClient({
 
       {/* --- Episode Selector --- */}
       {hasEpisodes && (
-        <div className="bg-zinc-900/20 border border-white/5 rounded-2xl p-4 md:p-6 backdrop-blur-sm">
+        <div className="bg-card/20 border border-border rounded-2xl p-4 md:p-6 backdrop-blur-sm">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-            <h2 className="text-lg md:text-xl font-bold text-white">
+            <h2 className="text-lg md:text-xl font-bold text-foreground">
               Список серий
             </h2>
-            <div className="text-xs font-medium px-3 py-1.5 rounded-full bg-zinc-800 text-zinc-400 self-start sm:self-auto">
-                Всего: <span className="text-zinc-200">{availableEpisodes}</span>
+            <div className="text-xs font-medium px-3 py-1.5 rounded-full bg-muted text-muted-foreground self-start sm:self-auto">
+                Всего: <span className="text-foreground">{availableEpisodes}</span>
             </div>
           </div>
 

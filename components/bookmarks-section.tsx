@@ -30,7 +30,7 @@ export function BookmarksSection() {
           <div>
             <div className="flex items-center gap-2">
               <Bookmark className="w-6 h-6 text-orange-500" />
-              <h2 className="text-2xl sm:text-3xl font-bold text-white mb-1">Сохранённое</h2>
+              <h2 className="text-2xl sm:text-3xl font-bold text-foreground mb-1 dark:text-white">Сохранённое</h2>
             </div>
           </div>
         </div>
@@ -47,13 +47,13 @@ export function BookmarksSection() {
         <div>
           <div className="flex items-center gap-2">
             <Bookmark className="w-6 h-6 text-orange-500" />
-            <h2 className="text-2xl sm:text-3xl font-bold text-white mb-1">Сохранённое</h2>
+            <h2 className="text-2xl sm:text-3xl font-bold text-foreground mb-1 dark:text-white">Сохранённое</h2>
           </div>
         </div>
         {hasMore && (
           <Link 
             href="/bookmarks" 
-            className="text-orange-500 text-sm font-medium hover:text-orange-400 transition flex items-center gap-1"
+            className="text-primary text-sm font-medium hover:text-primary/80 transition flex items-center gap-1 dark:text-orange-500 dark:hover:text-orange-400"
           >
             Все {items.length} <ChevronRight className="w-4 h-4" />
           </Link>
@@ -81,7 +81,7 @@ export function BookmarksSection() {
         <div className="mt-6 text-center sm:text-left">
           <Link 
             href="/bookmarks"
-            className="inline-flex items-center gap-2 px-6 py-3 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-orange-500 text-white font-medium rounded-xl transition-all"
+            className="inline-flex items-center gap-2 px-6 py-3 bg-secondary hover:bg-accent border border-border hover:border-primary text-foreground font-medium rounded-xl transition-all dark:bg-zinc-900 dark:hover:bg-zinc-800 dark:border-zinc-800 dark:hover:border-orange-500 dark:text-white"
           >
             Показать все {items.length} сохранённых
             <ChevronRight className="w-4 h-4" />

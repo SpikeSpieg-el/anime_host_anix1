@@ -147,13 +147,13 @@ export function WelcomeModal() {
       
       {/* Оверлей / Backdrop */}
       <div 
-        className={`fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/60 backdrop-blur-sm transition-all duration-300 ${
+        className={`fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-background/80 backdrop-blur-sm transition-all duration-300 ${
           isOpen ? "opacity-100 visible" : "opacity-0 invisible pointer-events-none"
         }`}
       >
         {/* Сама карточка модалки */}
         <div 
-          className={`relative w-full h-[95vh] sm:h-[90vh] md:h-[85vh] lg:h-[80vh] max-w-[95vw] sm:max-w-[420px] md:max-w-[450px] lg:max-w-[480px] bg-zinc-950 rounded-[1.5rem] sm:rounded-[2rem] overflow-hidden shadow-2xl border border-white/5 transition-all duration-500 ease-out transform ${
+          className={`relative w-full h-[95vh] sm:h-[90vh] md:h-[85vh] lg:h-[80vh] max-w-[95vw] sm:max-w-[420px] md:max-w-[450px] lg:max-w-[480px] bg-card rounded-[1.5rem] sm:rounded-[2rem] overflow-hidden shadow-2xl border border-border transition-all duration-500 ease-out transform ${
             isOpen ? "scale-100 opacity-100" : "scale-95 opacity-0"
           }`}
         >
@@ -176,8 +176,8 @@ export function WelcomeModal() {
             />
 
             {/* Градиенты для читаемости текста */}
-            <div className="absolute inset-0 bg-gradient-to-b from-zinc-950/70 via-transparent to-zinc-950 z-10 pointer-events-none" />
-            <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/90 to-transparent z-10 pointer-events-none" />
+            <div className="absolute inset-0 bg-gradient-to-b from-background/70 via-transparent to-background z-10 pointer-events-none" />
+            <div className="absolute inset-0 bg-gradient-to-t from-background via-background/90 to-transparent z-10 pointer-events-none" />
           </div>
 
           {/* --- КОНТЕНТ --- */}
@@ -190,7 +190,7 @@ export function WelcomeModal() {
                 <div className="absolute -inset-1 bg-gradient-to-r from-orange-600 to-purple-600 rounded-xl blur opacity-20 group-hover:opacity-40 transition duration-1000" />
                 
                 {/* Иконка */}
-                <div className="relative w-10 h-10 sm:w-12 sm:h-12 bg-zinc-950/50 backdrop-blur-md border border-white/10 rounded-xl flex items-center justify-center shadow-lg">
+                <div className="relative w-10 h-10 sm:w-12 sm:h-12 bg-card/50 backdrop-blur-md border border-border rounded-xl flex items-center justify-center shadow-lg">
                   <Zap className="w-5 h-5 sm:w-6 sm:h-6 text-orange-500 fill-orange-500/20" />
                 </div>
               </div>
@@ -201,10 +201,10 @@ export function WelcomeModal() {
               
               {/* Заголовки */}
               <div className="space-y-2 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-100">
-                <h2 className="text-3xl sm:text-4xl font-black text-white tracking-tighter leading-none drop-shadow-2xl font-unbounded">
+                <h2 className="text-3xl sm:text-4xl font-black text-foreground tracking-tighter leading-none drop-shadow-2xl font-unbounded">
                   Weeb.<span className="text-transparent bg-clip-text bg-gradient-to-br from-orange-400 to-orange-600">X</span>
                 </h2>
-                <p className="text-zinc-400 text-[10px] sm:text-xs font-bold uppercase tracking-[0.2em] sm:tracking-[0.3em]">
+                <p className="text-muted-foreground text-[10px] sm:text-xs font-bold uppercase tracking-[0.2em] sm:tracking-[0.3em]">
                   Premium Anime Stream
                 </p>
               </div>
@@ -212,24 +212,24 @@ export function WelcomeModal() {
               {/* Преимущества (Список) */}
               <div className="w-full space-y-2.5 sm:space-y-3 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-200">
                 {/* Карточка 1 */}
-                <div className="flex items-center gap-3 sm:gap-4 bg-white/5 border border-white/5 p-3 sm:p-3.5 rounded-2xl backdrop-blur-sm hover:bg-white/10 transition-colors cursor-default group">
+                <div className="flex items-center gap-3 sm:gap-4 bg-muted/5 border border-border p-3 sm:p-3.5 rounded-2xl backdrop-blur-sm hover:bg-muted/10 transition-colors cursor-default group">
                   <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-orange-500/10 flex items-center justify-center shrink-0 border border-orange-500/20">
                     <PlayCircle className="w-4 h-4 sm:w-5 sm:h-5 text-orange-500" />
                   </div>
                   <div className="text-left">
-                    <div className="text-white text-xs sm:text-sm font-bold group-hover:text-orange-200 transition-colors">Без рекламы</div>
-                    <div className="text-zinc-500 text-[10px] sm:text-xs">Ничто не отвлечет от просмотра</div>
+                    <div className="text-foreground text-xs sm:text-sm font-bold group-hover:text-orange-200 transition-colors">Без рекламы</div>
+                    <div className="text-muted-foreground text-[10px] sm:text-xs">Ничто не отвлечет от просмотра</div>
                   </div>
                 </div>
                 
                 {/* Карточка 2 */}
-                <div className="flex items-center gap-3 sm:gap-4 bg-white/5 border border-white/5 p-3 sm:p-3.5 rounded-2xl backdrop-blur-sm hover:bg-white/10 transition-colors cursor-default group">
+                <div className="flex items-center gap-3 sm:gap-4 bg-muted/5 border border-border p-3 sm:p-3.5 rounded-2xl backdrop-blur-sm hover:bg-muted/10 transition-colors cursor-default group">
                   <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-blue-500/10 flex items-center justify-center shrink-0 border border-blue-500/20">
                     <Star className="w-4 h-4 sm:w-5 sm:h-5 text-blue-400" />
                   </div>
                   <div className="text-left">
-                    <div className="text-white text-xs sm:text-sm font-bold group-hover:text-blue-200 transition-colors">Лучший подбор</div>
-                    <div className="text-zinc-500 text-[10px] sm:text-xs">Только топовые тайтлы сезона</div>
+                    <div className="text-foreground text-xs sm:text-sm font-bold group-hover:text-blue-200 transition-colors">Лучший подбор</div>
+                    <div className="text-muted-foreground text-[10px] sm:text-xs">Только топовые тайтлы сезона</div>
                   </div>
                 </div>
               </div>
@@ -238,7 +238,7 @@ export function WelcomeModal() {
               <div className="w-full pt-1 sm:pt-2 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-300">
                 <button
                   onClick={handleStart}
-                  className="w-full h-12 sm:h-14 bg-white text-zinc-950 hover:bg-zinc-200 hover:scale-[1.02] active:scale-[0.98] text-xs sm:text-sm font-bold rounded-2xl shadow-xl shadow-white/10 transition-all duration-300 flex items-center justify-center gap-2 group outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 focus:ring-offset-zinc-950"
+                  className="w-full h-12 sm:h-14 bg-primary text-primary-foreground hover:bg-primary/90 hover:scale-[1.02] active:scale-[0.98] text-xs sm:text-sm font-bold rounded-2xl shadow-xl shadow-primary/20 transition-all duration-300 flex items-center justify-center gap-2 group outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 focus:ring-offset-card"
                 >
                   Смотреть бесплатно
                   <ChevronRight className="w-3.5 h-3.5 sm:w-4 sm:h-4 group-hover:translate-x-1 transition-transform" />
@@ -249,7 +249,7 @@ export function WelcomeModal() {
               <div className="w-full animate-in fade-in slide-in-from-bottom-4 duration-700 delay-400">
                 <button
                   onClick={handleSignUp}
-                  className="w-full h-10 sm:h-12 bg-transparent text-white hover:bg-white/5 hover:border-white/20 border border-white/10 text-xs sm:text-sm font-medium rounded-2xl transition-all duration-300 flex items-center justify-center gap-2 group outline-none focus:ring-2 focus:ring-white/20 focus:ring-offset-2 focus:ring-offset-zinc-950"
+                  className="w-full h-10 sm:h-12 bg-transparent text-foreground hover:bg-muted/5 hover:border-border border border-border text-xs sm:text-sm font-medium rounded-2xl transition-all duration-300 flex items-center justify-center gap-2 group outline-none focus:ring-2 focus:ring-border focus:ring-offset-2 focus:ring-offset-card"
                 >
                   Войти / Зарегистрироваться
                   <ChevronRight className="w-3.5 h-3.5 sm:w-4 sm:h-4 group-hover:translate-x-1 transition-transform" />

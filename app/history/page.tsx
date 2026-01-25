@@ -62,43 +62,43 @@ export default function HistoryPage() {
   if (!mounted) return null
 
   return (
-    <main className="min-h-screen bg-zinc-950 text-white pb-20 md:pb-24">
+    <main className="min-h-screen bg-background text-foreground pb-20 md:pb-24">
       <Navbar />
 
       <div className="container mx-auto px-4 pt-8 pb-12">
         <div className="mb-8">
-          <Link href="/" className="inline-flex items-center gap-2 px-4 py-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-orange-500 text-zinc-400 hover:text-white font-medium rounded-xl transition-all mb-4">
+          <Link href="/" className="inline-flex items-center gap-2 px-4 py-2 bg-secondary hover:bg-accent border border-border hover:border-primary text-muted-foreground hover:text-foreground font-medium rounded-xl transition-all mb-4 dark:bg-zinc-800 dark:hover:bg-zinc-800 dark:border-zinc-800 dark:hover:border-orange-500 dark:text-zinc-400 dark:hover:text-white">
             <ArrowLeft className="w-4 h-4" />
             На главную
           </Link>
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <History size={28} className="text-orange-500" />
-              <h1 className="text-3xl sm:text-4xl font-bold">История просмотров</h1>
+              <h1 className="text-3xl sm:text-4xl font-bold text-foreground dark:text-white">История просмотров</h1>
             </div>
             {history.length > 0 && (
               <button
                 onClick={clearHistory}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-zinc-900 hover:bg-red-900/50 border border-zinc-800 hover:border-red-500 text-zinc-400 hover:text-white font-medium rounded-xl transition-all"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-secondary hover:bg-destructive/50 border border-border hover:border-destructive text-muted-foreground hover:text-foreground font-medium rounded-xl transition-all dark:bg-zinc-900 dark:hover:bg-red-900/50 dark:border-zinc-800 dark:hover:border-red-500 dark:text-zinc-400 dark:hover:text-white"
               >
                 <Trash2 className="w-4 h-4" />
                 Очистить
               </button>
             )}
           </div>
-          <p className="text-zinc-500 mt-2">
+          <p className="text-muted-foreground mt-2 dark:text-zinc-500">
             {history.length} {history.length === 1 ? 'аниме' : history.length < 5 ? 'аниме' : 'аниме'} в истории
           </p>
         </div>
 
         {history.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-center">
-            <History size={64} className="text-zinc-800 mb-4" />
-            <h2 className="text-xl font-bold text-zinc-400 mb-2">История пуста</h2>
-            <p className="text-zinc-600 mb-6">Начните смотреть аниме, чтобы оно появилось здесь</p>
+            <History size={64} className="text-muted-foreground/50 mb-4 dark:text-zinc-800" />
+            <h2 className="text-xl font-bold text-muted-foreground mb-2 dark:text-zinc-400">История пуста</h2>
+            <p className="text-muted-foreground/70 mb-6 dark:text-zinc-600">Начните смотреть аниме, чтобы оно появилось здесь</p>
             <Link
               href="/catalog"
-              className="inline-flex items-center gap-2 px-6 py-3 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-orange-500 text-white font-medium rounded-xl transition-all"
+              className="inline-flex items-center gap-2 px-6 py-3 bg-secondary hover:bg-accent border border-border hover:border-primary text-foreground font-medium rounded-xl transition-all dark:bg-zinc-900 dark:hover:bg-zinc-800 dark:border-zinc-800 dark:hover:border-orange-500 dark:text-white"
             >
               Перейти в каталог
               <ArrowLeft className="w-4 h-4" />
@@ -116,14 +116,14 @@ export default function HistoryPage() {
                 href={item.episode ? `/watch/${item.id}?episode=${item.episode}` : `/watch/${item.id}`}
                 className="group relative block"
               >
-                <div className="relative aspect-[16/9] md:aspect-[2/3] overflow-hidden rounded-lg bg-zinc-900 border border-zinc-800">
+                <div className="relative aspect-[16/9] md:aspect-[2/3] overflow-hidden rounded-lg bg-secondary border border-border dark:bg-zinc-900 dark:border-zinc-800">
                   <Image
                     src={item.poster}
                     alt={item.title}
                     fill
                     className="object-cover opacity-80 transition-transform duration-300 group-hover:scale-105 group-hover:opacity-100"
                   />
-                <div className="absolute bottom-0 left-0 right-0 h-1 bg-zinc-800 overflow-hidden">
+                <div className="absolute bottom-0 left-0 right-0 h-1 bg-border overflow-hidden dark:bg-zinc-800">
                   {progress !== null && (
                     <div
                       className="h-full bg-orange-600 transition-all duration-300"
@@ -147,8 +147,8 @@ export default function HistoryPage() {
                   )}
                 </div>
                 <div className="mt-2">
-                  <h3 className="text-xs font-bold text-zinc-300 truncate group-hover:text-white">{item.title}</h3>
-                  <p className="text-[10px] text-zinc-500">
+                  <h3 className="text-xs font-bold text-muted-foreground truncate group-hover:text-foreground dark:text-zinc-300 dark:group-hover:text-white">{item.title}</h3>
+                  <p className="text-[10px] text-muted-foreground/70 dark:text-zinc-500">
                     {item.episode
                       ? `Остановились на серии ${item.episode}${total ? ` / ${total}` : ""}`
                       : "Продолжить"}

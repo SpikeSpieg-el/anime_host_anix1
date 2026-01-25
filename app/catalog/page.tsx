@@ -78,7 +78,7 @@ export default async function CatalogPage({ searchParams }: CatalogPageProps) {
   const clientKey = JSON.stringify(initialFilters)
 
   return (
-    <main className="min-h-screen bg-zinc-950">
+    <main className="min-h-screen bg-background">
       <Navbar />
       <div className="pt-0"> {/* Убрал padding, так как Navbar sticky */}
         <CatalogClient key={clientKey} initialFilters={initialFilters} />

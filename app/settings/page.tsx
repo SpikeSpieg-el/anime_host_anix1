@@ -116,33 +116,33 @@ export default function SettingsPage() {
       <div className="container mx-auto px-4 py-8">
         <div className="text-center">
           <h1 className="text-2xl font-bold mb-4">Настройки</h1>
-          <p className="text-zinc-400">Пожалуйста, войдите в аккаунт для доступа к настройкам</p>
+          <p className="text-muted-foreground">Пожалуйста, войдите в аккаунт для доступа к настройкам</p>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-white">
+    <div className="min-h-screen bg-background text-foreground">
       <div className="container mx-auto px-4 py-8 max-w-2xl">
         <div className="mb-8">
-          <Link href="/" className="inline-flex items-center gap-2 px-4 py-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-orange-500 text-zinc-400 hover:text-white font-medium rounded-xl transition-all mb-4">
+          <Link href="/" className="inline-flex items-center gap-2 px-4 py-2 bg-muted hover:bg-accent border hover:border-primary text-muted-foreground hover:text-foreground font-medium rounded-xl transition-all mb-4">
             <ArrowLeft className="w-4 h-4" />
             На главную
           </Link>
-          <h1 className="text-3xl font-bold text-white mb-2">Настройки профиля</h1>
-          <p className="text-zinc-400">Управление вашим профилем и настройками</p>
+          <h1 className="text-3xl font-bold text-foreground mb-2">Настройки профиля</h1>
+          <p className="text-muted-foreground">Управление вашим профилем и настройками</p>
         </div>
 
       <div className="space-y-6">
         {/* Avatar Section */}
-        <Card className="bg-zinc-900 border-zinc-800">
+        <Card>
           <CardHeader>
-            <CardTitle className="text-white flex items-center gap-2">
+            <CardTitle className="text-foreground flex items-center gap-2">
               <User className="w-5 h-5" />
               Аватар
             </CardTitle>
-            <CardDescription className="text-zinc-400">
+            <CardDescription className="text-muted-foreground">
               Загрузите изображение для вашего профиля. Максимальный размер: 5MB
             </CardDescription>
           </CardHeader>
@@ -158,10 +158,10 @@ export default function SettingsPage() {
         </Card>
 
         {/* Username Section */}
-        <Card className="bg-zinc-900 border-zinc-800">
+        <Card>
           <CardHeader>
-            <CardTitle className="text-white">Имя пользователя</CardTitle>
-            <CardDescription className="text-zinc-400">
+            <CardTitle className="text-foreground">Имя пользователя</CardTitle>
+            <CardDescription className="text-muted-foreground">
               Это имя будет отображаться в вашем профиле
             </CardDescription>
           </CardHeader>
@@ -170,13 +170,13 @@ export default function SettingsPage() {
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               placeholder="Введите имя пользователя"
-              className="bg-zinc-800 border-zinc-700 text-white"
+              className="bg-muted border text-foreground"
               maxLength={50}
             />
             <Button 
               onClick={handleUsernameSave}
               disabled={loading || username === profile?.username}
-              className="bg-orange-600 hover:bg-orange-700"
+              className="bg-primary hover:bg-primary/90"
             >
               {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
               Сохранить
@@ -185,23 +185,23 @@ export default function SettingsPage() {
         </Card>
 
         {/* NSFW Search Settings */}
-        <Card className="bg-zinc-900 border-zinc-800">
+        <Card>
           <CardHeader>
-            <CardTitle className="text-white flex items-center gap-2">
+            <CardTitle className="text-foreground flex items-center gap-2">
               <ShieldAlert className="w-5 h-5" />
               Настройки поиска
             </CardTitle>
-            <CardDescription className="text-zinc-400">
+            <CardDescription className="text-muted-foreground">
               Управление отображением контента для взрослых в результатах поиска
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
-                <Label htmlFor="nsfw-search" className="text-white cursor-pointer">
+                <Label htmlFor="nsfw-search" className="text-foreground cursor-pointer">
                   Опасный поиск (NSFW)
                 </Label>
-                <p className="text-sm text-zinc-400">
+                <p className="text-sm text-muted-foreground">
                   Включить отображение контента для взрослых (хентай) в результатах поиска
                 </p>
               </div>
@@ -210,12 +210,12 @@ export default function SettingsPage() {
                 checked={allowNsfwSearch}
                 onCheckedChange={handleNsfwSearchToggle}
                 disabled={loadingNsfw}
-                className="data-[state=checked]:bg-orange-600"
+                className="data-[state=checked]:bg-primary"
               />
             </div>
             {allowNsfwSearch && (
-              <div className="p-3 bg-orange-900/20 border border-orange-800/50 rounded-lg">
-                <p className="text-sm text-orange-200 flex items-start gap-2">
+              <div className="p-3 bg-primary/10 border border-primary/30 rounded-lg">
+                <p className="text-sm text-primary flex items-start gap-2">
                   <Shield className="w-4 h-4 mt-0.5 flex-shrink-0" />
                   <span>
                     Опасный поиск включен. В результатах поиска может отображаться контент для взрослых. 
@@ -228,22 +228,22 @@ export default function SettingsPage() {
         </Card>
 
         {/* Account Info */}
-        <Card className="bg-zinc-900 border-zinc-800">
+        <Card>
           <CardHeader>
-            <CardTitle className="text-white">Информация об аккаунте</CardTitle>
+            <CardTitle className="text-foreground">Информация об аккаунте</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
             <div className="flex justify-between">
-              <span className="text-zinc-400">Email:</span>
-              <span className="text-white">{user.email}</span>
+              <span className="text-muted-foreground">Email:</span>
+              <span className="text-foreground">{user.email}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-zinc-400">ID:</span>
-              <span className="text-white font-mono text-sm">{user.id.slice(0, 8)}...</span>
+              <span className="text-muted-foreground">ID:</span>
+              <span className="text-foreground font-mono text-sm">{user.id.slice(0, 8)}...</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-zinc-400">Дата регистрации:</span>
-              <span className="text-white">
+              <span className="text-muted-foreground">Дата регистрации:</span>
+              <span className="text-foreground">
                 {new Date(user.created_at).toLocaleDateString('ru-RU')}
               </span>
             </div>

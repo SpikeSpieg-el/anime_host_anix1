@@ -79,7 +79,7 @@ export function FloatingNav() {
       {/* Кнопка НАВЕРХ (Только для ПК здесь, на мобильном она внутри меню) */}
       <button
         onClick={scrollToTop}
-        className="hidden md:flex w-12 h-12 rounded-xl bg-zinc-900/90 backdrop-blur-md border border-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-800 shadow-2xl shadow-black/50 items-center justify-center transition-all active:scale-95 mb-2"
+        className="hidden md:flex w-12 h-12 rounded-xl bg-secondary/90 backdrop-blur-md border text-muted-foreground hover:text-foreground hover:bg-secondary shadow-2xl shadow-black/50 items-center justify-center transition-all active:scale-95 mb-2 dark:bg-zinc-900/90 dark:border-zinc-800 dark:text-zinc-400 dark:hover:text-white dark:hover:bg-zinc-800"
         title="Наверх"
       >
         <ArrowUp className="w-5 h-5" />
@@ -88,10 +88,10 @@ export function FloatingNav() {
       {/* Основная панель навигации */}
       <nav className="
         w-full md:w-auto
-        bg-zinc-900/90 backdrop-blur-md border border-zinc-800 
+        bg-secondary/90 backdrop-blur-md border 
         rounded-2xl md:rounded-2xl 
         p-1.5 md:p-2 
-        shadow-2xl shadow-black/50
+        shadow-2xl shadow-black/50 dark:bg-zinc-900/90 dark:border-zinc-800
         
         /* Мобильный Grid/Flex для скролла если кнопок много */
         flex flex-row md:flex-col items-center justify-between md:justify-start gap-1 md:gap-2
@@ -112,8 +112,8 @@ export function FloatingNav() {
                 rounded-xl flex items-center justify-center 
                 transition-all duration-300
                 ${isActive 
-                  ? 'bg-orange-500 text-white shadow-lg shadow-orange-500/25 scale-105' 
-                  : 'text-zinc-400 hover:bg-zinc-800 hover:text-white'
+                  ? 'bg-primary text-foreground shadow-lg shadow-primary/25 scale-105 dark:bg-orange-500 dark:text-white dark:shadow-orange-500/25' 
+                  : 'text-muted-foreground hover:bg-accent hover:text-foreground dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-white'
                 }
               `}
               aria-label={item.label}
@@ -124,8 +124,8 @@ export function FloatingNav() {
               <span className="
                 hidden md:block
                 absolute right-full mr-4 px-2.5 py-1.5 
-                bg-zinc-900 text-white text-xs font-medium rounded-lg 
-                border border-zinc-800 shadow-xl
+                bg-secondary text-foreground text-xs font-medium rounded-lg 
+                border shadow-xl dark:bg-zinc-900 dark:text-white dark:border-zinc-800
                 opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 
                 transition-all pointer-events-none whitespace-nowrap z-50
               ">
@@ -138,10 +138,10 @@ export function FloatingNav() {
         })}
 
         {/* Кнопка НАВЕРХ (Для мобильных: внутри панели, справа) */}
-        <div className="w-[1px] h-6 bg-zinc-800 mx-1 md:hidden" /> {/* Разделитель */}
+        <div className="w-[1px] h-6 bg-border mx-1 md:hidden" /> {/* Разделитель */}
         <button
           onClick={scrollToTop}
-          className="md:hidden flex-shrink-0 w-10 h-10 rounded-xl bg-zinc-800 text-zinc-400 hover:text-white flex items-center justify-center active:scale-95 transition-all"
+          className="md:hidden flex-shrink-0 w-10 h-10 rounded-xl bg-accent text-muted-foreground hover:text-foreground flex items-center justify-center active:scale-95 transition-all dark:bg-zinc-800 dark:text-zinc-400 dark:hover:text-white"
         >
           <ArrowUp className="w-5 h-5" />
         </button>

@@ -24,7 +24,7 @@ export default async function WatchPage({
   const watchOrder = franchise;
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100">
+    <div className="min-h-screen bg-background text-foreground">
       <Navbar />
 
       <div className="container mx-auto px-4 py-8">
@@ -48,7 +48,7 @@ export default async function WatchPage({
                 item.isCurrent ? (
                   <div
                     key={item.id}
-                    className="group block rounded-xl border border-orange-500/60 bg-zinc-950/40 p-2"
+                    className="group block rounded-xl border border-orange-500/60 bg-secondary/40 p-2"
                   >
                     <div className="relative aspect-[2/3] overflow-hidden rounded-lg">
                       <Image src={item.poster} fill alt={item.title} className="object-cover" />
@@ -70,7 +70,7 @@ export default async function WatchPage({
                   <Link
                     key={item.id}
                     href={`/watch/${item.id}`}
-                    className="group block rounded-xl border border-white/10 bg-zinc-950/40 p-2 transition hover:border-orange-500/40"
+                    className="group block rounded-xl border border-border bg-secondary/40 p-2 transition hover:border-orange-500/40"
                   >
                     <div className="relative aspect-[2/3] overflow-hidden rounded-lg">
                       <Image src={item.poster} fill alt={item.title} className="object-cover transition-transform duration-300 group-hover:scale-105" />

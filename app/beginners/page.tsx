@@ -51,7 +51,7 @@ export default function BeginnersPage() {
   if (!mounted) return null
 
   return (
-    <main className="min-h-screen bg-zinc-950 text-white pb-20 md:pb-24 selection:bg-orange-500/30">
+    <main className="min-h-screen bg-background text-foreground pb-20 md:pb-24 selection:bg-orange-500/30">
       <Navbar />
 
       <div className="container mx-auto px-4 pt-8 pb-12 max-w-6xl">
@@ -90,11 +90,11 @@ export default function BeginnersPage() {
             <h2 className="text-2xl font-bold text-white">Основные обозначения</h2>
           </div>
           
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 md:p-8">
+          <div className="bg-secondary border border-border rounded-2xl p-6 md:p-8">
             <div className="grid sm:grid-cols-2 gap-6">
               {/* Item 1 */}
               <div className="flex gap-4">
-                <div className="flex-shrink-0 w-14 h-14 bg-zinc-950 rounded-xl border border-zinc-800 flex items-center justify-center">
+                <div className="flex-shrink-0 w-14 h-14 bg-secondary rounded-xl border border-border flex items-center justify-center">
                   <Monitor className="w-7 h-7 text-orange-500" />
                 </div>
                 <div>
@@ -111,7 +111,7 @@ export default function BeginnersPage() {
 
               {/* Item 2 */}
               <div className="flex gap-4">
-                <div className="flex-shrink-0 w-14 h-14 bg-zinc-950 rounded-xl border border-zinc-800 flex items-center justify-center">
+                <div className="flex-shrink-0 w-14 h-14 bg-secondary rounded-xl border border-border flex items-center justify-center">
                   <Star className="w-7 h-7 text-orange-500 fill-orange-500" />
                 </div>
                 <div>
@@ -125,7 +125,7 @@ export default function BeginnersPage() {
 
               {/* Item 3 */}
               <div className="flex gap-4">
-                <div className="flex-shrink-0 w-14 h-14 bg-zinc-950 rounded-xl border border-zinc-800 flex items-center justify-center">
+                <div className="flex-shrink-0 w-14 h-14 bg-secondary rounded-xl border border-border flex items-center justify-center">
                   <Clock className="w-7 h-7 text-orange-500" />
                 </div>
                 <div>
@@ -140,7 +140,7 @@ export default function BeginnersPage() {
 
               {/* Item 4 */}
               <div className="flex gap-4">
-                <div className="flex-shrink-0 w-14 h-14 bg-zinc-950 rounded-xl border border-zinc-800 flex items-center justify-center">
+                <div className="flex-shrink-0 w-14 h-14 bg-secondary rounded-xl border border-border flex items-center justify-center">
                   <Flag className="w-7 h-7 text-orange-500" />
                 </div>
                 <div>
@@ -154,7 +154,7 @@ export default function BeginnersPage() {
 
               {/* Item 5 */}
               <div className="flex gap-4">
-                <div className="flex-shrink-0 w-14 h-14 bg-zinc-950 rounded-xl border border-zinc-800 flex items-center justify-center">
+                <div className="flex-shrink-0 w-14 h-14 bg-secondary rounded-xl border border-border flex items-center justify-center">
                   <div className="w-7 h-7 bg-orange-500 rounded-full"></div>
                 </div>
                 <div>
@@ -180,7 +180,7 @@ export default function BeginnersPage() {
             <div className="grid md:grid-cols-12">
               
               {/* Visual Simulation (Left Side) */}
-              <div className="md:col-span-5 bg-zinc-950/50 p-8 flex flex-col items-center justify-center border-b md:border-b-0 md:border-r border-zinc-800 relative">
+              <div className="md:col-span-5 bg-secondary/50 p-8 flex flex-col items-center justify-center border-b md:border-b-0 md:border-r border-border relative">
                 <div className="text-zinc-500 text-sm font-mono mb-6 uppercase tracking-widest text-center">Интерактивный пример</div>
                 
                 {/* Mock Card */}
@@ -481,9 +481,9 @@ export default function BeginnersPage() {
             <h2 className="text-2xl font-bold text-white">Продвинутые советы</h2>
           </div>
 
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 md:p-8">
+          <div className="bg-secondary border border-border rounded-2xl p-6 md:p-8">
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              <div className="p-4 rounded-xl bg-zinc-950/50 border border-zinc-800/50">
+              <div className="p-4 rounded-xl bg-secondary/50 border border-border/50">
                 <h4 className="text-orange-400 font-bold mb-2 flex items-center gap-2">
                   <ArrowLeft className="w-4 h-4" />
                   Умная кнопка "Назад"
@@ -494,7 +494,7 @@ export default function BeginnersPage() {
                 </p>
               </div>
               
-              <div className="p-4 rounded-xl bg-zinc-950/50 border border-zinc-800/50">
+              <div className="p-4 rounded-xl bg-secondary/50 border border-border/50">
                 <h4 className="text-orange-400 font-bold mb-2 flex items-center gap-2">
                   <Bookmark className="w-4 h-4" />
                   Закладки меняют цвет
@@ -505,7 +505,7 @@ export default function BeginnersPage() {
                 </p>
               </div>
               
-              <div className="p-4 rounded-xl bg-zinc-950/50 border border-zinc-800/50">
+              <div className="p-4 rounded-xl bg-secondary/50 border border-border/50">
                 <h4 className="text-orange-400 font-bold mb-2 flex items-center gap-2">
                   <Download className="w-4 h-4" />
                   Скачать через торренты
@@ -516,7 +516,7 @@ export default function BeginnersPage() {
                 </p>
               </div>
               
-              <div className="p-4 rounded-xl bg-zinc-950/50 border border-zinc-800/50">
+              <div className="p-4 rounded-xl bg-secondary/50 border border-border/50">
                 <h4 className="text-orange-400 font-bold mb-2 flex items-center gap-2">
                   <PlayCircle className="w-4 h-4" />
                   Автоскролл к плееру
@@ -527,7 +527,7 @@ export default function BeginnersPage() {
                 </p>
               </div>
               
-              <div className="p-4 rounded-xl bg-zinc-950/50 border border-zinc-800/50">
+              <div className="p-4 rounded-xl bg-secondary/50 border border-border/50">
                 <h4 className="text-orange-400 font-bold mb-2 flex items-center gap-2">
                   <Clock className="w-4 h-4" />
                   История просмотра
@@ -538,7 +538,7 @@ export default function BeginnersPage() {
                 </p>
               </div>
               
-              <div className="p-4 rounded-xl bg-zinc-950/50 border border-zinc-800/50">
+              <div className="p-4 rounded-xl bg-secondary/50 border border-border/50">
                 <h4 className="text-orange-400 font-bold mb-2 flex items-center gap-2">
                   <ExternalLink className="w-4 h-4" />
                   Внешние ссылки
@@ -559,29 +559,29 @@ export default function BeginnersPage() {
             <h2 className="text-2xl font-bold text-white">Словарь терминов</h2>
           </div>
 
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 md:p-8">
+          <div className="bg-secondary border border-border rounded-2xl p-6 md:p-8">
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              <div className="p-4 rounded-xl bg-zinc-950/50 border border-zinc-800/50">
+              <div className="p-4 rounded-xl bg-secondary/50 border border-border/50">
                 <h4 className="text-orange-400 font-bold mb-1">Онгоинг (Ongoing)</h4>
                 <p className="text-zinc-500 text-xs">Аниме, которое сейчас выходит по одной серии в неделю.</p>
               </div>
-              <div className="p-4 rounded-xl bg-zinc-950/50 border border-zinc-800/50">
+              <div className="p-4 rounded-xl bg-secondary/50 border border-border/50">
                 <h4 className="text-orange-400 font-bold mb-1">Тайтл</h4>
                 <p className="text-zinc-500 text-xs">Так фанаты называют одно аниме (фильм или сериал).</p>
               </div>
-              <div className="p-4 rounded-xl bg-zinc-950/50 border border-zinc-800/50">
+              <div className="p-4 rounded-xl bg-secondary/50 border border-border/50">
                 <h4 className="text-orange-400 font-bold mb-1">Сезонность (Курсы)</h4>
                 <p className="text-zinc-500 text-xs">Аниме выходит кварталами: Зима, Весна, Лето, Осень.</p>
               </div>
-              <div className="p-4 rounded-xl bg-zinc-950/50 border border-zinc-800/50">
+              <div className="p-4 rounded-xl bg-secondary/50 border border-border/50">
                 <h4 className="text-orange-400 font-bold mb-1">Фуллметл</h4>
                 <p className="text-zinc-500 text-xs">Сериал длиной от 24 до 26 серий (обычный сезон).</p>
               </div>
-              <div className="p-4 rounded-xl bg-zinc-950/50 border border-zinc-800/50">
+              <div className="p-4 rounded-xl bg-secondary/50 border border-border/50">
                 <h4 className="text-orange-400 font-bold mb-1">ONA / OVA</h4>
                 <p className="text-zinc-500 text-xs">Аниме, выпущенное сразу для интернета или на дисках, без TV-эфира.</p>
               </div>
-              <div className="p-4 rounded-xl bg-zinc-950/50 border border-zinc-800/50">
+              <div className="p-4 rounded-xl bg-secondary/50 border border-border/50">
                 <h4 className="text-orange-400 font-bold mb-1">Сёнэн / Сёдзё</h4>
                 <p className="text-zinc-500 text-xs">Жанры: для мальчиков (боевики) и для девочек (романтика) соответственно.</p>
               </div>
