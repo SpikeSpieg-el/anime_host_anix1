@@ -435,7 +435,7 @@ export function Navbar() {
                     
                     <div className={cn(
                       "grid grid-cols-2 gap-2 px-4 overflow-hidden transition-all duration-300 ease-in-out",
-                      isGenresOpen ? "max-h-[800px] py-4 opacity-100" : "max-h-0 py-0 opacity-0"
+                      isGenresOpen ? "max-h-[1200px] py-4 opacity-100" : "max-h-0 py-0 opacity-0"
                     )}>
                        {Object.entries(GENRES_MAP).map(([name, id]) => (
                           <Link 

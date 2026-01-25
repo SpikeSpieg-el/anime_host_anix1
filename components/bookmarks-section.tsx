@@ -5,11 +5,12 @@ import { AnimeCard } from "@/components/anime-card"
 import { useBookmarks } from "@/components/bookmarks-provider"
 import { useEpisodeUpdates } from "@/hooks/use-episode-updates"
 import { EpisodeUpdateBadge } from "@/components/episode-update-badge"
+import { BookmarksSkeleton } from "@/components/skeleton"
 import Link from "next/link"
 import { ChevronRight, Bookmark } from "lucide-react"
 
 export function BookmarksSection() {
-  const { items } = useBookmarks()
+  const { items, isLoading } = useBookmarks()
   const { updates, checkAnimeUpdates, clearUpdate, clearAllUpdates, mounted } = useEpisodeUpdates()
 
   const displayList = useMemo(() => items.slice(0, 6), [items])
@@ -22,6 +23,22 @@ export function BookmarksSection() {
     }
   }, [mounted, items, checkAnimeUpdates])
 
+  if (isLoading) {
+    return (
+      <section className="mb-16">
+        <div className="flex items-end justify-between mb-6">
+          <div>
+            <div className="flex items-center gap-2">
+              <Bookmark className="w-6 h-6 text-orange-500" />
+              <h2 className="text-2xl sm:text-3xl font-bold text-white mb-1">Сохранённое</h2>
+            </div>
+          </div>
+        </div>
+        <BookmarksSkeleton items={6} />
+      </section>
+    )
+  }
+
   if (items.length === 0) return null
 
   return (
@@ -32,7 +49,6 @@ export function BookmarksSection() {
             <Bookmark className="w-6 h-6 text-orange-500" />
             <h2 className="text-2xl sm:text-3xl font-bold text-white mb-1">Сохранённое</h2>
           </div>
-          <p className="text-zinc-500 text-sm">Закладки: что посмотреть позже</p>
         </div>
         {hasMore && (
           <Link 

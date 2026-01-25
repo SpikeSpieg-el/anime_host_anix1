@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react"
 import { Search, Clock, X, ChevronRight } from "lucide-react"
 import { Anime, searchAnime } from "@/lib/shikimori"
 import { useRouter } from "next/navigation"
+import { useAuth } from "@/components/auth-provider"
 
 function saveSearchHistory(query: string) {
   if (typeof window === "undefined") return
@@ -40,6 +41,7 @@ export function SearchSuggestions({
   className = ""
 }: SearchSuggestionsProps) {
   const router = useRouter()
+  const { profile } = useAuth()
   const [suggestions, setSuggestions] = useState<Anime[]>([])
   const [isOpen, setIsOpen] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -60,7 +62,8 @@ export function SearchSuggestions({
     debounceRef.current = setTimeout(async () => {
       setLoading(true)
       try {
-        const results = await searchAnime(value.trim())
+        const allowNsfw = profile?.allow_nsfw_search || false
+        const results = await searchAnime(value.trim(), allowNsfw)
         setSuggestions(results.slice(0, 5))
         setIsOpen(true)
       } catch (error) {

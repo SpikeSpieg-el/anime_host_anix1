@@ -20,6 +20,7 @@ interface Profile {
   avatar_url: string | null
   username: string | null
   updated_at: string | null
+  allow_nsfw_search?: boolean
 }
 
 const AuthContext = createContext<AuthContextType>({

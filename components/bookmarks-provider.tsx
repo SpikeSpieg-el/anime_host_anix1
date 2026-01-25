@@ -9,6 +9,7 @@ type BookmarkAnime = Anime
 
 type BookmarksContextValue = {
   items: BookmarkAnime[]
+  isLoading: boolean
   isSaved: (id: string) => boolean
   add: (anime: BookmarkAnime) => void
   remove: (id: string) => void
@@ -32,25 +33,39 @@ function safeParseBookmarks(raw: string | null): BookmarkAnime[] {
 
 export function BookmarksProvider({ children }: { children: React.ReactNode }) {
   const [items, setItems] = useState<BookmarkAnime[]>([])
+  const [isLoading, setIsLoading] = useState(true)
   const { user } = useAuth() // Получаем юзера
 
   // 1. Загрузка данных
   useEffect(() => {
+    let isMounted = true
+    
     async function fetchBookmarks() {
-      if (user) {
-        // Если залогинен - берем из Supabase
-        const { data } = await supabase
-          .from('bookmarks')
-          .select('anime_data')
-          .eq('user_id', user.id)
-        
-        if (data) {
-          const remoteItems = data.map((row: any) => row.anime_data)
-          setItems(remoteItems)
+      if (!isMounted) return
+      
+      setIsLoading(true)
+      try {
+        if (user) {
+          // Если залогинен - берем из Supabase
+          const { data } = await supabase
+            .from('bookmarks')
+            .select('anime_data')
+            .eq('user_id', user.id)
+          
+          if (data && isMounted) {
+            const remoteItems = data.map((row: any) => row.anime_data)
+            setItems(remoteItems)
+          }
+        } else {
+          // Если нет - из LocalStorage
+          if (isMounted) {
+            setItems(safeParseBookmarks(window.localStorage.getItem(STORAGE_KEY)))
+          }
         }
-      } else {
-        // Если нет - из LocalStorage
-        setItems(safeParseBookmarks(window.localStorage.getItem(STORAGE_KEY)))
+      } finally {
+        if (isMounted) {
+          setIsLoading(false)
+        }
       }
     }
 
@@ -58,7 +73,10 @@ export function BookmarksProvider({ children }: { children: React.ReactNode }) {
     
     // Слушаем событие синхронизации после входа
     window.addEventListener("auth-synced", fetchBookmarks)
-    return () => window.removeEventListener("auth-synced", fetchBookmarks)
+    return () => {
+      isMounted = false
+      window.removeEventListener("auth-synced", fetchBookmarks)
+    }
   }, [user])
 
   // 2. Сохранение (Эффект для LocalStorage)
@@ -131,7 +149,7 @@ export function BookmarksProvider({ children }: { children: React.ReactNode }) {
     }
   }, [user]) // Добавлена зависимость от user
 
-  const value = useMemo<BookmarksContextValue>(() => ({ items, isSaved, add, remove, toggle }), [items, isSaved, add, remove, toggle])
+  const value = useMemo<BookmarksContextValue>(() => ({ items, isLoading, isSaved, add, remove, toggle }), [items, isLoading, isSaved, add, remove, toggle])
 
   return <BookmarksContext.Provider value={value}>{children}</BookmarksContext.Provider>
 }

@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import Image from "next/image"
+import Link from "next/link"
 import { 
   ArrowLeft, 
   Bookmark, 
@@ -346,6 +347,23 @@ export function WatchPageClient({
                         </div>
                     )}
                 </div>
+            )}
+
+            {/* Genre Buttons */}
+            {anime.genres && anime.genres.length > 0 && (
+              <div className="mt-3 md:mt-4">
+                <div className="flex flex-wrap gap-2">
+                  {anime.genres.slice(0, 6).map((genre) => (
+                    <Link
+                      key={genre}
+                      href={`/catalog?genre=${encodeURIComponent(genre)}`}
+                      className="inline-flex items-center px-3 py-1.5 rounded-full bg-zinc-800/50 border border-zinc-700 hover:border-orange-500/40 hover:bg-orange-500/10 text-zinc-300 hover:text-orange-400 text-xs md:text-sm font-medium transition-all duration-200"
+                    >
+                      {genre}
+                    </Link>
+                  ))}
+                </div>
+              </div>
             )}
           </div>
         </div>

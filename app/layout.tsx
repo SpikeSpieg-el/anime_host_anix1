@@ -9,6 +9,7 @@ import { HistoryProvider } from "@/components/history-provider"
 import "./globals.css"
 import { WelcomeModal } from "@/components/welcome-modal"
 import { AuthProvider } from "@/components/auth-provider"
+import { CookieConsent } from "@/components/cookie-consent"
 
 const _geist = Geist({ subsets: ["latin"] })
 const _geistMono = Geist_Mono({ subsets: ["latin"] })
@@ -54,6 +55,7 @@ export default function RootLayout({
           <GlobalLoading />
         </Suspense>
         <WelcomeModal />
+        <CookieConsent />
         <AuthProvider>
           <HistoryProvider>
             <BookmarksProvider>{children}</BookmarksProvider>

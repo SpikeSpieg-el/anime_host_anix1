@@ -5,6 +5,7 @@ import Image from "next/image"
 import { Clock, Search, History, ChevronRight } from "lucide-react"
 import { useEpisodeUpdates } from "@/hooks/use-episode-updates"
 import { useHistory } from "@/components/history-provider"
+import { HistorySkeleton } from "@/components/skeleton"
 
 // Helper function for dynamic episode/series text
 const getEpisodeText = (count: number): string => {
@@ -26,7 +27,7 @@ function normalizePosterUrl(value: string): string {
   return raw
 }
 export function UserHistory() {
-const { items: historyItems } = useHistory()
+const { items: historyItems, isLoading: historyLoading } = useHistory()
 const [lastSearches, setLastSearches] = useState<string[]>([])
 const [mounted, setMounted] = useState(false)
 const [fallbackHistory, setFallbackHistory] = useState<any[]>([])
@@ -105,7 +106,38 @@ if (mounted && fullHistory.length > 0) {
 // так что можно не вызывать вручную, чтобы не спамить запросами при каждом рендере.
 }
 }, [mounted, fullHistory, checkAnimeUpdates])
-if (!mounted) return null
+if (!mounted) {
+  return (
+    <div className="mb-12 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+      {/* Секция: Продолжить просмотр - скелет */}
+      <section>
+        <div className="flex items-center justify-between gap-4 mb-4">
+          <div className="flex items-center gap-2 text-zinc-400">
+            <History size={20} className="text-orange-500" />
+            <h2 className="text-lg sm:text-xl font-bold text-white">Вы смотрели</h2>
+          </div>
+        </div>
+        <HistorySkeleton items={6} />
+      </section>
+    </div>
+  )
+}
+if (historyLoading) {
+  return (
+    <div className="mb-12 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+      {/* Секция: Продолжить просмотр - скелет */}
+      <section>
+        <div className="flex items-center justify-between gap-4 mb-4">
+          <div className="flex items-center gap-2 text-zinc-400">
+            <History size={20} className="text-orange-500" />
+            <h2 className="text-lg sm:text-xl font-bold text-white">Вы смотрели</h2>
+          </div>
+        </div>
+        <HistorySkeleton items={6} />
+      </section>
+    </div>
+  )
+}
 if (history.length === 0 && lastSearches.length === 0) return null
 const hasMoreHistory = fullHistory.length > 6
 return (

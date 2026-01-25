@@ -15,6 +15,7 @@ type WatchHistoryItem = {
 
 type HistoryContextValue = {
   items: WatchHistoryItem[]
+  isLoading: boolean
   add: (anime: WatchHistoryItem) => void
   clear: () => void
 }
@@ -36,6 +37,7 @@ function safeParseHistory(raw: string | null): WatchHistoryItem[] {
 
 export function HistoryProvider({ children }: { children: React.ReactNode }) {
   const [items, setItems] = useState<WatchHistoryItem[]>([])
+  const [isLoading, setIsLoading] = useState(true)
   const { user } = useAuth()
 
   const add = useCallback(async (anime: WatchHistoryItem) => {
@@ -88,29 +90,42 @@ export function HistoryProvider({ children }: { children: React.ReactNode }) {
 
   // Загрузка данных
   useEffect(() => {
+    let isMounted = true
+    
     async function fetchHistory() {
-      if (user) {
-        // Если залогинен - берем из Supabase
-        const { data, error } = await supabase
-          .from('watch_history')
-          .select('*')
-          .eq('user_id', user.id)
-          .order('timestamp', { ascending: false })
-        
-        if (data) {
-          const remoteItems = data.map((row: any) => ({
-            id: String(row.anime_id), // Приводим к строке для надежности
-            title: row.title,
-            poster: row.poster,
-            timestamp: row.timestamp,
-            episode: row.episode,
-            episodesTotal: row.episodes_total
-          }))
-          setItems(remoteItems)
+      if (!isMounted) return
+      
+      setIsLoading(true)
+      try {
+        if (user) {
+          // Если залогинен - берем из Supabase
+          const { data, error } = await supabase
+            .from('watch_history')
+            .select('*')
+            .eq('user_id', user.id)
+            .order('timestamp', { ascending: false })
+          
+          if (data && isMounted) {
+            const remoteItems = data.map((row: any) => ({
+              id: String(row.anime_id), // Приводим к строке для надежности
+              title: row.title,
+              poster: row.poster,
+              timestamp: row.timestamp,
+              episode: row.episode,
+              episodesTotal: row.episodes_total
+            }))
+            setItems(remoteItems)
+          }
+        } else {
+          // Если нет - из LocalStorage
+          if (isMounted) {
+            setItems(safeParseHistory(window.localStorage.getItem(STORAGE_KEY)))
+          }
         }
-      } else {
-        // Если нет - из LocalStorage
-        setItems(safeParseHistory(window.localStorage.getItem(STORAGE_KEY)))
+      } finally {
+        if (isMounted) {
+          setIsLoading(false)
+        }
       }
     }
 
@@ -126,6 +141,7 @@ export function HistoryProvider({ children }: { children: React.ReactNode }) {
     window.addEventListener("add-to-history" as any, handleAddToHistory)
     
     return () => {
+      isMounted = false
       window.removeEventListener("auth-synced", fetchHistory)
       window.removeEventListener("add-to-history" as any, handleAddToHistory)
     }
@@ -138,7 +154,7 @@ export function HistoryProvider({ children }: { children: React.ReactNode }) {
     }
   }, [items, user])
 
-  const value = useMemo<HistoryContextValue>(() => ({ items, add, clear }), [items, add, clear])
+  const value = useMemo<HistoryContextValue>(() => ({ items, isLoading, add, clear }), [items, isLoading, add, clear])
 
   return <HistoryContext.Provider value={value}>{children}</HistoryContext.Provider>
 }
