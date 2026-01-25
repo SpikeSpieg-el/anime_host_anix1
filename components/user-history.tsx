@@ -5,6 +5,18 @@ import Image from "next/image"
 import { Clock, Search, History, ChevronRight } from "lucide-react"
 import { useEpisodeUpdates } from "@/hooks/use-episode-updates"
 import { useHistory } from "@/components/history-provider"
+
+// Helper function for dynamic episode/series text
+const getEpisodeText = (count: number): string => {
+  if (count === 1) return "Серия"
+  const lastDigit = count % 10
+  const lastTwoDigits = count % 100
+  
+  if (lastTwoDigits >= 11 && lastTwoDigits <= 14) return "Серий"
+  if (lastDigit === 1) return "Серия"
+  if (lastDigit >= 2 && lastDigit <= 4) return "Серии"
+  return "Серий"
+}
 function normalizePosterUrl(value: string): string {
   const raw = (value ?? "").trim()
   if (!raw) return raw
@@ -192,13 +204,13 @@ return (
               <div className="text-[10px] text-zinc-500 mt-0.5 flex flex-col">
                 <span>
                   {item.episode
-                    ? `Серия ${item.episode}${total ? ` из ${total}` : ""}`
+                    ? `${item.episode} ${getEpisodeText(item.episode)}${total ? ` из ${total}` : ""}`
                     : "Начать просмотр"}
                 </span>
                 {/* Текстовое пояснение обновления */}
                 {update && (
                   <span className="text-orange-400 font-medium">
-                    • Вышла {update.newEpisode} серия
+                    • Вышла {update.newEpisode} {getEpisodeText(update.newEpisode)}
                   </span>
                 )}
               </div>

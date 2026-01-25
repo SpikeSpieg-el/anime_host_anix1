@@ -10,6 +10,18 @@ import { ArrowLeft } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useBookmarks } from "@/components/bookmarks-provider"
 
+// Helper function for dynamic episode/series text
+const getEpisodeText = (count: number): string => {
+  if (count === 1) return "Серия"
+  const lastDigit = count % 10
+  const lastTwoDigits = count % 100
+  
+  if (lastTwoDigits >= 11 && lastTwoDigits <= 14) return "Серий"
+  if (lastDigit === 1) return "Серия"
+  if (lastDigit >= 2 && lastDigit <= 4) return "Серии"
+  return "Серий"
+}
+
 interface ScheduleClientProps {
   schedule: { [key: number]: Anime[] }
 }
@@ -132,7 +144,7 @@ export function ScheduleClient({ schedule }: ScheduleClientProps) {
                   <AnimeCard anime={anime} />
                   <div className="absolute top-2 left-2 z-10 flex flex-col gap-1">
                      <div className="bg-orange-600 text-white text-[10px] font-bold px-2 py-1 rounded shadow-md border border-orange-500">
-                       Серия {anime.episodesCurrent + 1}
+                       {getEpisodeText(anime.episodesCurrent + 1)} {anime.episodesCurrent + 1}
                      </div>
                      <Button
                        size="sm"

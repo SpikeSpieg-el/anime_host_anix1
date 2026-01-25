@@ -9,6 +9,18 @@ import { useBookmarks } from "@/components/bookmarks-provider"
 import { useState } from "react"
 import { cn } from "@/lib/utils"
 
+// Helper function for dynamic episode/series text
+const getEpisodeText = (count: number): string => {
+  if (count === 1) return "Серия"
+  const lastDigit = count % 10
+  const lastTwoDigits = count % 100
+  
+  if (lastTwoDigits >= 11 && lastTwoDigits <= 14) return "Серий"
+  if (lastDigit === 1) return "Серия"
+  if (lastDigit >= 2 && lastDigit <= 4) return "Серии"
+  return "Серий"
+}
+
 // Функция для генерации запасного постера
 function generateFallbackPoster(title: string): string {
   const hash = title.split('').reduce((acc, char) => char.charCodeAt(0) + ((acc << 5) - acc), 0);
@@ -96,7 +108,7 @@ export function AnimeCard({ anime, className, variant = 'default', showUpdateBad
                 {anime.title}
               </h3>
               <p className="text-zinc-500 text-xs mb-2">
-                {anime.year} • {anime.episodesCurrent > 0 ? `${anime.episodesCurrent} Серия.` : 'Анонс'}
+                {anime.year} • {anime.episodesCurrent > 0 ? `${anime.episodesCurrent} ${getEpisodeText(anime.episodesCurrent)}` : 'Анонс'}
                 {anime.status === 'Announcement' && anime.airedOn && (
                   <span className="text-orange-400 ml-1">
                     • Выход: {new Date(anime.airedOn).toLocaleDateString('ru-RU', {
@@ -233,7 +245,7 @@ export function AnimeCard({ anime, className, variant = 'default', showUpdateBad
           {anime.title}
         </h3>
         <p className={cn("text-zinc-500 mt-0.5", isCompact ? "text-[10px]" : "text-xs")}>
-          {anime.year} • {anime.episodesCurrent > 0 ? `${anime.episodesCurrent} Серия.` : 'Анонс'}
+          {anime.year} • {anime.episodesCurrent > 0 ? `${anime.episodesCurrent} ${getEpisodeText(anime.episodesCurrent)}` : 'Анонс'}
         </p>
       </div>
     </Link>

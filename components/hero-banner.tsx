@@ -15,6 +15,18 @@ import { HeroBannerSkeleton } from "@/components/skeleton"
 import { useBookmarks } from "@/components/bookmarks-provider"
 import { cn } from "@/lib/utils"
 
+// Helper function for dynamic episode/series text
+const getEpisodeText = (count: number): string => {
+  if (count === 1) return "Серия"
+  const lastDigit = count % 10
+  const lastTwoDigits = count % 100
+  
+  if (lastTwoDigits >= 11 && lastTwoDigits <= 14) return "Серий"
+  if (lastDigit === 1) return "Серия"
+  if (lastDigit >= 2 && lastDigit <= 4) return "Серии"
+  return "Серий"
+}
+
 // Функция для генерации запасного постера (такая же как в anime-card)
 function generateFallbackPoster(title: string): string {
   const hash = title.split('').reduce((acc, char) => char.charCodeAt(0) + ((acc << 5) - acc), 0);
@@ -27,7 +39,7 @@ function generateFallbackPoster(title: string): string {
     { bg: '#1e1b4b', textColor: '#e9d5ff', accentColor: '#8b5cf6' },
     { bg: '#18181b', textColor: '#e4e4e7', accentColor: '#22c55e' }
   ];
-  
+
   const style = styles[index];
   const svg = `
     <svg width="400" height="600" viewBox="0 0 400 600" xmlns="http://www.w3.org/2000/svg">
@@ -100,26 +112,7 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime }: HeroBannerProps
         <div className="absolute inset-0 bg-gradient-to-r from-zinc-950/90 via-zinc-950/70 to-transparent" />
       </div>
 
-      {/* --- ДЕКОРАТИВНЫЙ ТЕКСТ НА ФОНЕ --- */}
-      {!hasHighQualityBackdrop && (
-        <div className="absolute top-0 right-0 left-0 bottom-0 z-0 pointer-events-none select-none opacity-[0.05] lg:opacity-10 mix-blend-overlay overflow-hidden">
-          {Array.from({ length: 20 }).map((_, i) => (
-            <div
-              key={i}
-              className="absolute text-[150px] lg:text-[350px] leading-none font-black text-white italic -skew-x-12 tracking-tighter animate-slide"
-              style={{
-                left: `${(i % 5) * 25}%`,
-                top: `${Math.floor(i / 5) * 25}%`,
-                transform: `translate(-50%, -50%) skewX(-12deg)`,
-                animationDelay: `${i * 0.5}s`,
-                animationDuration: `${15 + (i % 3) * 5}s`
-              }}
-            >
-              {mode === 'top' ? 'TOP' : 'REC'}
-            </div>
-          ))}
-        </div>
-      )}
+      
 
       {/* --- КОНТЕЙНЕР КОНТЕНТА --- */}
       <div className="relative h-full container mx-auto px-4 sm:px-6 z-10 flex flex-col justify-center py-6 lg:py-0">
@@ -221,7 +214,7 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime }: HeroBannerProps
                 </span>
                 <span className="flex items-center gap-1 text-orange-400 bg-orange-500/5 border border-orange-500/20 px-2 py-1 sm:px-3 sm:py-1.5 rounded-md">
                   <Zap size={12} fill="currentColor" />
-                  {anime.episodesTotal > 0 ? `${anime.episodesTotal} Серия` : 'ONGOING'}
+                  {anime.episodesTotal > 0 ? `${anime.episodesTotal} ${getEpisodeText(anime.episodesTotal)}` : 'ONGOING'}
                 </span>
               </div>
             </div>

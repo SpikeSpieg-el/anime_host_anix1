@@ -32,6 +32,8 @@ interface EpisodeUpdateBadgeProps {
 export function EpisodeUpdateBadge({ updates, onClearUpdate, onClearAll, className }: EpisodeUpdateBadgeProps) {
   const [isOpen, setIsOpen] = useState(false)
 
+  const combinedClassName = cn("ml-2", className)
+
   if (updates.length === 0) {
     // Пустой колокольчик с диалогом "нет уведомлений"
     return (
@@ -40,7 +42,7 @@ export function EpisodeUpdateBadge({ updates, onClearUpdate, onClearAll, classNa
           <Button
             variant="ghost"
             size="icon"
-            className={cn("text-zinc-500 hover:text-white hover:bg-zinc-800 active:scale-95 transition-all", className)}
+            className={cn("text-zinc-500 hover:text-white hover:bg-zinc-800 active:scale-95 transition-all", combinedClassName)}
           >
             <Bell className="w-5 h-5" />
           </Button>
@@ -74,8 +76,8 @@ export function EpisodeUpdateBadge({ updates, onClearUpdate, onClearAll, classNa
 
           {/* Контент: нет уведомлений */}
           <div className="flex flex-col items-center justify-center py-12 px-4">
-            <div className="w-16 h-16 rounded-full bg-zinc-900/50 border border-white/5 flex items-center justify-center mb-4">
-              <img src="/anix2.png" alt="No notifications" className="w-10 h-10 opacity-60" />
+            <div className="w-32 h-32 rounded-full bg-zinc-900/50 border border-white/5 flex items-center justify-center mb-4">
+              <img src="/No notifications.png" alt="No notifications" className="w-40 h-32 opacity-69" />
             </div>
             <p className="text-zinc-400 text-center font-medium mb-2">Нет новых уведомлений</p>
             <p className="text-zinc-600 text-center text-sm">Здесь появятся уведомления о новых сериях ваших аниме</p>
@@ -102,7 +104,7 @@ export function EpisodeUpdateBadge({ updates, onClearUpdate, onClearAll, classNa
         <Button
           variant="ghost"
           size="icon"
-          className={cn("relative text-zinc-300 hover:text-white hover:bg-zinc-800 active:scale-95 transition-all", className)}
+          className={cn("relative text-zinc-300 hover:text-white hover:bg-zinc-800 active:scale-95 transition-all", combinedClassName)}
         >
           <Bell className="w-6 h-6" />
           {/* Пульсирующий индикатор */}
@@ -161,7 +163,7 @@ export function EpisodeUpdateBadge({ updates, onClearUpdate, onClearAll, classNa
               <div className="shrink-0 relative w-12 h-12 sm:w-14 sm:h-14 rounded-lg overflow-hidden flex items-center justify-center bg-gradient-to-br from-zinc-800 to-black border border-white/10 group-hover:border-orange-500/30 transition-colors">
                  <div className="absolute inset-0 bg-orange-500/10 group-hover:bg-orange-500/20 transition-colors" />
                  <div className="flex flex-col items-center">
-                    <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider">серия</span>
+                    <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider">Серия</span>
                     <span className="text-lg sm:text-xl font-black text-orange-500 leading-none">
                         {update.newEpisode}
                     </span>

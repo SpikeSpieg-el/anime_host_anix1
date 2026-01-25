@@ -39,23 +39,40 @@ export function HistoryProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth()
 
   const add = useCallback(async (anime: WatchHistoryItem) => {
+    // 1. Оптимистичное обновление UI (мгновенно обновляем стейт)
     setItems((prev) => {
       const filtered = prev.filter((item) => item.id !== anime.id)
       return [anime, ...filtered].slice(0, 20)
     })
 
+    // 2. Если пользователь авторизован, сохраняем в БД
     if (user) {
-      // Удаляем старую запись и добавляем новую
-      await supabase.from('watch_history').delete().match({ user_id: user.id, anime_id: anime.id })
-      await supabase.from('watch_history').insert({
-        user_id: user.id,
-        anime_id: anime.id,
-        title: anime.title,
-        poster: anime.poster,
-        timestamp: anime.timestamp,
-        episode: anime.episode,
-        episodes_total: anime.episodesTotal
-      })
+      try {
+        // ИСПОЛЬЗУЕМ UPSERT ВМЕСТО DELETE + INSERT
+        // Это гарантирует обновление записи, если она есть, или создание новой
+        const { error } = await supabase.from('watch_history').upsert({
+          user_id: user.id,
+          anime_id: anime.id,
+          title: anime.title,
+          poster: anime.poster,
+          timestamp: anime.timestamp,
+          episode: anime.episode,
+          episodes_total: anime.episodesTotal
+        }, { 
+          onConflict: 'user_id, anime_id' 
+        })
+
+        if (error) {
+          console.error("Failed to save history to DB:", error)
+        } else {
+           // Запускаем проверку обновлений эпизодов только после успешного сохранения
+           setTimeout(() => {
+             window.dispatchEvent(new CustomEvent('episode-updates-check-needed'))
+           }, 1000)
+        }
+      } catch (e) {
+        console.error("Error in history add:", e)
+      }
     }
   }, [user])
 
@@ -74,7 +91,7 @@ export function HistoryProvider({ children }: { children: React.ReactNode }) {
     async function fetchHistory() {
       if (user) {
         // Если залогинен - берем из Supabase
-        const { data } = await supabase
+        const { data, error } = await supabase
           .from('watch_history')
           .select('*')
           .eq('user_id', user.id)
@@ -82,7 +99,7 @@ export function HistoryProvider({ children }: { children: React.ReactNode }) {
         
         if (data) {
           const remoteItems = data.map((row: any) => ({
-            id: row.anime_id,
+            id: String(row.anime_id), // Приводим к строке для надежности
             title: row.title,
             poster: row.poster,
             timestamp: row.timestamp,
@@ -102,7 +119,7 @@ export function HistoryProvider({ children }: { children: React.ReactNode }) {
     // Слушаем событие синхронизации после входа
     window.addEventListener("auth-synced", fetchHistory)
     
-    // Слушаем события добавления в историю
+    // Слушаем события добавления в историю (от HistoryTracker)
     const handleAddToHistory = (event: CustomEvent) => {
       add(event.detail)
     }
@@ -112,7 +129,7 @@ export function HistoryProvider({ children }: { children: React.ReactNode }) {
       window.removeEventListener("auth-synced", fetchHistory)
       window.removeEventListener("add-to-history" as any, handleAddToHistory)
     }
-  }, [user, add])
+  }, [user, add]) // Важно: add в зависимостях, так как он зависит от user
 
   // Сохранение в localStorage (только для анонимов)
   useEffect(() => {

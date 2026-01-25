@@ -4,6 +4,18 @@ import { Sparkles, Calendar, TrendingUp, Play, ExternalLink, ChevronRight } from
 import Link from "next/link"
 import Image from "next/image"
 
+// Helper function for dynamic episode/series text
+const getEpisodeText = (count: number): string => {
+  if (count === 1) return "Серия"
+  const lastDigit = count % 10
+  const lastTwoDigits = count % 100
+  
+  if (lastTwoDigits >= 11 && lastTwoDigits <= 14) return "Серий"
+  if (lastDigit === 1) return "Серия"
+  if (lastDigit >= 2 && lastDigit <= 4) return "Серии"
+  return "Серий"
+}
+
 interface AnimeShort {
   id: string
   title: string
@@ -73,7 +85,7 @@ export function UpdatesBanner({ updates, announcements }: UpdatesBannerProps) {
                   </div>
                   <div className="mt-1.5 flex items-center gap-2">
                     <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-orange-500 text-black">
-                      Серия {anime.episodesCurrent}
+                      {getEpisodeText(anime.episodesCurrent || 0)} {anime.episodesCurrent}
                     </span>
                     <span className="text-[10px] sm:text-xs text-zinc-500">Обновление</span>
                   </div>

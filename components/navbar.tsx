@@ -220,7 +220,7 @@ export function Navbar() {
           </div>
 
           {/* 4. ПРОФИЛЬ/АВТОРИЗАЦИЯ + УВЕДОМЛЕНИЯ О НОВЫХ СЕРИЯХ (DESKTOP) */}
-          <div className="flex items-center gap-2 hidden md:block">
+          <div className="flex items-center gap-6 hidden md:block">
             {user ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>

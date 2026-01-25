@@ -36,6 +36,18 @@ export default function BeginnersPage() {
     setMounted(true)
   }, [])
 
+  // Helper function for dynamic episode/series text
+  const getEpisodeText = (count: number): string => {
+    if (count === 1) return "Серия"
+    const lastDigit = count % 10
+    const lastTwoDigits = count % 100
+    
+    if (lastTwoDigits >= 11 && lastTwoDigits <= 14) return "Серий"
+    if (lastDigit === 1) return "Серия"
+    if (lastDigit >= 2 && lastDigit <= 4) return "Серии"
+    return "Серий"
+  }
+
   if (!mounted) return null
 
   return (
@@ -213,7 +225,7 @@ export default function BeginnersPage() {
                     Название демонстрационного аниме
                   </h4>
                   <p className="text-zinc-500 text-xs mt-0.5">
-                    2024 • 12 Серия.
+                    2024 • 12 {getEpisodeText(12)}.
                   </p>
                 </div>
 

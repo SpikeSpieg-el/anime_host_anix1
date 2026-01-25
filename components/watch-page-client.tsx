@@ -44,6 +44,18 @@ const getTrackerLink = (tracker: 'rutracker' | 'rutor', query: string) => {
   return '#'
 }
 
+// Helper function for dynamic episode/series text
+const getEpisodeText = (count: number): string => {
+  if (count === 1) return "Серия"
+  const lastDigit = count % 10
+  const lastTwoDigits = count % 100
+  
+  if (lastTwoDigits >= 11 && lastTwoDigits <= 14) return "Серий"
+  if (lastDigit === 1) return "Серия"
+  if (lastDigit >= 2 && lastDigit <= 4) return "Серии"
+  return "Серий"
+}
+
 export function WatchPageClient({
   anime,
   initialEpisode
@@ -301,7 +313,7 @@ export function WatchPageClient({
               </span>
               <span className="w-1 h-1 rounded-full bg-zinc-700" />
               <span>
-                {anime.episodesCurrent || "?"} / {anime.episodesTotal || "?"} Серия.
+                {anime.episodesCurrent || "?"} / {anime.episodesTotal || "?"} {getEpisodeText(parseInt(anime.episodesTotal?.toString() || "0"))}
               </span>
               
               {anime.genres && anime.genres.length > 0 && (
