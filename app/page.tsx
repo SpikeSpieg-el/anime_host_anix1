@@ -15,6 +15,74 @@ import { FloatingNav } from "@/components/floating-nav"
 import { cookies } from "next/headers"
 import { HeroBanner } from "@/components/hero-banner"
 import { HeroBannerSkeleton } from "@/components/skeleton"
+import type { Metadata } from "next"
+
+export async function generateMetadata(): Promise<Metadata> {
+  const popularNow = await getPopularNow(1)
+  const featuredAnime = popularNow[0]
+
+  const title = "Weeb.X — Аниме streaming без отвлекающих факторов"
+  const description = featuredAnime 
+    ? `Смотреть аниме онлайн в высоком качестве. Сейчас в топе: ${featuredAnime.title}. Тысячи аниме, фильмы и сериалы без рекламы и отвлечений.`
+    : "Смотреть аниме онлайн в высоком качестве. Тысячи аниме, фильмы и сериалы без рекламы и отвлечений. Лучший стриминг для аниме-фанов."
+
+  return {
+    title,
+    description,
+    keywords: [
+      "аниме онлайн",
+      "смотреть аниме",
+      "аниме streaming",
+      "anime online",
+      "без рекламы",
+      "высокое качество",
+      "субтитры",
+      "озвучка",
+      featuredAnime?.title || "",
+      ...(featuredAnime?.genres || [])
+    ].filter(Boolean),
+    openGraph: {
+      title,
+      description,
+      type: "website",
+      url: "/",
+      images: featuredAnime ? [
+        {
+          url: featuredAnime.poster,
+          width: 400,
+          height: 600,
+          alt: featuredAnime.title,
+        },
+      ] : [
+        {
+          url: "/og-image.svg",
+          width: 1200,
+          height: 630,
+          alt: "Weeb.X — Аниме streaming",
+        },
+      ],
+      siteName: "Weeb.X",
+      locale: "ru_RU",
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+      images: featuredAnime ? [featuredAnime.poster] : ["/og-image.svg"],
+    },
+    robots: {
+      index: true,
+      follow: true,
+      googleBot: {
+        index: true,
+        follow: true,
+        "max-video-preview": -1,
+        "max-image-preview": "large",
+        "max-snippet": -1,
+      },
+    },
+  }
+}
 
 export default async function HomePage() {
   // 1. Получаем историю и закладки из кук

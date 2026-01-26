@@ -3,6 +3,7 @@ import { CatalogClient } from "@/components/catalog-client"
 import { CatalogFilters } from "@/lib/shikimori"
 import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
+import type { Metadata } from "next"
 
 async function getUserProfile() {
   try {
@@ -37,6 +38,61 @@ async function getUserProfile() {
 
 interface CatalogPageProps {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>
+}
+
+export async function generateMetadata({
+  searchParams,
+}: CatalogPageProps): Promise<Metadata> {
+  const params = await searchParams
+  
+  const search = typeof params.search === 'string' ? params.search : undefined
+  const genre = typeof params.genre === 'string' 
+    ? (params.genre.includes(',') ? params.genre.split(',').join(', ') : params.genre) 
+    : undefined
+  const year = typeof params.year === 'string' 
+    ? (params.year.includes(',') ? params.year.split(',').join(', ') : params.year) 
+    : undefined
+
+  let title = "Каталог аниме — Weeb.X"
+  let description = "Откройте для себя тысячи аниме в нашем каталоге. Фильтруйте по жанрам, годам, рейтингам и находите свои любимые аниме."
+
+  if (search) {
+    title = `Поиск: ${search} — Weeb.X`
+    description = `Результаты поиска по запросу "${search}". Найдите лучшие аниме по вашему запросу в высоком качестве.`
+  } else if (genre) {
+    title = `${genre} — Каталог аниме — Weeb.X`
+    description = `Смотреть аниме в жанре ${genre} онлайн. Большой выбор аниме в жанре ${genre} в высоком качестве.`
+  } else if (year) {
+    title = `${year} — Каталог аниме — Weeb.X`
+    description = `Аниме ${year} года. Смотрите лучшие аниме ${year} года онлайн в высоком качестве.`
+  }
+
+  return {
+    title,
+    description,
+    openGraph: {
+      title,
+      description,
+      type: "website",
+      url: `/catalog${Object.keys(params).length > 0 ? '?' + new URLSearchParams(params as Record<string, string>).toString() : ''}`,
+      images: [
+        {
+          url: "/og-image.svg",
+          width: 1200,
+          height: 630,
+          alt: title,
+        },
+      ],
+      siteName: "Weeb.X",
+      locale: "ru_RU",
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+      images: ["/og-image.svg"],
+    },
+  }
 }
 
 export default async function CatalogPage({ searchParams }: CatalogPageProps) {
