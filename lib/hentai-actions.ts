@@ -59,61 +59,72 @@ function findLinkInHtml(html: string, originalTitle: string): string | null {
 /**
  * Улучшенный парсер плейлиста PlayerJS для Hentasis
  */
+/**
+ * Расшифровка строк PlayerJS (Base64)
+ */
+function decodePlayerJs(data: string): string {
+  if (!data.startsWith("#")) return data;
+  try {
+    // Убираем '#' и декодируем из base64
+    const cleaned = data.substring(1);
+    return Buffer.from(cleaned, 'base64').toString('utf-8');
+  } catch (e) {
+    return data;
+  }
+}
+
 function parsePlaylist(html: string): {name: string, url: string}[] {
   const playlist: {name: string, url: string}[] = [];
   
-  // 1. Ищем конфигурацию PlayerJS в скриптах
-  // Обычно это var player = new Playerjs({ "file": "..." }) или просто "file": "..."
+  // 1. Поиск конфига PlayerJS (file: "...")
   const fileDataRegex = /["']file["']\s*:\s*["']([^"']+)["']/i;
   const match = html.match(fileDataRegex);
 
   if (match) {
-    let rawData = match[1];
+    let rawData = decodePlayerJs(match[1]); // Расшифровываем, если нужно
 
-    // Если данные зашифрованы (начинаются с #), тут нужна дешифровка, 
-    // но обычно hentasis отдает либо JSON, либо список через запятую.
-    
-    if (rawData.startsWith('[') && rawData.endsWith(']')) {
+    if (rawData.startsWith('[') && rawData.includes('{')) {
       try {
-        // Формат: [{"title":"Серия 1","file":"url1"},...]
         const json = JSON.parse(rawData);
         return json.map((item: any, idx: number) => ({
-          name: item.title || `Файл ${idx + 1}`,
+          name: item.title || `Серия ${idx + 1}`,
           url: item.file
         }));
-      } catch (e) {
-        console.error("JSON parse error", e);
-      }
+      } catch (e) {}
     }
 
-    // Формат: "Серия 1]url1,Серия 2]url2" или просто "url1,url2"
-    if (rawData.includes(',') || rawData.includes(']')) {
-      const parts = rawData.split(',');
-      return parts.map((part, idx) => {
-        if (part.includes(']')) {
-          const [name, url] = part.split(']');
-          return { name: name.replace('[', ''), url };
-        }
-        return { name: `Файл ${idx + 1}`, url: part };
+    // Формат списка: "Название]url,Название]url"
+    if (rawData.includes(']')) {
+      return rawData.split(',').map(part => {
+        const [name, url] = part.split(']');
+        return { 
+          name: name.replace('[', '').trim(), 
+          url: url.trim() 
+        };
       });
     }
 
-    // Если одна ссылка
+    // Если просто одна ссылка
     if (rawData.startsWith('http')) {
       return [{ name: "Основное видео", url: rawData }];
     }
   }
 
-  // 2. Резервный поиск всех прямых ссылок на MP4, если скрипт не найден
+  // 2. Резервный поиск прямых MP4 (Исправлено условие фильтрации)
   const mp4Regex = /(https?:\/\/[^\s"'<>]+?\.mp4)/gi;
   const seenUrls = new Set();
   let mp4Match;
+  
   while ((mp4Match = mp4Regex.exec(html)) !== null) {
     const url = mp4Match[1];
-    if (!seenUrls.has(url) && url.includes('hentai')) {
+    // Убрали проверку .includes('hentai'), так как домен может быть hentasis или sv...
+    if (!seenUrls.has(url)) {
       seenUrls.add(url);
       const fileName = url.split('/').pop()?.split('_')[0] || `Видео ${playlist.length + 1}`;
-      playlist.push({ name: decodeURIComponent(fileName), url });
+      playlist.push({ 
+        name: decodeURIComponent(fileName).replace(/_/g, ' '), 
+        url 
+      });
     }
   }
 
