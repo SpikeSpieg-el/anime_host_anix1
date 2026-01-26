@@ -325,7 +325,9 @@ export function CatalogClient({ initialFilters }: { initialFilters: CatalogFilte
                  <MultiSelect
                   options={[
                     { value: 'all', label: 'Все жанры' },
-                    ...Object.entries(GENRES_MAP).map(([name, id]) => ({ value: id, label: name }))
+                    ...Object.entries(GENRES_MAP)
+                      .filter(([name, id]) => profile?.allow_nsfw_search || id !== '12')
+                      .map(([name, id]) => ({ value: id, label: name }))
                   ]}
                   selected={Array.isArray(filters.genre) ? filters.genre : (filters.genre && filters.genre !== 'all' ? [filters.genre] : [])}
                   onChange={(selected) => updateFilter('genre', selected.includes('all') ? [] : selected)}

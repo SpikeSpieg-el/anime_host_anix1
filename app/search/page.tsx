@@ -45,7 +45,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
   const allowNsfw = profile?.allow_nsfw_search || false
   
   // Делаем запрос к API
-  const results: Anime[] = await searchAnime(query, allowNsfw)
+  const results: Anime[] = await searchAnime(query, allowNsfw, true)
 
   return (
     <div className="min-h-screen bg-background text-foreground">

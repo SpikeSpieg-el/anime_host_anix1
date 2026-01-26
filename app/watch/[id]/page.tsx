@@ -3,7 +3,11 @@ import Image from "next/image"
 import Link from "next/link"
 import { Navbar } from "@/components/navbar"
 import { getAnimeById, getAnimeFranchise } from "@/lib/shikimori"
-import { WatchPageClient } from "@/components/watch-page-client"
+import dynamic from "next/dynamic"
+
+const WatchPageClient = dynamic(() => import("@/components/watch-page-client").then(mod => ({ default: mod.WatchPageClient })), {
+  loading: () => <div className="min-h-screen bg-background text-foreground flex items-center justify-center"><div className="text-muted-foreground">Загрузка плеера...</div></div>
+})
 
 export default async function WatchPage({
   params,
@@ -16,7 +20,7 @@ export default async function WatchPage({
   const sp = searchParams ? await searchParams : undefined
   const episode = sp?.episode ? Number.parseInt(sp.episode, 10) : undefined
 
-  const anime = await getAnimeById(id)
+  const anime = await getAnimeById(id, true)
 
   if (!anime) return notFound()
 

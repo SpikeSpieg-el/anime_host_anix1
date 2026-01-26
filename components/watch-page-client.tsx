@@ -17,6 +17,7 @@ import {
 import type { Anime } from "@/lib/shikimori"
 import { KodikPlayer } from "@/components/kodik-player"
 import { BackupPlayer } from "@/components/backup-player"
+import { HentaiPlayer } from "@/components/hentai-player"
 import { EpisodeSelector } from "@/components/episode-selector"
 import { RegionWarning } from "@/components/region-warning"
 import { recordWatchStart } from "@/components/history-tracker"
@@ -31,6 +32,7 @@ import {
   DialogDescription
 } from "@/components/ui/dialog"
 import { cn } from "@/lib/utils" // Убедись, что у тебя есть cn (clsx + tailwind-merge) или используй шаблонные строки
+import { isHentaiContent } from "@/lib/hentai-detector"
 
 interface WatchPageClientProps {
   anime: Anime
@@ -379,7 +381,14 @@ export function WatchPageClient({
         
         {hasEpisodes ? (
           <div className="rounded-2xl overflow-hidden border border-border bg-background shadow-2xl relative aspect-video">
-            {!useBackupPlayer ? (
+            {isHentaiContent(anime) ? (
+              <HentaiPlayer
+                title={anime.title}
+                originalTitle={anime.originalTitle}
+                episode={selectedEpisode}
+                isActive={true}
+              />
+            ) : !useBackupPlayer ? (
               <KodikPlayer
                 shikimoriId={anime.shikimoriId}
                 title={anime.title}

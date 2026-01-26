@@ -84,7 +84,7 @@ export async function getAnimeCatalog(filters: CatalogFilters): Promise<Anime[]>
 
       // Сортировка по релевантности
       const normalize = (s: string) => s.toLowerCase().trim();
-      const transformed = await Promise.all(Array.from(unique.values()).map(transformAnime));
+      const transformed = await Promise.all(Array.from(unique.values()).map(item => transformAnime(item, filters.enableGenreFallback)));
       const queries = searchVariants.map(normalize);
 
       return transformed.sort((a, b) => {
@@ -110,29 +110,29 @@ export async function getAnimeCatalog(filters: CatalogFilters): Promise<Anime[]>
   if (!Array.isArray(data)) return [];
 
   const safeData = allowNsfw ? data : data.filter(isAnimeSafe);
-  return await Promise.all(safeData.map(transformAnime));
+  return await Promise.all(safeData.map(item => transformAnime(item, filters.enableGenreFallback)));
 }
 
-export async function searchAnime(query: string, allowNsfw: boolean = false) {
+export async function searchAnime(query: string, allowNsfw: boolean = false, enableGenreFallback: boolean = false) {
   // Переиспользуем логику каталога для унификации
-  return getAnimeCatalog({ search: query, allowNsfw, limit: 20 });
+  return getAnimeCatalog({ search: query, allowNsfw, limit: 20, enableGenreFallback });
 }
 
 // --- Specific Lists ---
 
 export async function getPopularNow(limit = 12): Promise<Anime[]> {
   const data = await shikimoriJson<ShikimoriAnime[]>(`${BASE_URL}/animes?limit=${limit}&order=popularity&status=ongoing&score=7`, { next: { revalidate: 1800 } }, { fallback: [] });
-  return await Promise.all(data.map(transformAnime));
+  return await Promise.all(data.map(item => transformAnime(item, false)));
 }
 
 export async function getPopularAlways(limit = 12): Promise<Anime[]> {
   const data = await shikimoriJson<ShikimoriAnime[]>(`${BASE_URL}/animes?limit=${limit}&order=popularity&status=released&score=8`, { next: { revalidate: 1800 } }, { fallback: [] });
-  return await Promise.all(data.map(transformAnime));
+  return await Promise.all(data.map(item => transformAnime(item, false)));
 }
 
 export async function getOngoingList(limit = 12): Promise<Anime[]> {
   const data = await shikimoriJson<ShikimoriAnime[]>(`${BASE_URL}/animes?limit=${limit}&status=ongoing&order=ranked`, { next: { revalidate: 1800 } }, { fallback: [] });
-  return await Promise.all(data.map(transformAnime));
+  return await Promise.all(data.map(item => transformAnime(item, false)));
 }
 
 export async function getTopOfWeek(limit = 30): Promise<Anime[]> {
@@ -147,21 +147,21 @@ export async function getTopOfWeek(limit = 30): Promise<Anime[]> {
 
 export async function getAnnouncements(limit = 3) {
   const data = await shikimoriJson<ShikimoriAnime[]>(`${BASE_URL}/animes?limit=${limit}&order=popularity&status=anons`, { next: { revalidate: 21600 } }, { fallback: [] });
-  return await Promise.all(data.map(transformAnime));
+  return await Promise.all(data.map(item => transformAnime(item, false)));
 }
 
 // --- Details ---
 
-export async function getAnimeById(id: string) {
+export async function getAnimeById(id: string, enableGenreFallback: boolean = false) {
   const data = await shikimoriJson<ShikimoriAnime | null>(`${BASE_URL}/animes/${id}`, { next: { revalidate: 3600 }, headers: HEADERS }, { fallback: null });
   if (!data) return null;
-  return await transformAnime(data);
+  return await transformAnime(data, enableGenreFallback);
 }
 
 export async function getAnimeByIds(ids: string[]) {
   if (ids.length === 0) return [];
   const data = await shikimoriJson<ShikimoriAnime[]>(`${BASE_URL}/animes?ids=${ids.join(',')}&limit=${ids.length}`, { next: { revalidate: 3600 } }, { fallback: [] });
-  return await Promise.all(data.map(transformAnime));
+  return await Promise.all(data.map(item => transformAnime(item, false)));
 }
 
 export async function getAnimeFranchise(id: string): Promise<FranchiseItem[]> {

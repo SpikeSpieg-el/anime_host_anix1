@@ -2,14 +2,41 @@ import { ShikimoriAnime, Anime, NewsItem } from "./types";
 import { resolveBestPoster } from "./images";
 import { SITE_URL } from "./config";
 import { normalizeShikimoriUrl } from "./utils";
+import { GenreFallbackService } from "../genre-fallback";
 
-export async function transformAnime(item: ShikimoriAnime): Promise<Anime> {
+export async function transformAnime(item: ShikimoriAnime, enableGenreFallback: boolean = false): Promise<Anime> {
   const posterUrl = await resolveBestPoster(
     item.image?.original,
     item.name,
     item.russian,
     String(item.id)
   );
+
+  // Get genres from Shikimori or use fallback
+  let genres: string[] = [];
+  
+  if (item.genres && item.genres.length > 0) {
+    genres = item.genres.map(g => g.russian).filter(Boolean);
+  } else if (enableGenreFallback) {
+    // Use synchronous fallback to avoid blocking the main request
+    genres = GenreFallbackService.getFallbackGenresSync(
+      item.russian || item.name, 
+      item.name, 
+      item.description
+    );
+    
+    // Trigger async fetch in background for next time
+    GenreFallbackService.getFallbackGenres(item.russian || item.name, item.name)
+      .then(fallbackGenres => {
+        if (fallbackGenres.length > 0 && fallbackGenres.length > genres.length) {
+          console.log(`Better fallback genres found for "${item.russian || item.name}":`, fallbackGenres);
+        }
+      })
+      .catch(error => {
+        // Silently handle errors to avoid crashing the main request
+        console.debug('Error fetching async fallback genres:', error);
+      });
+  }
 
   return {
     id: String(item.id),
@@ -24,7 +51,7 @@ export async function transformAnime(item: ShikimoriAnime): Promise<Anime> {
     episodesTotal: item.episodes || 0,
     status: item.status === 'anons' ? 'Announcement' : item.status === 'ongoing' ? 'Ongoing' : 'Completed',
     description: item.description?.replace(/\[.*?\]/g, "") || "Описание отсутствует...",
-    genres: item.genres?.map(g => g.russian) || [],
+    genres,
     quality: item.kind?.toUpperCase() || "TV",
   };
 }
