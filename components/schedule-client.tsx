@@ -3,24 +3,11 @@
 import { useState, useEffect } from "react"
 import { Anime } from "@/lib/shikimori"
 import { AnimeCard } from "@/components/anime-card"
-import { Calendar, Clock, AlertCircle, Bookmark } from "lucide-react"
+import { Calendar, Clock, AlertCircle } from "lucide-react"
 import { cn } from "@/lib/utils"
 import Link from "next/link"
 import { ArrowLeft } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { useBookmarks } from "@/components/bookmarks-provider"
-
-// Helper function for dynamic episode/series text
-const getEpisodeText = (count: number): string => {
-  if (count === 1) return "Серия"
-  const lastDigit = count % 10
-  const lastTwoDigits = count % 100
-  
-  if (lastTwoDigits >= 11 && lastTwoDigits <= 14) return "Серий"
-  if (lastDigit === 1) return "Серия"
-  if (lastDigit >= 2 && lastDigit <= 4) return "Серии"
-  return "Серий"
-}
 
 interface ScheduleClientProps {
   schedule: { [key: number]: Anime[] }
@@ -40,7 +27,6 @@ export function ScheduleClient({ schedule }: ScheduleClientProps) {
   // Определяем текущий день недели (0 = Пн, ..., 6 = Вс)
   const [currentDay, setCurrentDay] = useState<number>(0)
   const [mounted, setMounted] = useState(false)
-  const { isSaved, toggle } = useBookmarks()
 
   useEffect(() => {
     // JS getDay(): 0 = Вс, 1 = Пн. Конвертируем в наш формат (0 = Пн)
@@ -136,35 +122,19 @@ export function ScheduleClient({ schedule }: ScheduleClientProps) {
       <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
         {sortedAnimes.length > 0 ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-x-4 gap-y-6 sm:gap-y-8">
-            {sortedAnimes.map((anime) => {
-              const saved = isSaved(anime.id)
-              return (
-                <div key={anime.id} className="relative group">
-                  {/* Оверлей с номером серии, специфичный для расписания */}
-                  <AnimeCard anime={anime} />
-                  <div className="absolute top-2 left-2 z-10 flex flex-col gap-1">
-                     <div className="bg-primary text-primary-foreground text-[10px] font-bold px-2 py-1 rounded shadow-md border border-primary">
-                       {getEpisodeText(anime.episodesCurrent + 1)} {anime.episodesCurrent + 1}
-                     </div>
-                     <Button
-                       size="sm"
-                       className="h-6 w-6 bg-background/60 hover:bg-background/70 text-foreground border border-border backdrop-blur-sm"
-                       aria-label={saved ? "Убрать из закладок" : "Сохранить на потом"}
-                       onClick={(e) => {
-                         e.preventDefault()
-                         e.stopPropagation()
-                         toggle(anime)
-                       }}
-                     >
-                       <Bookmark className={cn(
-                         saved ? "fill-primary text-primary" : "text-foreground",
-                         "w-3 h-3"
-                       )} />
-                     </Button>
+            {sortedAnimes.map((anime) => (
+              <div key={anime.id} className="relative group">
+                {/* Карточка аниме */}
+                <AnimeCard anime={anime} showPreviousEpisode={true} />
+                
+                {/* Плашка выхода серии (справа сверху) */}
+                <div className="absolute top-2 right-[7px] z-20">
+                  <div className="bg-primary text-primary-foreground text-[10px] font-bold px-2 py-1 rounded shadow-md border border-primary">
+                    Выйдет {anime.episodesCurrent} серия
                   </div>
                 </div>
-              )
-            })}
+              </div>
+            ))}
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center py-20 text-center border border-dashed border-border rounded-2xl bg-card/30">
