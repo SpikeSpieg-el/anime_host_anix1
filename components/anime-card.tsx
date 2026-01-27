@@ -57,9 +57,10 @@ interface AnimeCardProps {
     newEpisode: number
     totalEpisodes?: number
   }
+  showPreviousEpisode?: boolean
 }
 
-export function AnimeCard({ anime, className, variant = 'default', showUpdateBadge, updateInfo }: AnimeCardProps) {
+export function AnimeCard({ anime, className, variant = 'default', showUpdateBadge, updateInfo, showPreviousEpisode }: AnimeCardProps) {
   const { isSaved, toggle } = useBookmarks()
   const saved = isSaved(anime.id)
   const [imageError, setImageError] = useState(false)
@@ -108,7 +109,10 @@ export function AnimeCard({ anime, className, variant = 'default', showUpdateBad
                 {anime.title}
               </h3>
               <p className="text-muted-foreground text-xs mb-2 dark:text-zinc-500">
-                {anime.year} • {anime.episodesCurrent > 0 ? `${anime.episodesCurrent} ${getEpisodeText(anime.episodesCurrent)}` : 'Анонс'}
+                {anime.year} • {(() => {
+                  const episodeCount = showPreviousEpisode && anime.episodesCurrent > 1 ? anime.episodesCurrent - 1 : anime.episodesCurrent
+                  return episodeCount > 0 ? `${episodeCount} ${getEpisodeText(episodeCount)}` : 'Анонс'
+                })()}
                 {anime.status === 'Announcement' && anime.airedOn && (
                   <span className="text-primary ml-1 dark:text-orange-400">
                     • Выход: {new Date(anime.airedOn).toLocaleDateString('ru-RU', {
@@ -245,7 +249,10 @@ export function AnimeCard({ anime, className, variant = 'default', showUpdateBad
           {anime.title}
         </h3>
         <p className={cn("text-muted-foreground mt-0.5 dark:text-zinc-500", isCompact ? "text-[10px]" : "text-xs")}>
-          {anime.year} • {anime.episodesCurrent > 0 ? `${anime.episodesCurrent} ${getEpisodeText(anime.episodesCurrent)}` : 'Анонс'}
+          {anime.year} • {(() => {
+            const episodeCount = showPreviousEpisode && anime.episodesCurrent > 1 ? anime.episodesCurrent - 1 : anime.episodesCurrent
+            return episodeCount > 0 ? `${episodeCount} ${getEpisodeText(episodeCount)}` : 'Анонс'
+          })()}
         </p>
       </div>
     </Link>
