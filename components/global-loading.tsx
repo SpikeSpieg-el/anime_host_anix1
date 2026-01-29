@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from "react"
 import { usePathname, useSearchParams } from "next/navigation"
-import { Zap } from "lucide-react"
 
 export function GlobalLoading() {
   const [isLoading, setIsLoading] = useState(false)
@@ -111,18 +110,8 @@ export function GlobalLoading() {
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-zinc-950/90 backdrop-blur-sm">
       <div className="flex flex-col items-center gap-4">
         {/* Анимированный логотип */}
-        <div className="flex items-center gap-3 z-50 group">
-          <div className="relative w-9 h-9 flex items-center justify-center">
-            <div className="absolute inset-0 bg-orange-600 rounded-xl rotate-6 opacity-50 blur-[4px] group-hover:opacity-80 transition-opacity"></div>
-            <div className="absolute inset-0 bg-red-600 rounded-xl -rotate-6 opacity-50 blur-[4px] group-hover:opacity-80 transition-opacity"></div>
-            <div className="relative w-full h-full bg-gradient-to-br from-zinc-800 to-black border border-white/10 rounded-xl flex items-center justify-center shadow-2xl">
-              <Zap className="w-5 h-5 text-orange-500 fill-orange-500" />
-            </div>
-          </div>
-          <div className="flex flex-col justify-center">
-            <h1 className="text-xl font-black tracking-tighter text-white leading-none font-unbounded">Weeb.<span className="text-orange-500">X</span></h1>
-            <span className="text-[9px] font-bold tracking-[0.2em] text-zinc-500 uppercase leading-none group-hover:text-zinc-300 transition-colors">Stream</span>
-          </div>
+        <div className="w-16 h-16 animate-pulse">
+          <img src="/icon.svg" alt="Logo" className="w-full h-full" />
         </div>
         
         {/* Спиннер загрузки */}
