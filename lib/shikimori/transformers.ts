@@ -24,18 +24,6 @@ export async function transformAnime(item: ShikimoriAnime, enableGenreFallback: 
       item.name, 
       item.description
     );
-    
-    // Trigger async fetch in background for next time
-    GenreFallbackService.getFallbackGenres(item.russian || item.name, item.name)
-      .then(fallbackGenres => {
-        if (fallbackGenres.length > 0 && fallbackGenres.length > genres.length) {
-          console.log(`Better fallback genres found for "${item.russian || item.name}":`, fallbackGenres);
-        }
-      })
-      .catch(error => {
-        // Silently handle errors to avoid crashing the main request
-        console.debug('Error fetching async fallback genres:', error);
-      });
   }
 
   return {

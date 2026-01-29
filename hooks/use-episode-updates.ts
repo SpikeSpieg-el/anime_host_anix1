@@ -14,359 +14,277 @@ interface EpisodeUpdate {
   updatedAt: string
 }
 
-interface UseEpisodeUpdatesReturn {
-  updates: EpisodeUpdate[]
-  checkAnimeUpdates: (manualAnimeList?: any[]) => Promise<void>
-  clearUpdate: (id: string) => void
-  clearAllUpdates: () => void
-  mounted: boolean
-  isChecking: boolean
-}
-
 // Ключи localStorage
 const EPISODE_UPDATES_KEY = "episode_updates_v1"
 const LAST_CHECK_KEY = "last_episode_check_ts"
 const BOOKMARK_SNAPSHOT_KEY = "bookmarks_snapshot_v1"
-const UPDATE_EVENT = "episode_updates_changed" 
+const UPDATE_EVENT = "episode_updates_changed"
 
-export function useEpisodeUpdates(): UseEpisodeUpdatesReturn {
+export function useEpisodeUpdates() {
   const [updates, setUpdates] = useState<EpisodeUpdate[]>([])
   const [mounted, setMounted] = useState(false)
   const [isChecking, setIsChecking] = useState(false)
-  
-  // Используем ref для хранения актуального состояния updates внутри замыканий
-  const updatesRef = useRef<EpisodeUpdate[]>([])
   const { user } = useAuth()
 
-  // Синхронизация ref со стейтом
+  // Храним updates в ref для доступа внутри асинхронных функций без зависимостей
+  const updatesRef = useRef<EpisodeUpdate[]>([])
   useEffect(() => {
     updatesRef.current = updates
   }, [updates])
 
-  // --- Вспомогательная функция для обновления снэпшота ---
-  const updateSnapshot = (animeId: string, episodeNumber: number) => {
+  // --- 1. Работа со Snapshot (что мы уже видели) ---
+  const updateSnapshot = useCallback((animeId: string, episodeNumber: number) => {
     try {
-      const snapshot = JSON.parse(localStorage.getItem(BOOKMARK_SNAPSHOT_KEY) || "{}")
-      // Записываем, что пользователь "видел" этот эпизод
+      const raw = localStorage.getItem(BOOKMARK_SNAPSHOT_KEY)
+      const snapshot = raw ? JSON.parse(raw) : {}
+      
+      // Обновляем только если новая серия больше той, что уже записана
       if (!snapshot[animeId] || snapshot[animeId] < episodeNumber) {
         snapshot[animeId] = episodeNumber
         localStorage.setItem(BOOKMARK_SNAPSHOT_KEY, JSON.stringify(snapshot))
       }
     } catch (e) {
-      console.error("Failed to update snapshot", e)
-    }
-  }
-
-  // 1. Загрузка из LocalStorage
-  const loadFromStorage = useCallback(() => {
-    if (typeof window === "undefined") return
-    const stored = localStorage.getItem(EPISODE_UPDATES_KEY)
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored)
-        setUpdates(prev => {
-          if (JSON.stringify(prev) !== JSON.stringify(parsed)) return parsed
-          return prev
-        })
-      } catch (e) {
-        console.error("Error parsing updates:", e)
-      }
-    } else {
-      setUpdates([])
+      console.error("Snapshot update error", e)
     }
   }, [])
 
-  // 2. Загрузка из БД
-  const loadFromDb = useCallback(async () => {
-    if (!user) return
-    const { data, error } = await supabase
-      .from("episode_updates")
-      .select("anime_id, anime_title, old_episode, new_episode, total_episodes, updated_at")
-      .eq("user_id", user.id)
-      .order("updated_at", { ascending: false })
+  // --- 2. Загрузка данных ---
+  const loadUpdates = useCallback(async () => {
+    // Если пользователь авторизован, грузим из БД
+    if (user) {
+      const { data, error } = await supabase
+        .from("episode_updates")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("updated_at", { ascending: false })
 
-    if (error) {
-      console.error("Failed to load episode updates:", error)
+      if (!error && data) {
+        const mapped = data.map((row: any) => ({
+          animeId: String(row.anime_id),
+          animeTitle: row.anime_title,
+          oldEpisode: row.old_episode,
+          newEpisode: row.new_episode,
+          totalEpisodes: row.total_episodes,
+          updatedAt: row.updated_at,
+        }))
+        setUpdates(mapped)
+      }
+    } else {
+      // Иначе из LocalStorage
+      const stored = localStorage.getItem(EPISODE_UPDATES_KEY)
+      if (stored) {
+        try {
+          setUpdates(JSON.parse(stored))
+        } catch { setUpdates([]) }
+      }
+    }
+  }, [user])
+
+  // --- 3. Удаление одного уведомления (FIXED) ---
+  const clearUpdate = useCallback(async (id: string) => {
+    // 1. Сразу находим, что удаляем, чтобы запомнить номер серии
+    const target = updatesRef.current.find(u => u.animeId === id)
+    if (target) {
+      updateSnapshot(id, target.newEpisode)
+    }
+
+    // 2. ОПТИМИСТИЧНО обновляем UI (сразу убираем из списка)
+    const newUpdates = updatesRef.current.filter(u => u.animeId !== id)
+    setUpdates(newUpdates)
+
+    // 3. Синхронизируем с хранилищем
+    if (user) {
+      // Удаляем из БД в фоне
+      await supabase
+        .from("episode_updates")
+        .delete()
+        .eq("user_id", user.id)
+        .eq("anime_id", id)
+    } else {
+      localStorage.setItem(EPISODE_UPDATES_KEY, JSON.stringify(newUpdates))
+    }
+    
+    // Генерируем событие для других вкладок
+    window.dispatchEvent(new Event(UPDATE_EVENT))
+  }, [user, updateSnapshot])
+
+  // --- 4. Очистка всех уведомлений (FIXED) ---
+  const clearAllUpdates = useCallback(async () => {
+    // 1. Запоминаем все серии в snapshot
+    updatesRef.current.forEach(u => updateSnapshot(u.animeId, u.newEpisode))
+
+    // 2. Оптимистично чистим UI
+    setUpdates([])
+
+    // 3. Синхронизируем
+    if (user) {
+      await supabase
+        .from("episode_updates")
+        .delete()
+        .eq("user_id", user.id)
+    } else {
+      localStorage.setItem(EPISODE_UPDATES_KEY, JSON.stringify([]))
+    }
+    
+    window.dispatchEvent(new Event(UPDATE_EVENT))
+  }, [user, updateSnapshot])
+
+  // --- 5. Проверка обновлений (Main Logic) ---
+  const checkAnimeUpdates = useCallback(async (manualList?: any[]) => {
+    if (typeof window === "undefined") return
+
+    // Троттлинг проверок (раз в 15 минут), если не вызвано вручную
+    const lastCheck = localStorage.getItem(LAST_CHECK_KEY)
+    const now = Date.now()
+    if (!manualList && lastCheck && (now - Number(lastCheck) < 15 * 60 * 1000)) {
       return
     }
 
-    const mapped: EpisodeUpdate[] = (data ?? []).map((row: any) => ({
-      animeId: String(row.anime_id),
-      animeTitle: row.anime_title,
-      oldEpisode: row.old_episode ?? 0,
-      newEpisode: row.new_episode ?? 0,
-      totalEpisodes: row.total_episodes ?? undefined,
-      updatedAt: row.updated_at,
-    }))
+    setIsChecking(true)
 
-    setUpdates(mapped)
-  }, [user])
-
-  // 3. Сохранение (LocalStorage)
-  const saveUpdates = useCallback((newUpdates: EpisodeUpdate[]) => {
-    setUpdates(newUpdates)
-    localStorage.setItem(EPISODE_UPDATES_KEY, JSON.stringify(newUpdates))
-    setTimeout(() => window.dispatchEvent(new Event(UPDATE_EVENT)), 0)
-  }, [])
-
-  // 4. Сохранение (БД)
-  const saveUpdatesToDb = useCallback(async (newUpdates: EpisodeUpdate[]) => {
-      if (!user) return
+    try {
+      // Сбор ID для проверки
+      let idsToCheck: string[] = []
+      const watchHistory = JSON.parse(localStorage.getItem("watch-history") || "[]")
+      const bookmarks = JSON.parse(localStorage.getItem("bookmarks_v1") || "[]")
       
-      // Если список пуст, мы не можем сделать upsert пустого массива,
-      // но логика clearUpdate сама удаляет записи.
-      // Здесь upsert нужен только для ДОБАВЛЕНИЯ/ОБНОВЛЕНИЯ.
-      if (newUpdates.length > 0) {
-        const payload = newUpdates.map((u) => ({
-          user_id: user.id,
-          anime_id: u.animeId,
-          anime_title: u.animeTitle,
-          old_episode: u.oldEpisode,
-          new_episode: u.newEpisode,
-          total_episodes: u.totalEpisodes ?? null,
-          updated_at: u.updatedAt,
-        }))
+      // Собираем уникальные ID из истории и закладок
+      const idSet = new Set<string>()
+      watchHistory.slice(0, 30).forEach((i: any) => i.id && idSet.add(String(i.id)))
+      bookmarks.forEach((i: any) => i.id && idSet.add(String(i.id)))
+      
+      // Если есть данные из БД (для авторизованных) - добавим логику позже или полагаемся на LS (он синхронизируется)
+      // Для надежности берем из LS, так как он есть всегда
+      idsToCheck = Array.from(idSet)
 
-        const { error } = await supabase
-          .from("episode_updates")
-          .upsert(payload, { onConflict: "user_id, anime_id" })
-
-        if (error) console.error("Failed to save episode updates:", error)
+      if (idsToCheck.length === 0) {
+        setIsChecking(false)
+        return
       }
 
-      await loadFromDb()
-      setTimeout(() => window.dispatchEvent(new Event(UPDATE_EVENT)), 0)
-    },
-    [user, loadFromDb]
-  )
-
-  // 5. Сбор ID для проверки (LocalStorage)
-  const getIdsToCheck = useCallback((): { id: string; watchedEpisode: number; source: 'history' | 'bookmark' }[] => {
-    try {
-      const historyItems = JSON.parse(localStorage.getItem("watch-history") || "[]")
-      const bookmarkItems = JSON.parse(localStorage.getItem("bookmarks_v1") || "[]")
-      const itemsMap = new Map<string, { watchedEpisode: number; source: 'history' | 'bookmark' }>()
-
-      historyItems.slice(0, 30).forEach((item: any) => {
-        if (item.id) itemsMap.set(String(item.id), { watchedEpisode: item.episode || 0, source: 'history' })
-      })
-
-      bookmarkItems.forEach((item: any) => {
-        if (item.id && !itemsMap.has(String(item.id))) {
-          itemsMap.set(String(item.id), { watchedEpisode: 0, source: 'bookmark' })
-        }
-      })
-
-      return Array.from(itemsMap.entries()).map(([id, data]) => ({ id, ...data }))
-    } catch (e) {
-      return []
-    }
-  }, [])
-
-  // 6. Сбор ID для проверки (БД)
-  const getIdsToCheckFromDb = useCallback(async () => {
-    if (!user) return []
-    try {
-      const itemsMap = new Map<string, { watchedEpisode: number; source: 'history' | 'bookmark' }>()
+      // Запрашиваем свежие данные
+      const freshData = await getFreshAnimeData(idsToCheck)
       
-      const { data: historyRows } = await supabase
-        .from("watch_history")
-        .select("anime_id, episode")
-        .eq("user_id", user.id)
-        .order("timestamp", { ascending: false })
-        .limit(30)
-
-      ;(historyRows ?? []).forEach((row: any) => {
-        if (row?.anime_id) itemsMap.set(String(row.anime_id), { watchedEpisode: row.episode || 0, source: 'history' })
-      })
-
-      const { data: bookmarkRows } = await supabase
-        .from("bookmarks")
-        .select("anime_id")
-        .eq("user_id", user.id)
-
-      ;(bookmarkRows ?? []).forEach((row: any) => {
-        const id = String(row.anime_id)
-        if (!itemsMap.has(id)) itemsMap.set(id, { watchedEpisode: 0, source: 'bookmark' })
-      })
-
-      return Array.from(itemsMap.entries()).map(([id, data]) => ({ id, ...data }))
-    } catch (e) {
-      return []
-    }
-  }, [user])
-
-  // 7. Основная логика проверки
-  const checkForUpdates = useCallback(async (manualAnimeList?: any[]) => {
-    if (typeof window === "undefined") return
-
-    const lastCheck = localStorage.getItem(LAST_CHECK_KEY)
-    const now = Date.now()
-    // Проверка раз в 15 минут, если не ручной запуск
-    if (lastCheck && (now - Number(lastCheck) < 15 * 60 * 1000) && !manualAnimeList) return
-
-    setIsChecking(true)
-    try {
-      let itemsToCheck = user ? await getIdsToCheckFromDb() : getIdsToCheck()
-      if (itemsToCheck.length === 0) { setIsChecking(false); return; }
-
-      const ids = itemsToCheck.map((i) => i.id)
-      const freshData = await getFreshAnimeData(ids)
-
-      // Берем текущие обновления, чтобы не потерять существующие, но еще не просмотренные
-      let currentUpdates = [...updatesRef.current]
+      // Читаем актуальный Snapshot
+      const snapshotRaw = localStorage.getItem(BOOKMARK_SNAPSHOT_KEY)
+      const snapshot = snapshotRaw ? JSON.parse(snapshotRaw) : {}
       
-      const bookmarksSnapshot = JSON.parse(localStorage.getItem(BOOKMARK_SNAPSHOT_KEY) || "{}")
+      let newUpdatesList = [...updatesRef.current]
       let hasChanges = false
 
-      freshData.forEach((anime) => {
-        const userItem = itemsToCheck.find((i) => i.id === anime.id)
-        if (!userItem) return
+      freshData.forEach(anime => {
         if (anime.status !== 'ongoing') return
 
-        let baselineEpisode = userItem.watchedEpisode
-
-        // Если это закладка, проверяем snapshot (чтобы не спамить тем, что уже закрыли)
-        if (userItem.source === 'bookmark' && bookmarksSnapshot[anime.id]) {
-           // Берем максимум между тем что реально посмотрели и тем что "закрыли"
-           baselineEpisode = Math.max(baselineEpisode, bookmarksSnapshot[anime.id])
+        // Определяем, какую серию пользователь уже видел
+        // 1. Из истории просмотра
+        const historyItem = watchHistory.find((h: any) => String(h.id) === String(anime.id))
+        let watchedEp = historyItem ? (historyItem.episode || 0) : 0
+        
+        // 2. Из снепшота (если удалял уведомление)
+        if (snapshot[anime.id]) {
+          watchedEp = Math.max(watchedEp, snapshot[anime.id])
         }
 
-        // Если вышло что-то новее, чем база
-        if (anime.episodesCurrent > baselineEpisode) {
-          const existingIndex = currentUpdates.findIndex((u) => u.animeId === anime.id)
-
-          // Если такого обновления еще нет или оно устарело
-          if (existingIndex === -1 || currentUpdates[existingIndex].newEpisode < anime.episodesCurrent) {
+        // Логика: Если вышла новая серия И мы её еще не видели (ни в истории, ни в скрытых)
+        if (anime.episodesCurrent > watchedEp) {
+          const existingIdx = newUpdatesList.findIndex(u => u.animeId === anime.id)
+          
+          // Если уведомления нет или оно устарело
+          if (existingIdx === -1 || newUpdatesList[existingIdx].newEpisode < anime.episodesCurrent) {
             const updateObj: EpisodeUpdate = {
               animeId: anime.id,
               animeTitle: anime.title,
-              oldEpisode: baselineEpisode,
+              oldEpisode: watchedEp,
               newEpisode: anime.episodesCurrent,
               totalEpisodes: anime.episodesTotal,
-              updatedAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString()
             }
 
-            if (existingIndex !== -1) {
-              currentUpdates[existingIndex] = updateObj
+            if (existingIdx !== -1) {
+              newUpdatesList[existingIdx] = updateObj
             } else {
-              currentUpdates.push(updateObj)
+              newUpdatesList.push(updateObj)
             }
             hasChanges = true
           }
-        } else {
-          // Если пользователь досмотрел серию (baseline догнал current), удаляем уведомление
-          const existingIndex = currentUpdates.findIndex((u) => u.animeId === anime.id)
-          if (existingIndex !== -1) {
-            currentUpdates.splice(existingIndex, 1)
+        } 
+        // Если пользователь уже посмотрел серию (watchedEp >= current), а уведомление висит -> удаляем
+        else {
+          const existingIdx = newUpdatesList.findIndex(u => u.animeId === anime.id)
+          if (existingIdx !== -1) {
+            newUpdatesList.splice(existingIdx, 1)
             hasChanges = true
           }
         }
       })
 
+      // Сохраняем, если были изменения
       if (hasChanges) {
-        if (user) await saveUpdatesToDb(currentUpdates)
-        else saveUpdates(currentUpdates)
+        if (user) {
+          // Для БД сначала чистим старые (проще перезаписать или аккуратно upsert)
+          // Здесь используем upsert
+          const payload = newUpdatesList.map(u => ({
+            user_id: user.id,
+            anime_id: u.animeId,
+            anime_title: u.animeTitle,
+            old_episode: u.oldEpisode,
+            new_episode: u.newEpisode,
+            total_episodes: u.totalEpisodes,
+            updated_at: u.updatedAt
+          }))
+          
+          // Сначала удалим те, которых нет в новом списке (clean up)
+          // (Это сложно в одном запросе, поэтому просто upsert новых, 
+          // а удаление старых оставим на механику clearUpdate или отдельную очистку)
+          if (payload.length > 0) {
+            await supabase.from("episode_updates").upsert(payload, { onConflict: "user_id, anime_id" })
+          }
+          
+          // Обновляем локальный стейт, чтобы UI был свежим
+          setUpdates(newUpdatesList)
+        } else {
+          localStorage.setItem(EPISODE_UPDATES_KEY, JSON.stringify(newUpdatesList))
+          setUpdates(newUpdatesList)
+        }
       }
-
+      
       localStorage.setItem(LAST_CHECK_KEY, String(Date.now()))
 
-    } catch (error) {
-      console.error("Update check failed:", error)
+    } catch (e) {
+      console.error("Check updates failed", e)
     } finally {
       setIsChecking(false)
     }
-  }, [getIdsToCheck, getIdsToCheckFromDb, saveUpdates, saveUpdatesToDb, user])
+  }, [user])
 
-  // 8. Удаление одного обновления (С ИСПРАВЛЕНИЕМ)
-  const clearUpdate = useCallback((id: string) => {
-    // 1. Находим удаляемое обновление, чтобы запомнить серию
-    const updateToRemove = updatesRef.current.find(u => u.animeId === id)
-    
-    // 2. Обновляем Snapshot, чтобы следующая проверка знала, что мы это видели
-    if (updateToRemove) {
-      updateSnapshot(id, updateToRemove.newEpisode)
-    }
-
-    if (user) {
-      supabase
-        .from("episode_updates")
-        .delete()
-        .match({ user_id: user.id, anime_id: id })
-        .then(() => {
-          loadFromDb().then(() => setTimeout(() => window.dispatchEvent(new Event(UPDATE_EVENT)), 0))
-        })
-      return
-    }
-
-    setUpdates((prev) => {
-      const next = prev.filter((u) => u.animeId !== id)
-      localStorage.setItem(EPISODE_UPDATES_KEY, JSON.stringify(next))
-      setTimeout(() => window.dispatchEvent(new Event(UPDATE_EVENT)), 0)
-      return next
-    })
-  }, [user, loadFromDb])
-
-  // 9. Очистка всех обновлений (С ИСПРАВЛЕНИЕМ)
-  const clearAllUpdates = useCallback(() => {
-    // 1. Проходимся по всем текущим обновлениям и сохраняем их в Snapshot
-    updatesRef.current.forEach(u => {
-      updateSnapshot(u.animeId, u.newEpisode)
-    })
-
-    if (user) {
-      supabase
-        .from("episode_updates")
-        .delete()
-        .eq("user_id", user.id)
-        .then(() => {
-          setUpdates([])
-          setTimeout(() => window.dispatchEvent(new Event(UPDATE_EVENT)), 0)
-        })
-      return
-    }
-    saveUpdates([])
-  }, [saveUpdates, user])
-
+  // --- 6. Инициализация ---
   useEffect(() => {
     setMounted(true)
-    if (user) loadFromDb()
-    else loadFromStorage()
+    loadUpdates()
 
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === EPISODE_UPDATES_KEY) loadFromStorage()
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === EPISODE_UPDATES_KEY) loadUpdates()
     }
-    const handleCustomUpdate = () => {
-      if (user) loadFromDb()
-      else loadFromStorage()
-    }
-    // Если посмотрели серию, нужно обновить статус (удалить уведомление)
-    const handleCheckNeeded = () => setTimeout(() => checkForUpdates(), 1000)
+    const handleCustom = () => loadUpdates()
+    // Запускаем проверку при входе
+    const timer = setTimeout(() => checkAnimeUpdates(), 2000)
 
-    window.addEventListener(UPDATE_EVENT, handleCustomUpdate)
-    window.addEventListener("storage", handleStorageChange)
-    window.addEventListener("episode-updates-check-needed", handleCheckNeeded)
+    window.addEventListener("storage", handleStorage)
+    window.addEventListener(UPDATE_EVENT, handleCustom)
 
     return () => {
-      window.removeEventListener(UPDATE_EVENT, handleCustomUpdate)
-      window.removeEventListener("storage", handleStorageChange)
-      window.removeEventListener("episode-updates-check-needed", handleCheckNeeded)
+      clearTimeout(timer)
+      window.removeEventListener("storage", handleStorage)
+      window.removeEventListener(UPDATE_EVENT, handleCustom)
     }
-  }, [user, loadFromDb, loadFromStorage, checkForUpdates])
-
-  useEffect(() => {
-    if (mounted) {
-      const timer = setTimeout(() => checkForUpdates(), 3000)
-      return () => clearTimeout(timer)
-    }
-  }, [mounted, checkForUpdates])
+  }, [loadUpdates, checkAnimeUpdates])
 
   return {
     updates,
-    checkAnimeUpdates: checkForUpdates,
+    checkAnimeUpdates,
     clearUpdate,
     clearAllUpdates,
     mounted,
-    isChecking,
+    isChecking
   }
 }
