@@ -5,11 +5,10 @@ import { Play, Info, Star, Zap, TrendingUp, Sparkles, ChevronRight, Hash, Eye, B
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { HeroBannerSkeleton } from "@/components/skeleton"
 import { useBookmarks } from "@/components/bookmarks-provider"
@@ -27,7 +26,7 @@ const getEpisodeText = (count: number): string => {
   return "Серий"
 }
 
-// Функция для генерации запасного постера (такая же как в anime-card)
+// Функция для генерации запасного постера
 function generateFallbackPoster(title: string): string {
   const hash = title.split('').reduce((acc, char) => char.charCodeAt(0) + ((acc << 5) - acc), 0);
   const index = Math.abs(hash) % 4;
@@ -107,18 +106,16 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime }: HeroBannerProps
           onError={() => setBgImageError(true)}
           unoptimized={bgImageError}
         />
-        {/* Градиенты для читаемости текста */}
+        {/* Градиенты */}
         <div className="absolute inset-0 bg-gradient-to-t from-background via-background/90 to-background/30 lg:via-background/60 lg:to-transparent dark:from-zinc-950 dark:via-zinc-950/90 dark:to-zinc-950/30 lg:dark:via-zinc-950/60 lg:dark:to-transparent" />
         <div className="absolute inset-0 bg-gradient-to-r from-background/90 via-background/70 to-transparent dark:from-zinc-950/90 dark:via-zinc-950/70" />
       </div>
-
-      
 
       {/* --- КОНТЕЙНЕР КОНТЕНТА --- */}
       <div className="relative h-full container mx-auto px-4 sm:px-6 z-10 flex flex-col justify-center py-6 lg:py-0">
         <div className="flex flex-col lg:flex-row h-full items-center">
           
-          {/* --- ПРАВАЯ ЧАСТЬ: ПОСТЕР (На мобильном сверху, но компактнее) --- */}
+          {/* --- ПРАВАЯ ЧАСТЬ: ПОСТЕР --- */}
           <div className="order-first lg:order-last lg:absolute lg:right-4 lg:top-1/2 lg:-translate-y-1/2 lg:w-5/12 flex justify-center mb-4 lg:mb-0 perspective-1000 z-20 w-full">
              <button
                type="button"
@@ -126,7 +123,6 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime }: HeroBannerProps
                className="relative w-[160px] aspect-[2/3] sm:w-[240px] lg:w-[340px] group/poster transition-all duration-500"
                aria-label="Подробнее об аниме"
              >
-                {/* Эффект свечения */}
                 <div className="absolute inset-0 bg-gradient-to-br from-orange-600 to-orange-700 rounded-xl lg:rounded-2xl transform rotate-6 translate-x-2 translate-y-2 opacity-60 blur-md lg:group-hover/poster:rotate-12 lg:group-hover/poster:translate-x-6 transition-all duration-500" />
                 
                 <div className="relative w-full h-full rounded-xl lg:rounded-2xl overflow-hidden shadow-2xl border border-border bg-secondary dark:border-white/10 dark:bg-zinc-900">
@@ -157,11 +153,11 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime }: HeroBannerProps
           {/* --- ЛЕВАЯ ЧАСТЬ: ИНФОРМАЦИЯ --- */}
           <div className="w-full lg:w-8/12 flex flex-col items-center lg:items-start text-center lg:text-left justify-center relative z-30 pt-2 lg:pt-0">
             
-            {/* 1. ЗАГОЛОВОК */}
+            {/* 1. ЗАГОЛОВОК (ДОБАВЛЕН font-unbounded) */}
             <h1 
               className={`
                 ${getTitleClass(anime.title)}
-                font-black text-foreground mb-3 lg:mb-4 dark:text-white
+                font-black font-unbounded text-foreground mb-3 lg:mb-4 dark:text-white
                 uppercase tracking-tight
                 drop-shadow-[0_5px_15px_rgba(0,0,0,0.8)]
                 max-w-full lg:max-w-[90%]
@@ -171,7 +167,7 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime }: HeroBannerProps
               {anime.title}
             </h1>
 
-            {/* 2. ТАБЫ (ТОП / ДЛЯ ВАС) - Прямо под заголовком */}
+            {/* 2. ТАБЫ */}
             <div className="flex items-center gap-1.5 mb-5 lg:mb-6 bg-secondary/60 backdrop-blur-md p-1.5 rounded-xl border border-border shadow-lg justify-center lg:justify-start dark:bg-zinc-900/60 dark:border-white/10">
               <button
                 onClick={() => setMode('top')}
@@ -198,7 +194,7 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime }: HeroBannerProps
               </button>
             </div>
 
-            {/* 3. МЕТА-ТЕГИ (Рейтинг, год, качество) */}
+            {/* 3. МЕТА-ТЕГИ */}
             <div className="flex flex-wrap items-center justify-center lg:justify-start gap-2 sm:gap-3 mb-6 lg:mb-8 w-full">
               <div className="flex items-center gap-1 bg-orange-600 text-white px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-md text-xs sm:text-sm font-black shadow-lg shadow-orange-900/40">
                 <Star className="w-3.5 h-3.5 fill-white" />
@@ -219,7 +215,7 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime }: HeroBannerProps
               </div>
             </div>
 
-            {/* 4. ОСНОВНЫЕ КНОПКИ (Смотреть / Инфо) */}
+            {/* 4. ОСНОВНЫЕ КНОПКИ */}
             <div className="w-full sm:w-auto flex flex-row items-stretch justify-center gap-3">
               <Link 
                 href={`/watch/${anime.id}`} 
@@ -238,12 +234,11 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime }: HeroBannerProps
                 </DialogTrigger>
                 
                 {/* --- МОДАЛЬНОЕ ОКНО --- */}
-                {/* max-h-[90dvh] и h-auto для мобил, чтобы не вылезало за границы браузера */}
                 <DialogContent className="bg-background/95 backdrop-blur-2xl border text-foreground w-[95vw] sm:max-w-4xl p-0 overflow-hidden shadow-2xl rounded-3xl flex flex-col h-full max-h-[85dvh] sm:h-auto sm:max-h-[90vh]">
                   
                   <div className="flex flex-col md:grid md:grid-cols-12 h-full w-full">
                     
-                    {/* Картинка в диалоге */}
+                    {/* Картинка */}
                     <div className="shrink-0 h-32 sm:h-52 md:h-full md:col-span-5 relative">
                       <Image 
                         src={posterImage} 
@@ -256,12 +251,11 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime }: HeroBannerProps
                       <div className="absolute inset-0 bg-gradient-to-t from-background via-background/20 to-transparent md:bg-gradient-to-r md:from-transparent md:to-background/95 dark:from-zinc-950 dark:via-zinc-950/20 dark:md:to-zinc-950/95" />
                     </div>
 
-                    {/* Правая часть с текстом */}
+                    {/* Текст */}
                     <div className="flex-1 md:col-span-7 flex flex-col min-h-0">
                        
-                       {/* Скролл контента */}
                        <div className="flex-1 overflow-y-auto p-5 sm:p-8 custom-scrollbar">
-                          <DialogTitle className="text-xl sm:text-3xl font-black uppercase mb-3 leading-tight text-foreground dark:text-white">
+                          <DialogTitle className="text-xl sm:text-3xl font-black font-unbounded uppercase mb-3 leading-tight text-foreground dark:text-white">
                             {anime.title}
                           </DialogTitle>
                           
@@ -273,7 +267,6 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime }: HeroBannerProps
                              ))}
                           </div>
 
-                          {/* ПРОВЕРКА ОПИСАНИЯ */}
                           {anime.description && anime.description !== "Описание отсутствует..." ? (
                             <p className="text-muted-foreground text-xs sm:text-sm leading-relaxed mb-4 opacity-90 dark:text-zinc-300">
                               {anime.description}
@@ -297,7 +290,7 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime }: HeroBannerProps
                           )}
                        </div>
 
-                       {/* ФУТЕР ДИАЛОГА (Кнопка Смотреть) */}
+                       {/* ФУТЕР */}
                        <div className="shrink-0 p-4 sm:p-8 sm:pt-4 bg-gradient-to-t from-background to-transparent z-10 dark:from-zinc-950">
                         <div className="flex flex-row gap-3">
                           <button 
@@ -305,7 +298,6 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime }: HeroBannerProps
                             onClick={() => { setIsDialogOpen(false); router.push(`/watch/${anime.id}`) }}
                             className="flex-1 flex items-center justify-center gap-2 sm:gap-3 bg-gradient-to-r from-orange-600 to-orange-500 hover:from-orange-500 hover:to-orange-400 text-white font-black py-3 sm:py-4 rounded-xl uppercase tracking-wider shadow-lg hover:shadow-orange-500/20 transition-all active:scale-95 group/btn"
                           >
-                            {/* Иконка глаза или плей */}
                             <Eye className="w-5 h-5 group-hover/btn:scale-110 transition-transform" />
                             <span>Смотреть</span>
                             <ChevronRight size={18} className="opacity-70 group-hover/btn:translate-x-1 transition-transform" />
@@ -317,7 +309,6 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime }: HeroBannerProps
                             aria-label={saved ? "Убрать из закладок" : "Добавить в закладки"}
                           >
                             <Bookmark className={cn(saved ? "fill-primary text-primary dark:fill-orange-500 dark:text-orange-500" : "text-foreground dark:text-white", "w-5 h-5")} />
-                            
                           </button>
                         </div>
                        </div>
