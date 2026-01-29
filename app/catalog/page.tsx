@@ -126,7 +126,8 @@ export default async function CatalogPage({ searchParams }: CatalogPageProps) {
     year,
     score,
     search,
-    allowNsfw
+    allowNsfw,
+    enableGenreFallback: false
   }
 
   // Создаем уникальный ключ, чтобы React пересоздавал компонент при смене фильтров

@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useCallback } from "react"
+import { useEffect, useState, useCallback, useRef } from "react"
 import { getFreshAnimeData } from "@/app/actions/get-fresh-anime-data"
 import { supabase } from "@/lib/supabase"
 import { useAuth } from "@/components/auth-provider"
@@ -27,15 +27,37 @@ interface UseEpisodeUpdatesReturn {
 const EPISODE_UPDATES_KEY = "episode_updates_v1"
 const LAST_CHECK_KEY = "last_episode_check_ts"
 const BOOKMARK_SNAPSHOT_KEY = "bookmarks_snapshot_v1"
-const UPDATE_EVENT = "episode_updates_changed" // Имя события для синхронизации
+const UPDATE_EVENT = "episode_updates_changed" 
 
 export function useEpisodeUpdates(): UseEpisodeUpdatesReturn {
   const [updates, setUpdates] = useState<EpisodeUpdate[]>([])
   const [mounted, setMounted] = useState(false)
   const [isChecking, setIsChecking] = useState(false)
+  
+  // Используем ref для хранения актуального состояния updates внутри замыканий
+  const updatesRef = useRef<EpisodeUpdate[]>([])
   const { user } = useAuth()
 
-  // 1. Функция загрузки из LocalStorage
+  // Синхронизация ref со стейтом
+  useEffect(() => {
+    updatesRef.current = updates
+  }, [updates])
+
+  // --- Вспомогательная функция для обновления снэпшота ---
+  const updateSnapshot = (animeId: string, episodeNumber: number) => {
+    try {
+      const snapshot = JSON.parse(localStorage.getItem(BOOKMARK_SNAPSHOT_KEY) || "{}")
+      // Записываем, что пользователь "видел" этот эпизод
+      if (!snapshot[animeId] || snapshot[animeId] < episodeNumber) {
+        snapshot[animeId] = episodeNumber
+        localStorage.setItem(BOOKMARK_SNAPSHOT_KEY, JSON.stringify(snapshot))
+      }
+    } catch (e) {
+      console.error("Failed to update snapshot", e)
+    }
+  }
+
+  // 1. Загрузка из LocalStorage
   const loadFromStorage = useCallback(() => {
     if (typeof window === "undefined") return
     const stored = localStorage.getItem(EPISODE_UPDATES_KEY)
@@ -43,9 +65,7 @@ export function useEpisodeUpdates(): UseEpisodeUpdatesReturn {
       try {
         const parsed = JSON.parse(stored)
         setUpdates(prev => {
-          if (JSON.stringify(prev) !== JSON.stringify(parsed)) {
-            return parsed
-          }
+          if (JSON.stringify(prev) !== JSON.stringify(parsed)) return parsed
           return prev
         })
       } catch (e) {
@@ -56,7 +76,7 @@ export function useEpisodeUpdates(): UseEpisodeUpdatesReturn {
     }
   }, [])
 
-  // 2. Функция загрузки из БД (Supabase)
+  // 2. Загрузка из БД
   const loadFromDb = useCallback(async () => {
     if (!user) return
     const { data, error } = await supabase
@@ -82,42 +102,36 @@ export function useEpisodeUpdates(): UseEpisodeUpdatesReturn {
     setUpdates(mapped)
   }, [user])
 
-  // 3. Сохранение обновлений (LocalStorage)
+  // 3. Сохранение (LocalStorage)
   const saveUpdates = useCallback((newUpdates: EpisodeUpdate[]) => {
     setUpdates(newUpdates)
     localStorage.setItem(EPISODE_UPDATES_KEY, JSON.stringify(newUpdates))
-    // Уведомляем другие компоненты
     setTimeout(() => window.dispatchEvent(new Event(UPDATE_EVENT)), 0)
   }, [])
 
-  // 4. Сохранение обновлений (БД)
-  const saveUpdatesToDb = useCallback(
-    async (newUpdates: EpisodeUpdate[]) => {
+  // 4. Сохранение (БД)
+  const saveUpdatesToDb = useCallback(async (newUpdates: EpisodeUpdate[]) => {
       if (!user) return
-      if (newUpdates.length === 0) {
-        setUpdates([])
-        // Очистка в БД (опционально, зависит от логики, здесь просто очищаем локальный стейт)
-        // Если нужно очистить БД при пустом массиве, нужен отдельный запрос delete
-        return
-      }
+      
+      // Если список пуст, мы не можем сделать upsert пустого массива,
+      // но логика clearUpdate сама удаляет записи.
+      // Здесь upsert нужен только для ДОБАВЛЕНИЯ/ОБНОВЛЕНИЯ.
+      if (newUpdates.length > 0) {
+        const payload = newUpdates.map((u) => ({
+          user_id: user.id,
+          anime_id: u.animeId,
+          anime_title: u.animeTitle,
+          old_episode: u.oldEpisode,
+          new_episode: u.newEpisode,
+          total_episodes: u.totalEpisodes ?? null,
+          updated_at: u.updatedAt,
+        }))
 
-      const payload = newUpdates.map((u) => ({
-        user_id: user.id,
-        anime_id: u.animeId,
-        anime_title: u.animeTitle,
-        old_episode: u.oldEpisode,
-        new_episode: u.newEpisode,
-        total_episodes: u.totalEpisodes ?? null,
-        updated_at: u.updatedAt,
-      }))
+        const { error } = await supabase
+          .from("episode_updates")
+          .upsert(payload, { onConflict: "user_id, anime_id" })
 
-      const { error } = await supabase
-        .from("episode_updates")
-        .upsert(payload, { onConflict: "user_id, anime_id" })
-
-      if (error) {
-        console.error("Failed to save episode updates:", error)
-        return
+        if (error) console.error("Failed to save episode updates:", error)
       }
 
       await loadFromDb()
@@ -126,141 +140,83 @@ export function useEpisodeUpdates(): UseEpisodeUpdatesReturn {
     [user, loadFromDb]
   )
 
-  // 5. Сбор ID для проверки из LocalStorage
+  // 5. Сбор ID для проверки (LocalStorage)
   const getIdsToCheck = useCallback((): { id: string; watchedEpisode: number; source: 'history' | 'bookmark' }[] => {
     try {
       const historyItems = JSON.parse(localStorage.getItem("watch-history") || "[]")
       const bookmarkItems = JSON.parse(localStorage.getItem("bookmarks_v1") || "[]")
-
       const itemsMap = new Map<string, { watchedEpisode: number; source: 'history' | 'bookmark' }>()
 
-      // Приоритет 1: История
       historyItems.slice(0, 30).forEach((item: any) => {
-        if (item.id) {
-          itemsMap.set(String(item.id), {
-            watchedEpisode: item.episode || 0,
-            source: 'history'
-          })
-        }
+        if (item.id) itemsMap.set(String(item.id), { watchedEpisode: item.episode || 0, source: 'history' })
       })
 
-      // Приоритет 2: Закладки
       bookmarkItems.forEach((item: any) => {
         if (item.id && !itemsMap.has(String(item.id))) {
-          itemsMap.set(String(item.id), {
-            watchedEpisode: 0,
-            source: 'bookmark'
-          })
+          itemsMap.set(String(item.id), { watchedEpisode: 0, source: 'bookmark' })
         }
       })
 
-      return Array.from(itemsMap.entries()).map(([id, data]) => ({
-        id,
-        watchedEpisode: data.watchedEpisode,
-        source: data.source
-      }))
+      return Array.from(itemsMap.entries()).map(([id, data]) => ({ id, ...data }))
     } catch (e) {
-      console.error("Failed to prepare IDs for check:", e)
       return []
     }
   }, [])
 
-  // 6. Сбор ID для проверки из БД
+  // 6. Сбор ID для проверки (БД)
   const getIdsToCheckFromDb = useCallback(async () => {
     if (!user) return []
     try {
       const itemsMap = new Map<string, { watchedEpisode: number; source: 'history' | 'bookmark' }>()
-
-      const { data: historyRows, error: historyError } = await supabase
+      
+      const { data: historyRows } = await supabase
         .from("watch_history")
         .select("anime_id, episode")
         .eq("user_id", user.id)
         .order("timestamp", { ascending: false })
         .limit(30)
 
-      if (historyError) {
-        console.error("Failed to load watch history:", historyError)
-      }
-
       ;(historyRows ?? []).forEach((row: any) => {
-        if (!row?.anime_id) return
-        itemsMap.set(String(row.anime_id), {
-          watchedEpisode: row.episode || 0,
-          source: 'history'
-        })
+        if (row?.anime_id) itemsMap.set(String(row.anime_id), { watchedEpisode: row.episode || 0, source: 'history' })
       })
 
-      const { data: bookmarkRows, error: bookmarkError } = await supabase
+      const { data: bookmarkRows } = await supabase
         .from("bookmarks")
         .select("anime_id")
         .eq("user_id", user.id)
 
-      if (bookmarkError) {
-        console.error("Failed to load bookmarks:", bookmarkError)
-      }
-
       ;(bookmarkRows ?? []).forEach((row: any) => {
-        if (!row?.anime_id) return
         const id = String(row.anime_id)
-        if (!itemsMap.has(id)) {
-          itemsMap.set(id, {
-            watchedEpisode: 0,
-            source: 'bookmark'
-          })
-        }
+        if (!itemsMap.has(id)) itemsMap.set(id, { watchedEpisode: 0, source: 'bookmark' })
       })
 
-      return Array.from(itemsMap.entries()).map(([id, data]) => ({
-        id,
-        watchedEpisode: data.watchedEpisode,
-        source: data.source
-      }))
+      return Array.from(itemsMap.entries()).map(([id, data]) => ({ id, ...data }))
     } catch (e) {
-      console.error("Failed to prepare IDs (db) for check:", e)
       return []
     }
   }, [user])
 
-  // 7. Основная логика проверки обновлений
+  // 7. Основная логика проверки
   const checkForUpdates = useCallback(async (manualAnimeList?: any[]) => {
     if (typeof window === "undefined") return
 
     const lastCheck = localStorage.getItem(LAST_CHECK_KEY)
     const now = Date.now()
-    // Проверка раз в 15 минут, если не вызвано вручную
-    if (lastCheck && (now - Number(lastCheck) < 15 * 60 * 1000) && !manualAnimeList) {
-      return
-    }
+    // Проверка раз в 15 минут, если не ручной запуск
+    if (lastCheck && (now - Number(lastCheck) < 15 * 60 * 1000) && !manualAnimeList) return
 
     setIsChecking(true)
     try {
       let itemsToCheck = user ? await getIdsToCheckFromDb() : getIdsToCheck()
-
-      // Если передан ручной список (например, при добавлении в закладки), можно его использовать
-      // Здесь пока простая логика
-      if (manualAnimeList && manualAnimeList.length > 0) {
-        // Доп. логика если нужно
-      }
-
-      if (itemsToCheck.length === 0) {
-        setIsChecking(false)
-        return
-      }
+      if (itemsToCheck.length === 0) { setIsChecking(false); return; }
 
       const ids = itemsToCheck.map((i) => i.id)
       const freshData = await getFreshAnimeData(ids)
 
-      let currentUpdates = user 
-        ? ([] as EpisodeUpdate[]) // При работе с БД логика немного другая (мы upsert-им), но для расчета берем пустой или текущий
-        : (JSON.parse(localStorage.getItem(EPISODE_UPDATES_KEY) || "[]") as EpisodeUpdate[])
+      // Берем текущие обновления, чтобы не потерять существующие, но еще не просмотренные
+      let currentUpdates = [...updatesRef.current]
       
-      // Если работаем с БД, лучше получить актуальные обновления перед слиянием, но для упрощения считаем новые
-      if (user && updates.length > 0) {
-        currentUpdates = [...updates]
-      }
-
       const bookmarksSnapshot = JSON.parse(localStorage.getItem(BOOKMARK_SNAPSHOT_KEY) || "{}")
-      const newBookmarksSnapshot = { ...bookmarksSnapshot }
       let hasChanges = false
 
       freshData.forEach((anime) => {
@@ -270,24 +226,18 @@ export function useEpisodeUpdates(): UseEpisodeUpdatesReturn {
 
         let baselineEpisode = userItem.watchedEpisode
 
-        // Логика для закладок (snapshot для отслеживания изменений с момента последнего чека)
-        if (userItem.source === 'bookmark') {
-          if (newBookmarksSnapshot[anime.id]) {
-            baselineEpisode = newBookmarksSnapshot[anime.id]
-          } else {
-            // Первый раз видим в закладках — запоминаем текущее состояние как базу
-            newBookmarksSnapshot[anime.id] = anime.episodesCurrent
-            return
-          }
+        // Если это закладка, проверяем snapshot (чтобы не спамить тем, что уже закрыли)
+        if (userItem.source === 'bookmark' && bookmarksSnapshot[anime.id]) {
+           // Берем максимум между тем что реально посмотрели и тем что "закрыли"
+           baselineEpisode = Math.max(baselineEpisode, bookmarksSnapshot[anime.id])
         }
 
+        // Если вышло что-то новее, чем база
         if (anime.episodesCurrent > baselineEpisode) {
           const existingIndex = currentUpdates.findIndex((u) => u.animeId === anime.id)
 
-          if (
-            existingIndex === -1 ||
-            currentUpdates[existingIndex].newEpisode < anime.episodesCurrent
-          ) {
+          // Если такого обновления еще нет или оно устарело
+          if (existingIndex === -1 || currentUpdates[existingIndex].newEpisode < anime.episodesCurrent) {
             const updateObj: EpisodeUpdate = {
               animeId: anime.id,
               animeTitle: anime.title,
@@ -304,13 +254,8 @@ export function useEpisodeUpdates(): UseEpisodeUpdatesReturn {
             }
             hasChanges = true
           }
-
-          // Обновляем снапшот, чтобы не уведомлять снова об этой серии
-          if (userItem.source === 'bookmark') {
-            newBookmarksSnapshot[anime.id] = anime.episodesCurrent
-          }
-        } else if (anime.episodesCurrent === baselineEpisode) {
-          // Если пользователь досмотрел серию, удаляем уведомление
+        } else {
+          // Если пользователь досмотрел серию (baseline догнал current), удаляем уведомление
           const existingIndex = currentUpdates.findIndex((u) => u.animeId === anime.id)
           if (existingIndex !== -1) {
             currentUpdates.splice(existingIndex, 1)
@@ -320,15 +265,11 @@ export function useEpisodeUpdates(): UseEpisodeUpdatesReturn {
       })
 
       if (hasChanges) {
-        if (user) {
-          await saveUpdatesToDb(currentUpdates)
-        } else {
-          saveUpdates(currentUpdates)
-        }
+        if (user) await saveUpdatesToDb(currentUpdates)
+        else saveUpdates(currentUpdates)
       }
 
       localStorage.setItem(LAST_CHECK_KEY, String(Date.now()))
-      localStorage.setItem(BOOKMARK_SNAPSHOT_KEY, JSON.stringify(newBookmarksSnapshot))
 
     } catch (error) {
       console.error("Update check failed:", error)
@@ -337,15 +278,22 @@ export function useEpisodeUpdates(): UseEpisodeUpdatesReturn {
     }
   }, [getIdsToCheck, getIdsToCheckFromDb, saveUpdates, saveUpdatesToDb, user])
 
-  // 8. Удаление одного обновления
+  // 8. Удаление одного обновления (С ИСПРАВЛЕНИЕМ)
   const clearUpdate = useCallback((id: string) => {
+    // 1. Находим удаляемое обновление, чтобы запомнить серию
+    const updateToRemove = updatesRef.current.find(u => u.animeId === id)
+    
+    // 2. Обновляем Snapshot, чтобы следующая проверка знала, что мы это видели
+    if (updateToRemove) {
+      updateSnapshot(id, updateToRemove.newEpisode)
+    }
+
     if (user) {
       supabase
         .from("episode_updates")
         .delete()
         .match({ user_id: user.id, anime_id: id })
-        .then(({ error }: { error: any }) => {
-          if (error) console.error("Failed to clear update:", error)
+        .then(() => {
           loadFromDb().then(() => setTimeout(() => window.dispatchEvent(new Event(UPDATE_EVENT)), 0))
         })
       return
@@ -359,15 +307,19 @@ export function useEpisodeUpdates(): UseEpisodeUpdatesReturn {
     })
   }, [user, loadFromDb])
 
-  // 9. Очистка всех обновлений
+  // 9. Очистка всех обновлений (С ИСПРАВЛЕНИЕМ)
   const clearAllUpdates = useCallback(() => {
+    // 1. Проходимся по всем текущим обновлениям и сохраняем их в Snapshot
+    updatesRef.current.forEach(u => {
+      updateSnapshot(u.animeId, u.newEpisode)
+    })
+
     if (user) {
       supabase
         .from("episode_updates")
         .delete()
         .eq("user_id", user.id)
-        .then(({ error }: { error: any }) => {
-          if (error) console.error("Failed to clear all updates:", error)
+        .then(() => {
           setUpdates([])
           setTimeout(() => window.dispatchEvent(new Event(UPDATE_EVENT)), 0)
         })
@@ -376,34 +328,20 @@ export function useEpisodeUpdates(): UseEpisodeUpdatesReturn {
     saveUpdates([])
   }, [saveUpdates, user])
 
-  // 10. Эффект инициализации и подписки на события
   useEffect(() => {
     setMounted(true)
+    if (user) loadFromDb()
+    else loadFromStorage()
 
-    // Первичная загрузка
-    if (user) {
-      loadFromDb()
-    } else {
-      loadFromStorage()
-    }
-
-    // Слушаем изменения в других компонентах (local storage API для межвкладочной синхронизации)
     const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === EPISODE_UPDATES_KEY) {
-        loadFromStorage()
-      }
+      if (e.key === EPISODE_UPDATES_KEY) loadFromStorage()
     }
-
-    // Слушаем кастомное событие (для синхронизации внутри одной вкладки)
     const handleCustomUpdate = () => {
       if (user) loadFromDb()
       else loadFromStorage()
     }
-
-    // Слушаем событие о необходимости проверки обновлений (например, после просмотра серии)
-    const handleCheckNeeded = () => {
-      setTimeout(() => checkForUpdates(), 500)
-    }
+    // Если посмотрели серию, нужно обновить статус (удалить уведомление)
+    const handleCheckNeeded = () => setTimeout(() => checkForUpdates(), 1000)
 
     window.addEventListener(UPDATE_EVENT, handleCustomUpdate)
     window.addEventListener("storage", handleStorageChange)
@@ -416,7 +354,6 @@ export function useEpisodeUpdates(): UseEpisodeUpdatesReturn {
     }
   }, [user, loadFromDb, loadFromStorage, checkForUpdates])
 
-  // 11. Эффект автозапуска проверки
   useEffect(() => {
     if (mounted) {
       const timer = setTimeout(() => checkForUpdates(), 3000)

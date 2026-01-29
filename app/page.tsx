@@ -108,7 +108,7 @@ export default async function HomePage() {
       ? topOfWeekList[Math.floor(Math.random() * topOfWeekList.length)]
       : heroFallback[0] ?? null
 
-  const topOfWeekHeroFull = topOfWeekHero ? await getAnimeById(topOfWeekHero.id) : null
+  const topOfWeekHeroFull = topOfWeekHero ? await getAnimeById(topOfWeekHero.id, false) : null
   const topOfWeekHeroWithDetails = topOfWeekHero
     ? topOfWeekHeroFull
       ? {

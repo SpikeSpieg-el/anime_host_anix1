@@ -4,7 +4,6 @@ import Link from "next/link"
 import { useRouter, usePathname } from "next/navigation"
 import { useState, useEffect } from "react"
 import { Menu, X, ChevronDown, Flame, Tv, Zap, Compass, Home, BookMarked, History, Calendar, Settings, GraduationCap, LogOut, User as UserIcon } from "lucide-react"
-import { GENRES_MAP } from "@/lib/shikimori"
 import { SearchSuggestions } from "@/components/search-suggestions"
 import { EpisodeUpdateBadge } from "@/components/episode-update-badge"
 import { useEpisodeUpdates } from "@/hooks/use-episode-updates"
@@ -45,7 +44,6 @@ export function Navbar() {
   const { user, signOut, profile } = useAuth()
   
   const [isOpen, setIsOpen] = useState(false) // Мобильное меню
-  const [isGenresOpen, setIsGenresOpen] = useState(false) // Мобильные жанры
   const [searchValue, setSearchValue] = useState("")
   const [scrolled, setScrolled] = useState(false)
   
@@ -424,37 +422,6 @@ export function Navbar() {
                     >
                         <History className="w-6 h-6 text-blue-500" /> История
                     </Link>
-                </div>
-
-                <hr className="border-border dark:border-white/5" />
-
-                {/* Аккордеон Жанров */}
-                <div className="rounded-xl border overflow-hidden bg-secondary/20 dark:bg-zinc-900/20 dark:border-white/5 border-border">
-                    <button 
-                      onClick={() => setIsGenresOpen(!isGenresOpen)}
-                      className="w-full flex items-center justify-between px-4 py-4 text-left text-lg font-medium text-muted-foreground hover:bg-secondary/50 transition-colors dark:text-zinc-300 dark:hover:bg-zinc-900/50"
-                    >
-                       <span className="flex items-center gap-3">
-                          <BookMarked className="w-6 h-6 text-green-500" /> Жанры
-                       </span>
-                       <ChevronDown className={cn("transition-transform duration-300", isGenresOpen ? "rotate-180" : "")} />
-                    </button>
-                    
-                    <div className={cn(
-                      "grid grid-cols-2 gap-2 px-4 overflow-hidden transition-all duration-300 ease-in-out",
-                      isGenresOpen ? "max-h-[1200px] py-4 opacity-100" : "max-h-0 py-0 opacity-0"
-                    )}>
-                       {Object.entries(GENRES_MAP).map(([name, id]) => (
-                          <Link 
-                            key={id} 
-                            href={`/catalog?genre=${id}`}
-                            onClick={() => setIsOpen(false)}
-                            className="text-sm py-2.5 px-3 rounded-lg bg-secondary text-muted-foreground text-center border hover:border-primary/50 hover:text-foreground transition-colors dark:bg-zinc-900 dark:text-zinc-400 dark:border-zinc-800 dark:hover:border-orange-500/50 dark:hover:text-white"
-                          >
-                            {name}
-                          </Link>
-                       ))}
-                    </div>
                 </div>
             </div>
          </div>
