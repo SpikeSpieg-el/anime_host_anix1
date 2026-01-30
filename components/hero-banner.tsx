@@ -12,6 +12,7 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { HeroBannerSkeleton } from "@/components/skeleton"
 import { useBookmarks } from "@/components/bookmarks-provider"
+import { RecommendationReason } from "@/lib/shikimori/types"
 import { cn } from "@/lib/utils"
 
 // Helper function for dynamic episode/series text
@@ -56,9 +57,10 @@ function generateFallbackPoster(title: string): string {
 interface HeroBannerProps {
   topOfWeekAnime: any
   recommendedAnime: any
+  recommendationReason?: RecommendationReason
 }
 
-export function HeroBanner({ topOfWeekAnime, recommendedAnime }: HeroBannerProps) {
+export function HeroBanner({ topOfWeekAnime, recommendedAnime, recommendationReason }: HeroBannerProps) {
   const [mode, setMode] = useState<'top' | 'recommended'>('top')
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [bgImageError, setBgImageError] = useState(false)
@@ -266,6 +268,38 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime }: HeroBannerProps
                                </span>
                              ))}
                           </div>
+
+                          {/* Блок с причиной рекомендации */}
+                          {mode === 'recommended' && recommendationReason && (
+                            <div className="my-4 p-4 rounded-2xl border border-blue-500/20 bg-blue-500/5 dark:border-blue-400/20 dark:bg-blue-400/5">
+                              <div className="flex items-center gap-2 mb-2">
+                                <Sparkles className="w-4 h-4 text-blue-500" />
+                                <span className="text-xs font-bold text-blue-500 dark:text-blue-400 uppercase tracking-wider">
+                                  Почему рекомендовано
+                                </span>
+                              </div>
+                              
+                              {recommendationReason.strategy === 'similar' && recommendationReason.sourceAnime && (
+                                <p className="text-[11px] sm:text-xs text-muted-foreground dark:text-zinc-300 mb-2">
+                                  Похоже на «{recommendationReason.sourceAnime}» из вашей истории
+                                </p>
+                              )}
+                              
+                              {recommendationReason.strategy === 'trending' && (
+                                <p className="text-[11px] sm:text-xs text-muted-foreground dark:text-zinc-300 mb-2">
+                                  Популярное аниме среди пользователей
+                                </p>
+                              )}
+                              
+                              <div className="flex flex-wrap gap-1">
+                                {recommendationReason.factors.map((factor, index) => (
+                                  <span key={index} className="inline-block px-2 py-1 bg-blue-500/10 border border-blue-500/20 rounded-md text-[10px] font-medium text-blue-600 dark:text-blue-400">
+                                    {factor}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
 
                           {anime.description && anime.description !== "Описание отсутствует..." ? (
                             <p className="text-muted-foreground text-xs sm:text-sm leading-relaxed mb-4 opacity-90 dark:text-zinc-300">

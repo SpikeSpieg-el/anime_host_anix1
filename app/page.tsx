@@ -120,10 +120,12 @@ export default async function HomePage() {
     : null
 
   const recommendedHero = await getHeroRecommendation(
-    watchedIds.map(String),
+    watchedIds.filter((id: string) => id !== String(topOfWeekHero?.id)).map(String),
     bookmarkIds,
     heroFallback,
   )
+
+  const recommendedAnime = recommendedHero.anime
 
   // 3. Остальные данные загружаем параллельно, но не блокируем рендер
   const [popularAlways, ongoingAnime, newsUpdates, announcements] = await Promise.all([
@@ -138,10 +140,11 @@ export default async function HomePage() {
       <Navbar />
       <FloatingNav />
       <section id="hero">
-        {topOfWeekHeroWithDetails || recommendedHero ? (
+        {topOfWeekHeroWithDetails || recommendedAnime ? (
           <HeroBanner
             topOfWeekAnime={topOfWeekHeroWithDetails}
-            recommendedAnime={recommendedHero}
+            recommendedAnime={recommendedAnime}
+            recommendationReason={recommendedHero.reason}
           />
         ) : (
           <HeroBannerSkeleton />

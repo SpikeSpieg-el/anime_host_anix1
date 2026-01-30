@@ -17,9 +17,6 @@ export interface ShikimoriAnime {
   rating: string; // Важно для фильтрации хентая
   description?: string;
   genres?: { id: number; name: string; russian: string }[];
-  alternative_names?: string[];
-  synonyms?: string[];
-  [key: string]: any;
 }
 
 export interface Anime {
@@ -38,6 +35,13 @@ export interface Anime {
   description: string;
   genres: string[];
   quality: string;
+}
+
+export interface RecommendationReason {
+  strategy: 'similar' | 'trending';
+  sourceAnime?: string;
+  score: number;
+  factors: string[];
 }
 
 export interface CatalogFilters {
