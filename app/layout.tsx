@@ -9,6 +9,7 @@ import { HistoryProvider } from "@/components/history-provider"
 import "./globals.css"
 import { WelcomeModal } from "@/components/welcome-modal"
 import { AuthProvider } from "@/components/auth-provider"
+import { UserDataLoadingBar } from "@/components/user-data-loading-bar"
 import { CookieConsent } from "@/components/cookie-consent"
 import { ThemeProvider } from "@/components/theme-provider"
 
@@ -64,6 +65,7 @@ export default function RootLayout({
           <WelcomeModal />
           <CookieConsent />
           <AuthProvider>
+            <UserDataLoadingBar />
             <HistoryProvider>
               <BookmarksProvider>{children}</BookmarksProvider>
             </HistoryProvider>

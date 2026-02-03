@@ -283,13 +283,20 @@ export function WatchPageClient({
         </div>
       </div>
 
-      {/* --- Anime Header Info --- */}
+      {/* --- Anime Header Info: градиент от обложки + немного заходит на плеер --- */}
       <div className="relative overflow-hidden rounded-3xl bg-card/30 border border-border p-4 md:p-8">
-        {/* Фоновый блюр (опционально, если не нужно - убери этот блок) */}
-        <div 
-            className="absolute top-0 left-0 right-0 h-32 bg-gradient-to-b from-primary/10 to-transparent opacity-50 pointer-events-none" 
-            aria-hidden="true" 
-        />
+        {/* Фон от обложки: размытый постер даёт цвет и градиент */}
+        <div className="absolute inset-0 z-0" aria-hidden="true">
+          <Image
+            src={anime.poster}
+            alt=""
+            fill
+            className="object-cover scale-150 blur-2xl sm:blur-3xl opacity-30 sm:opacity-35"
+            sizes="400px"
+          />
+          <div className="absolute inset-0 bg-gradient-to-b from-card/85 via-card/70 to-card/50 dark:from-zinc-950/90 dark:via-zinc-950/85 dark:to-zinc-950/75" />
+          <div className="absolute top-0 left-0 right-0 h-24 sm:h-32 bg-gradient-to-b from-primary/15 to-transparent opacity-60 pointer-events-none" />
+        </div>
 
         <div className="flex flex-row items-center gap-4 md:gap-8 relative z-10">
           {/* Poster */}

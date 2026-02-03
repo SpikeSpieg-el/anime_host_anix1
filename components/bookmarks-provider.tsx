@@ -79,16 +79,14 @@ export function BookmarksProvider({ children }: { children: React.ReactNode }) {
     }
   }, [user])
 
-  // 2. Сохранение (Эффект для LocalStorage)
+  // 2. Сохранение (LocalStorage для гостей + cookie для сервера)
   useEffect(() => {
     if (!user) {
-      // Сохраняем в LS только если не залогинен (или можно дублировать для оффлайн режима)
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(items))
-      
-      // Синхронизируем ID закладок в cookies для server-side доступа
-      const bookmarkIds = items.map(a => a.id).join(',')
-      document.cookie = `bookmark_ids=${bookmarkIds}; path=/; max-age=31536000; SameSite=Lax`
     }
+    // Синхронизируем ID закладок в cookies для сервера (и гости, и залогиненные) — чтобы «Для вас» их исключал
+    const bookmarkIds = items.map((a) => a.id).join(",")
+    document.cookie = `bookmark_ids=${bookmarkIds}; path=/; max-age=31536000; SameSite=Lax`
   }, [items, user])
 
   const isSaved = useCallback(

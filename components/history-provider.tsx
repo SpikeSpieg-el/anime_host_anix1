@@ -154,6 +154,13 @@ export function HistoryProvider({ children }: { children: React.ReactNode }) {
     }
   }, [items, user])
 
+  // Синхронизация ID истории в cookie для сервера (исключение из «Для вас» на главной)
+  useEffect(() => {
+    if (typeof document === "undefined") return
+    const ids = items.map((i) => i.id)
+    document.cookie = `watched_history=${JSON.stringify(ids)}; path=/; max-age=31536000; SameSite=Lax`
+  }, [items])
+
   const value = useMemo<HistoryContextValue>(() => ({ items, isLoading, add, clear }), [items, isLoading, add, clear])
 
   return <HistoryContext.Provider value={value}>{children}</HistoryContext.Provider>

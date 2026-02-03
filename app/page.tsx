@@ -85,11 +85,19 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function HomePage() {
-  // 1. Получаем историю и закладки из кук
+  // 1. Получаем историю и закладки из кук (для исключения из блока «Для вас»)
   const cookieStore = await cookies()
-  const watchedHistory = cookieStore.get("watched_history")?.value
-  const watchedIds = watchedHistory ? JSON.parse(watchedHistory) : []
-  
+  let watchedIds: string[] = []
+  try {
+    const raw = cookieStore.get("watched_history")?.value
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      watchedIds = Array.isArray(parsed) ? parsed.map(String) : []
+    }
+  } catch {
+    watchedIds = []
+  }
+
   const bookmarkIdsCookie = cookieStore.get("bookmark_ids")?.value
   const bookmarkIds = bookmarkIdsCookie
     ? bookmarkIdsCookie.split(",").filter(Boolean)

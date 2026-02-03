@@ -288,8 +288,8 @@ usedStrategy = 'trending';
 
 // 4. Фильтрация и Сортировка
 const validCandidates = candidates.filter(anime => {
-// Исключаем просмотренное
-if (excludeSet.has(anime.id)) return false;
+// Исключаем просмотренное (проверяем оба ID на всякий случай)
+if (excludeSet.has(anime.shikimoriId) || excludeSet.has(anime.id)) return false;
 // Исключаем низкий рейтинг для баннера
 if (anime.rating < 6.5) return false;
 return true;

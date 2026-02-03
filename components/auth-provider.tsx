@@ -10,6 +10,7 @@ interface AuthContextType {
   user: User | null
   session: Session | null
   loading: boolean
+  profileLoading: boolean
   signOut: () => Promise<void>
   profile: Profile | null
   refreshProfile: () => Promise<void>
@@ -27,6 +28,7 @@ const AuthContext = createContext<AuthContextType>({
   user: null,
   session: null,
   loading: true,
+  profileLoading: false,
   signOut: async () => {},
   profile: null,
   refreshProfile: async () => {},
@@ -37,6 +39,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
+  const [profileLoading, setProfileLoading] = useState(false)
   const router = useRouter()
   const { toast } = useToast()
 
@@ -91,7 +94,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const refreshProfile = async () => {
     if (!user) return
-    
+    setProfileLoading(true)
     try {
       const { data, error } = await supabase
         .from('profiles')
@@ -108,10 +111,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               .select()
               .single()
            
-           if (!createError) {
+if (!createError) {
               setProfile(newProfile)
+              setProfileLoading(false)
               return
-           } else if (createError.code === '23505' || createError.code === '409') {
+            } else if (createError.code === '23505' || createError.code === '409') {
              // Конфликт - профиль уже существует, попробуем получить снова
              const { data: retryData, error: retryError } = await supabase
                 .from('profiles')
@@ -121,6 +125,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
              
              if (!retryError && retryData) {
                setProfile(retryData)
+               setProfileLoading(false)
                return
              }
            }
@@ -129,6 +134,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Обработка 406 ошибок (Not Acceptable) - возможно пользователь удален
         if (error.message?.includes('406') || error.details?.includes('Not Acceptable')) {
           console.warn('User may be deleted or invalid, signing out')
+          setProfileLoading(false)
           await hardSignOut()
           return
         }
@@ -137,9 +143,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       
       setProfile(data)
+      setProfileLoading(false)
     } catch (error: any) {
       console.error('Error fetching profile:', error)
-      
+      setProfileLoading(false)
       // Если пользователь удален или недействителен, выходим из системы
       if (error.message?.includes('406') || error.details?.includes('Not Acceptable') || error.code === 'PGRST116') {
         toast({
@@ -157,6 +164,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       refreshProfile()
     } else {
       setProfile(null)
+      setProfileLoading(false)
     }
   }, [user])
 
@@ -226,7 +234,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, session, loading, signOut, profile, refreshProfile }}>
+    <AuthContext.Provider value={{ user, session, loading, profileLoading, signOut, profile, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   )

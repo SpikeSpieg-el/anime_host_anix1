@@ -197,7 +197,7 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime, recommendationRea
             </div>
 
             {/* 3. МЕТА-ТЕГИ */}
-            <div className="flex flex-wrap items-center justify-center lg:justify-start gap-2 sm:gap-3 mb-6 lg:mb-8 w-full">
+            <div className="flex flex-wrap items-center justify-center lg:justify-start gap-2 sm:gap-3 mb-4 lg:mb-5 w-full">
               <div className="flex items-center gap-1 bg-orange-600 text-white px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-md text-xs sm:text-sm font-black shadow-lg shadow-orange-900/40">
                 <Star className="w-3.5 h-3.5 fill-white" />
                 <span>{anime.rating}</span>
@@ -216,6 +216,21 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime, recommendationRea
                 </span>
               </div>
             </div>
+
+            {/* 3.1 Жанры — ссылки в каталог с фильтром (Топ и Для вас) */}
+            {anime.genres && anime.genres.length > 0 && (
+              <div className="flex flex-wrap items-center justify-center lg:justify-start gap-2 mb-5 lg:mb-6">
+                {anime.genres.slice(0, 6).map((g: string) => (
+                  <Link
+                    key={g}
+                    href={`/catalog?genre=${encodeURIComponent(g)}`}
+                    className="inline-flex items-center px-3 py-1.5 rounded-full bg-muted/50 border border-border hover:border-primary/40 hover:bg-primary/10 text-muted-foreground hover:text-primary text-[10px] sm:text-xs font-medium transition-all duration-200 dark:bg-white/5 dark:hover:bg-white/10 dark:border-white/10 dark:hover:border-orange-500/40"
+                  >
+                    {g}
+                  </Link>
+                ))}
+              </div>
+            )}
 
             {/* 4. ОСНОВНЫЕ КНОПКИ */}
             <div className="w-full sm:w-auto flex flex-row items-stretch justify-center gap-3">
@@ -262,10 +277,14 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime, recommendationRea
                           </DialogTitle>
                           
                           <div className="flex flex-wrap gap-2 mb-4">
-                             {anime.genres?.slice(0, 4).map((g: string) => (
-                               <span key={g} className="px-2 py-1 rounded-md bg-secondary/5 border border-border text-[10px] sm:text-xs uppercase font-bold text-muted-foreground dark:bg-white/5 dark:border-white/10 dark:text-zinc-300">
+                             {anime.genres?.slice(0, 6).map((g: string) => (
+                               <Link
+                                 key={g}
+                                 href={`/catalog?genre=${encodeURIComponent(g)}`}
+                                 className="inline-flex items-center px-2 py-1 rounded-md bg-secondary/5 border border-border hover:border-primary/40 hover:bg-primary/10 text-[10px] sm:text-xs uppercase font-bold text-muted-foreground hover:text-primary transition-all dark:bg-white/5 dark:border-white/10 dark:text-zinc-300 dark:hover:border-orange-500/40"
+                               >
                                  {g}
-                               </span>
+                               </Link>
                              ))}
                           </div>
 
@@ -301,7 +320,7 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime, recommendationRea
                             </div>
                           )}
 
-                          {anime.description && anime.description !== "Описание отсутствует..." ? (
+                          {anime.description && anime.description.trim() !== "" && anime.description !== "Описание отсутствует..." ? (
                             <p className="text-muted-foreground text-xs sm:text-sm leading-relaxed mb-4 opacity-90 dark:text-zinc-300">
                               {anime.description}
                             </p>
@@ -311,15 +330,25 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime, recommendationRea
                               <p className="text-muted-foreground text-[11px] sm:text-xs mb-4 dark:text-zinc-400">
                                 У нас пока нет описания для этого аниме, но вы можете прочитать его на популярном ресурсе:
                               </p>
-                              <a 
-                                href={`https://shikimori.one/animes?search=${encodeURIComponent(anime.title)}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-2 px-5 py-2 bg-secondary hover:bg-accent text-foreground rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all active:scale-95 dark:bg-zinc-800 dark:hover:bg-zinc-700 dark:text-white"
-                              >
-                                <TrendingUp size={14} className="text-orange-500" />
-                                Открыть на Shikimori
-                              </a>
+                              <div className="flex flex-wrap items-center justify-center gap-2">
+                                <a
+                                  href={`https://shikimori.one/animes/${anime.id}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-2 px-5 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all active:scale-95"
+                                >
+                                  <TrendingUp size={14} className="opacity-90" />
+                                  Страница на Shikimori
+                                </a>
+                                <a
+                                  href={`https://shikimori.one/animes?search=${encodeURIComponent(anime.title)}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-2 px-5 py-2 bg-secondary hover:bg-accent text-foreground rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all active:scale-95 dark:bg-zinc-800 dark:hover:bg-zinc-700 dark:text-white"
+                                >
+                                  Поиск на Shikimori
+                                </a>
+                              </div>
                             </div>
                           )}
                        </div>
