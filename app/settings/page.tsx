@@ -3,10 +3,11 @@
 import { useState, useEffect } from "react"
 import { useAuth } from "@/components/auth-provider"
 import { AvatarUpload } from "@/components/avatar-upload"
+import { AuthModal } from "@/components/auth-modal"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Loader2, Save, User, ArrowLeft, Shield, ShieldAlert } from "lucide-react"
+import { Loader2, Save, User, ArrowLeft, Shield, ShieldAlert, LogIn, UserPlus } from "lucide-react"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/hooks/use-toast"
@@ -19,6 +20,7 @@ export default function SettingsPage() {
   const [allowNsfwSearch, setAllowNsfwSearch] = useState(profile?.allow_nsfw_search || false)
   const [loading, setLoading] = useState(false)
   const [loadingNsfw, setLoadingNsfw] = useState(false)
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false)
   const { toast } = useToast()
 
   const handleUsernameSave = async () => {
@@ -113,11 +115,57 @@ export default function SettingsPage() {
 
   if (!user) {
     return (
-      <div className="container mx-auto px-4 py-8">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold mb-4">Настройки</h1>
-          <p className="text-muted-foreground">Пожалуйста, войдите в аккаунт для доступа к настройкам</p>
+      <div className="min-h-screen bg-background text-foreground">
+        <div className="container mx-auto px-4 py-8 max-w-2xl">
+          <div className="mb-8">
+            <Link href="/" className="inline-flex items-center gap-2 px-4 py-2 bg-muted hover:bg-accent border hover:border-primary text-muted-foreground hover:text-foreground font-medium rounded-xl transition-all mb-4">
+              <ArrowLeft className="w-4 h-4" />
+              На главную
+            </Link>
+            <h1 className="text-3xl font-bold text-foreground mb-2">Настройки профиля</h1>
+            <p className="text-muted-foreground">Управление вашим профилем и настройками</p>
+          </div>
+
+          <Card className="text-center">
+            <CardContent className="pt-6">
+              <div className="max-w-sm mx-auto space-y-6">
+                <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto">
+                  <User className="w-8 h-8 text-muted-foreground" />
+                </div>
+                
+                <div>
+                  <h3 className="text-lg font-semibold mb-2">Требуется авторизация</h3>
+                  <p className="text-muted-foreground mb-6">
+                    Войдите в аккаунт или зарегистрируйтесь, чтобы получить доступ к настройкам профиля
+                  </p>
+                </div>
+
+                <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                  <Button 
+                    onClick={() => setIsAuthModalOpen(true)}
+                    className="bg-primary hover:bg-primary/90 flex items-center gap-2"
+                  >
+                    <LogIn className="w-4 h-4" />
+                    Войти
+                  </Button>
+                  
+                  <Button 
+                    variant="outline"
+                    onClick={() => setIsAuthModalOpen(true)}
+                    className="flex items-center gap-2"
+                  >
+                    <UserPlus className="w-4 h-4" />
+                    Регистрация
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </div>
+
+        <AuthModal isOpen={isAuthModalOpen} onClose={() => setIsAuthModalOpen(false)}>
+          <></>
+        </AuthModal>
       </div>
     )
   }
@@ -143,7 +191,7 @@ export default function SettingsPage() {
               Аватар
             </CardTitle>
             <CardDescription className="text-muted-foreground">
-              Загрузите изображение для вашего профиля. Максимальный размер: 5MB
+              Загрузите изображение для вашего профиля. Максимальный размер: 3MB
             </CardDescription>
           </CardHeader>
           <CardContent>

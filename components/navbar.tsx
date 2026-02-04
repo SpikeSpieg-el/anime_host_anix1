@@ -219,21 +219,34 @@ export function Navbar() {
           </div>
 
           {/* 4. ПРОФИЛЬ/АВТОРИЗАЦИЯ + УВЕДОМЛЕНИЯ О НОВЫХ СЕРИЯХ + ПЕРЕКЛЮЧАТЕЛЬ ТЕМЫ (DESKTOP) */}
-          <div className="flex items-center gap-6 hidden md:block">
-            
+          {/* ИСПРАВЛЕНИЕ ЗДЕСЬ: заменили md:block на md:flex */}
+          <div className="hidden md:flex items-center gap-6"> 
             
             {user ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <button className="w-9 h-9 rounded-full bg-gradient-to-tr from-orange-500 to-purple-600 p-[2px] overflow-hidden">
+                  {/* Добавили focus:outline-none, чтобы убрать стандартную обводку при клике */}
+                  <button className="w-9 h-9 rounded-full bg-gradient-to-tr from-orange-500 to-purple-600 p-[2px] overflow-hidden focus:outline-none cursor-pointer">
                      <Avatar className="w-full h-full">
-                       <AvatarImage src={profile?.avatar_url || undefined} alt="User Avatar" />
+                       <AvatarImage 
+                         src={profile?.avatar_url ? `${profile.avatar_url}?t=${Date.now()}` : undefined} 
+                         alt="User Avatar" 
+                         className="object-cover"
+                         onError={(e) => {
+                           console.error('Navbar avatar failed to load:', profile?.avatar_url);
+                           e.currentTarget.style.display = 'none';
+                         }}
+                         onLoad={(e) => {
+                           e.currentTarget.style.display = 'block';
+                         }}
+                       />
                        <AvatarFallback className="bg-secondary text-secondary-foreground font-semibold">
                          {profile?.username ? profile.username.slice(0, 2).toUpperCase() : user.email?.slice(0, 2).toUpperCase()}
                        </AvatarFallback>
                      </Avatar>
                   </button>
                 </DropdownMenuTrigger>
+                {/* ... содержимое меню ... */}
                 <DropdownMenuContent align="end" className="w-56 bg-background border text-foreground">
                   <DropdownMenuLabel className="flex items-center gap-2 font-normal">
                     <div className="flex flex-col space-y-1">
@@ -258,6 +271,7 @@ export function Navbar() {
               <AuthModal />
             )}
             
+            {/* Теперь колокольчик будет ровно по центру относительно аватара */}
             <EpisodeUpdateBadge 
               updates={updates} 
               onClearUpdate={clearUpdate}
@@ -272,7 +286,18 @@ export function Navbar() {
                 <DropdownMenuTrigger asChild>
                   <button className="w-8 h-8 rounded-full bg-gradient-to-tr from-orange-500 to-purple-600 p-[1.5px] overflow-hidden">
                      <Avatar className="w-full h-full">
-                       <AvatarImage src={profile?.avatar_url || undefined} alt="User Avatar" />
+                       <AvatarImage 
+                         src={profile?.avatar_url ? `${profile.avatar_url}?t=${Date.now()}` : undefined} 
+                         alt="User Avatar"
+                         className="object-cover"
+                         onError={(e) => {
+                           console.error('Mobile navbar avatar failed to load:', profile?.avatar_url);
+                           e.currentTarget.style.display = 'none';
+                         }}
+                         onLoad={(e) => {
+                           e.currentTarget.style.display = 'block';
+                         }}
+                       />
                        <AvatarFallback className="bg-secondary text-secondary-foreground font-semibold text-xs dark:bg-zinc-900 dark:text-white">
                          {profile?.username ? profile.username.slice(0, 2).toUpperCase() : user.email?.slice(0, 2).toUpperCase()}
                        </AvatarFallback>
