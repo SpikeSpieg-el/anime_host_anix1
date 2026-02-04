@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useRouter, usePathname } from "next/navigation"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { Menu, X, ChevronDown, Flame, Tv, Zap, Compass, Home, BookMarked, History, Calendar, Settings, GraduationCap, LogOut, User as UserIcon } from "lucide-react"
 import { SearchSuggestions } from "@/components/search-suggestions"
 import { EpisodeUpdateBadge } from "@/components/episode-update-badge"
@@ -48,6 +48,15 @@ export function Navbar() {
   const [scrolled, setScrolled] = useState(false)
   
   const { updates, clearUpdate, clearAllUpdates } = useEpisodeUpdates()
+
+  // Стабильная ссылка на аватар, чтобы избежать мигания при скролле
+  const avatarUrl = useMemo(() => {
+    if (!profile?.avatar_url) return undefined;
+    // Добавляем метку времени только один раз при загрузке профиля,
+    // а не при каждом движении мыши или скролле
+    return `${profile.avatar_url}?t=${profile.updated_at || 'initial'}`;
+  }, [profile?.avatar_url, profile?.updated_at]);
+  // Ссылка обновится только если изменится URL в базе или дата обновления
 
   // Отслеживание скролла для изменения прозрачности хедера
   useEffect(() => {
@@ -229,7 +238,7 @@ export function Navbar() {
                   <button className="w-9 h-9 rounded-full bg-gradient-to-tr from-orange-500 to-purple-600 p-[2px] overflow-hidden focus:outline-none cursor-pointer">
                      <Avatar className="w-full h-full">
                        <AvatarImage 
-                         src={profile?.avatar_url ? `${profile.avatar_url}?t=${Date.now()}` : undefined} 
+                         src={avatarUrl} 
                          alt="User Avatar" 
                          className="object-cover"
                          onError={(e) => {
@@ -287,7 +296,7 @@ export function Navbar() {
                   <button className="w-8 h-8 rounded-full bg-gradient-to-tr from-orange-500 to-purple-600 p-[1.5px] overflow-hidden">
                      <Avatar className="w-full h-full">
                        <AvatarImage 
-                         src={profile?.avatar_url ? `${profile.avatar_url}?t=${Date.now()}` : undefined} 
+                         src={avatarUrl} 
                          alt="User Avatar"
                          className="object-cover"
                          onError={(e) => {
