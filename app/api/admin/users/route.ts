@@ -4,7 +4,12 @@ import { NextResponse } from 'next/server'
 export async function GET(request: Request) {
   try {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const supabaseServiceKey = process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+    console.log('Environment check:', {
+      supabaseUrl: supabaseUrl ? 'exists' : 'missing',
+      supabaseServiceKey: supabaseServiceKey ? 'exists' : 'missing'
+    })
 
     if (!supabaseUrl || !supabaseServiceKey) {
       return NextResponse.json(
@@ -22,7 +27,10 @@ export async function GET(request: Request) {
       .select('*')
       .order('updated_at', { ascending: false })
 
-    if (profilesError) throw profilesError
+    if (profilesError) {
+      console.error('Profiles error:', profilesError)
+      throw profilesError
+    }
 
     // Fetch all watch history
     const { data: watchHistory, error: historyError } = await supabase
@@ -30,7 +38,10 @@ export async function GET(request: Request) {
       .select('*')
       .order('created_at', { ascending: false })
 
-    if (historyError) throw historyError
+    if (historyError) {
+      console.error('Watch history error:', historyError)
+      throw historyError
+    }
 
     // Fetch all bookmarks
     const { data: bookmarks, error: bookmarksError } = await supabase
@@ -38,7 +49,10 @@ export async function GET(request: Request) {
       .select('*')
       .order('created_at', { ascending: false })
 
-    if (bookmarksError) throw bookmarksError
+    if (bookmarksError) {
+      console.error('Bookmarks error:', bookmarksError)
+      throw bookmarksError
+    }
 
     // Combine data
     const usersWithStats = profiles.map(profile => {
@@ -68,7 +82,7 @@ export async function GET(request: Request) {
   } catch (error) {
     console.error('Admin API error:', error)
     return NextResponse.json(
-      { error: 'Failed to fetch users data' },
+      { error: 'Failed to fetch users data', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     )
   }

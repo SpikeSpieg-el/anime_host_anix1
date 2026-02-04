@@ -87,7 +87,9 @@ export default function AdminPage() {
       const response = await fetch('/api/admin/users')
       
       if (!response.ok) {
-        throw new Error(`Failed to fetch: ${response.statusText}`)
+        const errorData = await response.json().catch(() => ({}))
+        const errorMessage = errorData.details || errorData.error || `Failed to fetch: ${response.statusText}`
+        throw new Error(errorMessage)
       }
 
       const data = await response.json()
@@ -99,7 +101,8 @@ export default function AdminPage() {
       setUsers(data.users || [])
     } catch (err) {
       console.error('Error fetching users:', err)
-      setError('Failed to load users data')
+      const errorMessage = err instanceof Error ? err.message : 'Failed to load users data'
+      setError(errorMessage)
     } finally {
       setLoading(false)
     }
