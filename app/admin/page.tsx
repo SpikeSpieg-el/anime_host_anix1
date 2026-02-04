@@ -13,8 +13,8 @@ const supabase = supabaseUrl && supabaseServiceKey
   : null
 
 // Admin credentials from environment variables
-const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'admin'
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin'
+const ADMIN_USERNAME = process.env.NEXT_PUBLIC_ADMIN_USERNAME || 'admin'
+const ADMIN_PASSWORD = process.env.NEXT_PUBLIC_ADMIN_PASSWORD || 'admin'
 
 interface UserProfile {
   id: string
