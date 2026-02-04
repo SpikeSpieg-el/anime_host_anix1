@@ -29,7 +29,14 @@ export async function GET(request: NextRequest) {
     const headers = new Headers()
     response.headers.forEach((value, key) => {
       if (['content-length', 'content-type', 'content-range', 'accept-ranges'].includes(key.toLowerCase())) {
-        headers.set(key, value)
+        try {
+          // Validate header value before setting
+          if (value && typeof value === 'string' && !value.includes('\n') && !value.includes('\r')) {
+            headers.set(key, value)
+          }
+        } catch (error) {
+          console.warn(`Invalid header value for ${key}:`, value)
+        }
       }
     })
 

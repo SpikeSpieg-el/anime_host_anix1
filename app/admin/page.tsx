@@ -1,20 +1,12 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { createClient } from '@supabase/supabase-js'
 import { Users, Eye, Bookmark, User, Search, LogOut, Lock } from "lucide-react"
 import Image from "next/image"
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-const supabaseServiceKey = process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY
-
-const supabase = supabaseUrl && supabaseServiceKey 
-  ? createClient(supabaseUrl, supabaseServiceKey)
-  : null
-
 // Admin credentials from environment variables
-const ADMIN_USERNAME = process.env.NEXT_PUBLIC_ADMIN_USERNAME || 'admin'
-const ADMIN_PASSWORD = process.env.NEXT_PUBLIC_ADMIN_PASSWORD || 'admin'
+const ADMIN_USERNAME = process.env.NEXT_PUBLIC_ADMIN_USERNAME
+const ADMIN_PASSWORD = process.env.NEXT_PUBLIC_ADMIN_PASSWORD
 
 interface UserProfile {
   id: string
@@ -92,58 +84,19 @@ export default function AdminPage() {
       setLoading(true)
       setError(null)
 
-      if (!supabase) {
-        throw new Error('Supabase client not initialized. Check environment variables.')
+      const response = await fetch('/api/admin/users')
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch: ${response.statusText}`)
       }
 
-      // Fetch all profiles
-      const { data: profiles, error: profilesError } = await supabase
-        .from('profiles')
-        .select('*')
-        .order('updated_at', { ascending: false })
+      const data = await response.json()
+      
+      if (data.error) {
+        throw new Error(data.error)
+      }
 
-      if (profilesError) throw profilesError
-
-      // Fetch all watch history
-      const { data: watchHistory, error: historyError } = await supabase
-        .from('watch_history')
-        .select('*')
-        .order('created_at', { ascending: false })
-
-      if (historyError) throw historyError
-
-      // Fetch all bookmarks
-      const { data: bookmarks, error: bookmarksError } = await supabase
-        .from('bookmarks')
-        .select('*')
-        .order('created_at', { ascending: false })
-
-      if (bookmarksError) throw bookmarksError
-
-      // Combine data
-      const usersWithStats: UserWithStats[] = profiles.map(profile => {
-        const userHistory = watchHistory.filter(item => item.user_id === profile.id)
-        const userBookmarks = bookmarks.filter(item => item.user_id === profile.id)
-        
-        const lastActivity = [
-          ...userHistory.map(h => h.created_at),
-          ...userBookmarks.map(b => b.created_at),
-          profile.updated_at
-        ].filter(Boolean).sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0]
-
-        return {
-          ...profile,
-          watchHistoryCount: userHistory.length,
-          bookmarksCount: userBookmarks.length,
-          lastActivity,
-          recentHistory: userHistory, // Show all history
-          recentBookmarks: userBookmarks, // Show all bookmarks
-          allHistory: userHistory,
-          allBookmarks: userBookmarks
-        }
-      })
-
-      setUsers(usersWithStats)
+      setUsers(data.users || [])
     } catch (err) {
       console.error('Error fetching users:', err)
       setError('Failed to load users data')
