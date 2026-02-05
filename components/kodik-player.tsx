@@ -13,9 +13,27 @@ interface KodikPlayerProps {
   onStart?: () => void
   onCountryChange?: (country: string) => void
   onRegionDetected?: (isRussia: boolean) => void
+  onEpisodeChange?: (episode: number) => void
+  onProgressUpdate?: (info: {
+    season?: number
+    episode: number
+    time?: string
+    translation?: string
+    currentTime?: number
+    duration?: number
+  }) => void
 }
 
-export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCountryChange, onRegionDetected }: KodikPlayerProps) {
+interface KodikMessage {
+  type?: string
+  data?: {
+    episode?: number
+    time?: number
+    // Другие возможные поля от Kodik плеера
+  }
+}
+
+export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCountryChange, onRegionDetected, onEpisodeChange, onProgressUpdate }: KodikPlayerProps) {
   const [isLoading, setIsLoading] = useState(true)
   const [isStarted, setIsStarted] = useState(false)
   const [hasError, setHasError] = useState(false)
@@ -50,6 +68,110 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCo
     setIsLoading(true)
     setHasError(false)
   }, [episode])
+
+  // Обработчик postMessage сообщений от плеера Kodik
+  useEffect(() => {
+    if (!isStarted) return
+
+    const handleMessage = (event: MessageEvent) => {
+      // Проверяем, что сообщение от Kodik плеера
+      if (!event.origin.includes('kodik.info') && !event.origin.includes('kodik.cc')) {
+        return
+      }
+
+      console.log('Kodik message received:', event.data)
+
+      try {
+        let newEpisode: number | undefined
+        let progressInfo: {
+          season?: number
+          episode?: number
+          time?: string
+          translation?: string
+          currentTime?: number
+          duration?: number
+        } = {}
+        
+        // Kodik использует формат {key: 'kodik_player_current_episode', value: {episode: X, season: Y, ...}}
+        if (typeof event.data === 'object' && event.data.key === 'kodik_player_current_episode') {
+          if (event.data.value?.episode && typeof event.data.value.episode === 'number') {
+            newEpisode = event.data.value.episode
+            progressInfo.episode = event.data.value.episode
+            progressInfo.season = event.data.value.season
+            progressInfo.translation = event.data.value.translation?.title
+            progressInfo.currentTime = event.data.value.seconds
+            progressInfo.duration = event.data.value.duration
+            
+            // Форматируем время
+            if (event.data.value.time) {
+              progressInfo.time = event.data.value.time
+            } else if (event.data.value.seconds) {
+              const mins = Math.floor(event.data.value.seconds / 60)
+              const secs = Math.floor(event.data.value.seconds % 60)
+              progressInfo.time = `${mins}:${secs.toString().padStart(2, '0')}`
+            }
+            
+            // Отправляем полные данные о прогрессе
+            if (progressInfo.episode) {
+              onProgressUpdate?.({
+                episode: progressInfo.episode,
+                season: progressInfo.season,
+                time: progressInfo.time,
+                translation: progressInfo.translation,
+                currentTime: progressInfo.currentTime,
+                duration: progressInfo.duration
+              })
+            }
+          }
+        }
+        // Другие возможные форматы для совместимости
+        else if (typeof event.data === 'object') {
+          // Формат { type: 'episode', data: { episode: 2 } }
+          if (event.data.type === 'episode' && event.data.data?.episode) {
+            newEpisode = event.data.data.episode
+          }
+          // Формат { episode: 2 }
+          else if (event.data.episode && typeof event.data.episode === 'number') {
+            newEpisode = event.data.episode
+          }
+          // Формат { data: { episode: 2 } }
+          else if (event.data.data?.episode && typeof event.data.data.episode === 'number') {
+            newEpisode = event.data.data.episode
+          }
+          // Формат с информацией о времени и серии { time: 123, episode: 2 }
+          else if (event.data.time && typeof event.data.time === 'number' && 
+                   event.data.episode && typeof event.data.episode === 'number') {
+            newEpisode = event.data.episode
+          }
+        }
+        // Простой формат - просто число
+        else if (typeof event.data === 'number' && event.data > 0) {
+          newEpisode = event.data
+        }
+        // Строковый формат
+        else if (typeof event.data === 'string') {
+          const match = event.data.match(/episode[:\s]+(\d+)/i)
+          if (match && match[1]) {
+            newEpisode = parseInt(match[1], 10)
+          }
+        }
+        
+        // Если нашли новую серию и она отличается от текущей
+        if (newEpisode && newEpisode !== episode && newEpisode > 0) {
+          console.log('Kodik: Episode changed to', newEpisode)
+          onEpisodeChange?.(newEpisode)
+        }
+      } catch (error) {
+        console.warn('Error parsing Kodik message:', error)
+      }
+    }
+
+    window.addEventListener('message', handleMessage)
+    
+    return () => {
+      window.removeEventListener('message', handleMessage)
+    }
+  }, [isStarted, episode, onEpisodeChange])
 
   return (
     <div className="relative aspect-video w-full overflow-hidden rounded-2xl bg-zinc-950 border border-white/5 shadow-2xl">

@@ -74,6 +74,13 @@ export function WatchPageClient({
   const [selectedCountry, setSelectedCountry] = useState<string>('RU')
   const [isRegionDetected, setIsRegionDetected] = useState(false)
   const [useBackupPlayer, setUseBackupPlayer] = useState(false)
+  const [isUpdatingFromPlayer, setIsUpdatingFromPlayer] = useState(false)
+  const [lastWatchedInfo, setLastWatchedInfo] = useState<{
+    season?: number
+    episode: number
+    time?: string
+    translation?: string
+  } | null>(null)
   
   // Реф для скролла к плееру
   const playerRef = useRef<HTMLDivElement>(null)
@@ -81,6 +88,28 @@ export function WatchPageClient({
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
+
+  // Восстанавливаем данные о последней остановке из localStorage при загрузке
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const storageKey = `last-watched-${anime.id}`
+      const stored = localStorage.getItem(storageKey)
+      
+      console.log('Loading watch data from localStorage:', { storageKey, stored })
+      
+      if (stored) {
+        try {
+          const data = JSON.parse(stored)
+          console.log('Parsed watch data:', data)
+          setLastWatchedInfo(data)
+        } catch (error) {
+          console.warn('Failed to parse stored watch data:', error)
+        }
+      } else {
+        console.log('No stored watch data found for:', storageKey)
+      }
+    }
+  }, [anime.id])
 
   useEffect(() => {
     if (
@@ -94,7 +123,7 @@ export function WatchPageClient({
   }, [initialEpisode, isStarted, selectedEpisode])
 
   useEffect(() => {
-    if (!isStarted) return
+    if (!isStarted || isUpdatingFromPlayer) return
 
     const current = searchParams.get("episode")
     const currentNumber = current ? Number.parseInt(current, 10) : undefined
@@ -109,7 +138,7 @@ export function WatchPageClient({
       { id: anime.id, title: anime.title, poster: anime.poster },
       { episode: selectedEpisode, episodesTotal: availableEpisodes }
     )
-  }, [selectedEpisode, isStarted, pathname, router, searchParams, anime])
+  }, [selectedEpisode, isStarted, pathname, router, searchParams, anime, isUpdatingFromPlayer])
 
   const handleSelectEpisode = (episode: number) => {
     setSelectedEpisode(episode)
@@ -143,6 +172,37 @@ export function WatchPageClient({
     // Если Россия и страна еще не установлена, устанавливаем RU
     if (isRussia && selectedCountry === 'RU') {
       setSelectedCountry('RU')
+    }
+  }
+
+  const handleEpisodeChangeFromPlayer = (newEpisode: number) => {
+    if (newEpisode !== selectedEpisode) {
+      console.log('Episode changed from Kodik player:', newEpisode)
+      setIsUpdatingFromPlayer(true)
+      setSelectedEpisode(newEpisode)
+      setIsStarted(true)
+      
+      // Сбрасываем флаг после небольшого delay чтобы дать время на обновление URL
+      setTimeout(() => {
+        setIsUpdatingFromPlayer(false)
+      }, 100)
+    }
+  }
+
+  const handleProgressUpdate = (info: {
+    season?: number
+    episode: number
+    time?: string
+    translation?: string
+  }) => {
+    console.log('Progress update received:', info)
+    setLastWatchedInfo(info)
+    
+    // Сохраняем данные в localStorage для восстановления при перезагрузке
+    if (typeof window !== 'undefined') {
+      const storageKey = `last-watched-${anime.id}`
+      localStorage.setItem(storageKey, JSON.stringify(info))
+      console.log('Saved to localStorage:', { storageKey, data: info })
     }
   }
 
@@ -404,6 +464,8 @@ export function WatchPageClient({
                 onStart={() => setIsStarted(true)}
                 onCountryChange={handleCountryChange}
                 onRegionDetected={handleRegionDetected}
+                onEpisodeChange={handleEpisodeChangeFromPlayer}
+                onProgressUpdate={handleProgressUpdate}
               />
             ) : (
               <BackupPlayer
@@ -442,6 +504,7 @@ export function WatchPageClient({
             totalEpisodes={availableEpisodes}
             currentEpisode={selectedEpisode}
             onSelectEpisode={handleSelectEpisode}
+            lastWatchedInfo={lastWatchedInfo}
           />
         </div>
       )}

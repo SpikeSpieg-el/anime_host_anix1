@@ -7,13 +7,22 @@ interface EpisodeSelectorProps {
   totalEpisodes: number
   currentEpisode: number
   onSelectEpisode: (episode: number) => void
+  lastWatchedInfo?: {
+    season?: number
+    episode?: number
+    time?: string
+    translation?: string
+  } | null
 }
 
 export function EpisodeSelector({ 
   totalEpisodes, 
   currentEpisode, 
-  onSelectEpisode 
+  onSelectEpisode,
+  lastWatchedInfo
 }: EpisodeSelectorProps) {
+  console.log('EpisodeSelector received lastWatchedInfo:', lastWatchedInfo)
+  
   const episodesPerPage = 24
   const [isCollapsed, setIsCollapsed] = useState(true)
   const scrollRowRef = useRef<HTMLDivElement>(null)
@@ -60,6 +69,47 @@ export function EpisodeSelector({
 
   return (
     <div className="w-full">
+      {/* Блок информации о последней остановке */}
+      {lastWatchedInfo && (
+        <div className="mb-4 p-3 rounded-xl bg-orange-500/10 border border-orange-500/20">
+          <div className="flex items-start gap-3">
+            <div className="w-8 h-8 rounded-lg bg-orange-500/20 flex items-center justify-center flex-shrink-0">
+              <svg className="w-4 h-4 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-orange-400 mb-1">
+                Вы остановились на:
+              </p>
+              <p className="text-sm text-zinc-300">
+                {lastWatchedInfo.season && lastWatchedInfo.season > 1 && (
+                  <span className="text-zinc-400">{lastWatchedInfo.season} сезон, </span>
+                )}
+                <span className="text-white font-medium">{lastWatchedInfo.episode} серия</span>
+                {lastWatchedInfo.time && (
+                  <span className="text-zinc-500"> • {lastWatchedInfo.time}</span>
+                )}
+              </p>
+              {lastWatchedInfo.translation && (
+                <p className="text-xs text-zinc-500 mt-1">
+                  Озвучка: <span className="text-zinc-400">{lastWatchedInfo.translation}</span>
+                </p>
+              )}
+            </div>
+            {lastWatchedInfo.episode && lastWatchedInfo.episode !== currentEpisode && (
+              <button
+                type="button"
+                onClick={() => onSelectEpisode(lastWatchedInfo.episode!)}
+                className="px-3 py-1.5 rounded-lg bg-orange-500 hover:bg-orange-600 text-white text-xs font-medium transition-colors flex-shrink-0"
+              >
+                Продолжить
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center justify-between mb-3">
         <span className="text-sm text-zinc-400">
           {isCollapsed ? "Галерея серий" : "Сетки серий"}
