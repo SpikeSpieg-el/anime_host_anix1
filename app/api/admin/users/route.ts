@@ -3,15 +3,18 @@ import { NextResponse } from 'next/server'
 
 export async function GET(request: Request) {
   try {
+    // Check environment variables
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY
 
     console.log('Environment check:', {
       supabaseUrl: supabaseUrl ? 'exists' : 'missing',
-      supabaseServiceKey: supabaseServiceKey ? 'exists' : 'missing'
+      supabaseServiceKey: supabaseServiceKey ? 'exists' : 'missing',
+      serviceKeyType: process.env.SUPABASE_SERVICE_ROLE_KEY ? 'public' : process.env.SUPABASE_SERVICE_ROLE_KEY ? 'private' : 'none'
     })
 
     if (!supabaseUrl || !supabaseServiceKey) {
+      console.error('Missing environment variables')
       return NextResponse.json(
         { error: 'Server misconfigured: Supabase env vars missing' },
         { status: 500 }
@@ -20,6 +23,22 @@ export async function GET(request: Request) {
 
     // Create admin client with service role key
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
+
+    // Test connection first
+    const { data: testData, error: testError } = await supabase
+      .from('profiles')
+      .select('count')
+      .limit(1)
+
+    if (testError) {
+      console.error('Database connection test failed:', testError)
+      return NextResponse.json(
+        { error: 'Database connection failed', details: testError.message },
+        { status: 500 }
+      )
+    }
+
+    console.log('Database connection successful')
 
     // Fetch all profiles
     const { data: profiles, error: profilesError } = await supabase
@@ -32,6 +51,8 @@ export async function GET(request: Request) {
       throw profilesError
     }
 
+    console.log('Fetched profiles:', profiles?.length || 0)
+
     // Fetch all watch history
     const { data: watchHistory, error: historyError } = await supabase
       .from('watch_history')
@@ -43,6 +64,8 @@ export async function GET(request: Request) {
       throw historyError
     }
 
+    console.log('Fetched watch history:', watchHistory?.length || 0)
+
     // Fetch all bookmarks
     const { data: bookmarks, error: bookmarksError } = await supabase
       .from('bookmarks')
@@ -53,6 +76,8 @@ export async function GET(request: Request) {
       console.error('Bookmarks error:', bookmarksError)
       throw bookmarksError
     }
+
+    console.log('Fetched bookmarks:', bookmarks?.length || 0)
 
     // Combine data
     const usersWithStats = profiles.map(profile => {
@@ -77,12 +102,18 @@ export async function GET(request: Request) {
       }
     })
 
+    console.log('Processed users:', usersWithStats.length)
+
     return NextResponse.json({ users: usersWithStats })
 
   } catch (error) {
     console.error('Admin API error:', error)
     return NextResponse.json(
-      { error: 'Failed to fetch users data', details: error instanceof Error ? error.message : 'Unknown error' },
+      { 
+        error: 'Failed to fetch users data', 
+        details: error instanceof Error ? error.message : 'Unknown error',
+        type: error instanceof Error ? error.constructor.name : 'Unknown'
+      },
       { status: 500 }
     )
   }

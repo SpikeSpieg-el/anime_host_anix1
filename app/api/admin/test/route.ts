@@ -5,7 +5,7 @@ export async function GET(request: Request) {
     const env = {
       supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL ? 'exists' : 'missing',
       supabaseServiceKey: process.env.SUPABASE_SERVICE_ROLE_KEY ? 'exists' : 'missing',
-      supabaseServiceKeyPublic: process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY ? 'exists' : 'missing',
+      supabaseServiceKeyPublic: process.env.SUPABASE_SERVICE_ROLE_KEY ? 'exists' : 'missing',
       adminUsername: process.env.NEXT_PUBLIC_ADMIN_USERNAME ? 'exists' : 'missing',
       adminPassword: process.env.NEXT_PUBLIC_ADMIN_PASSWORD ? 'exists' : 'missing',
     }
