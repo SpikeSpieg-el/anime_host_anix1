@@ -12,7 +12,6 @@ import {
   HardDrive, 
   FileVideo, 
   PlayCircle,
-
 } from "lucide-react"
 import type { Anime } from "@/lib/shikimori"
 import { KodikPlayer } from "@/components/kodik-player"
@@ -31,8 +30,9 @@ import {
   DialogTrigger,
   DialogDescription
 } from "@/components/ui/dialog"
-import { cn } from "@/lib/utils" // Убедись, что у тебя есть cn (clsx + tailwind-merge) или используй шаблонные строки
+import { cn } from "@/lib/utils"
 import { isHentaiContent } from "@/lib/hentai-detector"
+import { WatchPageGallery } from "@/components/watch-page-gallery"
 
 interface WatchPageClientProps {
   anime: Anime
@@ -81,7 +81,7 @@ export function WatchPageClient({
     time?: string
     translation?: string
   } | null>(null)
-  
+
   // Реф для скролла к плееру
   const playerRef = useRef<HTMLDivElement>(null)
 
@@ -508,6 +508,9 @@ export function WatchPageClient({
           />
         </div>
       )}
+
+      {/* --- Gallery Section (New Component) --- */}
+      <WatchPageGallery anime={anime} />
     </div>
   )
 }

@@ -158,6 +158,106 @@ export async function getAnimeById(id: string, enableGenreFallback: boolean = fa
   return await transformAnime(data, enableGenreFallback);
 }
 
+export async function getAnimeScreenshots(id: string): Promise<string[]> {
+  try {
+    const data = await shikimoriJson<any[]>(`${BASE_URL}/animes/${id}/screenshots`, { next: { revalidate: 3600 } }, { fallback: [] });
+    return data.map(screenshot => normalizeShikimoriUrl(screenshot.original)).filter(Boolean);
+  } catch (error) {
+    console.error('Failed to fetch screenshots:', error);
+    return [];
+  }
+}
+
+export async function getAnimeScreenshotsThumbnails(id: string): Promise<string[]> {
+  try {
+    const data = await shikimoriJson<any[]>(`${BASE_URL}/animes/${id}/screenshots`, { next: { revalidate: 3600 } }, { fallback: [] });
+    return data.map(screenshot => normalizeShikimoriUrl(screenshot.preview)).filter(Boolean);
+  } catch (error) {
+    console.error('Failed to fetch screenshot thumbnails:', error);
+    return [];
+  }
+}
+
+/**
+ * Генерирует fallback аватар для персонажа на основе имени
+ */
+function generateCharacterFallbackAvatar(name: string): string {
+  // Используем сервис аватаров на основе инициалов или имени
+  const cleanName = name.trim().toLowerCase();
+  const initials = name.split(' ').map(word => word[0]).join('').substring(0, 2).toUpperCase();
+  
+  // Используем DiceBear или похожий сервис для генерации аватаров
+  // В качестве фоллбека используем UI Avatars
+  return `https://ui-avatars.com/api/?name=${encodeURIComponent(initials)}&background=random&color=fff&size=128&bold=true&format=png`;
+}
+
+export async function getAnimeCharacters(id: string): Promise<Array<{name: string, avatar: string, role?: string}>> {
+  try {
+    const data = await shikimoriJson<any[]>(`${BASE_URL}/animes/${id}/roles`, { next: { revalidate: 3600 } }, { fallback: [] });
+    
+    const characters = data
+      .filter(role => role.character)
+      .map(role => {
+        const name = role.character.russian || role.character.name;
+        let avatar = '';
+        
+        // Пытаемся получить изображение из разных источников
+        if (role.character.image) {
+          // Основной источник: image.original
+          avatar = normalizeShikimoriUrl(role.character.image.original);
+          
+          // Проверяем, не является ли это missing image
+          if (avatar.includes('missing_original.jpg')) {
+            // Пробуем другие размеры изображения
+            if (role.character.image.preview) {
+              const previewUrl = normalizeShikimoriUrl(role.character.image.preview);
+              if (!previewUrl.includes('missing_original.jpg')) {
+                avatar = previewUrl;
+              } else {
+                avatar = ''; // Сбрасываем, если тоже missing
+              }
+            } else {
+              avatar = ''; // Сбрасываем, если нет preview
+            }
+          }
+        }
+        
+        // Если все еще нет изображения или это missing image, генерируем fallback
+        if (!avatar || avatar.includes('missing_original.jpg')) {
+          avatar = generateCharacterFallbackAvatar(name);
+        }
+        
+        return {
+          name,
+          avatar,
+          role: role.roles_russian?.[0] || role.roles?.[0]
+        };
+      })
+      .filter(Boolean);
+      
+    return characters;
+  } catch (error) {
+    console.error('Failed to fetch characters:', error);
+    return [];
+  }
+}
+
+export async function getAnimeVideos(id: string): Promise<{url: string, type: string, name: string}[]> {
+  try {
+    const data = await shikimoriJson<any[]>(`${BASE_URL}/animes/${id}/videos`, { next: { revalidate: 3600 } }, { fallback: [] });
+    return data
+      .filter(video => video.url && (video.type === 'pv' || video.type === 'op' || video.type === 'ed'))
+      .map(video => ({
+        url: video.url,
+        type: video.type,
+        name: video.name_russian || video.name
+      }));
+  } catch (error) {
+    console.error('Failed to fetch videos:', error);
+    return [];
+  }
+}
+
 export async function getAnimeByIds(ids: string[]) {
   if (ids.length === 0) return [];
   const data = await shikimoriJson<ShikimoriAnime[]>(`${BASE_URL}/animes?ids=${ids.join(',')}&limit=${ids.length}`, { next: { revalidate: 3600 } }, { fallback: [] });
