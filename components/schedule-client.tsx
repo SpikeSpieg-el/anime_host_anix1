@@ -1,46 +1,71 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo, useRef } from "react"
 import { Anime } from "@/lib/shikimori"
 import { AnimeCard } from "@/components/anime-card"
-import { Calendar, Clock, AlertCircle } from "lucide-react"
+import { Calendar, Clock, AlertCircle, ArrowLeft } from "lucide-react"
 import { cn } from "@/lib/utils"
 import Link from "next/link"
-import { ArrowLeft } from "lucide-react"
-import { Button } from "@/components/ui/button"
 
 interface ScheduleClientProps {
   schedule: { [key: number]: Anime[] }
 }
 
-const DAYS = [
-  { id: 0, name: 'Понедельник', short: 'Пн' },
-  { id: 1, name: 'Вторник', short: 'Вт' },
-  { id: 2, name: 'Среда', short: 'Ср' },
-  { id: 3, name: 'Четверг', short: 'Чт' },
-  { id: 4, name: 'Пятница', short: 'Пт' },
-  { id: 5, name: 'Суббота', short: 'Сб' },
-  { id: 6, name: 'Воскресенье', short: 'Вс' },
+const DAY_NAMES = [
+  { name: 'Воскресенье', short: 'Вс' },
+  { name: 'Понедельник', short: 'Пн' },
+  { name: 'Вторник', short: 'Вт' },
+  { name: 'Среда', short: 'Ср' },
+  { name: 'Четверг', short: 'Чт' },
+  { name: 'Пятница', short: 'Пт' },
+  { name: 'Суббота', short: 'Сб' },
 ]
 
 export function ScheduleClient({ schedule }: ScheduleClientProps) {
-  // Определяем текущий день недели (0 = Пн, ..., 6 = Вс)
-  const [currentDay, setCurrentDay] = useState<number>(0)
   const [mounted, setMounted] = useState(false)
+  // Храним смещение относительно сегодняшнего дня (0 = сегодня)
+  const [selectedOffset, setSelectedOffset] = useState<number>(0)
+  const scrollRef = useRef<HTMLDivElement>(null)
 
-  useEffect(() => {
-    // JS getDay(): 0 = Вс, 1 = Пн. Конвертируем в наш формат (0 = Пн)
-    const today = new Date().getDay()
-    const mappedDay = today === 0 ? 6 : today - 1
-    setCurrentDay(mappedDay)
-    setMounted(true)
+  // Генерируем массив из 13 дней (-6 ... 0 ... +6)
+  const rollingDays = useMemo(() => {
+    const days = []
+    for (let i = -6; i <= 6; i++) {
+      const date = new Date()
+      date.setDate(date.getDate() + i)
+      
+      // Конвертируем JS день (0=Вс) в формат пропсов (0=Пн...6=Вс)
+      const jsDay = date.getDay()
+      const scheduleId = jsDay === 0 ? 6 : jsDay - 1
+      
+      days.push({
+        offset: i,
+        date: date,
+        scheduleId: scheduleId,
+        dayName: DAY_NAMES[jsDay].name,
+        dayShort: DAY_NAMES[jsDay].short,
+        isToday: i === 0
+      })
+    }
+    return days
   }, [])
 
-  const activeAnimes = schedule[currentDay] || []
+  useEffect(() => {
+    setMounted(true)
+    // Авто-скролл к текущему дню (центр) после загрузки
+    setTimeout(() => {
+      const todayElement = document.getElementById('day-offset-0')
+      if (todayElement) {
+        todayElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' })
+      }
+    }, 100)
+  }, [])
 
+  if (!mounted) return null
+
+  const currentDayInfo = rollingDays.find(d => d.offset === selectedOffset)!
+  const activeAnimes = schedule[currentDayInfo.scheduleId] || []
   const sortedAnimes = [...activeAnimes].sort((a, b) => b.rating - a.rating)
-
-  if (!mounted) return null // Чтобы избежать гидратации server/client mismatch по дате
 
   return (
     <div className="space-y-8">
@@ -52,7 +77,7 @@ export function ScheduleClient({ schedule }: ScheduleClientProps) {
         </Link>
       </div>
 
-      {/* Заголовок и текущая дата */}
+      {/* Заголовок */}
       <div className="flex flex-col md:flex-row items-start md:items-end justify-between gap-4">
         <div>
           <h1 className="text-3xl md:text-4xl font-black text-foreground flex items-center gap-3">
@@ -60,58 +85,57 @@ export function ScheduleClient({ schedule }: ScheduleClientProps) {
             Расписание
           </h1>
           <p className="text-muted-foreground mt-2 text-sm md:text-base">
-            График выхода новых серий онгоингов
+            График выхода новых серий (по местному времени)
           </p>
         </div>
         
         <div className="flex items-center gap-2 text-sm font-medium px-4 py-2 bg-card rounded-full border border-border text-muted-foreground">
            <Clock className="w-4 h-4 text-orange-500" />
-           <span>Сегодня: {DAYS[currentDay].name}</span>
+           <span>Выбрано: {currentDayInfo.dayName}, {currentDayInfo.date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })}</span>
         </div>
       </div>
 
-      {/* Навигация по дням (Табы) */}
-      <div className="sticky top-16 z-30 bg-background/95 backdrop-blur-sm pb-4 pt-2 overflow-x-auto">
-        <div className="flex md:grid md:grid-cols-7 gap-2 min-w-max md:min-w-0 md:px-0">
-          {DAYS.map((day) => {
-            const isActive = currentDay === day.id
-            const count = schedule[day.id]?.length || 0
+      {/* Навигация по дням (Rolling Tabs) */}
+      <div className="sticky top-16 z-30 bg-background/95 backdrop-blur-sm pb-4 pt-2">
+        <div 
+          ref={scrollRef}
+          className="flex gap-2 overflow-x-auto pb-2 no-scrollbar mask-fade-edges"
+          style={{ scrollSnapType: 'x mandatory' }}
+        >
+          {rollingDays.map((day) => {
+            const isActive = selectedOffset === day.offset
             
             return (
               <button
-                key={day.id}
-                onClick={() => setCurrentDay(day.id)}
+                key={day.offset}
+                id={`day-offset-${day.offset}`}
+                onClick={() => setSelectedOffset(day.offset)}
                 className={cn(
-                  "flex flex-col items-center justify-center py-3 px-4 md:px-2 rounded-xl transition-all min-w-[80px] md:min-w-0 border",
+                  "flex flex-col items-center justify-center py-3 px-5 rounded-xl transition-all min-w-[85px] border relative",
                   isActive 
-                    ? "bg-primary border-primary text-primary-foreground shadow-lg shadow-primary/20" 
-                    : "bg-card border-border text-muted-foreground hover:bg-card/80 hover:text-foreground"
+                    ? "bg-primary border-primary text-primary-foreground shadow-lg shadow-primary/20 scale-105 z-10" 
+                    : "bg-card border-border text-muted-foreground hover:bg-card/80 hover:text-foreground",
+                  day.isToday && !isActive && "border-orange-500/50"
                 )}
+                style={{ scrollSnapAlign: 'center' }}
               >
+                {day.isToday && (
+                  <span className={cn(
+                    "absolute -top-1 px-1.5 py-0.5 rounded-full text-[8px] font-bold uppercase tracking-tighter",
+                    isActive ? "bg-white text-primary" : "bg-orange-500 text-white"
+                  )}>
+                    Сегодня
+                  </span>
+                )}
                 <span className={cn("text-sm font-bold", isActive ? "opacity-100" : "opacity-70")}>
-                  {day.short}
+                  {day.dayShort}
                 </span>
-                <span className="text-[10px] mt-1 opacity-60 font-medium uppercase tracking-wider hidden md:block">
-                  {day.name}
+                <span className={cn(
+                  "mt-1 text-[11px] font-medium",
+                  isActive ? "text-primary-foreground/90" : "text-muted-foreground"
+                )}>
+                  {day.date.getDate()}.{day.date.getMonth() + 1 < 10 ? '0' : ''}{day.date.getMonth() + 1}
                 </span>
-                {(() => {
-                  const today = new Date()
-                  const currentWeekDay = today.getDay() // 0 = Вс, 1 = Пн, ..., 6 = Сб
-                  const targetDate = new Date(today)
-                  const dayOffset = day.id - (currentWeekDay === 0 ? 6 : currentWeekDay - 1)
-                  targetDate.setDate(today.getDate() + dayOffset)
-                  const date = targetDate.getDate()
-                  const month = targetDate.getMonth() + 1
-                  
-                  return (
-                    <span className={cn(
-                      "mt-1 text-[10px] px-1.5 py-0.5 rounded-full font-medium",
-                      isActive ? "bg-primary-foreground/20 text-primary-foreground" : "bg-muted text-muted-foreground"
-                    )}>
-                      {date}.{month < 10 ? '0' : ''}{month}
-                    </span>
-                  )
-                })()}
               </button>
             )
           })}
@@ -124,13 +148,11 @@ export function ScheduleClient({ schedule }: ScheduleClientProps) {
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-x-4 gap-y-6 sm:gap-y-8">
             {sortedAnimes.map((anime) => (
               <div key={anime.id} className="relative group">
-                {/* Карточка аниме */}
                 <AnimeCard anime={anime} showPreviousEpisode={true} />
                 
-                {/* Плашка выхода серии (справа сверху) */}
                 <div className="absolute top-2 right-[7px] z-20">
-                  <div className="bg-primary text-primary-foreground text-[10px] font-bold px-2 py-1 rounded shadow-md border border-primary">
-                    Выйдет {anime.episodesCurrent} серия
+                  <div className="bg-primary/90 backdrop-blur-sm text-primary-foreground text-[10px] font-bold px-2 py-1 rounded shadow-md border border-primary/20">
+                    {selectedOffset < 0 ? 'Вышла' : 'Выйдет'} {anime.episodesCurrent} серия
                   </div>
                 </div>
               </div>
@@ -141,9 +163,9 @@ export function ScheduleClient({ schedule }: ScheduleClientProps) {
             <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
                <AlertCircle className="w-8 h-8 text-muted-foreground" />
             </div>
-            <h3 className="text-xl font-bold text-foreground">Нет релизов</h3>
-            <p className="text-muted-foreground mt-2 max-w-sm">
-              В этот день недели пока не запланировано выхода новых серий или данные обновляются.
+            <h3 className="text-xl font-bold text-foreground">Релизов не найдено</h3>
+            <p className="text-muted-foreground mt-2 max-w-sm px-4">
+              На этот день ({currentDayInfo.dayName}) в базе данных пока нет информации о выходе новых серий.
             </p>
           </div>
         )}
