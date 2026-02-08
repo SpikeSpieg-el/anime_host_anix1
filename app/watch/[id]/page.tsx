@@ -2,6 +2,7 @@ import { notFound } from "next/navigation"
 import Image from "next/image"
 import Link from "next/link"
 import { Navbar } from "@/components/navbar"
+import { Footer } from "@/components/footer"
 import { getAnimeById, getAnimeFranchise } from "@/lib/shikimori"
 import dynamic from "next/dynamic"
 import type { Metadata } from "next"
@@ -105,10 +106,9 @@ export default async function WatchPage({
           </p>
         </div>
 
-        {watchOrder.length > 0 && (
-          <div className="mt-10">
-            <h2 className="text-xl md:text-2xl font-bold mb-4">Порядок просмотра</h2>
-
+        <div id="order" className="mt-10">
+          <h2 className="text-xl md:text-2xl font-bold mb-4">Порядок просмотра</h2>
+          {watchOrder.length > 0 ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
               {watchOrder.map((item, index) => (
                 item.isCurrent ? (
@@ -157,9 +157,15 @@ export default async function WatchPage({
                 )
               ))}
             </div>
-          </div>
-        )}
+          ) : (
+            <p className="text-muted-foreground">
+              У этого аниме нет продолжений или иных частей. Это самостоятельное произведение.
+            </p>
+          )}
+        </div>
       </div>
+            {/*--- Футер ---*/}
+    <Footer />
     </div>
   )
 }

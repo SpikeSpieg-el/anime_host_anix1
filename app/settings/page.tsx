@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label"
 import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/lib/supabase"
 import Link from "next/link"
+import { ScrollToTop } from "@/components/scroll-to-top"
 
 export default function SettingsPage() {
   const { user, profile, refreshProfile } = useAuth()
@@ -299,6 +300,8 @@ export default function SettingsPage() {
         </Card>
       </div>
       </div>
+
+      <ScrollToTop />
     </div>
   )
 }

@@ -1,35 +1,82 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { Home, Sparkles, History, Newspaper, TrendingUp, Play, Star, ArrowUp } from "lucide-react"
+import { useState, useEffect, useRef } from "react"
+import { 
+  Home as HomeIcon, 
+  History as HistoryIcon, 
+  Newspaper as NewsIcon, 
+  TrendingUp as TrendingIcon, 
+  Play as PlayIcon, 
+  Star as StarIcon, 
+  ArrowUp as ArrowUpIcon, 
+  PlayCircle as PlayCircleIcon, 
+  Camera as CameraIcon, 
+  Users as UsersIcon 
+} from "lucide-react"
+import { cn } from "@/lib/utils"
 
-export function FloatingNav() {
+export interface NavItem {
+  id: string
+  label: string
+  icon: any
+}
+
+export interface FloatingNavConfig {
+  navItems: NavItem[]
+  scrollThreshold?: number
+  showScrollUpButton?: boolean
+}
+
+const defaultConfig: FloatingNavConfig = {
+  navItems: [
+    { id: "hero", label: "Главная", icon: HomeIcon },
+    { id: "history-bookmarks", label: "История", icon: HistoryIcon },
+    { id: "news", label: "Новости", icon: NewsIcon },
+    { id: "popular", label: "Популярное", icon: TrendingIcon },
+    { id: "ongoing", label: "Онгоинги", icon: PlayIcon },
+    { id: "legendary", label: "Легендарное", icon: StarIcon },
+  ],
+  scrollThreshold: 100,
+  showScrollUpButton: true,
+}
+
+const watchPageConfig: FloatingNavConfig = {
+  navItems: [
+    { id: "player", label: "Плеер", icon: PlayCircleIcon },
+    { id: "frames", label: "Кадры", icon: CameraIcon },
+    { id: "characters", label: "Персонажи", icon: UsersIcon },
+    { id: "order", label: "Порядок просмотра", icon: PlayIcon },
+  ],
+  scrollThreshold: 100,
+  showScrollUpButton: true,
+}
+
+interface FloatingNavProps {
+  config?: FloatingNavConfig
+  variant?: 'default' | 'watch-page'
+}
+
+export function FloatingNav({ config, variant = 'default' }: FloatingNavProps) {
+  const finalConfig = config || (variant === 'watch-page' ? watchPageConfig : defaultConfig)
+  const { navItems, scrollThreshold = 100, showScrollUpButton = true } = finalConfig
+  
   const [isVisible, setIsVisible] = useState(false)
   const [activeSection, setActiveSection] = useState("")
-
-  const navItems = [
-    { id: "hero", label: "Главная", icon: Home },
-    { id: "history-bookmarks", label: "История", icon: History },
-    { id: "news", label: "Новости", icon: Newspaper },
-    { id: "popular", label: "Популярное", icon: TrendingUp },
-    { id: "ongoing", label: "Онгоинги", icon: Play },
-    { id: "legendary", label: "Легендарное", icon: Star },
-  ]
+  const [isScrollingDown, setIsScrollingDown] = useState(false)
+  const lastScrollY = useRef(0)
 
   useEffect(() => {
     const handleScroll = () => {
-      const scrollY = window.scrollY
-      // Показываем панель, когда проскролили больше 100px
-      setIsVisible(scrollY > 100)
+      const currentScrollY = window.scrollY
+      setIsVisible(currentScrollY > scrollThreshold)
+      setIsScrollingDown(currentScrollY > lastScrollY.current)
+      lastScrollY.current = currentScrollY
 
-      // Определение активной секции
       const sections = navItems.map(item => document.getElementById(item.id)).filter(Boolean)
-      
       let currentSection = ""
       for (const section of sections) {
         if (!section) continue;
         const rect = section.getBoundingClientRect()
-        // Секция активна, если она находится в верхней трети экрана
         if (rect.top <= window.innerHeight / 3 && rect.bottom >= 100) {
           currentSection = section.id
         }
@@ -37,67 +84,54 @@ export function FloatingNav() {
       setActiveSection(currentSection)
     }
 
-    window.addEventListener("scroll", handleScroll)
-    // Вызываем один раз при маунте, чтобы проверить начальное состояние
+    window.addEventListener("scroll", handleScroll, { passive: true })
     handleScroll()
     return () => window.removeEventListener("scroll", handleScroll)
-  }, [])
+  }, [navItems, scrollThreshold])
 
   const scrollToSection = (id: string) => {
     const element = document.getElementById(id)
     if (element) {
-      // Отступ сверху для учета навбара (80px)
-      const offset = 80
+      const offset = 100
       const elementPosition = element.getBoundingClientRect().top
       const offsetPosition = elementPosition + window.pageYOffset - offset
-  
-      window.scrollTo({
-        top: offsetPosition,
-        behavior: "smooth"
-      })
+      window.scrollTo({ top: offsetPosition, behavior: "smooth" })
     }
-  }
-
-  const scrollToTop = () => {
-    window.scrollTo({ top: 0, behavior: "smooth" })
   }
 
   return (
     <div 
-      className={`fixed z-50 transition-all duration-500 ease-in-out
-        ${isVisible ? 'translate-y-0 opacity-100' : 'translate-y-20 opacity-0 pointer-events-none'}
+      className={cn(
+        "fixed z-40 transition-all duration-500 ease-in-out flex flex-row md:flex-col items-end gap-3",
         
-        /* Мобильные стили: горизонтальная панель внизу по центру */
-        bottom-4 left-4 right-4 md:left-auto md:right-0 md:bottom-0
+        // --- ПОЛОЖЕНИЕ ---
+        // Мобильные: по центру внизу
+        "left-1/2 -translate-x-1/2 bottom-6", 
+        // Десктоп: справа внизу, сброс центрирования
+        "md:left-auto md:right-8 md:translate-x-0 md:bottom-8",
         
-        /* ПК стили: позиционирование контейнера справа */
-        md:fixed md:right-8 md:bottom-8 md:w-auto md:h-auto
-        flex flex-row md:flex-col items-end gap-3
-      `}
+        // --- ЛОГИКА ВИДИМОСТИ ---
+        isVisible 
+          ? "translate-y-0 opacity-100" 
+          : "translate-y-32 opacity-0 pointer-events-none",
+        
+        // На мобилках скрываем, когда скроллим ВВЕРХ (чтобы выплыл основной Navbar Dock)
+        !isScrollingDown && "max-md:translate-y-32 max-md:opacity-0"
+      )}
     >
       
-      {/* Кнопка НАВЕРХ (Только для ПК здесь, на мобильном она внутри меню) */}
-      <button
-        onClick={scrollToTop}
-        className="hidden md:flex w-12 h-12 rounded-xl bg-secondary/90 backdrop-blur-md border text-muted-foreground hover:text-foreground hover:bg-secondary shadow-2xl shadow-black/50 items-center justify-center transition-all active:scale-95 mb-2 dark:bg-zinc-900/90 dark:border-zinc-800 dark:text-zinc-400 dark:hover:text-white dark:hover:bg-zinc-800"
-        title="Наверх"
-      >
-        <ArrowUp className="w-5 h-5" />
-      </button>
+      {/* Кнопка НАВЕРХ (Для десктопа вынесена отдельно выше панели) */}
+      {showScrollUpButton && (
+        <button
+          onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+          className="hidden md:flex w-12 h-12 rounded-[18px] bg-background/80 backdrop-blur-2xl border border-white/10 dark:border-white/5 shadow-2xl items-center justify-center text-muted-foreground hover:text-primary transition-all active:scale-90"
+        >
+          <ArrowUpIcon size={20} />
+        </button>
+      )}
 
-      {/* Основная панель навигации */}
-      <nav className="
-        w-full md:w-auto
-        bg-secondary/90 backdrop-blur-md border 
-        rounded-2xl md:rounded-2xl 
-        p-1.5 md:p-2 
-        shadow-2xl shadow-black/50 dark:bg-zinc-900/90 dark:border-zinc-800
-        
-        /* Мобильный Grid/Flex для скролла если кнопок много */
-        flex flex-row md:flex-col items-center justify-between md:justify-start gap-1 md:gap-2
-        overflow-x-auto md:overflow-visible
-        hide-scrollbar
-      ">
+      {/* Основная панель (Стиль идентичен везде) */}
+      <nav className="flex flex-row md:flex-col items-center gap-1.5 p-1.5 bg-background/80 backdrop-blur-2xl border border-white/10 dark:border-white/5 rounded-[22px] shadow-2xl">
         {navItems.map((item) => {
           const Icon = item.icon
           const isActive = activeSection === item.id
@@ -106,45 +140,36 @@ export function FloatingNav() {
             <button
               key={item.id}
               onClick={() => scrollToSection(item.id)}
-              className={`
-                relative group flex-shrink-0
-                w-10 h-10 sm:w-11 sm:h-11 md:w-12 md:h-12 
-                rounded-xl flex items-center justify-center 
-                transition-all duration-300
-                ${isActive 
-                  ? 'bg-primary text-foreground shadow-lg shadow-primary/25 scale-105 dark:bg-orange-500 dark:text-white dark:shadow-orange-500/25' 
-                  : 'text-muted-foreground hover:bg-accent hover:text-foreground dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-white'
-                }
-              `}
+              className={cn(
+                "relative group flex items-center justify-center w-11 h-11 md:w-12 md:h-12 rounded-[18px] transition-all duration-300",
+                isActive 
+                  ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20 scale-105" 
+                  : "text-muted-foreground hover:bg-white/10 hover:text-foreground active:scale-90"
+              )}
               aria-label={item.label}
             >
-              <Icon className="w-5 h-5 md:w-5 md:h-5" />
+              <Icon size={isActive ? 22 : 20} strokeWidth={isActive ? 2.5 : 2} />
               
-              {/* Тултип (Только для ПК) */}
-              <span className="
-                hidden md:block
-                absolute right-full mr-4 px-2.5 py-1.5 
-                bg-secondary text-foreground text-xs font-medium rounded-lg 
-                border shadow-xl dark:bg-zinc-900 dark:text-white dark:border-zinc-800
-                opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 
-                transition-all pointer-events-none whitespace-nowrap z-50
-              ">
+              {/* Tooltip (Только Desktop) */}
+              <span className="hidden md:block absolute right-full mr-4 px-3 py-1.5 rounded-xl bg-popover/90 backdrop-blur-md border border-border text-xs font-semibold text-popover-foreground opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all pointer-events-none whitespace-nowrap shadow-xl">
                 {item.label}
-                {/* Стрелочка тултипа */}
-                <span className="absolute top-1/2 -right-1 -mt-1 border-4 border-transparent border-l-zinc-800" />
               </span>
             </button>
           )
         })}
 
-        {/* Кнопка НАВЕРХ (Для мобильных: внутри панели, справа) */}
-        <div className="w-[1px] h-6 bg-border mx-1 md:hidden" /> {/* Разделитель */}
-        <button
-          onClick={scrollToTop}
-          className="md:hidden flex-shrink-0 w-10 h-10 rounded-xl bg-accent text-muted-foreground hover:text-foreground flex items-center justify-center active:scale-95 transition-all dark:bg-zinc-800 dark:text-zinc-400 dark:hover:text-white"
-        >
-          <ArrowUp className="w-5 h-5" />
-        </button>
+        {/* Разделитель и кнопка НАВЕРХ (Внутри панели только на мобилках) */}
+        {showScrollUpButton && (
+          <>
+            <div className="w-[1px] h-6 bg-border/50 mx-1 md:hidden" />
+            <button
+              onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+              className="md:hidden flex items-center justify-center w-11 h-11 rounded-[18px] bg-primary/10 text-primary active:scale-90 transition-all"
+            >
+              <ArrowUpIcon size={20} />
+            </button>
+          </>
+        )}
       </nav>
     </div>
   )

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { Users, Eye, Bookmark, User, Search, LogOut, Lock } from "lucide-react"
 import Image from "next/image"
+import { ScrollToTop } from "@/components/scroll-to-top"
 
 // Admin credentials from environment variables
 const ADMIN_USERNAME = process.env.NEXT_PUBLIC_ADMIN_USERNAME
@@ -440,6 +441,8 @@ export default function AdminPage() {
           </div>
         )}
       </div>
+
+      <ScrollToTop />
     </div>
   )
 }

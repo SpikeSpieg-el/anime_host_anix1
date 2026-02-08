@@ -2,8 +2,8 @@ import { Navbar } from "@/components/navbar"
 import { Footer } from "@/components/footer"
 import { ScheduleClient } from "@/components/schedule-client"
 import { getAnimeCalendar } from "@/lib/shikimori"
+import { ScrollToTop } from "@/components/scroll-to-top"
 import { Metadata } from "next"
-
 
 
 export const metadata: Metadata = {
@@ -23,6 +23,7 @@ export default async function SchedulePage() {
         
       </div>
 
+      <ScrollToTop />
       <Footer />
     </main>
   )

@@ -4,6 +4,7 @@ import { searchAnime, Anime } from "@/lib/shikimori"
 import { SearchX } from "lucide-react"
 import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
+import { ScrollToTop } from "@/components/scroll-to-top"
 
 async function getUserProfile() {
   try {
@@ -70,6 +71,8 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
           </div>
         )}
       </div>
+
+      <ScrollToTop />
     </div>
   )
 }

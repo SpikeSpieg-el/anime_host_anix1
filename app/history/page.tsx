@@ -8,6 +8,7 @@ import { Navbar } from "@/components/navbar"
 import { Footer } from "@/components/footer"
 import { useEpisodeUpdates } from "@/hooks/use-episode-updates"
 import { useHistory } from "@/components/history-provider"
+import { ScrollToTop } from "@/components/scroll-to-top"
 
 function normalizePosterUrl(value: string): string {
   const raw = (value ?? "").trim()
@@ -161,6 +162,7 @@ export default function HistoryPage() {
         )}
       </div>
 
+      <ScrollToTop />
       <Footer />
     </main>
   )

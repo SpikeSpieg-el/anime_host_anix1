@@ -2,8 +2,11 @@
 
 import Link from "next/link"
 import { useRouter, usePathname } from "next/navigation"
-import { useState, useEffect, useMemo } from "react"
-import { Menu, X, ChevronDown, Flame, Tv, Zap, Compass, Home, BookMarked, History, Calendar, Settings, GraduationCap, LogOut, User as UserIcon } from "lucide-react"
+import { useState, useEffect, useMemo, useRef } from "react"
+import { 
+  Flame, Tv, Compass, Home, BookMarked, History, Calendar, 
+  Settings, GraduationCap, LogOut, Search, MoreHorizontal, X, ArrowUp 
+} from "lucide-react"
 import { SearchSuggestions } from "@/components/search-suggestions"
 import { EpisodeUpdateBadge } from "@/components/episode-update-badge"
 import { useEpisodeUpdates } from "@/hooks/use-episode-updates"
@@ -20,8 +23,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { Charm } from "next/font/google"
 
-// Helper для сохранения истории поиска
+// --- Helper для истории поиска ---
 function saveSearchHistory(query: string) {
   if (typeof window === "undefined") return
   const normalized = query.trim()
@@ -29,8 +33,8 @@ function saveSearchHistory(query: string) {
   try {
     const raw = localStorage.getItem("search-history")
     const parsed = raw ? JSON.parse(raw) : []
-    const current: string[] = Array.isArray(parsed) ? parsed.filter((x) => typeof x === "string") : []
-    const next = [normalized, ...current.filter((q) => q !== normalized)].slice(0, 10)
+    const current: string[] = Array.isArray(parsed) ? parsed.filter((x: any) => typeof x === "string") : []
+    const next = [normalized, ...current.filter((q) => q !== normalized)].slice(10)
     localStorage.setItem("search-history", JSON.stringify(next))
     window.dispatchEvent(new Event("search-history-updated"))
   } catch (e) {
@@ -42,74 +46,83 @@ export function Navbar() {
   const router = useRouter()
   const pathname = usePathname()
   const { user, signOut, profile } = useAuth()
-  
-  const [isOpen, setIsOpen] = useState(false) // Мобильное меню
-  const [searchValue, setSearchValue] = useState("")
-  const [scrolled, setScrolled] = useState(false)
-  
   const { updates, clearUpdate, clearAllUpdates } = useEpisodeUpdates()
 
-  // Стабильная ссылка на аватар, чтобы избежать мигания при скролле
+  // Состояния
+  const [searchValue, setSearchValue] = useState("")
+  const [scrolled, setScrolled] = useState(false)
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false)
+  
+  // Mobile specific states
+  const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false)
+  const [showBottomNav, setShowBottomNav] = useState(true)
+  const lastScrollY = useRef(0)
+
+  // Стабильная ссылка на аватар
   const avatarUrl = useMemo(() => {
     if (!profile?.avatar_url) return undefined;
-    // Добавляем метку времени только один раз при загрузке профиля,
-    // а не при каждом движении мыши или скролле
     return `${profile.avatar_url}?t=${profile.updated_at || 'initial'}`;
   }, [profile?.avatar_url, profile?.updated_at]);
-  // Ссылка обновится только если изменится URL в базе или дата обновления
 
-  // Отслеживание скролла для изменения прозрачности хедера
+  // Логика скролла: прозрачность хедера + скрытие нижнего бара при скролле вниз
   useEffect(() => {
-    const handleScroll = () => setScrolled(window.scrollY > 20)
+    const handleScroll = () => {
+      const currentScrollY = window.scrollY
+      setScrolled(currentScrollY > 20)
+      
+      // Логика для мобильного бара (скрываем при скролле вниз, показываем при скролле вверх)
+      if (currentScrollY > lastScrollY.current && currentScrollY > 100) {
+        setShowBottomNav(false)
+      } else {
+        setShowBottomNav(true)
+      }
+      lastScrollY.current = currentScrollY
+    }
     window.addEventListener("scroll", handleScroll)
     return () => window.removeEventListener("scroll", handleScroll)
   }, [])
-
-  // Блокировка скролла body при открытом меню
-  useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = 'hidden'
-    } else {
-      document.body.style.overflow = 'unset'
-    }
-    return () => { document.body.style.overflow = 'unset' }
-  }, [isOpen])
 
   const handleSearchSelect = (query: string) => {
     if (!query.trim()) return
     saveSearchHistory(query)
     router.push(`/catalog?search=${encodeURIComponent(query)}`)
-    setIsOpen(false)
+    setIsMobileSearchOpen(false) 
   }
 
-  // Плавный скролл наверх, если мы уже на главной
   const handleLogoClick = (e: React.MouseEvent) => {
     if (pathname === "/") {
       e.preventDefault()
       window.scrollTo({ top: 0, behavior: "smooth" })
-      setIsOpen(false)
     }
   }
+
+  // Общие классы для иконок навигации
+  const navIconClass = (isActive: boolean) => cn(
+    "flex flex-col items-center justify-center gap-1 w-full h-full rounded-xl transition-all duration-300",
+    isActive 
+      ? "text-primary scale-105" 
+      : "text-muted-foreground hover:text-foreground active:scale-95"
+  )
 
   return (
     <>
       <header 
         className={cn(
-          "fixed top-0 left-0 right-0 z-50 w-full border-b transition-all duration-300 bg-background/90 backdrop-blur-xl shadow-lg shadow-black/20 dark:border-white/5 dark:shadow-black/20 border-border"
+          "fixed top-0 left-0 right-0 z-50 w-full border-b transition-all duration-300 bg-background/80 backdrop-blur-xl shadow-sm border-border",
+          scrolled ? "shadow-md bg-background/95" : "border-transparent"
         )}
       >
         <div className="container mx-auto px-4 h-16 md:h-20 flex items-center justify-between gap-4">
           
-          {/* 1. ЛОГОТИП */}
-          <Link href="/" onClick={handleLogoClick} className="flex items-center gap-3 z-50 group relative">
-             {/*<div className="relative w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center">
-               <div className="absolute inset-0 bg-orange-600 rounded-xl rotate-6 opacity-50 blur-[6px] group-hover:opacity-80 transition-opacity duration-500"></div>
-               <div className="absolute inset-0 bg-red-600 rounded-xl -rotate-6 opacity-50 blur-[6px] group-hover:opacity-80 transition-opacity duration-500"></div>
-               <div className="relative w-full h-full bg-zinc-900 border border-white/10 rounded-xl flex items-center justify-center shadow-2xl overflow-hidden">
-                  <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                  <Zap className="w-5 h-5 sm:w-6 sm:h-6 text-orange-500 fill-orange-500 transform group-hover:scale-110 transition-transform" />
-               </div>
-             </div>*/}
+          {/* === 1. ЛОГОТИП (Скрывается на моб при открытом поиске) === */}
+          <Link 
+            href="/" 
+            onClick={handleLogoClick} 
+            className={cn(
+              "flex items-center gap-3 z-50 transition-all duration-300",
+              isMobileSearchOpen ? "hidden md:flex" : "flex"
+            )}
+          >
              <div className="flex flex-col justify-center">
                <h1 className="text-xl sm:text-2xl font-black tracking-tighter text-foreground leading-none font-unbounded">
                  Weeb.<span className="text-primary">X</span>
@@ -117,8 +130,30 @@ export function Navbar() {
              </div>
           </Link>
 
-          {/* 2. НАВИГАЦИЯ (DESKTOP) */}
+          {/* === 2. МОБИЛЬНЫЙ ПОИСК (Expanded State) === */}
+          <div className={cn(
+            "flex-1 md:hidden transition-all duration-300 flex items-center gap-2",
+            isMobileSearchOpen ? "opacity-100 scale-100 w-full" : "opacity-0 scale-95 w-0 hidden"
+          )}>
+            <SearchSuggestions
+              value={searchValue}
+              onChange={setSearchValue}
+              onSelect={handleSearchSelect}
+              placeholder="Поиск аниме..."
+              className="w-full h-10"
+              autoFocus={isMobileSearchOpen}
+            />
+            <button 
+              onClick={() => setIsMobileSearchOpen(false)}
+              className="p-2 bg-secondary rounded-full text-muted-foreground"
+            >
+              <X size={18} />
+            </button>
+          </div>
+
+          {/* === 3. НАВИГАЦИЯ (DESKTOP ONLY) === */}
           <nav className="hidden lg:flex items-center gap-1 bg-secondary/50 p-1 rounded-full border backdrop-blur-md border-border">
+            {/* ... Старый код десктопной навигации без изменений ... */}
             <Link 
               href="/" 
               onClick={handleLogoClick}
@@ -131,7 +166,6 @@ export function Navbar() {
             >
               <Home size={16} /> Главная
             </Link>
-            
             <Link 
               href="/catalog?sort=popular" 
               className={cn(
@@ -143,7 +177,6 @@ export function Navbar() {
             >
               <Flame size={16} className={pathname.includes("sort=popular") ? "fill-white" : ""} /> Топ-100
             </Link>
-
             <Link 
               href="/catalog?sort=new&status=ongoing" 
               className={cn(
@@ -156,69 +189,27 @@ export function Navbar() {
               <Tv size={16} /> Онгоинги
             </Link>
 
-            {/* Dropdown "Ещё" */}
+            {/* Dropdown "Ещё" Desktop */}
             <div className="group relative px-4 py-2 cursor-pointer">
               <span className={cn(
                 "flex items-center gap-1.5 text-sm font-medium transition-colors",
-                (pathname.includes("genre") || pathname === "/bookmarks" || pathname === "/schedule" || pathname === "/history" || pathname === "/beginners") ? "text-foreground" : "text-muted-foreground group-hover:text-foreground"
+                (pathname.includes("genre") || pathname === "/bookmarks" || pathname === "/schedule" || pathname === "/history") ? "text-foreground" : "text-muted-foreground group-hover:text-foreground"
               )}>
-                <Settings size={16} /> Ещё <ChevronDown size={14} className="group-hover:rotate-180 transition-transform duration-300" />
+                <Settings size={16} /> Ещё
               </span>
-              
-              {/* Выпадающее меню */}
               <div className="absolute top-full left-1/2 -translate-x-1/2 pt-4 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 transform translate-y-2 group-hover:translate-y-0 z-50">
-                <div className="w-64 bg-background/95 backdrop-blur-xl border rounded-2xl p-4 shadow-2xl space-y-2">
-                  {/* Жанры 
-                  <div className="border-b border-white/5 pb-2">
-                    <p className="text-xs font-medium text-zinc-500 uppercase tracking-wider mb-2">Жанры</p>
-                    <div className="grid grid-cols-2 gap-1">
-                      {Object.entries(GENRES_MAP).map(([name, id]) => (
-                        <Link 
-                          key={id} 
-                          href={`/catalog?genre=${id}`}
-                          className="px-3 py-1.5 rounded-lg hover:bg-white/10 text-zinc-400 hover:text-orange-400 transition text-xs font-medium border border-transparent hover:border-white/5 text-center"
-                        >
-                          {name}
-                        </Link>
-                      ))}
-                    </div>
-                  </div>*/}
-                  
-                  {/* Другие разделы */}
-                  <div className="space-y-1">
-                    <Link 
-                      href="/beginners" 
-                      className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-accent hover:text-accent-foreground transition text-sm font-medium text-muted-foreground"
-                    >
-                      <GraduationCap size={14} /> Для новичков
-                    </Link>
-                    <Link 
-                      href="/bookmarks" 
-                      className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-accent hover:text-accent-foreground transition text-sm font-medium text-muted-foreground"
-                    >
-                      <BookMarked size={14} /> Закладки
-                    </Link>
-                    <Link 
-                      href="/schedule" 
-                      className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-accent hover:text-accent-foreground transition text-sm font-medium text-muted-foreground"
-                    >
-                      <Calendar size={14} /> Расписание
-                    </Link>
-                    <Link 
-                      href="/history" 
-                      className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-accent hover:text-accent-foreground transition text-sm font-medium text-muted-foreground"
-                    >
-                      <History size={14} /> История
-                    </Link>
-                  </div>
+                <div className="w-56 bg-background/95 backdrop-blur-xl border rounded-2xl p-2 shadow-2xl space-y-1">
+                  <Link href="/beginners" className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-accent transition text-sm font-medium text-muted-foreground hover:text-foreground"><GraduationCap size={14} /> Для новичков</Link>
+                  <Link href="/bookmarks" className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-accent transition text-sm font-medium text-muted-foreground hover:text-foreground"><BookMarked size={14} /> Закладки</Link>
+                  <Link href="/schedule" className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-accent transition text-sm font-medium text-muted-foreground hover:text-foreground"><Calendar size={14} /> Расписание</Link>
+                  <Link href="/history" className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-accent transition text-sm font-medium text-muted-foreground hover:text-foreground"><History size={14} /> История</Link>
                 </div>
               </div>
             </div>
-
           </nav>
 
-          {/* 3. ПОИСК (DESKTOP + TABLET) */}
-          <div className="flex-1 max-w-sm xl:max-w-md hidden md:block">
+          {/* === 4. ПОИСК (DESKTOP) === */}
+          <div className="hidden md:block flex-1 max-w-sm xl:max-w-md">
             <SearchSuggestions
               value={searchValue}
               onChange={setSearchValue}
@@ -227,239 +218,130 @@ export function Navbar() {
             />
           </div>
 
-          {/* 4. ПРОФИЛЬ/АВТОРИЗАЦИЯ + УВЕДОМЛЕНИЯ О НОВЫХ СЕРИЯХ + ПЕРЕКЛЮЧАТЕЛЬ ТЕМЫ (DESKTOP) */}
-          {/* ИСПРАВЛЕНИЕ ЗДЕСЬ: заменили md:block на md:flex */}
-          <div className="hidden md:flex items-center gap-6"> 
+          {/* === 5. ПРАВАЯ ЧАСТЬ (Аватар, Уведомления, Тоггл поиска для моб) === */}
+          <div className="flex items-center gap-3 md:gap-6"> 
             
+            {/* Кнопка поиска для мобильных */}
+            {!isMobileSearchOpen && (
+              <button 
+                className="md:hidden p-2 text-muted-foreground hover:text-primary transition-colors"
+                onClick={() => setIsMobileSearchOpen(true)}
+              >
+                <Search size={22} />
+              </button>
+            )}
+
+            {/* Бэйджик уведомлений */}
+            <EpisodeUpdateBadge 
+              updates={updates} 
+              onClearUpdate={clearUpdate}
+              onClearAll={clearAllUpdates}
+            />
+
+            {/* Аватар / Вход */}
             {user ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  {/* Добавили focus:outline-none, чтобы убрать стандартную обводку при клике */}
-                  <button className="w-9 h-9 rounded-full bg-gradient-to-tr from-orange-500 to-purple-600 p-[2px] overflow-hidden focus:outline-none cursor-pointer">
-                     <Avatar className="w-full h-full">
-                       <AvatarImage 
-                         src={avatarUrl} 
-                         alt="User Avatar" 
-                         className="object-cover"
-                         onError={(e) => {
-                           console.error('Navbar avatar failed to load:', profile?.avatar_url);
-                           e.currentTarget.style.display = 'none';
-                         }}
-                         onLoad={(e) => {
-                           e.currentTarget.style.display = 'block';
-                         }}
-                       />
-                       <AvatarFallback className="bg-secondary text-secondary-foreground font-semibold">
-                         {profile?.username ? profile.username.slice(0, 2).toUpperCase() : user.email?.slice(0, 2).toUpperCase()}
+                  <button className="w-9 h-9 md:w-10 md:h-10 rounded-full bg-gradient-to-tr from-orange-500 to-purple-600 p-[2px] overflow-hidden focus:outline-none cursor-pointer active:scale-95 transition-transform">
+                     <Avatar className="w-full h-full border-2 border-background rounded-full">
+                       <AvatarImage src={avatarUrl} className="object-cover" />
+                       <AvatarFallback className="bg-secondary text-[10px] md:text-xs">
+                         {profile?.username?.slice(0, 2).toUpperCase() || "WX"}
                        </AvatarFallback>
                      </Avatar>
                   </button>
                 </DropdownMenuTrigger>
-                {/* ... содержимое меню ... */}
-                <DropdownMenuContent align="end" className="w-56 bg-background border text-foreground">
-                  <DropdownMenuLabel className="flex items-center gap-2 font-normal">
+                <DropdownMenuContent align="end" className="w-56">
+                  <DropdownMenuLabel>
                     <div className="flex flex-col space-y-1">
-                      <p className="text-sm font-medium leading-none text-foreground">Аккаунт</p>
-                      <p className="text-xs leading-none text-muted-foreground truncate">{user.email}</p>
+                      <p className="text-sm font-medium">{profile?.username || "Пользователь"}</p>
+                      <p className="text-xs text-muted-foreground truncate">{user.email}</p>
                     </div>
-                    <ThemeToggle />
                   </DropdownMenuLabel>
-                  
-                  <DropdownMenuSeparator className="bg-border" />
-                  <DropdownMenuItem asChild className="cursor-pointer hover:bg-accent focus:bg-accent">
-                     <Link href="/settings">Настройки профиля</Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator className="bg-border" />
-                  <DropdownMenuItem onClick={signOut} className="cursor-pointer text-destructive focus:text-destructive focus:bg-destructive/10">
-                    <LogOut className="mr-2 h-4 w-4" />
-                    <span>Выйти</span>
-                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <div className="px-2 py-1.5 flex items-center justify-between">
+                     <span className="text-sm">Тема</span>
+                     <ThemeToggle />
+                  </div>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem asChild><Link href="/settings">Настройки</Link></DropdownMenuItem>
+                  <DropdownMenuItem onClick={signOut} className="text-destructive"><LogOut className="mr-2 h-4 w-4" /> Выйти</DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             ) : (
               <AuthModal />
             )}
-            
-            {/* Теперь колокольчик будет ровно по центру относительно аватара */}
-            <EpisodeUpdateBadge 
-              updates={updates} 
-              onClearUpdate={clearUpdate}
-              onClearAll={clearAllUpdates}
-            />
-          </div>
-
-          {/* 5. МОБИЛЬНЫЙ ТОГГЛ + УВЕДОМЛЕНИЯ + ПРОФИЛЬ */}
-          <div className="flex items-center gap-2 md:hidden">
-            {user ? (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <button className="w-8 h-8 rounded-full bg-gradient-to-tr from-orange-500 to-purple-600 p-[1.5px] overflow-hidden">
-                     <Avatar className="w-full h-full">
-                       <AvatarImage 
-                         src={avatarUrl} 
-                         alt="User Avatar"
-                         className="object-cover"
-                         onError={(e) => {
-                           console.error('Mobile navbar avatar failed to load:', profile?.avatar_url);
-                           e.currentTarget.style.display = 'none';
-                         }}
-                         onLoad={(e) => {
-                           e.currentTarget.style.display = 'block';
-                         }}
-                       />
-                       <AvatarFallback className="bg-secondary text-secondary-foreground font-semibold text-xs dark:bg-zinc-900 dark:text-white">
-                         {profile?.username ? profile.username.slice(0, 2).toUpperCase() : user.email?.slice(0, 2).toUpperCase()}
-                       </AvatarFallback>
-                     </Avatar>
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-48 bg-background border text-foreground">
-                  <DropdownMenuLabel className="flex justify-between items-center font-normal">
-                    <div className="flex flex-col space-y-1">
-                      <p className="text-xs leading-none text-foreground">Аккаунт</p>
-                      <p className="text-xs leading-none text-muted-foreground truncate">{user.email}</p>
-                    </div>
-                    <ThemeToggle />
-                  </DropdownMenuLabel>
-                  <DropdownMenuSeparator className="bg-border" />
-                  <DropdownMenuItem asChild className="cursor-pointer hover:bg-accent focus:bg-accent text-sm dark:hover:bg-zinc-900 dark:focus:bg-zinc-900">
-                     <Link href="/settings">Настройки</Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator className="bg-border" />
-                  <DropdownMenuItem onClick={signOut} className="cursor-pointer text-destructive focus:text-destructive focus:bg-destructive/10 text-sm dark:text-red-500 dark:focus:text-red-400 dark:focus:bg-red-500/10">
-                    <LogOut className="mr-2 h-3 w-3" />
-                    <span>Выйти</span>
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            ) : (
-              <div className="scale-75 origin-right">
-                <AuthModal />
-              </div>
-            )}
-            
-            <EpisodeUpdateBadge 
-              updates={updates} 
-              onClearUpdate={clearUpdate}
-              onClearAll={clearAllUpdates}
-            />
-            
-            <button 
-              className="p-2 text-muted-foreground hover:text-foreground active:scale-95 transition-transform" 
-              onClick={() => setIsOpen(!isOpen)}
-              aria-label="Toggle menu"
-            >
-              {isOpen ? <X size={28} /> : <Menu size={28} />}
-            </button>
           </div>
         </div>
       </header>
-
+      
+      {/* Spacer под хедера */}
       <div className="h-16 md:h-20" aria-hidden="true" />
 
-      {/* === МОБИЛЬНОЕ МЕНЮ (Full Screen) === */}
-      {isOpen && (
-         <div className="fixed inset-0 top-16 z-40 bg-background/95 backdrop-blur-xl md:hidden flex flex-col overflow-y-auto animate-in fade-in slide-in-from-bottom-5 duration-200">
-            <div className="p-4 space-y-6 pb-20">
-                
-                {/* Поиск для мобилок */}
-                <div className="relative z-50">
-                   <SearchSuggestions
-                      value={searchValue}
-                      onChange={setSearchValue}
-                      onSelect={handleSearchSelect}
-                      placeholder="Что ищем?"
-                      className="w-full h-12 text-lg"
-                   />
-                </div>
+      {/* 
+        === MODERN MOBILE FLOATING DOCK === 
+        Скрыт на md+, виден на мобильных. Скрывается при скролле вниз.
+      */}
+      <div className={cn(
+        "fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-[90%] max-w-[400px] md:hidden transition-all duration-500 ease-in-out",
+        showBottomNav ? "translate-y-0 opacity-100" : "translate-y-24 opacity-0"
+      )}>
+        <div className="bg-background/80 backdrop-blur-xl border border-white/10 dark:border-white/5 rounded-2xl shadow-2xl shadow-black/20 flex items-center justify-between px-2 py-2 h-[68px]">
+          
+          {/* 1. Главная */}
+          <Link href="/" onClick={() => window.scrollTo({ top: 0 })} className={navIconClass(pathname === "/")}>
+            <Home size={20} className={pathname === "/" ? "animate-pulse" : ""} />
+            <span className="text-[10px] font-medium">Главная</span>
+          </Link>
+          {/* 2. Расписание */}
+          <Link href="/schedule" className={navIconClass(pathname === "/schedule")}>
+            <Calendar size={20} className={pathname === "/schedule" ? "animate-pulse" : ""} />
+            <span className="text-[10px] font-medium">Расписание</span>
+          </Link>
 
-                {/* Основные ссылки */}
-                <div className="space-y-2">
-                    <Link 
-                      href="/" 
-                      onClick={(e) => { handleLogoClick(e); setIsOpen(false); }} 
-                      className={cn(
-                        "flex items-center gap-4 px-4 py-4 rounded-xl text-lg font-medium transition-all active:scale-[0.98]",
-                        pathname === "/" ? "bg-secondary text-foreground border dark:bg-zinc-900 dark:text-white dark:border-zinc-800" : "text-muted-foreground hover:bg-secondary/50 hover:text-foreground dark:text-zinc-400 dark:hover:bg-zinc-900/50 dark:hover:text-white"
-                      )}
-                    >
-                        <Home className="w-6 h-6 text-orange-500" /> Главная
-                    </Link>
+          {/* 3. Каталог как остальные кнопки */}
+          <Link href="/catalog" className={navIconClass(pathname === "/catalog")}>
+            <Compass size={20} className={pathname === "/catalog" && !pathname.includes("sort=popular") ? "animate-pulse" : ""} />
+            <span className="text-[10px] font-medium">
+              Каталог
+            </span>
+          </Link>
 
-                    <Link 
-                      href="/catalog?sort=popular" 
-                      onClick={() => setIsOpen(false)} 
-                      className={cn(
-                        "flex items-center gap-4 px-4 py-4 rounded-xl text-lg font-bold transition-all active:scale-[0.98]",
-                         pathname.includes("sort=popular") ? "bg-primary/10 text-primary border border-primary/20 dark:bg-orange-500/10 dark:text-orange-500 dark:border-orange-500/20" : "text-muted-foreground hover:bg-secondary/50 hover:text-primary dark:text-zinc-400 dark:hover:bg-zinc-900/50 dark:hover:text-orange-500"
-                      )}
-                    >
-                        <Flame className="w-6 h-6" /> Популярное
-                    </Link>
+          {/* 4. Закладки */}
+          <Link href="/bookmarks" className={navIconClass(pathname === "/bookmarks")}>
+            <BookMarked size={20} className={pathname === "/bookmarks" ? "animate-pulse" : ""} />
+            <span className="text-[10px] font-medium">Моё</span>
+          </Link>
 
-                    <Link 
-                      href="/catalog?sort=new&status=ongoing" 
-                      onClick={() => setIsOpen(false)} 
-                      className="flex items-center gap-4 px-4 py-4 rounded-xl text-lg font-medium text-muted-foreground hover:bg-secondary/50 hover:text-foreground transition-all active:scale-[0.98] dark:text-zinc-400 dark:hover:bg-zinc-900/50 dark:hover:text-white"
-                    >
-                        <Tv className="w-6 h-6 text-blue-500" /> Онгоинги
-                    </Link>
+          {/* 5. Ещё (Меню) */}
+          <DropdownMenu onOpenChange={setIsDropdownOpen}>
+            <DropdownMenuTrigger asChild>
+              <button className={navIconClass(false)}>
+                {/* мигает если открыто */}
+                <Settings size={20} className={isDropdownOpen ? "animate-pulse" : ""} />
+                <span className="text-[10px] font-medium">Ещё</span>
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" side="top" className="w-56 mb-4 bg-background/95 backdrop-blur-xl border rounded-2xl p-2 shadow-2xl">
+              <DropdownMenuLabel className="px-3 py-2 text-sm font-medium">Разделы</DropdownMenuLabel>
+              <DropdownMenuSeparator className="bg-border/50" />
+              <DropdownMenuItem asChild>
+                <Link href="/history" className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-accent transition text-sm font-medium text-muted-foreground hover:text-foreground"><History size={14} /> История</Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/beginners" className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-accent transition text-sm font-medium text-muted-foreground hover:text-foreground"><GraduationCap size={14} /> Новичкам</Link>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator className="bg-border/50" />
+              <DropdownMenuItem asChild>
+                <Link href="/catalog?sort=new&status=ongoing" className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-accent transition text-sm font-medium text-blue-500 hover:text-blue-600"><Tv size={14} /> Онгоинги</Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/catalog?sort=popular" className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-accent transition text-sm font-medium text-blue-500 hover:text-blue-600"><Flame size={14} /> Популярное</Link>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
 
-                    <Link 
-                      href="/catalog" 
-                      onClick={() => setIsOpen(false)} 
-                      className="flex items-center gap-4 px-4 py-4 rounded-xl text-lg font-medium text-muted-foreground hover:bg-secondary/50 hover:text-foreground transition-all active:scale-[0.98] dark:text-zinc-400 dark:hover:bg-zinc-900/50 dark:hover:text-white"
-                    >
-                        <Compass className="w-6 h-6 text-purple-500" /> Весь каталог
-                    </Link>
-
-                    <Link 
-                      href="/beginners" 
-                      onClick={() => setIsOpen(false)} 
-                      className={cn(
-                        "flex items-center gap-4 px-4 py-4 rounded-xl text-lg font-medium transition-all active:scale-[0.98]",
-                        pathname === "/beginners" ? "bg-secondary text-foreground border dark:bg-zinc-900 dark:text-white dark:border-zinc-800" : "text-muted-foreground hover:bg-secondary/50 hover:text-foreground dark:text-zinc-400 dark:hover:bg-zinc-900/50 dark:hover:text-white"
-                      )}
-                    >
-                        <GraduationCap className="w-6 h-6 text-green-500" /> Для новичков
-                    </Link>
-
-                    <Link 
-                      href="/bookmarks" 
-                      onClick={() => setIsOpen(false)} 
-                      className={cn(
-                        "flex items-center gap-4 px-4 py-4 rounded-xl text-lg font-medium transition-all active:scale-[0.98]",
-                        pathname === "/bookmarks" ? "bg-secondary text-foreground border dark:bg-zinc-900 dark:text-white dark:border-zinc-800" : "text-muted-foreground hover:bg-secondary/50 hover:text-foreground dark:text-zinc-400 dark:hover:bg-zinc-900/50 dark:hover:text-white"
-                      )}
-                    >
-                        <BookMarked className="w-6 h-6 text-orange-500" /> Закладки
-                    </Link>
-
-                    <Link 
-                      href="/schedule" 
-                      onClick={() => setIsOpen(false)} 
-                      className={cn(
-                        "flex items-center gap-4 px-4 py-4 rounded-xl text-lg font-medium transition-all active:scale-[0.98]",
-                        pathname === "/schedule" ? "bg-secondary text-foreground border dark:bg-zinc-900 dark:text-white dark:border-zinc-800" : "text-muted-foreground hover:bg-secondary/50 hover:text-foreground dark:text-zinc-400 dark:hover:bg-zinc-900/50 dark:hover:text-white"
-                      )}
-                    >
-                        <Calendar className="w-6 h-6 text-purple-500" /> Расписание
-                    </Link>
-
-                    <Link 
-                      href="/history" 
-                      onClick={() => setIsOpen(false)} 
-                      className={cn(
-                        "flex items-center gap-4 px-4 py-4 rounded-xl text-lg font-medium transition-all active:scale-[0.98]",
-                        pathname === "/history" ? "bg-secondary text-foreground border dark:bg-zinc-900 dark:text-white dark:border-zinc-800" : "text-muted-foreground hover:bg-secondary/50 hover:text-foreground dark:text-zinc-400 dark:hover:bg-zinc-900/50 dark:hover:text-white"
-                      )}
-                    >
-                        <History className="w-6 h-6 text-blue-500" /> История
-                    </Link>
-                </div>
-            </div>
-         </div>
-      )}
+        </div>
+      </div>
     </>
-  )
-}
+  )}

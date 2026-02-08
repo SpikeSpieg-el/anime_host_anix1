@@ -8,6 +8,7 @@ import { Navbar } from "@/components/navbar"
 import { Footer } from "@/components/footer"
 import Link from "next/link"
 import { Bookmark, ArrowLeft } from "lucide-react"
+import { ScrollToTop } from "@/components/scroll-to-top"
 
 export default function BookmarksPage() {
   const { items } = useBookmarks()

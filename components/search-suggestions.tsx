@@ -31,6 +31,7 @@ interface SearchSuggestionsProps {
   onSelect: (value: string) => void // Вызывается при нажатии Enter или выбора "Искать ..."
   placeholder?: string
   className?: string
+  autoFocus?: boolean
 }
 
 export function SearchSuggestions({ 
@@ -38,7 +39,8 @@ export function SearchSuggestions({
   onChange, 
   onSelect, 
   placeholder = "Поиск аниме...",
-  className = ""
+  className = "",
+  autoFocus = false
 }: SearchSuggestionsProps) {
   const router = useRouter()
   const { profile } = useAuth()
@@ -107,6 +109,7 @@ export function SearchSuggestions({
           onChange={(e) => onChange(e.target.value)}
           onFocus={() => value.trim().length >= 2 && setIsOpen(true)}
           onKeyDown={handleKeyDown}
+          autoFocus={autoFocus}
           className="w-full h-9 rounded-xl bg-secondary/50 border border-border pl-10 pr-10 text-sm text-foreground focus:bg-secondary focus:outline-none focus:ring-1 focus:ring-primary/50 focus:border-primary/50 transition-all placeholder:text-muted-foreground shadow-inner"
         />
         {value && (

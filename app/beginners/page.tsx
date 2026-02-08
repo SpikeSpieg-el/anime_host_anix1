@@ -28,6 +28,7 @@ import {
 } from "lucide-react"
 import { Navbar } from "@/components/navbar"
 import { Footer } from "@/components/footer"
+import { ScrollToTop } from "@/components/scroll-to-top"
 
 export default function BeginnersPage() {
   const [mounted, setMounted] = useState(false)
@@ -609,6 +610,7 @@ export default function BeginnersPage() {
 
       </div>
 
+      <ScrollToTop />
       <Footer />
     </main>
   )

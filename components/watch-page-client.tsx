@@ -12,6 +12,10 @@ import {
   HardDrive, 
   FileVideo, 
   PlayCircle,
+  Camera,
+  Users,
+  Play,
+  ArrowUp,
 } from "lucide-react"
 import type { Anime } from "@/lib/shikimori"
 import { KodikPlayer } from "@/components/kodik-player"
@@ -30,9 +34,10 @@ import {
   DialogTrigger,
   DialogDescription
 } from "@/components/ui/dialog"
-import { cn } from "@/lib/utils"
 import { isHentaiContent } from "@/lib/hentai-detector"
 import { WatchPageGallery } from "@/components/watch-page-gallery"
+import { FloatingNav } from "@/components/floating-nav"
+import { cn } from "@/lib/utils"
 
 interface WatchPageClientProps {
   anime: Anime
@@ -121,6 +126,12 @@ export function WatchPageClient({
       setSelectedEpisode(initialEpisode)
     }
   }, [initialEpisode, isStarted, selectedEpisode])
+
+  useEffect(() => {
+    if (!isStarted && !initialEpisode && lastWatchedInfo?.episode && lastWatchedInfo.episode !== selectedEpisode) {
+      setSelectedEpisode(lastWatchedInfo.episode)
+    }
+  }, [initialEpisode, isStarted, lastWatchedInfo, selectedEpisode])
 
   useEffect(() => {
     if (!isStarted || isUpdatingFromPlayer) return
@@ -440,6 +451,7 @@ export function WatchPageClient({
 
       {/* --- Player Section --- */}
       <div 
+        id='player'
         ref={playerRef} 
         className="w-full scroll-mt-24" // scroll-mt нужен для отступа при скролле
       >
@@ -490,7 +502,7 @@ export function WatchPageClient({
 
       {/* --- Episode Selector --- */}
       {hasEpisodes && (
-        <div className="bg-card/20 border border-border rounded-2xl p-4 md:p-6 backdrop-blur-sm">
+        <div id='episodes' className="bg-card/20 border border-border rounded-2xl p-4 md:p-6 backdrop-blur-sm">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
             <h2 className="text-lg md:text-xl font-bold text-foreground">
               Список серий
@@ -511,6 +523,8 @@ export function WatchPageClient({
 
       {/* --- Gallery Section (New Component) --- */}
       <WatchPageGallery anime={anime} />
+
+      <FloatingNav variant="watch-page" />
     </div>
   )
 }

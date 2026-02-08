@@ -24,8 +24,7 @@ import { cn } from "@/lib/utils"
 import { 
   getAnimeScreenshots, 
   getAnimeScreenshotsThumbnails, 
-  getAnimeCharacters, 
-  getAnimeVideos 
+  getAnimeCharacters
 } from "@/lib/shikimori"
 
 const VisuallyHidden = ({ children }: { children: React.ReactNode }) => (
@@ -48,7 +47,6 @@ export function WatchPageGallery({ anime }: WatchPageGalleryProps) {
   const [displayedCharacters, setDisplayedCharacters] = useState<Array<{name: string, avatar: string, role?: string}>>([])
   const [charactersLimit, setCharactersLimit] = useState(6)
   
-  const [trailerUrl, setTrailerUrl] = useState<string>("")
   const [selectedScreenshot, setSelectedScreenshot] = useState<string>("")
   const [galleryLoading, setGalleryLoading] = useState(true)
   const [currentScreenshotIndex, setCurrentScreenshotIndex] = useState<number>(0)
@@ -77,16 +75,6 @@ export function WatchPageGallery({ anime }: WatchPageGalleryProps) {
         const charactersData = await getAnimeCharacters(anime.shikimoriId)
         setAllCharacters(charactersData)
         setDisplayedCharacters(charactersData.slice(0, charactersLimit))
-
-        // 4. Trailer
-        const videosData = await getAnimeVideos(anime.shikimoriId)
-        const trailer = videosData.find(video => video.type === 'pv') || videosData[0]
-        if (trailer?.url) {
-          const embedUrl = trailer.url.includes('youtube.com') 
-            ? trailer.url.replace('watch?v=', 'embed/')
-            : trailer.url
-          setTrailerUrl(embedUrl)
-        }
       } catch (error) {
         console.error('Failed to load gallery data:', error)
       } finally {
@@ -157,15 +145,17 @@ export function WatchPageGallery({ anime }: WatchPageGalleryProps) {
 
   const SectionContainer = ({ 
     children, 
-    className 
+    className,
+    id
   }: { 
     children: React.ReactNode, 
-    className?: string 
+    className?: string,
+    id?: string
   }) => (
     <div className={cn(
       "bg-card/20 border border-border rounded-xl md:rounded-2xl p-4 md:p-6 backdrop-blur-sm transition-all hover:border-primary/20", 
       className
-    )}>
+    )} id={id}>
       {children}
     </div>
   )
@@ -250,7 +240,7 @@ export function WatchPageGallery({ anime }: WatchPageGalleryProps) {
 
           {/* 2. SCREENSHOTS */}
           {displayedScreenshots.length > 0 && (
-            <SectionContainer>
+            <SectionContainer id='frames'>
               <SectionHeader 
                 icon={Camera} 
                 title="Кадры из аниме" 
@@ -293,7 +283,7 @@ export function WatchPageGallery({ anime }: WatchPageGalleryProps) {
 
           {/* 3. CHARACTERS */}
           {displayedCharacters.length > 0 && (
-            <SectionContainer>
+            <SectionContainer id='characters'>
               <SectionHeader 
                 icon={Users} 
                 title="Персонажи" 
@@ -337,22 +327,6 @@ export function WatchPageGallery({ anime }: WatchPageGalleryProps) {
                     </div>
                   </div>
                 ))}
-              </div>
-            </SectionContainer>
-          )}
-
-          {/* 4. TRAILER */}
-          {trailerUrl && (
-            <SectionContainer>
-              <SectionHeader icon={Play} title="Трейлер" />
-              <div className="relative w-full rounded-xl overflow-hidden shadow-2xl bg-black aspect-video border border-border/50">
-                <iframe
-                  src={trailerUrl}
-                  title="Трейлер"
-                  className="absolute inset-0 w-full h-full"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                  allowFullScreen
-                />
               </div>
             </SectionContainer>
           )}
