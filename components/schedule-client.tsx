@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, useRef } from "react"
 import { Anime } from "@/lib/shikimori"
 import { AnimeCard } from "@/components/anime-card"
 import { Calendar, Clock, AlertCircle, ArrowLeft } from "lucide-react"
+import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
 import Link from "next/link"
 
@@ -61,7 +62,51 @@ export function ScheduleClient({ schedule }: ScheduleClientProps) {
     }, 100)
   }, [])
 
-  if (!mounted) return null
+  if (!mounted) {
+    return (
+      <div className="space-y-8">
+        {/* Кнопка "На главную" */}
+        <div className="flex justify-start">
+          <Link href="/" className="inline-flex items-center gap-2 px-4 py-2 bg-card hover:bg-card/80 border border-border hover:border-primary text-muted-foreground hover:text-foreground font-medium rounded-xl transition-all">
+            <ArrowLeft className="w-4 h-4" />
+            На главную
+          </Link>
+        </div>
+
+        {/* Заголовок */}
+        <div className="flex flex-col md:flex-row items-start md:items-end justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-3">
+              <Skeleton className="w-8 h-8 md:w-10 md:h-10" />
+              <Skeleton className="h-8 w-32 md:h-10 md:w-40" />
+            </div>
+            <Skeleton className="h-4 w-64 mt-2" />
+          </div>
+          
+          <Skeleton className="h-8 w-48" />
+        </div>
+
+        {/* Навигация по дням (Rolling Tabs) */}
+        <div className="sticky top-16 z-30 bg-background/95 backdrop-blur-sm pb-4 pt-2">
+          <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
+            {Array.from({ length: 13 }, (_, i) => (
+              <Skeleton key={i} className="min-w-[85px] h-16 rounded-xl" />
+            ))}
+          </div>
+        </div>
+
+        {/* Сетка аниме */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-x-4 gap-y-6 sm:gap-y-8">
+          {Array.from({ length: 12 }, (_, i) => (
+            <div key={i} className="relative">
+              <Skeleton className="w-full aspect-[3/4] rounded-lg" />
+              <Skeleton className="absolute top-2 right-2 h-5 w-16 rounded" />
+            </div>
+          ))}
+        </div>
+      </div>
+    )
+  }
 
   const currentDayInfo = rollingDays.find(d => d.offset === selectedOffset)!
   const activeAnimes = schedule[currentDayInfo.scheduleId] || []
