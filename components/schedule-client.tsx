@@ -30,9 +30,8 @@ export function ScheduleClient({ schedule }: ScheduleClientProps) {
   const rollingDays = useMemo(() => {
     const days = []
     const now = new Date()
-    now.setHours(0, 0, 0, 0) // Сбрасываем время для точности расчетов
+    now.setHours(0, 0, 0, 0)
 
-    // Текущий день недели в формате 0=Пн...6=Вс
     const todayJsDay = now.getDay()
     const todayScheduleId = todayJsDay === 0 ? 6 : todayJsDay - 1
 
@@ -43,9 +42,6 @@ export function ScheduleClient({ schedule }: ScheduleClientProps) {
       const jsDay = targetDate.getDay() // 0-6 (Вс-Сб)
       const scheduleId = jsDay === 0 ? 6 : jsDay - 1 // 0-6 (Пн-Вс)
 
-      // ЛОГИКА СМЕЩЕНИЯ НЕДЕЛЬ:
-      // Вычисляем, на сколько недель целевая дата отличается от текущей календарной недели
-      // Это позволяет правильно прибавлять/вычитать номер серии
       const startOfCurrentWeek = new Date(now)
       startOfCurrentWeek.setDate(now.getDate() - todayScheduleId)
       
@@ -53,6 +49,7 @@ export function ScheduleClient({ schedule }: ScheduleClientProps) {
       startOfTargetWeek.setDate(targetDate.getDate() - scheduleId)
       
       const diffInMs = startOfTargetWeek.getTime() - startOfCurrentWeek.getTime()
+      // Расчет смещения недель (0 = эта неделя, 1 = следующая, -1 = прошлая)
       const weekOffset = Math.round(diffInMs / (7 * 24 * 60 * 60 * 1000))
 
       days.push({
@@ -70,7 +67,6 @@ export function ScheduleClient({ schedule }: ScheduleClientProps) {
 
   useEffect(() => {
     setMounted(true)
-    // Скроллим к текущему дню при загрузке
     setTimeout(() => {
       const todayElement = document.getElementById('day-offset-0')
       if (todayElement && scrollRef.current) {
@@ -165,7 +161,11 @@ export function ScheduleClient({ schedule }: ScheduleClientProps) {
         {sortedAnimes.length > 0 ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-x-4 gap-y-6 sm:gap-y-8">
             {sortedAnimes.map((anime) => {
-              // Динамический расчет серии: база из API + смещение недель
+              // ИСПРАВЛЕНИЕ:
+              // Теперь номер серии зависит только от смещения недели относительно текущей даты.
+              // Текущая неделя (0) = episodesCurrent
+              // Следующая неделя (+1) = episodesCurrent + 1
+              // Прошлая неделя (-1) = episodesCurrent - 1
               const displayEpisode = anime.episodesCurrent + currentDayInfo.weekOffset
               
               return (
