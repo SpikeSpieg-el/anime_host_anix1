@@ -141,7 +141,7 @@ export function ScheduleClient({ schedule }: ScheduleClientProps) {
       </div>
 
       {/* Навигация по дням (Rolling Tabs) */}
-      <div className="sticky top-16 z-30 bg-background/95 backdrop-blur-sm pb-4 pt-2">
+      <div className="sticky top-16 z-30 bg-background/95 backdrop-blur-sm pb-4 pt-4">
         <div 
           ref={scrollRef}
           className="flex gap-2 overflow-x-auto pb-2 no-scrollbar mask-fade-edges"
