@@ -3,9 +3,10 @@
 import { useState, useEffect, useMemo, useRef } from "react"
 import { Anime } from "@/lib/shikimori"
 import { AnimeCard } from "@/components/anime-card"
-import { Calendar, Clock, AlertCircle, ArrowLeft } from "lucide-react"
+import { Calendar, Clock, AlertCircle, ArrowLeft, Filter, Bookmark } from "lucide-react"
 import { cn } from "@/lib/utils"
 import Link from "next/link"
+import { useBookmarks } from "@/components/bookmarks-provider"
 
 interface ScheduleClientProps {
   schedule: { [key: number]: Anime[] }
@@ -24,7 +25,9 @@ const DAY_NAMES = [
 export function ScheduleClient({ schedule }: ScheduleClientProps) {
   const [mounted, setMounted] = useState(false)
   const [selectedOffset, setSelectedOffset] = useState<number>(0)
+  const [showBookmarksOnly, setShowBookmarksOnly] = useState<boolean>(false)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const { items: bookmarks } = useBookmarks()
 
   // Генерируем данные для дней: -6 дней от сегодня ... Сегодня ... +6 дней
   const rollingDays = useMemo(() => {
@@ -80,6 +83,11 @@ export function ScheduleClient({ schedule }: ScheduleClientProps) {
   const currentDayInfo = rollingDays.find(d => d.offset === selectedOffset)!
   const activeAnimes = schedule[currentDayInfo.scheduleId] || []
   const sortedAnimes = [...activeAnimes].sort((a, b) => b.rating - a.rating)
+  
+  // Фильтр по закладкам
+  const filteredAnimes = showBookmarksOnly 
+    ? sortedAnimes.filter(anime => bookmarks.some(bookmark => bookmark.id === anime.id))
+    : sortedAnimes
 
   return (
     <div className="space-y-8">
@@ -103,9 +111,25 @@ export function ScheduleClient({ schedule }: ScheduleClientProps) {
           </p>
         </div>
         
-        <div className="flex items-center gap-2 text-sm font-medium px-4 py-2 bg-card rounded-full border border-border text-muted-foreground">
-           <Clock className="w-4 h-4 text-orange-500" />
-           <span>{currentDayInfo.dayName}, {currentDayInfo.date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })}</span>
+        <div className="flex items-center gap-3">
+          {/* Фильтр по закладкам */}
+          <button
+            onClick={() => setShowBookmarksOnly(!showBookmarksOnly)}
+            className={cn(
+              "flex items-center gap-2 px-4 py-2 rounded-full border text-sm font-medium transition-all",
+              showBookmarksOnly
+                ? "bg-primary border-primary text-primary-foreground shadow-lg shadow-primary/20"
+                : "bg-card border-border text-muted-foreground hover:bg-card/80 hover:text-foreground"
+            )}
+          >
+            <Bookmark className="w-4 h-4" />
+            {showBookmarksOnly ? 'Всё' : 'Только в закладках'}
+          </button>
+          
+          <div className="flex items-center gap-2 text-sm font-medium px-4 py-2 bg-card rounded-full border border-border text-muted-foreground">
+             <Clock className="w-4 h-4 text-orange-500" />
+             <span>{currentDayInfo.dayName}, {currentDayInfo.date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })}</span>
+          </div>
         </div>
       </div>
 
@@ -158,9 +182,9 @@ export function ScheduleClient({ schedule }: ScheduleClientProps) {
 
       {/* Сетка аниме */}
       <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-        {sortedAnimes.length > 0 ? (
+        {filteredAnimes.length > 0 ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-x-4 gap-y-6 sm:gap-y-8">
-            {sortedAnimes.map((anime) => {
+            {filteredAnimes.map((anime) => {
               // ИСПРАВЛЕНИЕ:
               // Теперь номер серии зависит только от смещения недели относительно текущей даты.
               // Текущая неделя (0) = episodesCurrent
@@ -189,11 +213,16 @@ export function ScheduleClient({ schedule }: ScheduleClientProps) {
         ) : (
           <div className="flex flex-col items-center justify-center py-20 text-center border border-dashed border-border rounded-2xl bg-card/30">
             <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
-               <AlertCircle className="w-8 h-8 text-muted-foreground" />
+               {showBookmarksOnly ? <Bookmark className="w-8 h-8 text-muted-foreground" /> : <AlertCircle className="w-8 h-8 text-muted-foreground" />}
             </div>
-            <h3 className="text-xl font-bold text-foreground">Нет данных</h3>
+            <h3 className="text-xl font-bold text-foreground">
+              {showBookmarksOnly ? 'Нет закладок' : 'Нет данных'}
+            </h3>
             <p className="text-muted-foreground mt-2 max-w-sm px-4">
-              На {currentDayInfo.date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })} выпусков не запланировано.
+              {showBookmarksOnly 
+                ? `На ${currentDayInfo.date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })} нет аниме в закладках.`
+                : `На ${currentDayInfo.date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })} выпусков не запланировано.`
+              }
             </p>
           </div>
         )}

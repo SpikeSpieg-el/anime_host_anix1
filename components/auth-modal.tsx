@@ -36,24 +36,83 @@ export function AuthModal({ isOpen: externalIsOpen, onClose, children }: AuthMod
     setLoading(true)
     setError(null)
 
+    // Debug: Check if we're using mock client
+    console.log('Supabase URL:', process.env.NEXT_PUBLIC_SUPABASE_URL ? 'Configured' : 'Missing')
+    console.log('Supabase Key:', process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ? 'Configured' : 'Missing')
+
+    // Basic validation
+    if (!email.trim() || !password.trim()) {
+      setError("Email и пароль обязательны")
+      setLoading(false)
+      return
+    }
+
+    if (!email.includes('@') || !email.includes('.')) {
+      setError("Введите корректный email адрес")
+      setLoading(false)
+      return
+    }
+
+    if (password.length < 6) {
+      setError("Пароль должен содержать минимум 6 символов")
+      setLoading(false)
+      return
+    }
+
     try {
       if (isLogin) {
-        const { error } = await supabase.auth.signInWithPassword({
+        console.log('Attempting login with:', email)
+        const { data, error } = await supabase.auth.signInWithPassword({
           email,
           password,
         })
-        if (error) throw error
+        
+        console.log('Login response:', { data, error })
+        
+        if (error) {
+          if (error.message.includes('Invalid login credentials')) {
+            throw new Error('Неверный email или пароль')
+          } else if (error.message.includes('Email not confirmed')) {
+            throw new Error('Пожалуйста, подтвердите ваш email')
+          } else {
+            throw error
+          }
+        }
+        
         setIsOpen(false)
       } else {
-        const { error } = await supabase.auth.signUp({
+        console.log('Attempting signup with:', email)
+        const { data, error } = await supabase.auth.signUp({
           email,
           password,
         })
-        if (error) throw error
+        
+        console.log('Signup response:', { data, error })
+        
+        if (error) {
+          if (error.message.includes('User already registered')) {
+            throw new Error('Пользователь с таким email уже существует')
+          } else if (error.message.includes('Password should be')) {
+            throw new Error('Пароль слишком слабый. Используйте минимум 6 символов')
+          } else if (error.message.includes('Unable to validate email address')) {
+            throw new Error('Некорректный формат email')
+          } else {
+            throw error
+          }
+        }
+        
+        // Check if user needs email confirmation
+        if (data.user && !data.user.email_confirmed_at) {
+          setError('Пожалуйста, проверьте вашу почту и подтвердите регистрацию')
+          setLoading(false)
+          return
+        }
+        
         setIsOpen(false)
       }
     } catch (err: any) {
-      setError(err.message || "Произошла ошибка")
+      console.error('Auth error:', err)
+      setError(err.message || "Произошла ошибка при авторизации")
     } finally {
       setLoading(false)
     }
