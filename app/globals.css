@@ -106,7 +106,10 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply text-foreground;
+  }
+  html {
+    @apply bg-background;
   }
 
   /* Кастомные скроллбары */
@@ -185,7 +188,7 @@
     }
   }
 
-  /* Анимация для skeleton loading */
+  /* Анимация для skeleton loading - плавная и ненавязчивая */
   @keyframes shimmer {
     0% {
       background-position: -1000px 0;
@@ -219,11 +222,13 @@
     background: linear-gradient(
       90deg,
       hsl(var(--muted)) 0%,
+      hsl(var(--muted-foreground) / 0.05) 25%,
       hsl(var(--muted-foreground) / 0.1) 50%,
+      hsl(var(--muted-foreground) / 0.05) 75%,
       hsl(var(--muted)) 100%
     );
-    background-size: 1000px 100%;
-    animation: shimmer 2s ease-in-out infinite;
+    background-size: 200% 100%;
+    animation: shimmer 3s ease-in-out infinite;
   }
 
   /* Dark theme skeleton override */
@@ -231,9 +236,12 @@
     background: linear-gradient(
       90deg,
       hsl(240 10% 3.9%) 0%,
+      hsl(240 10% 6%) 25%,
       hsl(240 10% 8%) 50%,
+      hsl(240 10% 6%) 75%,
       hsl(240 10% 3.9%) 100%
     );
+    background-size: 200% 100%;
   }
 
   /* Unbounded font for logos */

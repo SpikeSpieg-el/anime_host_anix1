@@ -144,7 +144,12 @@ export default async function HomePage() {
   ])
 
   return (
-    <main className="min-h-screen bg-background text-foreground pb-20 md:pb-24 overflow-x-hidden selection:bg-orange-500/30">
+    <main className="min-h-screen bg-background text-foreground pb-20 md:pb-24 selection:bg-orange-500/30 relative">
+      {/* Dot Pattern Background */}
+      <div className="absolute inset-0 z-0 pointer-events-none opacity-[0.07]">
+        <div className="absolute inset-0 bg-[radial-gradient(#fff_1px,transparent_1px)] [background-size:20px_20px]" />
+      </div>
+
       <Navbar />
       <FloatingNav />
       <section id="hero">

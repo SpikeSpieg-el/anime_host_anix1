@@ -5,10 +5,23 @@ import { Navbar } from "@/components/navbar"
 import { Footer } from "@/components/footer"
 import { getAnimeById, getAnimeFranchise } from "@/lib/shikimori"
 import dynamic from "next/dynamic"
+import { WatchPageHeaderSkeleton, PlayerSkeleton, EpisodeSelectorSkeleton, TextSkeleton, GridSkeleton, AnimeCardSkeleton } from "@/components/skeleton"
 import type { Metadata } from "next"
 
 const WatchPageClient = dynamic(() => import("@/components/watch-page-client").then(mod => ({ default: mod.WatchPageClient })), {
-  loading: () => <div className="min-h-screen bg-background text-foreground flex items-center justify-center"><div className="text-muted-foreground">Загрузка плеера...</div></div>
+  loading: () => (
+    <div className="min-h-screen bg-background text-foreground">
+      <Navbar />
+      <div className="container mx-auto px-4 py-8 space-y-6">
+        <WatchPageHeaderSkeleton />
+        <PlayerSkeleton />
+        <EpisodeSelectorSkeleton />
+        <div className="space-y-3">
+          <TextSkeleton lines={8} />
+        </div>
+      </div>
+    </div>
+  )
 })
 
 export async function generateMetadata({
@@ -91,20 +104,31 @@ export default async function WatchPage({
   const watchOrder = franchise;
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <main className="min-h-screen bg-background text-foreground pb-20 md:pb-24 relative">
+      {/* Dot Pattern Background */}
+      <div className="absolute inset-0 z-0 pointer-events-none opacity-[0.07]">
+        <div className="absolute inset-0 bg-[radial-gradient(#fff_1px,transparent_1px)] [background-size:20px_20px]" />
+      </div>
+
       <Navbar />
 
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-4 py-8 relative z-10">
         <WatchPageClient
           anime={anime}
           initialEpisode={Number.isFinite(episode) && (episode as number) > 0 ? (episode as number) : undefined}
         />
 
-        <div className="mt-8">
-          <p className="text-zinc-400 leading-relaxed whitespace-pre-line text-lg">
-            {anime.description}
-          </p>
-        </div>
+        {anime.description ? (
+          <div className="mt-8">
+            <p className="text-zinc-400 leading-relaxed whitespace-pre-line text-lg">
+              {anime.description}
+            </p>
+          </div>
+        ) : (
+          <div className="mt-8">
+            <TextSkeleton lines={6} />
+          </div>
+        )}
 
         <div id="order" className="mt-10">
           <h2 className="text-xl md:text-2xl font-bold mb-4">Порядок просмотра</h2>
@@ -164,8 +188,7 @@ export default async function WatchPage({
           )}
         </div>
       </div>
-            {/*--- Футер ---*/}
-    <Footer />
-    </div>
+      <Footer />
+    </main>
   )
 }

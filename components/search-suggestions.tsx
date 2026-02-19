@@ -5,6 +5,7 @@ import { Search, Clock, X, ChevronRight } from "lucide-react"
 import { Anime, searchAnime } from "@/lib/shikimori"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/components/auth-provider"
+import { SearchResultsSkeleton } from "@/components/skeleton"
 
 function saveSearchHistory(query: string) {
   if (typeof window === "undefined") return
@@ -183,11 +184,9 @@ export function SearchSuggestions({
                     </div>
                 )
             )}
-            
+
             {loading && (
-                 <div className="p-4 flex justify-center">
-                    <div className="w-5 h-5 border-2 border-orange-500 border-t-transparent rounded-full animate-spin"></div>
-                 </div>
+              <SearchResultsSkeleton />
             )}
           </div>
         </>

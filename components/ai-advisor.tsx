@@ -92,82 +92,98 @@ export function AiAdvisor() {
       const history = getWatchHistory()
       const bookmarks = getBookmarks()
 
-      // 3. Отправляем запрос в AI
-      const response = await fetch('http://192.168.0.16:5678/webhook/04d131f1-b6dd-4949-a178-284c42d9e0ff', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          history: history.length > 0 ? history : [],
-          bookmarks: bookmarks.length > 0 ? bookmarks : []
+      // 3. Отправляем запрос в AI с таймаутом
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 10000) // 10 секунд таймаут
+
+      try {
+        const response = await fetch('http://192.168.0.16:5678/webhook/04d131f1-b6dd-4949-a178-284c42d9e0ff', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            history: history.length > 0 ? history : [],
+            bookmarks: bookmarks.length > 0 ? bookmarks : []
+          }),
+          signal: controller.signal
         })
-      })
 
-      if (!response.ok) {
-        throw new Error(`Ошибка сервера: ${response.status} ${response.statusText}`)
-      }
-      
-      const data: AiResponse = await response.json()
-      
-      // Валидация ответа AI
-      if (!data || typeof data !== 'object') {
-        throw new Error("Неверный формат ответа от нейросети")
-      }
+        clearTimeout(timeoutId)
 
-      const hasValidRecommendations = [data.movie, data.short, data.long].some(
-        category => Array.isArray(category) && category.length > 0
-      )
-
-      if (!hasValidRecommendations) {
-        throw new Error("Нейросеть не смогла подобрать рекомендации. Попробуйте изменить историю просмотров и повторить попытку.")
-      }
-
-      setStep('searching')
-
-      // 4. Поиск аниме через Shikimori
-      const processItem = async (item: AiResponseItem, category: 'movie' | 'short' | 'long'): Promise<EnrichedRecommendation | null> => {
-        if (!item?.title?.trim()) return null
-        
-        try {
-          const results = await searchAnime(item.title.trim())
-          if (results?.length > 0) {
-            return { ...results[0], reason: item.reason || '', category }
-          }
-        } catch (error) {
-          console.warn(`Не удалось найти аниме: ${item.title}`, error)
+        if (!response.ok) {
+          throw new Error(`Ошибка сервера: ${response.status} ${response.statusText}`)
         }
-        return null
+
+        const data: AiResponse = await response.json()
+
+        // Валидация ответа AI
+        if (!data || typeof data !== 'object') {
+          throw new Error("Неверный формат ответа от нейросети")
+        }
+
+        const hasValidRecommendations = [data.movie, data.short, data.long].some(
+          category => Array.isArray(category) && category.length > 0
+        )
+
+        if (!hasValidRecommendations) {
+          throw new Error("Нейросеть не смогла подобрать рекомендации. Попробуйте изменить историю просмотров и повторить попытку.")
+        }
+
+        setStep('searching')
+
+        // 4. Поиск аниме через Shikimori
+        const processItem = async (item: AiResponseItem, category: 'movie' | 'short' | 'long'): Promise<EnrichedRecommendation | null> => {
+          if (!item?.title?.trim()) return null
+
+          try {
+            const results = await searchAnime(item.title.trim())
+            if (results?.length > 0) {
+              return { ...results[0], reason: item.reason || '', category }
+            }
+          } catch (error) {
+            console.warn(`Не удалось найти аниме: ${item.title}`, error)
+          }
+          return null
+        }
+
+        // Собираем промисы для поиска
+        const searchPromises: Promise<EnrichedRecommendation | null>[] = []
+
+        // Добавляем рекомендации по категориям с ограничением
+        const addItemToSearch = (items: AiResponseItem[] | undefined, category: 'movie' | 'short' | 'long', maxItems: number) => {
+          if (!Array.isArray(items)) return
+          items.slice(0, maxItems).forEach(item => {
+            searchPromises.push(processItem(item, category))
+          })
+        }
+
+        addItemToSearch(data.movie, 'movie', 2)
+        addItemToSearch(data.short, 'short', 2)
+        addItemToSearch(data.long, 'long', 2)
+
+        const results = (await Promise.all(searchPromises)).filter(Boolean) as EnrichedRecommendation[]
+
+        if (results.length === 0) {
+          throw new Error("Не удалось найти рекомендуемые аниме в базе Shikimori. Попробуйте повторить запрос.")
+        }
+
+        setRecommendations(results)
+        setStep('done')
+
+        // Сохраняем успешное состояние
+        localStorage.setItem('ai-advisor-last-state', JSON.stringify({
+          recommendations: results,
+          step: 'done',
+          timestamp: Date.now()
+        }))
+
+      } catch (innerErr) {
+        // Обработка ошибок внутреннего try (AI запрос)
+        clearTimeout(timeoutId)
+        if ((innerErr as Error).name === 'AbortError') {
+          throw new Error("Превышено время ожидания ответа от AI-сервера (10 сек). Убедитесь, что сервер запущен.")
+        }
+        throw innerErr
       }
-
-      // Собираем промисы для поиска
-      const searchPromises: Promise<EnrichedRecommendation | null>[] = []
-
-      // Добавляем рекомендации по категориям с ограничением
-      const addItemToSearch = (items: AiResponseItem[] | undefined, category: 'movie' | 'short' | 'long', maxItems: number) => {
-        if (!Array.isArray(items)) return
-        items.slice(0, maxItems).forEach(item => {
-          searchPromises.push(processItem(item, category))
-        })
-      }
-
-      addItemToSearch(data.movie, 'movie', 2)
-      addItemToSearch(data.short, 'short', 2) 
-      addItemToSearch(data.long, 'long', 2)
-
-      const results = (await Promise.all(searchPromises)).filter(Boolean) as EnrichedRecommendation[]
-      
-      if (results.length === 0) {
-        throw new Error("Не удалось найти рекомендуемые аниме в базе Shikimori. Попробуйте повторить запрос.")
-      }
-
-      setRecommendations(results)
-      setStep('done')
-      
-      // Сохраняем успешное состояние
-      localStorage.setItem('ai-advisor-last-state', JSON.stringify({
-        recommendations: results,
-        step: 'done',
-        timestamp: Date.now()
-      }))
 
     } catch (err) {
       console.error('AI Advisor Error:', err)

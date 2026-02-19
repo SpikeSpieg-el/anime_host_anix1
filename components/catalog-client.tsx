@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { AnimeCard } from '@/components/anime-card'
-import { GridSkeleton } from '@/components/skeleton'
+import { GridSkeleton, CatalogFiltersSkeleton, NavbarSkeleton, FooterSkeleton, MobileNavSkeleton } from '@/components/skeleton'
 import type { Anime, CatalogFilters } from '@/lib/shikimori'
 import { GENRES_MAP } from '@/lib/shikimori'
 import { fetchAnimeData } from '@/app/catalog/actions'
@@ -92,6 +92,11 @@ export function CatalogClient({ initialFilters }: { initialFilters: CatalogFilte
   const [viewMode, setViewMode] = useState<'comfortable' | 'compact' | 'table'>('comfortable')
   const [isFilterPanelVisible, setIsFilterPanelVisible] = useState(true)
   const [lastScrollY, setLastScrollY] = useState(0)
+  
+  // Ref для debounced применения фильтров
+  const debounceRef = useRef<NodeJS.Timeout | null>(null)
+  const isInitialMount = useRef(true)
+  const prevFiltersRef = useRef<CatalogFilters | null>(null)
 
   const fetchAnimes = useCallback(async (currentFilters: CatalogFilters, isLoadMore = false) => {
     if (isLoadMore) {
@@ -124,7 +129,70 @@ export function CatalogClient({ initialFilters }: { initialFilters: CatalogFilte
     }
     setFilters(updatedFilters)
     fetchAnimes(updatedFilters, false)
+    isInitialMount.current = false
+    prevFiltersRef.current = updatedFilters
   }, [initialFilters, profile, fetchAnimes])
+
+  // Авто-применение фильтров при изменении пользователем (с debounced для поиска)
+  useEffect(() => {
+    // Пропускаем первый рендер и если фильтры не изменились
+    if (isInitialMount.current || !prevFiltersRef.current) return
+    
+    // Проверяем, действительно ли фильтры изменились (глубокое сравнение для массивов)
+    const prev = prevFiltersRef.current
+    const hasChanges = 
+      prev.order !== filters.order ||
+      prev.status !== filters.status ||
+      prev.kind !== filters.kind ||
+      prev.score !== filters.score ||
+      prev.search !== filters.search ||
+      JSON.stringify(prev.genre) !== JSON.stringify(filters.genre) ||
+      JSON.stringify(prev.year) !== JSON.stringify(filters.year)
+    
+    if (!hasChanges) return
+    
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    
+    // Для поиска используем debounced 500мс, для остальных фильтров - сразу
+    const delay = filters.search && filters.search !== prev.search ? 500 : 300
+    
+    debounceRef.current = setTimeout(() => {
+      const params = new URLSearchParams()
+      if (filters.order) params.set('sort', filters.order)
+      if (filters.genre && filters.genre !== 'all') {
+        if (Array.isArray(filters.genre)) {
+          if (filters.genre.length > 0) params.set('genre', filters.genre.join(','))
+        } else {
+          params.set('genre', filters.genre)
+        }
+      }
+      if (filters.status && filters.status !== 'all') params.set('status', filters.status)
+      if (filters.kind && filters.kind !== 'all') params.set('kind', filters.kind)
+      if (filters.year && filters.year !== 'all') {
+        if (Array.isArray(filters.year)) {
+          if (filters.year.length > 0) params.set('year', filters.year.join(','))
+        } else {
+          params.set('year', filters.year)
+        }
+      }
+      if (filters.score && filters.score !== 'all') params.set('score', filters.score)
+      if (filters.search) params.set('search', filters.search)
+
+      const newUrl = `/catalog?${params.toString()}`
+      const currentUrl = window.location.pathname + window.location.search
+      
+      // Не делаем push если URL не изменился
+      if (newUrl !== currentUrl) {
+        router.push(newUrl)
+      }
+      
+      prevFiltersRef.current = filters
+    }, delay)
+    
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current)
+    }
+  }, [filters, router])
 
   useEffect(() => {
     const handleScroll = () => {
@@ -140,31 +208,6 @@ export function CatalogClient({ initialFilters }: { initialFilters: CatalogFilte
     window.addEventListener('scroll', handleScroll, { passive: true })
     return () => window.removeEventListener('scroll', handleScroll)
   }, [lastScrollY])
-
-  const applyFilters = () => {
-    const params = new URLSearchParams()
-    if (filters.order) params.set('sort', filters.order)
-    if (filters.genre && filters.genre !== 'all') {
-      if (Array.isArray(filters.genre)) {
-        if (filters.genre.length > 0) params.set('genre', filters.genre.join(','))
-      } else {
-        params.set('genre', filters.genre)
-      }
-    }
-    if (filters.status && filters.status !== 'all') params.set('status', filters.status)
-    if (filters.kind && filters.kind !== 'all') params.set('kind', filters.kind)
-    if (filters.year && filters.year !== 'all') {
-      if (Array.isArray(filters.year)) {
-        if (filters.year.length > 0) params.set('year', filters.year.join(','))
-      } else {
-        params.set('year', filters.year)
-      }
-    }
-    if (filters.score && filters.score !== 'all') params.set('score', filters.score)
-    if (filters.search) params.set('search', filters.search)
-
-    router.push(`/catalog?${params.toString()}`)
-  }
 
   const updateFilter = (key: keyof CatalogFilters, value: string | string[]) => {
     setFilters(prev => ({
@@ -221,18 +264,17 @@ export function CatalogClient({ initialFilters }: { initialFilters: CatalogFilte
       )}>
         <div className="container mx-auto px-0 max-w-7xl">
           <div className="flex flex-col md:flex-row gap-3 md:gap-4">
-            
+
             <div className="relative flex-1 w-full">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
               <Input
                 placeholder="Поиск по названию..."
                 value={filters.search || ''}
                 onChange={(e) => updateFilter('search', e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && applyFilters()}
                 className="h-10 sm:h-11 w-full text-sm sm:text-base pl-10 bg-secondary border-border text-foreground placeholder-muted-foreground focus:ring-1 focus:ring-primary focus:border-primary transition-all dark:bg-zinc-900 dark:border-zinc-800 dark:text-white dark:placeholder-zinc-500 dark:focus:ring-orange-500 dark:focus:border-orange-500"
               />
               {filters.search && (
-                <button 
+                <button
                   onClick={clearSearch}
                   className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground p-1 dark:text-zinc-500 dark:hover:text-white"
                 >
@@ -240,7 +282,7 @@ export function CatalogClient({ initialFilters }: { initialFilters: CatalogFilte
                 </button>
               )}
             </div>
-            
+
             <div className="flex gap-2 w-full md:w-auto">
               <div className="flex gap-2 flex-1 md:flex-none">
                 <Button
@@ -248,15 +290,15 @@ export function CatalogClient({ initialFilters }: { initialFilters: CatalogFilte
                   onClick={() => setShowFilters(!showFilters)}
                   className={cn(
                     "flex-1 md:flex-none border h-10 sm:h-11 text-sm sm:text-base transition-colors border-border dark:border-zinc-800",
-                    showFilters 
-                      ? "bg-secondary text-foreground dark:bg-zinc-800 dark:text-white dark:border-zinc-700" 
+                    showFilters
+                      ? "bg-secondary text-foreground dark:bg-zinc-800 dark:text-white dark:border-zinc-700"
                       : "bg-transparent text-muted-foreground hover:bg-secondary hover:text-foreground dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-white"
                   )}
                 >
                   <Filter className="w-4 h-4 sm:mr-2" />
                   <span className="inline">Фильтры</span>
                 </Button>
-                
+
                 <Button
                   variant="outline"
                   onClick={resetFilters}
@@ -268,13 +310,13 @@ export function CatalogClient({ initialFilters }: { initialFilters: CatalogFilte
                 </Button>
               </div>
 
-              <Button
-                onClick={applyFilters}
-                className="bg-primary hover:bg-primary/90 text-primary-foreground h-10 sm:h-11 min-w-[100px] sm:min-w-[120px] text-sm sm:text-base font-medium dark:bg-orange-600 dark:hover:bg-orange-700"
-                disabled={loading && !loadingMore}
-              >
-                {loading && !loadingMore ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Применить'}
-              </Button>
+              {/* Индикатор загрузки */}
+              {loading && !loadingMore && (
+                <div className="flex items-center gap-2 px-4 h-10 sm:h-11 bg-secondary/50 border border-border rounded-xl text-muted-foreground dark:bg-zinc-900/50 dark:border-zinc-800">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span className="text-sm font-medium">Загрузка...</span>
+                </div>
+              )}
             </div>
           </div>
 

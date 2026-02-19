@@ -9,30 +9,62 @@ import { Footer } from "@/components/footer"
 import Link from "next/link"
 import { Bookmark, ArrowLeft } from "lucide-react"
 import { ScrollToTop } from "@/components/scroll-to-top"
+import { BookmarksSkeleton } from "@/components/skeleton"
 
 export default function BookmarksPage() {
-  const { items } = useBookmarks()
+  const { items, isLoading } = useBookmarks()
   const { updates } = useEpisodeUpdates()
 
   // Helper function to get update info for an anime
   const getUpdateInfo = (animeId: string) => {
     const update = updates.find(u => u.animeId === animeId)
     if (!update) return undefined
-    
+
     const anime = items.find(a => a.id === animeId)
     if (!anime) return undefined
-    
+
     return {
       newEpisode: update.newEpisode,
       totalEpisodes: update.totalEpisodes
     }
   }
 
+  if (isLoading) {
+    return (
+      <main className="min-h-screen bg-background text-foreground pb-20 md:pb-24 relative">
+        {/* Dot Pattern Background */}
+        <div className="absolute inset-0 z-0 pointer-events-none opacity-[0.07]">
+          <div className="absolute inset-0 bg-[radial-gradient(#fff_1px,transparent_1px)] [background-size:20px_20px]" />
+        </div>
+
+        <Navbar />
+        <div className="container mx-auto px-4 pt-8 pb-12 relative z-10">
+          <div className="mb-8">
+            <div className="h-10 w-32 skeleton rounded-xl mb-4" />
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 skeleton rounded-full" />
+              <div className="space-y-2">
+                <div className="h-8 w-48 skeleton rounded" />
+                <div className="h-4 w-64 skeleton rounded" />
+              </div>
+            </div>
+          </div>
+          <BookmarksSkeleton items={12} />
+        </div>
+      </main>
+    )
+  }
+
   return (
-    <main className="min-h-screen bg-background text-foreground pb-20 md:pb-24">
+    <main className="min-h-screen bg-background text-foreground pb-20 md:pb-24 relative">
+      {/* Dot Pattern Background */}
+      <div className="absolute inset-0 z-0 pointer-events-none opacity-[0.07]">
+        <div className="absolute inset-0 bg-[radial-gradient(#fff_1px,transparent_1px)] [background-size:20px_20px]" />
+      </div>
+
       <Navbar />
 
-      <div className="container mx-auto px-4 pt-8 pb-12">
+      <div className="container mx-auto px-4 pt-8 pb-12 relative z-10">
         <div className="mb-8">
           <Link href="/" className="inline-flex items-center gap-2 px-4 py-2 bg-secondary hover:bg-accent border border-border hover:border-primary text-muted-foreground hover:text-foreground font-medium rounded-xl transition-all mb-4 dark:bg-zinc-800 dark:hover:bg-zinc-800 dark:border-zinc-800 dark:hover:border-orange-500 dark:text-zinc-400 dark:hover:text-white">
             <ArrowLeft className="w-4 h-4" />

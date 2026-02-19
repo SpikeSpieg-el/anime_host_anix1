@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo, useRef } from "react"
 import { Anime } from "@/lib/shikimori"
 import { AnimeCard } from "@/components/anime-card"
+import { ScheduleSkeleton } from "@/components/skeleton"
 import { Calendar, Clock, AlertCircle, ArrowLeft, Filter, Bookmark } from "lucide-react"
 import { cn } from "@/lib/utils"
 import Link from "next/link"
@@ -78,7 +79,7 @@ export function ScheduleClient({ schedule }: ScheduleClientProps) {
     }, 300)
   }, [])
 
-  if (!mounted) return null
+  if (!mounted) return <ScheduleSkeleton />
 
   const currentDayInfo = rollingDays.find(d => d.offset === selectedOffset)!
   const activeAnimes = schedule[currentDayInfo.scheduleId] || []

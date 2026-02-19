@@ -137,15 +137,18 @@ export default async function CatalogPage({ searchParams }: CatalogPageProps) {
   const clientKey = JSON.stringify(initialFilters)
 
   return (
-    <>
-      <main className="min-h-screen bg-background">
-        <Navbar />
-        <div className="pt-0"> {/* Убрал padding, так как Navbar sticky */}
-          <CatalogClient key={clientKey} initialFilters={initialFilters} />
-        </div>
-      </main>
+    <main className="min-h-screen bg-background text-foreground pb-20 md:pb-24 relative">
+      {/* Dot Pattern Background */}
+      <div className="absolute inset-0 z-0 pointer-events-none opacity-[0.07]">
+        <div className="absolute inset-0 bg-[radial-gradient(#fff_1px,transparent_1px)] [background-size:20px_20px]" />
+      </div>
+
+      <Navbar />
+      <div className="pt-0 relative z-10">
+        <CatalogClient key={clientKey} initialFilters={initialFilters} />
+      </div>
       <ScrollToTop />
       <Footer />
-    </>
+    </main>
   )
 }
