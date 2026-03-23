@@ -47,13 +47,7 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCo
   // Альтернативные домены Kodik (kodikplayer.com приоритетный для работы с Redirector)
   const kodikDomains = [
     'kodikplayer.com',   // Приоритетный домен для Redirector расширения
-    'kodik.info',        // Основной домен (будет перенаправлен)
-    'kodik.cc',          // Официальное зеркало
-    'kodikapi.com',      // API домен
-    'kodik.biz',         // Дополнительное зеркало
-    'kodik.life',        // Альтернативное зеркало
-    'kodik.cloud',       // Облачное зеркало
-    'kodik.stream'       // Стриминговое зеркало
+    'kodik.info'        // Основной домен (будет перенаправлен)
   ]
 
   const playerSrc = useMemo(() => {
@@ -208,7 +202,7 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCo
     const handleMessage = (event: MessageEvent) => {
       // Проверяем, что сообщение от Kodik плеера
       const validOrigins = kodikDomains.map(domain => `https://${domain}`)
-      if (!validOrigins.some(origin => event.origin.includes(origin))) {
+      if (!validOrigins.includes(event.origin)) {
         return
       }
 
