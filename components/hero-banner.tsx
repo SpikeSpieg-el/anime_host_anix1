@@ -8,7 +8,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { useState } from "react"
+import { useState, useRef, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { HeroBannerSkeleton } from "@/components/skeleton"
 import { useBookmarks } from "@/components/bookmarks-provider"
@@ -67,10 +67,53 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime, recommendationRea
   const [posterImageError, setPosterImageError] = useState(false)
   const { isSaved, toggle } = useBookmarks()
   const router = useRouter()
-  
+
+  // 3D tilt effect refs and state
+  const posterRef = useRef<HTMLButtonElement>(null)
+  const [rotation, setRotation] = useState({ x: 0, y: 0 })
+  const [isHovering, setIsHovering] = useState(false)
+  const [isLoaded, setIsLoaded] = useState(false)
+  const [isMobile, setIsMobile] = useState(false)
+
+  useEffect(() => {
+    // Trigger entrance animation after mount
+    const timer = setTimeout(() => setIsLoaded(true), 100)
+    return () => clearTimeout(timer)
+  }, [])
+
+  useEffect(() => {
+    // Check if mobile device
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 1024)
+    }
+    checkMobile()
+    window.addEventListener('resize', checkMobile)
+    return () => window.removeEventListener('resize', checkMobile)
+  }, [])
+
+  // Auto-rotation animation for mobile
+  useEffect(() => {
+    if (!isMobile || !isLoaded) return
+
+    let animationFrame: number
+    const startTime = Date.now()
+
+    const animate = () => {
+      const elapsed = Date.now() - startTime
+      const slowRotation = Math.sin(elapsed / 2000) * 3 // Slow gentle rotation
+      const slowTilt = Math.cos(elapsed / 3000) * 2
+
+      setRotation({ x: slowTilt, y: slowRotation })
+      animationFrame = requestAnimationFrame(animate)
+    }
+
+    animationFrame = requestAnimationFrame(animate)
+    return () => cancelAnimationFrame(animationFrame)
+  }, [isMobile, isLoaded])
+
   const anime = mode === 'top' ? topOfWeekAnime : recommendedAnime
   const saved = !!anime?.id && isSaved(String(anime.id))
-  
+
   const hasHighQualityBackdrop = !!anime?.backdrop && !bgImageError;
   const bgImage = bgImageError ? generateFallbackPoster(anime?.title || 'Anime') : (anime?.backdrop || anime?.poster);
   const posterImage = posterImageError ? generateFallbackPoster(anime?.title || 'Anime') : anime?.poster;
@@ -84,6 +127,29 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime, recommendationRea
     if (len > 50) return "text-xl sm:text-3xl lg:text-4xl leading-tight";
     if (len > 30) return "text-2xl sm:text-4xl lg:text-5xl leading-tight";
     return "text-3xl sm:text-5xl lg:text-7xl leading-none";
+  };
+
+  // Handle 3D tilt effect on mouse move
+  const handleMouseMove = (e: React.MouseEvent<HTMLButtonElement>) => {
+    if (!posterRef.current) return;
+    
+    const rect = posterRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const centerX = rect.width / 2;
+    const centerY = rect.height / 2;
+    
+    // Инвертированные наклоны (уменьшенный коэффициент для меньшего наклона)
+    const rotateX = (centerY - y) / 20;
+    const rotateY = (x - centerX) / 20;
+    
+    setRotation({ x: rotateX, y: rotateY });
+  };
+
+  const handleMouseEnter = () => setIsHovering(true);
+  const handleMouseLeave = () => {
+    setIsHovering(false);
+    setRotation({ x: 0, y: 0 });
   };
 
   return (
@@ -120,15 +186,44 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime, recommendationRea
           {/* --- ПРАВАЯ ЧАСТЬ: ПОСТЕР --- */}
           <div className="order-first lg:order-last lg:absolute lg:right-4 lg:top-1/2 lg:-translate-y-1/2 lg:w-5/12 flex justify-center mb-4 lg:mb-0 perspective-1000 z-20 w-full">
              <button
+               ref={posterRef}
                type="button"
                onClick={() => setIsDialogOpen(true)}
-               className="relative w-[160px] aspect-[2/3] sm:w-[240px] lg:w-[340px] group/poster transition-all duration-500"
+               onMouseMove={!isMobile ? handleMouseMove : undefined}
+               onMouseEnter={!isMobile ? handleMouseEnter : undefined}
+               onMouseLeave={!isMobile ? handleMouseLeave : undefined}
+               className="relative w-[160px] aspect-[2/3] sm:w-[240px] lg:w-[340px] group/poster"
+               style={{
+                 perspective: '1000px',
+                 transform: isLoaded
+                   ? (isMobile
+                      ? `rotateX(${rotation.x}deg) rotateY(${rotation.y}deg) scale3d(1, 1, 1)`
+                      : (isHovering 
+                         ? `rotateX(${rotation.x}deg) rotateY(${rotation.y}deg) scale3d(1.05, 1.05, 1.05)` 
+                         : 'rotateX(0deg) rotateY(0deg) scale3d(1, 1, 1)'))
+                   : 'rotateX(10deg) rotateY(-10deg) scale3d(0.9, 0.9, 0.9) translateY(30px)',
+                 transformStyle: 'preserve-3d',
+                 transition: isMobile 
+                   ? 'none' 
+                   : (isHovering ? 'transform 0.1s ease-out' : 'transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1)'),
+                 opacity: isLoaded ? 1 : 0,
+               }}
                aria-label="Подробнее об аниме"
              >
-                <div className="absolute inset-0 bg-gradient-to-br from-orange-600 to-orange-700 rounded-xl lg:rounded-2xl transform rotate-6 translate-x-2 translate-y-2 opacity-60 blur-md lg:group-hover/poster:rotate-12 lg:group-hover/poster:translate-x-6 transition-all duration-500" />
-                
+                {/* Glow effect behind poster */}
+                <div
+                  className="absolute inset-0 bg-gradient-to-br from-orange-600 to-orange-700 rounded-xl lg:rounded-2xl blur-xl -z-10"
+                  style={{
+                    transform: 'rotate(6deg) translateX(8px) translateY(8px)',
+                    opacity: isLoaded ? (isMobile ? 0.5 : (isHovering ? 0.8 : 0.4)) : 0,
+                    transition: isMobile 
+                      ? 'opacity 0.6s ease-out 0.2s' 
+                      : (isHovering ? 'opacity 0.3s ease-out' : 'opacity 0.6s ease-out 0.2s'),
+                  }}
+                />
+
                 <div className="relative w-full h-full rounded-xl lg:rounded-2xl overflow-hidden shadow-2xl border border-border bg-secondary dark:border-white/10 dark:bg-zinc-900">
-                    <Image 
+                    <Image
                        src={posterImage}
                        alt={anime.title}
                        fill
@@ -153,10 +248,17 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime, recommendationRea
           </div>
 
           {/* --- ЛЕВАЯ ЧАСТЬ: ИНФОРМАЦИЯ --- */}
-          <div className="w-full lg:w-8/12 flex flex-col items-center lg:items-start text-center lg:text-left justify-center relative z-30 pt-2 lg:pt-0">
-            
+          <div 
+            className="w-full lg:w-8/12 flex flex-col items-center lg:items-start text-center lg:text-left justify-center relative z-30 pt-2 lg:pt-0"
+            style={{
+              opacity: isLoaded ? 1 : 0,
+              transform: isLoaded ? 'translateY(0)' : 'translateY(20px)',
+              transition: 'opacity 0.6s ease-out 0.3s, transform 0.6s ease-out 0.3s',
+            }}
+          >
+
             {/* 1. ЗАГОЛОВОК (ДОБАВЛЕН font-unbounded) */}
-            <h1 
+            <h1
               className={`
                 ${getTitleClass(anime.title)}
                 font-black font-unbounded text-foreground mb-3 lg:mb-4 dark:text-white
@@ -164,13 +266,25 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime, recommendationRea
                 drop-shadow-[0_5px_15px_rgba(0,0,0,0.8)]
                 max-w-full lg:max-w-[90%]
               `}
-              style={{ textWrap: "balance" }} 
+              style={{ 
+                textWrap: "balance",
+                opacity: isLoaded ? 1 : 0,
+                transform: isLoaded ? 'translateY(0)' : 'translateY(10px)',
+                transition: 'opacity 0.6s ease-out 0.4s, transform 0.6s ease-out 0.4s',
+              }}
             >
               {anime.title}
             </h1>
 
             {/* 2. ТАБЫ */}
-            <div className="flex items-center gap-1.5 mb-5 lg:mb-6 bg-secondary/60 backdrop-blur-md p-1.5 rounded-xl border border-border shadow-lg justify-center lg:justify-start dark:bg-zinc-900/60 dark:border-white/10">
+            <div 
+              className="flex items-center gap-1.5 mb-5 lg:mb-6 bg-secondary/60 backdrop-blur-md p-1.5 rounded-xl border border-border shadow-lg justify-center lg:justify-start dark:bg-zinc-900/60 dark:border-white/10"
+              style={{
+                opacity: isLoaded ? 1 : 0,
+                transform: isLoaded ? 'translateY(0)' : 'translateY(10px)',
+                transition: 'opacity 0.6s ease-out 0.5s, transform 0.6s ease-out 0.5s',
+              }}
+            >
               <button
                 onClick={() => setMode('top')}
                 className={`flex items-center gap-1.5 px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg text-[10px] sm:text-xs lg:text-sm font-black uppercase tracking-wider transition-all duration-300 ${
@@ -197,7 +311,14 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime, recommendationRea
             </div>
 
             {/* 3. МЕТА-ТЕГИ */}
-            <div className="flex flex-wrap items-center justify-center lg:justify-start gap-2 sm:gap-3 mb-4 lg:mb-5 w-full">
+            <div 
+              className="flex flex-wrap items-center justify-center lg:justify-start gap-2 sm:gap-3 mb-4 lg:mb-5 w-full"
+              style={{
+                opacity: isLoaded ? 1 : 0,
+                transform: isLoaded ? 'translateY(0)' : 'translateY(10px)',
+                transition: 'opacity 0.6s ease-out 0.6s, transform 0.6s ease-out 0.6s',
+              }}
+            >
               <div className="flex items-center gap-1 bg-orange-600 text-white px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-md text-xs sm:text-sm font-black shadow-lg shadow-orange-900/40">
                 <Star className="w-3.5 h-3.5 fill-white" />
                 <span>{anime.rating}</span>
@@ -219,7 +340,14 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime, recommendationRea
 
             {/* 3.1 Жанры — ссылки в каталог с фильтром (Топ и Для вас) */}
             {anime.genres && anime.genres.length > 0 && (
-              <div className="flex flex-wrap items-center justify-center lg:justify-start gap-2 mb-5 lg:mb-6">
+              <div 
+                className="flex flex-wrap items-center justify-center lg:justify-start gap-2 mb-5 lg:mb-6"
+                style={{
+                  opacity: isLoaded ? 1 : 0,
+                  transform: isLoaded ? 'translateY(0)' : 'translateY(10px)',
+                  transition: 'opacity 0.6s ease-out 0.7s, transform 0.6s ease-out 0.7s',
+                }}
+              >
                 {anime.genres.slice(0, 6).map((g: string) => (
                   <Link
                     key={g}
@@ -233,7 +361,14 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime, recommendationRea
             )}
 
             {/* 4. ОСНОВНЫЕ КНОПКИ */}
-            <div className="w-full sm:w-auto flex flex-row items-stretch justify-center gap-3">
+            <div 
+              className="w-full sm:w-auto flex flex-row items-stretch justify-center gap-3"
+              style={{
+                opacity: isLoaded ? 1 : 0,
+                transform: isLoaded ? 'translateY(0)' : 'translateY(10px)',
+                transition: 'opacity 0.6s ease-out 0.8s, transform 0.6s ease-out 0.8s',
+              }}
+            >
               <Link 
                 href={`/watch/${anime.id}`} 
                 className="flex-1 sm:flex-none flex justify-center items-center gap-2 lg:gap-3 bg-background text-foreground hover:bg-accent px-6 py-3.5 lg:px-8 lg:py-4 rounded-xl lg:rounded-2xl font-black text-xs lg:text-sm uppercase tracking-wider shadow-[0_0_20px_-5px_rgba(0,0,0,0.1)] transition-transform active:scale-95 dark:bg-white dark:text-black dark:hover:bg-zinc-200"

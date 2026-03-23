@@ -38,8 +38,26 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCo
   const [isStarted, setIsStarted] = useState(false)
   const [hasError, setHasError] = useState(false)
   const [selectedCountry, setSelectedCountry] = useState<string>('RU') // По умолчанию Россия
+  const [errorMessage, setErrorMessage] = useState<string>('')
+  const [currentDomain, setCurrentDomain] = useState<number>(0) // Индекс текущего домена
+
+  // Таймаут для загрузки плеера
+  const [loadTimeout, setLoadTimeout] = useState<NodeJS.Timeout | null>(null)
+
+  // Альтернативные домены Kodik (kodikplayer.com приоритетный для работы с Redirector)
+  const kodikDomains = [
+    'kodikplayer.com',   // Приоритетный домен для Redirector расширения
+    'kodik.info',        // Основной домен (будет перенаправлен)
+    'kodik.cc',          // Официальное зеркало
+    'kodikapi.com',      // API домен
+    'kodik.biz',         // Дополнительное зеркало
+    'kodik.life',        // Альтернативное зеркало
+    'kodik.cloud',       // Облачное зеркало
+    'kodik.stream'       // Стриминговое зеркало
+  ]
 
   const playerSrc = useMemo(() => {
+    const domain = kodikDomains[currentDomain]
     const params = new URLSearchParams({
       shikimoriID: shikimoriId,
       episode: String(episode),
@@ -47,8 +65,7 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCo
       no_ads: 'true', 
       block_blocked_countries: 'false', // Отключаем блокировку стран
       hide_selectors: 'false',
-      autoplay: '0',
-      domain: 'kodik.info'
+      autoplay: '0'
     })
     
     // Добавляем параметр страны если выбрана не Россия
@@ -56,18 +73,133 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCo
       params.append('country', selectedCountry)
     }
     
-    return `//kodik.info/find-player?${params.toString()}`
-  }, [shikimoriId, episode, selectedCountry])
+    // Для kodikplayer.com используем прямой URL без параметра domain
+    // Для остальных доменов добавляем domain параметр
+    let url: string
+    if (domain === 'kodikplayer.com') {
+      url = `https://${domain}/find-player?${params.toString()}`
+    } else {
+      params.append('domain', domain)
+      url = `https://${domain}/find-player?${params.toString()}`
+    }
+    
+    console.log(`Kodik player URL (domain ${currentDomain + 1}/${kodikDomains.length}):`, url)
+    return url
+  }, [shikimoriId, episode, selectedCountry, currentDomain])
 
   const handleCountryChange = (countryCode: string) => {
     setSelectedCountry(countryCode)
     onCountryChange?.(countryCode)
   }
 
+  const tryNextDomain = () => {
+    const nextDomain = (currentDomain + 1) % kodikDomains.length
+    
+    // Если мы перепробовали все домены и вернулись к первому
+    if (nextDomain === 0) {
+      console.log('❌ All Kodik domains failed after trying:', kodikDomains.join(', '))
+      setIsLoading(false)
+      setHasError(true)
+      setErrorMessage(`Все ${kodikDomains.length} доменов Kodik недоступны. Попробуйте позже или используйте резервный плеер.`)
+    } else {
+      console.log(`🔄 Switching from ${kodikDomains[currentDomain]} to ${kodikDomains[nextDomain]} (${nextDomain + 1}/${kodikDomains.length})`)
+      setCurrentDomain(nextDomain)
+      setIsLoading(true)
+      setHasError(false)
+      setErrorMessage('')
+      // Перезапускаем таймаут для нового домена
+      setTimeout(() => {
+        if (loadTimeout) {
+          clearTimeout(loadTimeout)
+        }
+        const timeout = setTimeout(() => {
+          if (isLoading) {
+            console.log(`⏱️ Timeout on ${kodikDomains[nextDomain]}, trying next domain automatically`)
+            tryNextDomain()
+          }
+        }, 8000)
+        setLoadTimeout(timeout)
+      }, 100)
+    }
+  }
+
   useEffect(() => {
     setIsLoading(true)
     setHasError(false)
-  }, [episode])
+    setErrorMessage('')
+    
+    // Очищаем предыдущий таймаут
+    if (loadTimeout) {
+      clearTimeout(loadTimeout)
+    }
+    
+    // Устанавливаем новый таймаут на 8 секунд
+    const timeout = setTimeout(() => {
+      if (isLoading) {
+        console.log(`⏱️ Timeout on ${kodikDomains[currentDomain]}, trying next domain automatically`)
+        tryNextDomain()
+      }
+    }, 8000)
+    
+    setLoadTimeout(timeout)
+  }, [episode, currentDomain])
+
+  // Мониторинг состояния плеера для обнаружения разрыва соединения
+  useEffect(() => {
+    if (!isStarted || hasError) return
+
+    let checkCount = 0
+    const maxChecks = 5 // Проверяем 5 раз с интервалом 3 секунды
+    
+    const checkInterval = setInterval(() => {
+      checkCount++
+      
+      // Если iframe все еще загружается после долгого времени, возможно проблема
+      if (isLoading && checkCount >= maxChecks) {
+        console.log(`🔍 Player still loading after ${checkCount * 3}s on ${kodikDomains[currentDomain]}, trying next domain`)
+        clearInterval(checkInterval)
+        tryNextDomain()
+        return
+      }
+      
+      // Если достигли лимита проверок и плеер работает, останавливаем мониторинг
+      if (checkCount >= maxChecks) {
+        clearInterval(checkInterval)
+        console.log(`✅ Player monitoring completed for ${kodikDomains[currentDomain]}`)
+      }
+    }, 3000) // Каждые 3 секунды
+
+    return () => {
+      clearInterval(checkInterval)
+    }
+  }, [isStarted, isLoading, hasError, currentDomain])
+
+  // Глобальный обработчик сообщений об ошибках Kodik
+  useEffect(() => {
+    const handleKodikError = (event: any) => {
+      // Проверяем, это сообщение об ошибке Kodik
+      if (typeof event.data === 'string' && 
+          (event.data.includes('kodik') || 
+           event.data.includes('разорвал соединение') || 
+           event.data.includes('не отправил данные'))) {
+        
+        console.log(`🚨 Kodik error detected: ${event.data}`)
+        
+        // Если плеер запущен и есть ошибка, пробуем следующий домен
+        if (isStarted && !hasError) {
+          console.log(`❌ Kodik error on ${kodikDomains[currentDomain]}, switching domain`)
+          tryNextDomain()
+        }
+      }
+    }
+
+    // Слушаем сообщения от window (для ошибок от UI)
+    window.addEventListener('message', handleKodikError)
+    
+    return () => {
+      window.removeEventListener('message', handleKodikError)
+    }
+  }, [isStarted, hasError, currentDomain])
 
   // Обработчик postMessage сообщений от плеера Kodik
   useEffect(() => {
@@ -75,11 +207,24 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCo
 
     const handleMessage = (event: MessageEvent) => {
       // Проверяем, что сообщение от Kodik плеера
-      if (!event.origin.includes('kodik.info') && !event.origin.includes('kodik.cc')) {
+      const validOrigins = kodikDomains.map(domain => `https://${domain}`)
+      if (!validOrigins.some(origin => event.origin.includes(origin))) {
         return
       }
 
       console.log('Kodik message received:', event.data)
+
+      // Проверяем на сообщение об ошибке или разрыве соединения
+      if (typeof event.data === 'string') {
+        if (event.data.includes('разорвал соединение') || 
+            event.data.includes('не отправил данные') ||
+            event.data.includes('connection lost') ||
+            event.data.includes('error')) {
+          console.log(`❌ Connection lost on ${kodikDomains[currentDomain]}, trying next domain`)
+          tryNextDomain()
+          return
+        }
+      }
 
       try {
         let newEpisode: number | undefined
@@ -171,14 +316,14 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCo
     return () => {
       window.removeEventListener('message', handleMessage)
     }
-  }, [isStarted, episode, onEpisodeChange])
+  }, [isStarted, episode, onEpisodeChange, currentDomain])
 
   return (
     <div className="relative aspect-video w-full overflow-hidden rounded-2xl bg-zinc-950 border border-white/5 shadow-2xl">
       {!isStarted ? (
         <div className="absolute inset-0 flex flex-col items-center justify-center">
           {/* Детектор региона в углу */}
-          <div className="  z-20">
+          <div className="z-20">
             <RegionDetector onCountryChange={handleCountryChange} onRegionDetected={onRegionDetected} />
           </div>
           
@@ -209,32 +354,84 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCo
         </div>
       ) : (
         <>
-          {isLoading && !hasError && <PlayerLoading />}
+          {isLoading && !hasError && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+              <PlayerLoading />
+              <div className="absolute top-4 right-4 bg-zinc-800/80 text-zinc-300 text-xs px-2 py-1 rounded">
+                Проверка домена {currentDomain + 1}/{kodikDomains.length}: {kodikDomains[currentDomain]}
+              </div>
+              {currentDomain === 0 && kodikDomains[currentDomain] === 'kodikplayer.com' && (
+                <div className="absolute top-4 left-4 bg-green-600/80 text-white text-xs px-2 py-1 rounded">
+                  ✅ Приоритетный домен
+                </div>
+              )}
+              {currentDomain > 0 && (
+                <div className="absolute top-4 left-4 bg-orange-600/80 text-white text-xs px-2 py-1 rounded">
+                  Переключение на зеркало...
+                </div>
+              )}
+              {currentDomain === 1 && kodikDomains[currentDomain] === 'kodik.info' && (
+                <div className="absolute bottom-4 left-4 bg-blue-600/80 text-white text-xs px-3 py-2 rounded max-w-xs">
+                  💡 Установите Redirector для автоматического перенаправления с kodik.info
+                </div>
+              )}
+            </div>
+          )}
           
           {hasError ? (
-             <div className="absolute inset-0 flex flex-col items-center justify-center text-zinc-400 gap-2 bg-zinc-900">
-                <AlertCircle className="w-8 h-8 text-red-500" />
-                <p>Плеер недоступен или заблокирован AdBlock</p>
-                <button 
-                  onClick={() => setIsStarted(false)}
-                  className="text-xs text-orange-500 hover:underline"
-                >
-                  Попробовать снова
-                </button>
+             <div className="absolute inset-0 flex flex-col items-center justify-center text-zinc-400 gap-4 bg-zinc-900 p-6">
+                <AlertCircle className="w-12 h-12 text-red-500" />
+                <div className="text-center">
+                  <p className="text-lg font-medium text-white mb-2">Все домены Kodik недоступны</p>
+                  <p className="text-sm text-zinc-400 mb-4">
+                    {errorMessage || 'Проверьте подключение к интернету или отключите AdBlock'}
+                  </p>
+                  <div className="flex flex-col gap-3">
+                    <button 
+                      onClick={() => {
+                        setIsStarted(false)
+                        setHasError(false)
+                        setErrorMessage('')
+                        setCurrentDomain(0) // Сбрасываем на первый домен
+                      }}
+                      className="text-orange-500 hover:underline text-sm"
+                    >
+                      Попробовать снова
+                    </button>
+                    <div className="text-xs text-zinc-500 bg-zinc-800 p-3 rounded">
+                      <p className="font-medium text-zinc-400 mb-1">💡 Решение для ПК:</p>
+                      <p>Установите расширение Redirector с настройками:</p>
+                      <p className="font-mono text-xs mt-1">
+                        kodik.info/* → kodikplayer.com/$1
+                      </p>
+                    </div>
+                  </div>
+                </div>
              </div>
           ) : (
             <iframe
               src={playerSrc}
               className={`h-full w-full transition-opacity duration-700 ${isLoading ? 'opacity-0' : 'opacity-100'}`}
               allowFullScreen
-              // ВАЖНО: Убраны 'allow-popups' и 'allow-top-navigation'.
-              // Это запрещает плееру открывать новые вкладки с рекламой.
-              sandbox="allow-forms allow-scripts allow-same-origin allow-presentation"
+              // ВАЖНО: Оптимизированные разрешения для работы Kodik плеера
+              // allow-popups-to-escape-sandbox позволяет открывать окна при необходимости
+              // allow-top-navigation позволяет навигацию для некоторых функций плеера
+              sandbox="allow-forms allow-scripts allow-same-origin allow-presentation allow-popups-to-escape-sandbox allow-top-navigation"
               loading="lazy"
-              onLoad={() => setIsLoading(false)}
-              onError={() => {
+              onLoad={() => {
+                console.log(`✅ Kodik player loaded successfully on ${kodikDomains[currentDomain]}`)
                 setIsLoading(false)
-                setHasError(true)
+                // Очищаем таймаут при успешной загрузке
+                if (loadTimeout) {
+                  clearTimeout(loadTimeout)
+                  setLoadTimeout(null)
+                }
+              }}
+              onError={(e) => {
+                console.error(`❌ iframe error on ${kodikDomains[currentDomain]}:`, e)
+                // Автоматически пробуем следующий домен при ошибке загрузки
+                console.log(`🔄 Auto-switching to next domain due to iframe error`)
+                tryNextDomain()
               }}
             />
           )}
