@@ -117,17 +117,20 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCo
     }
   }
 
-  useEffect(() => {
+  const handleStartPlayer = () => {
+    onStart?.()
+    setIsStarted(true)
     setIsLoading(true)
     setHasError(false)
     setErrorMessage('')
+    setCurrentDomain(0) // Всегда начинаем с .com домена
     
     // Очищаем предыдущий таймаут
     if (loadTimeout) {
       clearTimeout(loadTimeout)
     }
     
-    // Устанавливаем новый таймаут на 8 секунд
+    // Устанавливаем таймаут на 8 секунд для проверки
     const timeout = setTimeout(() => {
       if (isLoading) {
         console.log(`⏱️ Timeout on ${kodikDomains[currentDomain]}, trying next domain automatically`)
@@ -136,7 +139,14 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCo
     }, 8000)
     
     setLoadTimeout(timeout)
-  }, [episode, currentDomain])
+  }
+
+  useEffect(() => {
+    // Очищаем таймаут при изменении домена
+    if (loadTimeout) {
+      clearTimeout(loadTimeout)
+    }
+  }, [currentDomain])
 
   // Мониторинг состояния плеера для обнаружения разрыва соединения
   useEffect(() => {
@@ -322,10 +332,7 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCo
           </div>
           
           <div className="flex-1 flex items-center justify-center group cursor-pointer" 
-               onClick={() => {
-                 onStart?.()
-                 setIsStarted(true)
-               }}
+               onClick={handleStartPlayer}
           >
             {/* Фон-постер */}
             <img 
@@ -387,6 +394,7 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCo
                         setHasError(false)
                         setErrorMessage('')
                         setCurrentDomain(0) // Сбрасываем на первый домен
+                        setIsLoading(true) // Готовимся к новой проверке
                       }}
                       className="text-orange-500 hover:underline text-sm"
                     >
