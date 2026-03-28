@@ -3,6 +3,13 @@ import { createClient } from '@supabase/supabase-js'
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
+// Check if env vars are properly configured (not placeholder values)
+const isValidConfig = supabaseUrl && 
+  supabaseKey && 
+  supabaseUrl.startsWith('http') && 
+  supabaseUrl !== 'your-supabase-url' && 
+  supabaseKey !== 'your-supabase-anon-key'
+
 // Create a mock client for build process when env vars are missing
 const createMockClient = () => {
   const mockClient = {
@@ -31,7 +38,7 @@ const createMockClient = () => {
   return mockClient as any
 }
 
-export const supabase = supabaseUrl && supabaseKey 
+export const supabase = isValidConfig
   ? createClient(supabaseUrl, supabaseKey)
   : createMockClient()
 
@@ -92,6 +99,41 @@ export async function syncLocalDataToAccount(userId: string) {
           localStorage.removeItem("watch-history")
           console.log('History synced')
         }
+      }
+    } catch {
+      // ignore invalid json
+    }
+  }
+
+  // 3. Синхронизация монет из гачи
+  const rawCoins = localStorage.getItem("gacha-coins")
+  if (rawCoins) {
+    try {
+      const coins = parseInt(rawCoins, 10) || 1000
+      const { data: existingData } = await supabase
+        .from('user_coins')
+        .select('coins')
+        .eq('id', userId)
+        .single()
+
+      let finalCoins = coins
+      if (existingData && existingData.coins !== null) {
+        // Если в БД есть запись, берём максимальное значение
+        finalCoins = Math.max(coins, existingData.coins)
+      } else {
+        // Если записи нет, даём бонус 10000 монет (1000 база + 9000 бонус)
+        finalCoins = 10000
+      }
+
+      const { error } = await supabase
+        .from('user_coins')
+        .upsert({ id: userId, coins: finalCoins, updated_at: new Date().toISOString() }, {
+          onConflict: 'id'
+        })
+
+      if (!error) {
+        localStorage.removeItem("gacha-coins")
+        console.log('Coins synced')
       }
     } catch {
       // ignore invalid json

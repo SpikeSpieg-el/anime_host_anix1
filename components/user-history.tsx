@@ -31,30 +31,30 @@ const { items: historyItems, isLoading: historyLoading } = useHistory()
 const [lastSearches, setLastSearches] = useState<string[]>([])
 const [mounted, setMounted] = useState(false)
 const [fallbackHistory, setFallbackHistory] = useState<any[]>([])
+const [hasLoadedFallback, setHasLoadedFallback] = useState(false)
 // Подключаем хук обновлений
 const { updates, clearUpdate, checkAnimeUpdates, isChecking } = useEpisodeUpdates()
 
-console.log('UserHistory render - historyItems:', historyItems)
-
 // Fallback на localStorage, если HistoryProvider не работает
 useEffect(() => {
-  if (mounted && (!historyItems || historyItems.length === 0)) {
+  if (mounted && !hasLoadedFallback && (!historyItems || historyItems.length === 0)) {
     try {
       const storedHistory = JSON.parse(localStorage.getItem("watch-history") || "[]")
       console.log('Loading fallback history from localStorage:', storedHistory)
       const normalized = Array.isArray(storedHistory)
-        ? storedHistory.map((item: any) => ({ 
-            ...item, 
-            poster: normalizePosterUrl(item?.poster) 
+        ? storedHistory.map((item: any) => ({
+            ...item,
+            poster: normalizePosterUrl(item?.poster)
           }))
         : []
       setFallbackHistory(normalized)
       console.log('Normalized fallback history:', normalized)
-    } catch (e) { 
+      setHasLoadedFallback(true)
+    } catch (e) {
       console.error("Error loading fallback history:", e)
     }
   }
-}, [mounted, historyItems])
+}, [mounted, hasLoadedFallback, historyItems?.length])
 
 // Используем данные из HistoryProvider или fallback
 const sourceHistory = historyItems && historyItems.length > 0 ? historyItems : fallbackHistory
@@ -99,13 +99,10 @@ return () => {
 }, [])
 // При изменении истории можно форсировать проверку (опционально)
 useEffect(() => {
-if (mounted && fullHistory.length > 0) {
-// Мы передаем полный список, чтобы хук мог использовать актуальные данные
-// checkAnimeUpdates(fullHistory) -> Это вызовет проверку.
-// Но хук уже имеет встроенный useEffect с таймером и троттлингом,
-// так что можно не вызывать вручную, чтобы не спамить запросами при каждом рендере.
-}
-}, [mounted, fullHistory, checkAnimeUpdates])
+  if (mounted && fullHistory.length > 0) {
+    checkAnimeUpdates(fullHistory)
+  }
+}, [mounted, fullHistory.length, checkAnimeUpdates])
 if (!mounted) {
   return (
     <div className="mb-12 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">

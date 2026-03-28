@@ -5,7 +5,8 @@ import { Navbar } from "@/components/navbar"
 import { FloatingNav } from "@/components/floating-nav"
 import { Sparkles, Star, Heart, Loader2, X, ZoomIn, ExternalLink, RefreshCcw, Trash, Crown, Package, Coins, Search } from "lucide-react"
 import { rollAnimeCharacter, rollFromAnimePack, searchGachaPacks, createCustomGachaPack } from "./actions"
-import { ANIME_PACKS, AnimePack, CustomAnimePack } from "@/lib/gacha-packs" 
+import { ANIME_PACKS, AnimePack, CustomAnimePack } from "@/lib/gacha-packs"
+import { useCoins } from "@/hooks/use-coins" 
 
 export type Rarity = 
   | "trash" | "common" | "uncommon" | "rare" | "super_rare" | "epic" 
@@ -278,7 +279,7 @@ export default function GachaPage() {
   const [showCard, setShowCard] = useState(false)
   const[viewedCard, setViewedCard] = useState<Card | null>(null)
   const [usedCharacterIds, setUsedCharacterIds] = useState<Set<number>>(new Set())
-  const [userCoins, setUserCoins] = useState(1000) // Starting coins
+  const { coins: userCoins, spendCoins } = useCoins()
   const [selectedPack, setSelectedPack] = useState<AnimePack | CustomAnimePack | null>(null)
   const [showPacks, setShowPacks] = useState(false)
   const [packSearchQuery, setPackSearchQuery] = useState("")
@@ -333,7 +334,7 @@ export default function GachaPage() {
 
     try {
       let result;
-      
+
       if (selectedPack) {
         // Roll from selected pack
         if (userCoins < selectedPack.price) {
@@ -341,13 +342,13 @@ export default function GachaPage() {
           setIsRolling(false);
           return;
         }
-        
+
         console.log("Rolling from pack:", selectedPack.id);
         result = await rollFromAnimePack(selectedPack, Array.from(usedCharacterIds));
         console.log("Pack roll result:", result);
-        
+
         if (result) {
-          setUserCoins(prev => prev - selectedPack.price);
+          await spendCoins(selectedPack.price);
         }
       } else {
         // Random roll (free)

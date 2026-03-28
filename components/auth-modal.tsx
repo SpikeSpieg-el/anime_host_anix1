@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { supabase } from "@/lib/supabase"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Loader2, Mail, Lock, LogIn, UserPlus, AlertCircle, X } from "lucide-react"
@@ -128,6 +128,9 @@ export function AuthModal({ isOpen: externalIsOpen, onClose, children }: AuthMod
       )}
 
       <DialogContent className="overflow-hidden p-0 bg-[#09090b] border border-white/10 text-white sm:max-w-[420px] shadow-2xl shadow-orange-500/5">
+        <DialogDescription className="sr-only">
+          {isLogin ? "Форма входа в систему" : "Форма регистрации нового пользователя"}
+        </DialogDescription>
         
         {/* Декоративный градиент на фоне */}
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-32 bg-gradient-to-b from-orange-500/10 to-transparent pointer-events-none" />

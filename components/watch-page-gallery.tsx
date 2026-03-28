@@ -19,6 +19,7 @@ import {
   Dialog,
   DialogContent,
   DialogTitle,
+  DialogDescription,
 } from "@/components/ui/dialog"
 import { cn } from "@/lib/utils"
 import { 
@@ -335,10 +336,13 @@ export function WatchPageGallery({ anime }: WatchPageGalleryProps) {
 
       {/* --- FULLSCREEN MODAL --- */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent 
-          className="max-w-[100vw] w-full h-[100dvh] p-0 bg-background/95 backdrop-blur-xl border-none shadow-none flex flex-col items-center justify-center z-[100]" 
+        <DialogContent
+          className="max-w-[100vw] w-full h-[100dvh] p-0 bg-background/95 backdrop-blur-xl border-none shadow-none flex flex-col items-center justify-center z-[100]"
           showCloseButton={false}
         >
+          <DialogDescription className="sr-only">
+            Просмотр скриншотов из аниме {anime.title}
+          </DialogDescription>
           <VisuallyHidden>
             <DialogTitle>Просмотр изображения</DialogTitle>
           </VisuallyHidden>

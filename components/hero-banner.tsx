@@ -6,6 +6,7 @@ import {
   Dialog,
   DialogContent,
   DialogTitle,
+  DialogDescription,
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { useState, useRef, useEffect } from "react"
@@ -387,6 +388,9 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime, recommendationRea
                 
                 {/* --- МОДАЛЬНОЕ ОКНО --- */}
                 <DialogContent className="bg-background/95 backdrop-blur-2xl border text-foreground w-[95vw] sm:max-w-4xl p-0 overflow-hidden shadow-2xl rounded-3xl flex flex-col h-full max-h-[85dvh] sm:h-auto sm:max-h-[90vh]">
+                  <DialogDescription className="sr-only">
+                    Подробная информация об аниме {anime.title}
+                  </DialogDescription>
                   
                   <div className="flex flex-col md:grid md:grid-cols-12 h-full w-full">
                     
