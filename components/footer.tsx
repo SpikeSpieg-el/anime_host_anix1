@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { Zap, Github, Send, MessageCircle } from "lucide-react"
+import { Github, Send, MessageCircle } from "lucide-react"
 
 export function Footer() {
   const currentYear = new Date().getFullYear()
@@ -14,11 +14,6 @@ export function Footer() {
           {/* Колонки футера */}
           <div className="space-y-6">
             <a className="flex items-center gap-3 group" href="/">
-              <div className="relative w-10 h-10 flex items-center justify-center bg-gradient-to-br from-secondary to-background border border-border rounded-xl shadow-2xl dark:from-zinc-800 dark:to-black dark:border-white/10">
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-zap w-6 h-6 text-orange-500 fill-orange-500">
-                  <path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"></path>
-                </svg>
-              </div>
               <div className="flex flex-col">
                 <span className="text-xl font-black tracking-tighter text-foreground font-unbounded dark:text-white">Weeb.<span className="text-primary dark:text-orange-500">X</span></span>
                 <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest dark:text-zinc-500">Stream</span>
