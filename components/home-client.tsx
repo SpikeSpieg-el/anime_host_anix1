@@ -10,6 +10,9 @@ import { SectionSkeleton, UpdatesBannerSkeleton, GridSkeleton } from '@/componen
 import type { Anime } from '@/lib/shikimori'
 import Link from "next/link"
 import { MessageSquare, User, ExternalLink, ChevronRight, Newspaper, TrendingUp, Play, Star } from "lucide-react"
+import { useEffect } from "react"
+import { useSearchParams } from "next/navigation"
+import { easterEggs } from "@/lib/easter-eggs"
 
 interface HomePageClientProps {
   initialData: {
@@ -22,6 +25,30 @@ interface HomePageClientProps {
 }
 
 export function HomePageClient({ initialData }: HomePageClientProps) {
+  const searchParams = useSearchParams()
+
+  useEffect(() => {
+    // Проверяем все возможные команды в URL параметрах
+    easterEggs.forEach((egg) => {
+      // Извлекаем имя команды без префикса
+      let commandName = ""
+      if (egg.command.startsWith("?")) {
+        commandName = egg.command.slice(1) // убираем ?
+      } else if (egg.command.startsWith("/")) {
+        commandName = egg.command.slice(1) // убираем /
+      }
+      
+      const paramValue = searchParams.get(commandName)
+      
+      if (paramValue !== null) {
+        // Команда найдена в URL - выполняем её
+        setTimeout(() => {
+          egg.action()
+        }, 1000)
+      }
+    })
+  }, [searchParams])
+
   return (
     <>
       <main className="min-h-screen bg-background text-foreground pb-20 md:pb-24 selection:bg-primary/30 dark:bg-zinc-950 dark:text-white dark:selection:bg-orange-500/30">

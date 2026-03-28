@@ -6,6 +6,8 @@ import { Anime, searchAnime } from "@/lib/shikimori"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/components/auth-provider"
 import { SearchResultsSkeleton } from "@/components/skeleton"
+import { checkEasterEgg, easterEggs } from "@/lib/easter-eggs"
+import { toast } from "sonner"
 
 function saveSearchHistory(query: string) {
   if (typeof window === "undefined") return
@@ -90,10 +92,41 @@ export function SearchSuggestions({
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Escape") setIsOpen(false)
+    if (e.key === "Escape") {
+      setIsOpen(false)
+      return
+    }
+    
     if (e.key === "Enter" && value.trim()) {
+      // Проверяем на Easter Egg команду
+      if (value.trim().startsWith("/") || value.trim().startsWith("?")) {
+        e.preventDefault()
+        e.stopPropagation()
+        
+        const command = value.trim().toLowerCase()
+        const egg = easterEggs.find((egg) => egg.command === command)
+        
+        if (egg) {
+          // Команда найдена - выполняем
+          egg.action()
+          onChange("")
+          setIsOpen(false)
+          return
+        } else {
+          // Команда не найдена
+          toast("Неизвестная команда", {
+            description: "Введи ?commands чтобы увидеть все команды",
+            duration: 3000,
+          })
+          onChange("")
+          setIsOpen(false)
+          return
+        }
+      }
+      
+      // Обычный поиск - сохраняем и переходим в каталог
       saveSearchHistory(value)
-      onSelect(value.trim()) // Переход в каталог
+      onSelect(value.trim())
       setIsOpen(false)
     }
   }
@@ -187,6 +220,15 @@ export function SearchSuggestions({
 
             {loading && (
               <SearchResultsSkeleton />
+            )}
+
+            {/* Подсказка про Easter Eggs */}
+            {!loading && suggestions.length === 0 && !value.startsWith("/") && !value.startsWith("?") && (
+              <div className="p-3 border-t border-border/50">
+                <p className="text-xs text-muted-foreground text-center">
+                  💡 Введи <kbd className="px-1.5 py-0.5 bg-muted rounded text-[10px] font-mono">?commands</kbd> чтобы увидеть секретные команды
+                </p>
+              </div>
             )}
           </div>
         </>

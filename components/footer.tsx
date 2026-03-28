@@ -1,8 +1,35 @@
+"use client"
+
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { Github, Send, MessageCircle } from "lucide-react"
 
+const animeQuotes = [
+  "Ты сильнее, чем думаешь - Аниме учит нас",
+  "Даже если будет трудно, не сдавайся! - Naruto",
+  "Твоя улыбка освещает этот мир",
+  "Ты заслуживаешь быть счастливым",
+  "Каждый день - это новый шанс",
+  "Ты не один, мы с тобой! - Fairy Tail",
+  "Просто дыши. Всё будет хорошо",
+  "Сила не в мышцах, а в духе - Demon Slayer",
+  "Мечты не имеют срока годности",
+  "Падать - не страшно, страшно - не вставать",
+  "Ты amazing, не забывай об этом",
+  "Иногда нужно всё отпустить, чтобы начать заново",
+  "Твоё будущее начинается сегодня",
+  "Не бойся ошибаться, бойся не пробовать",
+  "Верь в себя, даже если никто не верит",
+]
+
 export function Footer() {
   const currentYear = new Date().getFullYear()
+  const [quote, setQuote] = useState(animeQuotes[0])
+
+  useEffect(() => {
+    const dayOfYear = Math.floor((Date.now() - new Date(new Date().getFullYear(), 0, 0).getTime()) / 86400000)
+    setQuote(animeQuotes[dayOfYear % animeQuotes.length])
+  }, [])
 
   return (
     <footer className="relative">
@@ -20,6 +47,14 @@ export function Footer() {
               </div>
             </a>
             <p className="text-muted-foreground text-sm leading-relaxed max-w-xs dark:text-zinc-500">Твой путеводитель в мире аниме. Смотри лучшие тайтлы в высоком качестве с персональными рекомендациями.</p>
+            
+            {/* Цитата дня */}
+            <div className="p-3 rounded-lg bg-primary/5 border border-primary/10">
+              <p className="text-xs text-muted-foreground italic">
+                💭 {quote}
+              </p>
+            </div>
+            
             <div className="flex items-center gap-4"></div>
           </div>
 

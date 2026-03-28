@@ -13,6 +13,7 @@ import { AuthProvider } from "@/components/auth-provider"
 import { UserDataLoadingBar } from "@/components/user-data-loading-bar"
 import { CookieConsent } from "@/components/cookie-consent"
 import { ThemeProvider } from "@/components/theme-provider"
+import { Toaster } from "sonner"
 
 const _geist = Geist({ subsets: ["latin"] })
 const _geistMono = Geist_Mono({ subsets: ["latin"] })
@@ -73,6 +74,7 @@ export default function RootLayout({
             </HistoryProvider>
           </AuthProvider>
           <Analytics />
+          <Toaster />
         </ThemeProvider>
       </body>
     </html>
