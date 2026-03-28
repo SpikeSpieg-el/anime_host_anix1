@@ -3,9 +3,9 @@
 import { useState, useRef, MouseEvent, useCallback, useEffect } from "react"
 import { Navbar } from "@/components/navbar"
 import { FloatingNav } from "@/components/floating-nav"
-import { Sparkles, Star, Heart, Loader2, X, ZoomIn, ExternalLink, RefreshCcw, Trash, Crown, Package, Coins } from "lucide-react"
-import { rollAnimeCharacter, rollFromAnimePack } from "./actions"
-import { ANIME_PACKS, AnimePack } from "@/lib/gacha-packs" 
+import { Sparkles, Star, Heart, Loader2, X, ZoomIn, ExternalLink, RefreshCcw, Trash, Crown, Package, Coins, Search } from "lucide-react"
+import { rollAnimeCharacter, rollFromAnimePack, searchGachaPacks, createCustomGachaPack } from "./actions"
+import { ANIME_PACKS, AnimePack, CustomAnimePack } from "@/lib/gacha-packs" 
 
 export type Rarity = 
   | "trash" | "common" | "uncommon" | "rare" | "super_rare" | "epic" 
@@ -279,13 +279,51 @@ export default function GachaPage() {
   const[viewedCard, setViewedCard] = useState<Card | null>(null)
   const [usedCharacterIds, setUsedCharacterIds] = useState<Set<number>>(new Set())
   const [userCoins, setUserCoins] = useState(1000) // Starting coins
-  const [selectedPack, setSelectedPack] = useState<AnimePack | null>(null)
+  const [selectedPack, setSelectedPack] = useState<AnimePack | CustomAnimePack | null>(null)
   const [showPacks, setShowPacks] = useState(false)
+  const [packSearchQuery, setPackSearchQuery] = useState("")
+  const [searchResults, setSearchResults] = useState<AnimePack[]>([])
+  const [isSearching, setIsSearching] = useState(false)
+  const [showCustomPackCreator, setShowCustomPackCreator] = useState(false)
+  const [customPackQuery, setCustomPackQuery] = useState("")
+  const [isCreatingCustomPack, setIsCreatingCustomPack] = useState(false)
+  const [createdCustomPack, setCreatedCustomPack] = useState<CustomAnimePack | null>(null)
+  const [customPackSearchResults, setCustomPackSearchResults] = useState<Array<{
+    id: number
+    name: string
+    russian: string | null
+    score: number | null
+    imageUrl: string
+  }>>([])
 
   useEffect(() => {
     const ids = new Set(collectedCards.map(card => card.characterId));
     setUsedCharacterIds(ids);
   }, [collectedCards]);
+
+  // Поиск паков с дебаунсом
+  useEffect(() => {
+    if (packSearchQuery.trim().length < 1) {
+      setSearchResults([]);
+      setIsSearching(false);
+      return;
+    }
+
+    setIsSearching(true);
+    const debounce = setTimeout(async () => {
+      try {
+        const results = await searchGachaPacks(packSearchQuery.trim());
+        setSearchResults(results);
+      } catch (error) {
+        console.error("Pack search error:", error);
+        setSearchResults([]);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 200);
+
+    return () => clearTimeout(debounce);
+  }, [packSearchQuery]);
 
   const handleRoll = async () => {
     if (isRolling) return
@@ -305,7 +343,7 @@ export default function GachaPage() {
         }
         
         console.log("Rolling from pack:", selectedPack.id);
-        result = await rollFromAnimePack(selectedPack.id, Array.from(usedCharacterIds));
+        result = await rollFromAnimePack(selectedPack, Array.from(usedCharacterIds));
         console.log("Pack roll result:", result);
         
         if (result) {
@@ -363,6 +401,38 @@ export default function GachaPage() {
     setShowPacks(false);
   }
 
+  const handleCreateCustomPack = async () => {
+    if (!customPackQuery.trim() || isCreatingCustomPack) return;
+    
+    setIsCreatingCustomPack(true);
+    setCreatedCustomPack(null);
+    
+    try {
+      const result = await createCustomGachaPack(customPackQuery.trim());
+      
+      if (result) {
+        setCreatedCustomPack(result.customPack);
+        setCustomPackSearchResults(result.foundAnime);
+      } else {
+        alert("Аниме по запросу не найдено. Попробуйте другое название.");
+      }
+    } catch (error) {
+      console.error("Custom pack creation error:", error);
+      alert("Ошибка при создании пака. Попробуйте снова.");
+    } finally {
+      setIsCreatingCustomPack(false);
+    }
+  }
+
+  const handleSelectCustomPack = (pack: CustomAnimePack) => {
+    if (userCoins >= pack.price) {
+      setSelectedPack(pack);
+      setShowCustomPackCreator(false);
+      setCreatedCustomPack(null);
+      setCustomPackQuery("");
+    }
+  }
+
   const removeCard = (cardToRemove: Card) => {
     setCollectedCards(prev => prev.filter(card => card.id !== cardToRemove.id))
     setViewedCard(null)
@@ -389,31 +459,184 @@ export default function GachaPage() {
           <div className="bg-slate-900 rounded-3xl p-8 max-w-4xl w-full max-h-[80vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-3xl font-black text-white">Выберите Набор</h2>
-              <button 
+              <button
                 onClick={() => setShowPacks(false)}
                 className="p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
               >
                 <X className="w-6 h-6" />
               </button>
             </div>
-            
+
+            {/* Search Input */}
+            <div className="relative mb-6">
+              <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+              <input
+                type="text"
+                placeholder="Поиск набора по названию..."
+                value={packSearchQuery}
+                onChange={(e) => setPackSearchQuery(e.target.value)}
+                className="w-full h-10 rounded-xl bg-slate-800/50 border border-slate-700 pl-10 pr-10 text-sm text-white focus:bg-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 transition-all placeholder:text-slate-500"
+              />
+              {packSearchQuery && (
+                <button
+                  onClick={() => setPackSearchQuery("")}
+                  className="absolute right-3 top-2.5 text-slate-500 hover:text-white transition-colors"
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+
+            {/* Search Results or All Packs */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-              {ANIME_PACKS.map(pack => (
-                <PackCard 
-                  key={pack.id} 
-                  pack={pack} 
+              {isSearching && (
+                <div className="col-span-full flex items-center justify-center py-12">
+                  <Loader2 className="w-8 h-8 text-indigo-500 animate-spin" />
+                  <span className="ml-3 text-slate-400 font-medium">Поиск...</span>
+                </div>
+              )}
+
+              {!isSearching && packSearchQuery.trim() && searchResults.length === 0 && (
+                <div className="col-span-full text-center py-12">
+                  <p className="text-slate-400 font-medium mb-2">Наборы не найдены</p>
+                  <p className="text-slate-500 text-sm">Попробуйте другой запрос</p>
+                </div>
+              )}
+
+              {(!packSearchQuery.trim() ? ANIME_PACKS : searchResults).map(pack => (
+                <PackCard
+                  key={pack.id}
+                  pack={pack}
                   onSelect={handlePackSelect}
                   userCoins={userCoins}
                 />
               ))}
             </div>
-            
-            <button 
+
+            <button
               onClick={handleRandomRoll}
               className="w-full py-3 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-xl transition-colors"
             >
               Случайный призыв (Бесплатно)
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Custom Pack Creator Modal */}
+      {showCustomPackCreator && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xl">
+          <div className="bg-slate-900 rounded-3xl p-8 max-w-4xl w-full max-h-[80vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-3xl font-black text-white">Создать Кастомный Пак</h2>
+              <button
+                onClick={() => {
+                  setShowCustomPackCreator(false);
+                  setCreatedCustomPack(null);
+                  setCustomPackQuery("");
+                  setCustomPackSearchResults([]);
+                }}
+                className="p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            {/* Search Input */}
+            <div className="mb-6">
+              <label className="block text-sm font-bold text-white mb-2">
+                Введите название аниме (например, "Титан", "Наруто", "Блич")
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="Например: Титан..."
+                  value={customPackQuery}
+                  onChange={(e) => setCustomPackQuery(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleCreateCustomPack()}
+                  className="flex-1 h-12 rounded-xl bg-slate-800/50 border border-slate-700 px-4 text-white focus:bg-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 transition-all placeholder:text-slate-500"
+                />
+                <button
+                  onClick={handleCreateCustomPack}
+                  disabled={isCreatingCustomPack || !customPackQuery.trim()}
+                  className="px-6 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 disabled:from-slate-700 disabled:to-slate-800 disabled:cursor-not-allowed text-white font-bold rounded-xl transition-all"
+                >
+                  {isCreatingCustomPack ? (
+                    <span className="flex items-center gap-2">
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      Поиск
+                    </span>
+                  ) : (
+                    "Найти"
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* Results */}
+            {isCreatingCustomPack && (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="w-8 h-8 text-indigo-500 animate-spin" />
+                <span className="ml-3 text-slate-400 font-medium">Поиск аниме...</span>
+              </div>
+            )}
+
+            {createdCustomPack && customPackSearchResults.length > 0 && (
+              <div className="space-y-4">
+                <div className="p-4 rounded-xl bg-gradient-to-r border border-white/10 animate-in fade-in slide-in-from-top-4 duration-300" style={{backgroundImage: `linear-gradient(to right, var(--tw-gradient-stops))`, ...{ '--tw-gradient-from': 'oklch(0.5 0.2 280)', '--tw-gradient-to': 'oklch(0.5 0.2 320)' } as React.CSSProperties}}>
+                  <h3 className="text-xl font-black text-white mb-2">{createdCustomPack.name}</h3>
+                  <p className="text-sm text-white/70 mb-3">{createdCustomPack.description}</p>
+                  <div className="flex flex-wrap gap-3">
+                    <div className="flex items-center gap-2 bg-black/30 backdrop-blur-sm px-3 py-1.5 rounded-full">
+                      <Coins className="w-4 h-4 text-yellow-400" />
+                      <span className="text-sm font-bold text-white">{createdCustomPack.price} монет</span>
+                    </div>
+                    {createdCustomPack.guaranteedRarity && (
+                      <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm px-3 py-1.5 rounded-full">
+                        <Star className="w-4 h-4 text-yellow-400" />
+                        <span className="text-xs font-bold text-white">
+                          Гарант: {rarityConfig[createdCustomPack.guaranteedRarity as Rarity].label}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <h4 className="text-sm font-bold text-white/70 mb-3 uppercase tracking-wider">Найденные аниме ({customPackSearchResults.length})</h4>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 max-h-64 overflow-y-auto p-2">
+                    {customPackSearchResults.map(anime => (
+                      <div key={anime.id} className="rounded-lg overflow-hidden bg-slate-800/50 border border-white/10">
+                        <img src={anime.imageUrl} alt={anime.russian || anime.name} className="w-full aspect-[2/3] object-cover" referrerPolicy="no-referrer" />
+                        <div className="p-2">
+                          <p className="text-xs font-bold text-white truncate">{anime.russian || anime.name}</p>
+                          <div className="flex items-center gap-1 mt-1">
+                            <Star className="w-3 h-3 text-yellow-400 fill-yellow-400" />
+                            <span className="text-xs font-bold text-white">{typeof anime.score === 'number' ? anime.score.toFixed(1) : 'N/A'}</span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => handleSelectCustomPack(createdCustomPack)}
+                  disabled={userCoins < createdCustomPack.price}
+                  className="w-full py-4 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 disabled:from-slate-700 disabled:to-slate-800 disabled:cursor-not-allowed text-white font-black uppercase tracking-wider rounded-xl transition-all"
+                >
+                  {userCoins < createdCustomPack.price ? "Недостаточно монет" : "Выбрать этот пак"}
+                </button>
+              </div>
+            )}
+
+            {!isCreatingCustomPack && !createdCustomPack && (
+              <div className="text-center py-12">
+                <Package className="w-16 h-16 text-slate-600 mx-auto mb-4" />
+                <p className="text-slate-400 font-medium mb-2">Введите название для поиска</p>
+                <p className="text-slate-500 text-sm">Система найдёт аниме и создаст уникальный пак</p>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -484,12 +707,20 @@ export default function GachaPage() {
                 </span>
               </button>
               
-              <button 
+              <button
                 onClick={() => setShowPacks(true)}
                 className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-bold rounded-xl transition-all"
               >
                 <Package className="w-5 h-5" />
                 Выбрать набор
+              </button>
+
+              <button
+                onClick={() => setShowCustomPackCreator(true)}
+                className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white font-bold rounded-xl transition-all"
+              >
+                <Search className="w-5 h-5" />
+                Создать пак
               </button>
             </div>
           )}

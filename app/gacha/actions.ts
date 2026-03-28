@@ -1,6 +1,6 @@
 "use server"
 
-import { getPackById, type AnimePack } from "@/lib/gacha-packs"
+import { getPackById, searchPacksByTitle, searchAnimeByTitle, createCustomPack, type AnimePack, type CustomAnimePack } from "@/lib/gacha-packs"
 
 const usedArtUrls = new Set<string>();
 const characterArtCache = new Map<string, string[]>();
@@ -331,10 +331,7 @@ export async function rollAnimeCharacter(usedCharacterIds: number[] =[]): Promis
   }
 }
 
-export async function rollFromAnimePack(packId: string, usedCharacterIds: number[] =[]): Promise<GachaResult | null> {
-  const pack = getPackById(packId);
-  if (!pack) return null;
-
+export async function rollFromAnimePack(pack: { id: string; animeIds: number[]; name: string; guaranteedRarity?: string }, usedCharacterIds: number[] =[]): Promise<GachaResult | null> {
   const shuffledIds = [...pack.animeIds].sort(() => Math.random() - 0.5);
   for (const id of shuffledIds) {
     const res = await fetch(`https://shikimori.one/api/animes/${id}`);
@@ -351,8 +348,59 @@ export async function rollFromAnimePack(packId: string, usedCharacterIds: number
            result.stats = generateStats(result.rarity);
          }
       }
-      return { ...result, packId, packName: pack.name };
+      return { ...result, packId: pack.id, packName: pack.name };
     }
   }
   return null;
+}
+
+export async function searchGachaPacks(query: string): Promise<AnimePack[]> {
+  return searchPacksByTitle(query);
+}
+
+// Поиск и создание кастомного пака
+export interface CustomPackSearchResult {
+  customPack: CustomAnimePack
+  foundAnime: Array<{
+    id: number
+    name: string
+    russian: string | null
+    score: number | null
+    imageUrl: string
+  }>
+}
+
+export async function createCustomGachaPack(query: string): Promise<CustomPackSearchResult | null> {
+  if (!query.trim()) return null;
+
+  try {
+    // Ищем аниме через Shikimori
+    const animeResults = await searchAnimeByTitle(query);
+    
+    if (animeResults.length === 0) {
+      return null;
+    }
+
+    // Создаём кастомный пак
+    const customPack = createCustomPack(query, animeResults);
+
+    // Форматируем результаты для отображения
+    const foundAnime = animeResults.map(anime => ({
+      id: anime.id,
+      name: anime.name,
+      russian: anime.russian,
+      score: anime.score,
+      imageUrl: anime.image.original.startsWith("/") 
+        ? `https://shikimori.one${anime.image.original}` 
+        : anime.image.original
+    }));
+
+    return {
+      customPack,
+      foundAnime
+    };
+  } catch (error) {
+    console.error("Custom pack creation error:", error);
+    return null;
+  }
 }

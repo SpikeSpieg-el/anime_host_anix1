@@ -9,6 +9,26 @@ export interface AnimePack {
   color: string
   bgImage?: string
   guaranteedRarity?: string
+  isCustom?: boolean
+}
+
+export interface CustomAnimePack extends AnimePack {
+  isCustom: true
+  searchQuery: string
+  createdAt: number
+}
+
+export interface ShikimoriAnimeResult {
+  id: number
+  name: string
+  russian: string | null
+  score: number | null
+  kind: string
+  episodes: number
+  status: string
+  image: {
+    original: string
+  }
 }
 
 export const ANIME_PACKS: AnimePack[] = [
@@ -113,4 +133,84 @@ export const ANIME_PACKS: AnimePack[] = [
 
 export function getPackById(id: string): AnimePack | undefined {
   return ANIME_PACKS.find(pack => pack.id === id);
+}
+
+export function searchPacksByTitle(query: string): AnimePack[] {
+  if (!query.trim()) return [];
+
+  const normalizedQuery = query.toLowerCase().trim();
+
+  return ANIME_PACKS.filter(pack => {
+    const normalizedName = pack.name.toLowerCase();
+    const normalizedDescription = pack.description.toLowerCase();
+    const normalizedId = pack.id.toLowerCase();
+
+    // Поиск по названию, описанию и ID
+    return (
+      normalizedName.includes(normalizedQuery) ||
+      normalizedDescription.includes(normalizedQuery) ||
+      normalizedId.includes(normalizedQuery)
+    );
+  });
+}
+
+// Поиск аниме через Shikimori API по названию
+export async function searchAnimeByTitle(query: string): Promise<ShikimoriAnimeResult[]> {
+  if (!query.trim()) return [];
+
+  try {
+    const encodedQuery = encodeURIComponent(query.trim());
+    const url = `https://shikimori.one/api/animes?order=popularity&limit=10&search=${encodedQuery}&kind=tv,movie,ona,special`;
+    
+    const response = await fetch(url, {
+      headers: { "User-Agent": "AnimeGachaApp/1.0" }
+    });
+
+    if (!response.ok) return [];
+    
+    const data = await response.json();
+    return Array.isArray(data) ? data : [];
+  } catch (error) {
+    console.error("Shikimori search error:", error);
+    return [];
+  }
+}
+
+// Создание кастомного пака из найденных аниме
+export function createCustomPack(query: string, animeResults: ShikimoriAnimeResult[]): CustomAnimePack {
+  const animeIds = animeResults.map(anime => anime.id);
+  const validScores = animeResults.map(a => a.score).filter((s): s is number => typeof s === 'number');
+  const topScore = validScores.length > 0 ? Math.max(...validScores) : 0;
+  
+  // Динамическая цена на основе среднего рейтинга найденных аниме
+  const avgScore = validScores.length > 0 
+    ? validScores.reduce((sum, s) => sum + s, 0) / validScores.length 
+    : 0;
+  const price = Math.max(50, Math.min(200, Math.floor(avgScore * 20)));
+  
+  // Динамическая редкость на основе топ рейтинга
+  let guaranteedRarity: string | undefined;
+  if (topScore >= 8.5) guaranteedRarity = "epic";
+  else if (topScore >= 7.5) guaranteedRarity = "super_rare";
+  else if (topScore >= 6.5) guaranteedRarity = "rare";
+  
+  // Градиент на основе среднего рейтинга
+  const color = avgScore >= 8 
+    ? "from-amber-500 to-orange-600" 
+    : avgScore >= 7 
+      ? "from-purple-500 to-pink-600" 
+      : "from-slate-500 to-gray-600";
+
+  return {
+    id: `custom_${Date.now()}`,
+    name: `Пак: ${query}`,
+    description: `Кастомный пак из ${animeResults.length} аниме по запросу "${query}"`,
+    animeIds,
+    price,
+    color,
+    guaranteedRarity,
+    isCustom: true,
+    searchQuery: query,
+    createdAt: Date.now()
+  };
 }
