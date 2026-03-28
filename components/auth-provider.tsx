@@ -4,7 +4,8 @@ import { createContext, useContext, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { User, Session } from "@supabase/supabase-js"
 import { supabase, syncLocalDataToAccount } from "@/lib/supabase"
-import { useToast } from "@/hooks/use-toast" // Если есть toast, или удалите
+import { useToast } from "@/hooks/use-toast"
+import { loggers } from "@/lib/logger"
 
 interface AuthContextType {
   user: User | null
@@ -101,28 +102,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .select('*')
         .eq('id', user.id)
         .single()
-      
+
       if (error) {
-        // Если профиль не найден (код PGRST116), создадим его вручную
         if (error.code === 'PGRST116') {
            const { data: newProfile, error: createError } = await supabase
               .from('profiles')
               .insert({ id: user.id, username: user.email })
               .select()
               .single()
-           
-if (!createError) {
+
+          if (!createError) {
               setProfile(newProfile)
               setProfileLoading(false)
               return
             } else if (createError.code === '23505' || createError.code === '409') {
-             // Конфликт - профиль уже существует, попробуем получить снова
              const { data: retryData, error: retryError } = await supabase
                 .from('profiles')
                 .select('*')
                 .eq('id', user.id)
                 .single()
-             
+
              if (!retryError && retryData) {
                setProfile(retryData)
                setProfileLoading(false)
@@ -130,24 +129,22 @@ if (!createError) {
              }
            }
         }
-        
-        // Обработка 406 ошибок (Not Acceptable) - возможно пользователь удален
+
         if (error.message?.includes('406') || error.details?.includes('Not Acceptable')) {
-          console.warn('User may be deleted or invalid, signing out')
+          loggers.auth.warn('User may be deleted or invalid, signing out')
           setProfileLoading(false)
           await hardSignOut()
           return
         }
-        
+
         throw error
       }
-      
+
       setProfile(data)
       setProfileLoading(false)
     } catch (error: any) {
-      console.error('Error fetching profile:', error)
+      loggers.auth.error('Error fetching profile:', error)
       setProfileLoading(false)
-      // Если пользователь удален или недействителен, выходим из системы
       if (error.message?.includes('406') || error.details?.includes('Not Acceptable') || error.code === 'PGRST116') {
         toast({
           title: "Ошибка авторизации",
@@ -169,29 +166,24 @@ if (!createError) {
   }, [user])
 
   useEffect(() => {
-    // 1. Проверка текущей сессии
     supabase.auth.getSession().then(({ data: { session } }: { data: { session: any } }) => {
       setSession(session)
       setUser(session?.user ?? null)
       setLoading(false)
     })
 
-    // 2. Подписка на изменения (Вход / Выход)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event: any, session: any) => {
       setSession(session)
       setUser(session?.user ?? null)
       setLoading(false)
 
-      // МАГИЯ СИНХРОНИЗАЦИИ
       if (_event === 'SIGNED_IN' && session?.user) {
         try {
           await syncLocalDataToAccount(session.user.id)
-          // Генерируем событие, чтобы обновить BookmarksProvider
           window.dispatchEvent(new Event("auth-synced"))
-          
           toast({ title: "Вход выполнен", description: "Данные синхронизированы" })
         } catch (e) {
-          console.error("Sync error", e)
+          loggers.auth.error("Sync error", e)
         }
       }
     })
@@ -216,7 +208,7 @@ if (!createError) {
       await safeSupabaseSignOutLocal()
       forceClearSupabaseAuthStorage()
     } catch (error: any) {
-      console.error("Sign out error:", error)
+      loggers.auth.error("Sign out error:", error)
       toast({
         title: "Ошибка",
         description: error?.message || "Не удалось выйти из аккаунта",

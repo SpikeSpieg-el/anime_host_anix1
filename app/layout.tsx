@@ -2,10 +2,11 @@ import type React from "react"
 import type { Metadata, Viewport } from "next"
 import { Geist, Geist_Mono, Unbounded } from "next/font/google"
 import { Analytics } from "@vercel/analytics/next"
-import { Suspense } from "react" // ✅ Import Suspense
+import { Suspense } from "react"
 import { GlobalLoading } from "@/components/global-loading"
 import { BookmarksProvider } from "@/components/bookmarks-provider"
 import { HistoryProvider } from "@/components/history-provider"
+import { ErrorBoundary } from "@/components/error-boundary"
 import "./globals.css"
 import { WelcomeModal } from "@/components/welcome-modal"
 import { AuthProvider } from "@/components/auth-provider"
@@ -58,7 +59,6 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          {/* ✅ Fix: Wrap GlobalLoading in Suspense because it uses searchParams */}
           <Suspense fallback={null}>
             <GlobalLoading />
           </Suspense>
@@ -67,7 +67,9 @@ export default function RootLayout({
           <AuthProvider>
             <UserDataLoadingBar />
             <HistoryProvider>
-              <BookmarksProvider>{children}</BookmarksProvider>
+              <BookmarksProvider>
+                <ErrorBoundary name="Main App">{children}</ErrorBoundary>
+              </BookmarksProvider>
             </HistoryProvider>
           </AuthProvider>
           <Analytics />

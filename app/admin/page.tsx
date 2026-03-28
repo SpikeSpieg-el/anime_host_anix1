@@ -1,13 +1,10 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useTransition } from "react"
 import { Users, Eye, Bookmark, User, Search, LogOut, Lock } from "lucide-react"
 import Image from "next/image"
 import { ScrollToTop } from "@/components/scroll-to-top"
-
-// Admin credentials from environment variables
-const ADMIN_USERNAME = process.env.NEXT_PUBLIC_ADMIN_USERNAME
-const ADMIN_PASSWORD = process.env.NEXT_PUBLIC_ADMIN_PASSWORD
+import { adminLogin, adminLogout, checkAdminAuth, getAdminUsers } from "./actions"
 
 interface UserProfile {
   id: string
@@ -54,7 +51,8 @@ export default function AdminPage() {
   const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
   const [authError, setAuthError] = useState("")
-  
+  const [isPending, startTransition] = useTransition()
+
   const [users, setUsers] = useState<UserWithStats[]>([])
   const [loading, setLoading] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
@@ -63,46 +61,48 @@ export default function AdminPage() {
   const [showAllHistory, setShowAllHistory] = useState(false)
   const [showAllBookmarks, setShowAllBookmarks] = useState(false)
 
-  const handleLogin = (e: React.FormEvent) => {
+  useEffect(() => {
+    checkAdminAuth().then((authenticated) => {
+      setIsAuthenticated(authenticated)
+      if (authenticated) {
+        fetchUsers()
+      }
+    })
+  }, [])
+
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
-      setIsAuthenticated(true)
-      setAuthError("")
-      fetchUsers()
-    } else {
-      setAuthError("Неверный логин или пароль")
-    }
+    startTransition(async () => {
+      const formData = new FormData()
+      formData.set("username", username)
+      formData.set("password", password)
+      
+      const result = await adminLogin(formData)
+      
+      if (result?.error) {
+        setAuthError(result.error)
+      } else {
+        setAuthError("")
+        setIsAuthenticated(true)
+        fetchUsers()
+      }
+    })
   }
 
-  useEffect(() => {
-    if (isAuthenticated) {
-      fetchUsers()
-    }
-  }, [isAuthenticated])
+  const handleLogout = async () => {
+    await adminLogout()
+    setIsAuthenticated(false)
+    setUsers([])
+  }
 
   const fetchUsers = async () => {
     try {
       setLoading(true)
       setError(null)
-
-      const response = await fetch('/api/admin/users')
-      
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        const errorMessage = errorData.details || errorData.error || `Failed to fetch: ${response.statusText}`
-        throw new Error(errorMessage)
-      }
-
-      const data = await response.json()
-      
-      if (data.error) {
-        throw new Error(data.error)
-      }
-
-      setUsers(data.users || [])
+      const data = await getAdminUsers()
+      setUsers(data)
     } catch (err) {
-      console.error('Error fetching users:', err)
-      const errorMessage = err instanceof Error ? err.message : 'Failed to load users data'
+      const errorMessage = err instanceof Error ? err.message : "Failed to load users data"
       setError(errorMessage)
     } finally {
       setLoading(false)
@@ -179,9 +179,10 @@ export default function AdminPage() {
 
               <button
                 type="submit"
-                className="w-full py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors font-medium"
+                disabled={isPending}
+                className="w-full py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors font-medium disabled:opacity-50"
               >
-                Sign In
+                {isPending ? "Signing in..." : "Sign In"}
               </button>
             </form>
           </div>
@@ -238,16 +239,13 @@ export default function AdminPage() {
             <div className="text-sm text-muted-foreground">
               Total Users: {users.length}
             </div>
-            <button 
-              onClick={() => {
-                setIsAuthenticated(false)
-                setUsername("")
-                setPassword("")
-              }}
+            <button
+              onClick={handleLogout}
               className="flex items-center gap-2 px-4 py-2 bg-muted hover:bg-muted/80 rounded transition"
+              disabled={isPending}
             >
               <LogOut size={16} />
-              Logout
+              {isPending ? "Logging out..." : "Logout"}
             </button>
           </div>
         </div>

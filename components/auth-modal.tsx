@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Loader2, Mail, Lock, LogIn, UserPlus, AlertCircle, X } from "lucide-react"
+import { loggers } from "@/lib/logger"
 
 interface AuthModalProps {
   isOpen?: boolean
@@ -36,10 +37,6 @@ export function AuthModal({ isOpen: externalIsOpen, onClose, children }: AuthMod
     setLoading(true)
     setError(null)
 
-    // Debug: Check if we're using mock client
-    console.log('Supabase URL:', process.env.NEXT_PUBLIC_SUPABASE_URL ? 'Configured' : 'Missing')
-    console.log('Supabase Key:', process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ? 'Configured' : 'Missing')
-
     // Basic validation
     if (!email.trim() || !password.trim()) {
       setError("Email и пароль обязательны")
@@ -61,14 +58,11 @@ export function AuthModal({ isOpen: externalIsOpen, onClose, children }: AuthMod
 
     try {
       if (isLogin) {
-        console.log('Attempting login with:', email)
         const { data, error } = await supabase.auth.signInWithPassword({
           email,
           password,
         })
-        
-        console.log('Login response:', { data, error })
-        
+
         if (error) {
           if (error.message.includes('Invalid login credentials')) {
             throw new Error('Неверный email или пароль')
@@ -78,17 +72,14 @@ export function AuthModal({ isOpen: externalIsOpen, onClose, children }: AuthMod
             throw error
           }
         }
-        
+
         setIsOpen(false)
       } else {
-        console.log('Attempting signup with:', email)
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
         })
-        
-        console.log('Signup response:', { data, error })
-        
+
         if (error) {
           if (error.message.includes('User already registered')) {
             throw new Error('Пользователь с таким email уже существует')
@@ -100,18 +91,17 @@ export function AuthModal({ isOpen: externalIsOpen, onClose, children }: AuthMod
             throw error
           }
         }
-        
-        // Check if user needs email confirmation
+
         if (data.user && !data.user.email_confirmed_at) {
           setError('Пожалуйста, проверьте вашу почту и подтвердите регистрацию')
           setLoading(false)
           return
         }
-        
+
         setIsOpen(false)
       }
     } catch (err: any) {
-      console.error('Auth error:', err)
+      loggers.auth.error('Auth error:', err)
       setError(err.message || "Произошла ошибка при авторизации")
     } finally {
       setLoading(false)

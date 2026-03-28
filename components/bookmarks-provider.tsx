@@ -4,6 +4,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useS
 import type { Anime } from "@/lib/shikimori"
 import { supabase } from "@/lib/supabase"
 import { useAuth } from "@/components/auth-provider"
+import { loggers } from "@/lib/logger"
 
 type BookmarkAnime = Anime
 
@@ -103,11 +104,18 @@ export function BookmarksProvider({ children }: { children: React.ReactNode }) {
     })
 
     if (user) {
-      await supabase.from('bookmarks').insert({
-        user_id: user.id,
-        anime_id: anime.id,
-        anime_data: anime
-      })
+      try {
+        await supabase.from('bookmarks').insert({
+          user_id: user.id,
+          anime_id: anime.id,
+          anime_data: anime
+        })
+      } catch (error) {
+        // Handle duplicate key error gracefully
+        if ((error as any)?.code !== '23505') {
+          loggers.bookmarks.error('Failed to add bookmark', error)
+        }
+      }
     }
   }, [user])
 
@@ -115,12 +123,15 @@ export function BookmarksProvider({ children }: { children: React.ReactNode }) {
     setItems((prev) => prev.filter((a) => a.id !== id))
 
     if (user) {
-      await supabase.from('bookmarks').delete().match({ user_id: user.id, anime_id: id })
+      try {
+        await supabase.from('bookmarks').delete().match({ user_id: user.id, anime_id: id })
+      } catch (error) {
+        loggers.bookmarks.error('Failed to remove bookmark', error)
+      }
     }
   }, [user])
 
   const toggle = useCallback(async (anime: BookmarkAnime) => {
-    // Оптимистичное обновление UI
     let isAdded = false
     setItems((prev) => {
       const exists = prev.some((a) => a.id === anime.id)
@@ -132,20 +143,23 @@ export function BookmarksProvider({ children }: { children: React.ReactNode }) {
     })
 
     if (user) {
-      if (isAdded) { // было добавлено в стейт, значит insert в БД
-         await supabase.from('bookmarks').insert({
+      try {
+        if (isAdded) {
+          await supabase.from('bookmarks').insert({
             user_id: user.id,
             anime_id: anime.id,
             anime_data: anime
-         }).select().single().then(({error}: {error: any}) => {
-             // Если запись уже есть (конфликт), ничего страшного
-             if(error && error.code !== '23505') console.error(error) 
-         })
-      } else { // удалено из стейта, delete из БД
-         await supabase.from('bookmarks').delete().match({ user_id: user.id, anime_id: anime.id })
+          })
+        } else {
+          await supabase.from('bookmarks').delete().match({ user_id: user.id, anime_id: anime.id })
+        }
+      } catch (error) {
+        if ((error as any)?.code !== '23505') {
+          loggers.bookmarks.error('Failed to toggle bookmark', error)
+        }
       }
     }
-  }, [user]) // Добавлена зависимость от user
+  }, [user])
 
   const value = useMemo<BookmarksContextValue>(() => ({ items, isLoading, isSaved, add, remove, toggle }), [items, isLoading, isSaved, add, remove, toggle])
 
