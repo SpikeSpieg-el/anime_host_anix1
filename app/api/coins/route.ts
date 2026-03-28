@@ -116,9 +116,7 @@ export async function POST(request: Request) {
     // Update or insert coins
     const { data, error } = await supabase
       .from('user_coins')
-      .upsert({ id: user.id, coins, updated_at: new Date().toISOString() }, {
-        onConflict: 'id'
-      })
+      .upsert({ id: user.id, coins, updated_at: new Date().toISOString() })
       .select('coins')
       .single()
 
