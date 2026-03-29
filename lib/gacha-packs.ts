@@ -1,5 +1,7 @@
 // lib/gacha-packs.ts
 
+import { searchAnime } from "./shikimori/api";
+
 export interface AnimePack {
   id: string
   name: string
@@ -154,22 +156,27 @@ export function searchPacksByTitle(query: string): AnimePack[] {
   });
 }
 
-// Поиск аниме через Shikimori API по названию
+// Поиск аниме через Shikimori API по названию (использует умный поиск как на сайте)
 export async function searchAnimeByTitle(query: string): Promise<ShikimoriAnimeResult[]> {
   if (!query.trim()) return [];
 
   try {
-    const encodedQuery = encodeURIComponent(query.trim());
-    const url = `https://shikimori.one/api/animes?order=popularity&limit=10&search=${encodedQuery}&kind=tv,movie,ona,special`;
+    // Используем ту же функцию поиска, что и на сайте
+    const searchResults = await searchAnime(query, false, false);
     
-    const response = await fetch(url, {
-      headers: { "User-Agent": "AnimeGachaApp/1.0" }
-    });
-
-    if (!response.ok) return [];
-    
-    const data = await response.json();
-    return Array.isArray(data) ? data : [];
+    // Конвертируем результаты в формат ShikimoriAnimeResult
+    return searchResults.map(anime => ({
+      id: parseInt(anime.shikimoriId), // Преобразуем строку в число
+      name: anime.originalTitle || anime.title,
+      russian: anime.title,
+      score: anime.rating,
+      kind: anime.quality,
+      episodes: anime.episodesTotal || 0,
+      status: anime.status,
+      image: {
+        original: anime.poster
+      }
+    }));
   } catch (error) {
     console.error("Shikimori search error:", error);
     return [];
@@ -182,17 +189,17 @@ export function createCustomPack(query: string, animeResults: ShikimoriAnimeResu
   const validScores = animeResults.map(a => a.score).filter((s): s is number => typeof s === 'number');
   const topScore = validScores.length > 0 ? Math.max(...validScores) : 0;
   
-  // Динамическая цена на основе среднего рейтинга найденных аниме
+  // Динамическая цена на основе среднего рейтинга найденных аниме (x3 для кастомных паков)
   const avgScore = validScores.length > 0 
     ? validScores.reduce((sum, s) => sum + s, 0) / validScores.length 
     : 0;
-  const price = Math.max(50, Math.min(200, Math.floor(avgScore * 20)));
+  const price = Math.max(150, Math.min(600, Math.floor(avgScore * 60)));
   
-  // Динамическая редкость на основе топ рейтинга
+  // Динамическая редкость на основе СРЕДНЕГО рейтинга (унификация с заголовком)
   let guaranteedRarity: string | undefined;
-  if (topScore >= 8.5) guaranteedRarity = "epic";
-  else if (topScore >= 7.5) guaranteedRarity = "super_rare";
-  else if (topScore >= 6.5) guaranteedRarity = "rare";
+  if (avgScore >= 8.5) guaranteedRarity = "epic";
+  else if (avgScore >= 7.5) guaranteedRarity = "super_rare";
+  else if (avgScore >= 6.5) guaranteedRarity = "rare";
   
   // Градиент на основе среднего рейтинга
   const color = avgScore >= 8 

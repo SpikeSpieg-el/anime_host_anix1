@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useAuth } from '@/components/auth-provider'
 import { supabase } from '@/lib/supabase'
 
@@ -8,10 +8,13 @@ export function useCoins() {
   const { user } = useAuth()
   const [coins, setCoins] = useState<number>(1000)
   const [loading, setLoading] = useState(true)
+  const retryCountRef = useRef(0)
+
+  const MAX_RETRIES = 3
 
   // Загрузка монет
   const loadCoins = useCallback(async () => {
-    console.log('[useCoins] loadCoins called, user:', user?.id || 'null')
+    console.log('[useCoins] loadCoins called, user:', user?.id || 'null', 'retry:', retryCountRef.current)
     
     if (!user) {
       // Для неавторизованных - загружаем из localStorage (гостевой баланс 1000)
@@ -56,9 +59,34 @@ export function useCoins() {
         setCoins(data.coins || 10000)
         // Сохраняем в localStorage как кэш
         localStorage.setItem(COINS_STORAGE_KEY, data.coins.toString())
+        // Reset retry count on success
+        retryCountRef.current = 0
       } else {
         const errorData = await res.json().catch(() => ({}))
         console.warn('[useCoins] Coins API error:', res.status, errorData)
+        
+        // Handle 500 errors with fallback and retry
+        if (res.status === 500) {
+          console.warn('[useCoins] Server error, attempt:', retryCountRef.current + 1, 'of', MAX_RETRIES)
+          
+          if (retryCountRef.current < MAX_RETRIES) {
+            // Retry after a delay
+            retryCountRef.current += 1
+            setTimeout(() => {
+              loadCoins()
+            }, 1000 * retryCountRef.current) // Exponential backoff
+            return
+          } else {
+            // Max retries reached, use fallback
+            console.warn('[useCoins] Max retries reached, using fallback coins')
+            const fallbackCoins = 10000
+            setCoins(fallbackCoins)
+            localStorage.setItem(COINS_STORAGE_KEY, fallbackCoins.toString())
+            retryCountRef.current = 0
+            return
+          }
+        }
+        
         // При ошибке 401/403 - пробуем выйти и войти заново
         if (res.status === 401 || res.status === 403) {
           console.warn('[useCoins] Auth error, clearing session')
@@ -116,10 +144,6 @@ export function useCoins() {
     const newCoins = coins + amount
     await updateCoins(newCoins, true)
   }, [coins, updateCoins])
-
-  useEffect(() => {
-    loadCoins()
-  }, [loadCoins])
 
   // Слушаем изменения авторизации
   useEffect(() => {

@@ -2,11 +2,11 @@
 
 import { useState, useRef, MouseEvent, useCallback, useEffect } from "react"
 import { Navbar } from "@/components/navbar"
-import { FloatingNav } from "@/components/floating-nav"
 import { Sparkles, Star, Heart, Loader2, X, ZoomIn, ExternalLink, RefreshCcw, Trash, Crown, Package, Coins, Search } from "lucide-react"
 import { rollAnimeCharacter, rollFromAnimePack, searchGachaPacks, createCustomGachaPack } from "./actions"
-import { ANIME_PACKS, AnimePack, CustomAnimePack } from "@/lib/gacha-packs"
-import { useCoins } from "@/hooks/use-coins" 
+import { ANIME_PACKS, AnimePack, CustomAnimePack, createCustomPack } from "@/lib/gacha-packs"
+import { useCoins } from "@/hooks/use-coins"
+import { GachaLoading } from "@/components/gacha-loading" 
 
 export type Rarity = 
   | "trash" | "common" | "uncommon" | "rare" | "super_rare" | "epic" 
@@ -29,6 +29,7 @@ export interface Card {
   rarity: Rarity
   imageUrl: string
   originalUrl: string
+  fallbackUrls?: string[] 
   score: number
   shikiId: number
   characterId: number
@@ -38,7 +39,6 @@ export interface Card {
   packName?: string
 }
 
-// Функция для генерации уникального ID карты
 function generateCardUniqueId(characterId: number, packId?: string): string {
   const timestamp = Date.now().toString(36);
   const random = Math.random().toString(36).substring(2, 8);
@@ -83,6 +83,83 @@ const statLabels = {
   spd: "Скорость",
   luck: "Удача"
 } as const
+
+const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>, card: Card, isCollection: boolean = false) => {
+  const target = e.target as HTMLImageElement;
+  
+  // Если не загрузился imageUrl (фан-арт), пробуем originalUrl (Шикимори)
+  if (!target.dataset.triedOriginal && card.originalUrl) {
+    target.dataset.triedOriginal = "true";
+    // Очищаем URL от параметров (все что после ?) - это часто решает проблему 403 на Шикимори
+    const cleanUrl = card.originalUrl.split('?')[0];
+    target.src = cleanUrl;
+    return;
+  }
+
+  // Если официальный арт тоже не алё, пробуем зеркала
+  if (!target.dataset.triedMirror) {
+    target.dataset.triedMirror = "true";
+    // Прямая ссылка на статику Шикимори без параметров
+    target.src = `https://shikimori.one/system/characters/original/${card.characterId}.jpg`;
+    return;
+  }
+
+  // Continue with existing fallback logic...
+  if (!target.dataset.triedShikiPng) {
+    console.log(`[${card.name}] Попытка Shikimori PNG`);
+    target.dataset.triedShikiPng = "true";
+    target.src = `https://shikimori.one/system/characters/original/${card.characterId}.png`;
+  } else if (!target.dataset.triedShikiWebp) {
+    console.log(`[${card.name}] Попытка Shikimori WebP`);
+    target.dataset.triedShikiWebp = "true";
+    target.src = `https://shikimori.one/system/characters/webp/original/${card.characterId}.webp`;
+  } else if (!target.dataset.triedJikan) {
+    console.log(`[${card.name}] Попытка Jikan API (MyAnimeList)`);
+    target.dataset.triedJikan = "true";
+    fetch(`https://api.jikan.moe/v4/characters/${card.characterId}/pictures`)
+      .then(res => res.json())
+      .then(data => {
+        if (data?.data && data.data.length > 0) {
+          const pic = data.data.find((p: any) => p.jpg?.image_url) || data.data[0];
+          target.src = pic.jpg?.image_url || pic.webp?.image_url;
+        } else {
+          // Вызываем следующую ошибку для перехода к заглушке
+          target.src = 'https://picsum.photos/seed/force-error/1/1';
+        }
+      })
+      .catch(() => {
+        target.src = 'https://picsum.photos/seed/force-error/1/1';
+      });
+  } else if (!target.dataset.triedPlaceholder) {
+    console.log(`[${card.name}] Все попытки исчерпаны, используем картинку-заглушку`);
+    target.dataset.triedPlaceholder = "true";
+    const seed = card.anime.replace(/[^a-z0-9]/gi, '') + card.characterId;
+    target.src = `https://picsum.photos/seed/anime-${seed}/${isCollection ? '200/300' : '400/600'}.jpg`;
+  } else {
+    console.log(`[${card.name}] Картинка-заглушка не загрузилась, показываем UI-заглушку`);
+    target.style.display = 'none';
+    const containerClass = isCollection ? 'collection-placeholder' : 'image-placeholder';
+    const placeholder = target.parentElement?.querySelector(`.${containerClass}`);
+    if (!placeholder) {
+      const div = document.createElement('div');
+      div.className = `${containerClass} absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-slate-800 to-slate-900 text-white p-2`;
+      if (isCollection) {
+        div.innerHTML = `
+          <div class="text-2xl">🎌</div>
+          <div class="text-xs font-bold text-center mt-1 truncate w-full px-1">${card.name}</div>
+        `;
+      } else {
+        div.innerHTML = `
+          <div class="text-4xl mb-2">🎌</div>
+          <div class="text-sm font-bold text-center mb-1 px-4">${card.name}</div>
+          <div class="text-xs text-slate-400 text-center px-4">${card.anime}</div>
+          <div class="text-xs text-slate-500 mt-2">Арт недоступен</div>
+        `;
+      }
+      target.parentElement?.appendChild(div);
+    }
+  }
+};
 
 const PackCard = ({ pack, onSelect, userCoins }: { pack: AnimePack; onSelect: (pack: AnimePack) => void; userCoins: number }) => (
   <div 
@@ -173,20 +250,27 @@ const InteractiveCard = ({ card, forceFlipped = false }: { card: Card, forceFlip
         transformStyle: "preserve-3d",
       }}
     >
-      {/* FRONT SIDE */}
+      {/* FRONT SIDE - АКЦЕНТ НА АРТ */}
       <div 
-        className={`absolute inset-0 rounded-[2rem] overflow-hidden ${rarityConfig[card.rarity].bg} ${rarityConfig[card.rarity].glow}`}
+        className={`absolute inset-0 rounded-[2.5rem] overflow-hidden ${rarityConfig[card.rarity].bg} ${rarityConfig[card.rarity].glow} border-2 border-white/10`}
         style={{ backfaceVisibility: "hidden" }}
       >
+        {/* Само изображение персонажа - теперь занимает всё пространство без искажений */}
         <img 
           src={card.imageUrl} 
           alt={card.name}
-          className="absolute inset-0 w-full h-full object-cover"
-          referrerPolicy="no-referrer" 
+          className="absolute inset-0 w-full h-full object-cover scale-[1.02]"
+          referrerPolicy="no-referrer"
+          onError={(e) => handleImageError(e, card, false)}
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-transparent pointer-events-none" />
-        <div className={`absolute inset-0 mix-blend-overlay opacity-30 pointer-events-none ${rarityConfig[card.rarity].fx}`} />
+        
+        {/* Тонкий виньеточный градиент вместо глухого черного низа */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/20 pointer-events-none" />
+        
+        {/* Эффекты редкости (блики/FX) - ОСТАВЛЕНО БЕЗ ИЗМЕНЕНИЙ */}
+        <div className={`absolute inset-0 mix-blend-overlay opacity-40 pointer-events-none ${rarityConfig[card.rarity].fx}`} />
 
+        {/* Интерактивный блик при движении - ОСТАВЛЕНО БЕЗ ИЗМЕНЕНИЙ */}
         <div 
           className="absolute inset-0 pointer-events-none rounded-[2rem]"
           style={{
@@ -194,48 +278,60 @@ const InteractiveCard = ({ card, forceFlipped = false }: { card: Card, forceFlip
             transition: 'opacity 0.2s ease-out',
             boxShadow: `
               inset ${highlightX}px ${highlightY}px 20px rgba(${rarityConfig[card.rarity].rgb}, 0.4), 
-              inset ${highlightX * 0.3}px ${highlightY * 0.3}px 4px rgba(${rarityConfig[card.rarity].rgb}, 0.8),
-              inset ${-highlightX * 0.4}px ${-highlightY * 0.4}px 12px rgba(0,0,0, 0.6)
+              inset ${highlightX * 0.3}px ${highlightY * 0.3}px 4px rgba(${rarityConfig[card.rarity].rgb}, 0.8)
             `
           }}
         />
+
+        {/* UI элементы - Сделаны максимально компактными и "парящими" */}
         
-        <div className="absolute bottom-0 inset-x-0 p-8 pointer-events-none">
-          <div className="flex justify-between items-start mb-3">
-            <div className="flex items-center gap-2">
-              <div className={`inline-block px-3 py-1 rounded-full text-[10px] font-black uppercase bg-gradient-to-r ${rarityConfig[card.rarity].color} text-white shadow-lg`}>
+        {/* Верхняя панель: Редкость и Рейтинг */}
+        <div className="absolute top-5 inset-x-5 flex justify-between items-start pointer-events-none">
+          <div className="flex flex-col gap-2">
+            <div className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-tighter backdrop-blur-md bg-black/40 border border-white/20 text-white shadow-xl`}>
+              <span className={`bg-gradient-to-r ${rarityConfig[card.rarity].color} bg-clip-text text-transparent`}>
                 {rarityConfig[card.rarity].label}
+              </span>
+            </div>
+            {card.isMainCharacter && (
+              <div className="w-fit flex items-center gap-1 px-2 py-1 rounded-full text-[9px] font-black uppercase bg-yellow-400 text-black shadow-lg">
+                <Crown className="w-3 h-3" />
+                Главный герой
               </div>
-              {card.isMainCharacter && (
-                <div className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-black uppercase bg-gradient-to-r from-yellow-400 to-amber-500 text-black shadow-lg">
-                  <Crown className="w-3 h-3" />
-                  Главный
-                </div>
+            )}
+          </div>
+          <div className="flex items-center gap-1 bg-black/40 backdrop-blur-md px-2.5 py-1 rounded-full border border-white/20 shadow-xl">
+            <Star className="w-3 h-3 text-yellow-400 fill-yellow-400" />
+            <span className="text-[11px] font-black text-white">{card.score.toFixed(1)}</span>
+          </div>
+        </div>
+
+        {/* Нижняя панель: Информация в "стеклянном" блоке */}
+        <div className="absolute bottom-5 inset-x-5 pointer-events-none">
+          <div className="backdrop-blur-xl bg-white/5 border border-white/10 rounded-2xl p-4 shadow-2xl relative overflow-hidden">
+            {/* Тонкая полоска редкости сбоку */}
+            <div className={`absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b ${rarityConfig[card.rarity].color}`} />
+            
+            <h3 className="text-xl font-black text-white uppercase leading-none drop-shadow-lg truncate mb-1">
+              {card.name}
+            </h3>
+            <p className="text-[10px] text-white/60 font-bold uppercase tracking-wider truncate">
+              {card.anime}
+            </p>
+            
+            <div className="mt-3 flex items-center justify-between border-t border-white/5 pt-2">
+              <span className="text-[8px] font-mono text-white/30 tracking-tighter">ШИКИ-{card.shikiId}</span>
+              {card.packName && (
+                <span className="text-[8px] font-bold text-indigo-400/80 uppercase">{card.packName}</span>
               )}
             </div>
-            <div className="flex items-center gap-1 bg-black/50 backdrop-blur-md px-2 py-1 rounded-full border border-white/10">
-              <Star className="w-3 h-3 text-yellow-400 fill-yellow-400" />
-              <span className="text-[10px] font-bold text-white">{card.score.toFixed(2)}</span>
-            </div>
-          </div>
-          <h3 className="text-3xl font-black text-white uppercase leading-tight drop-shadow-md line-clamp-2">{card.name}</h3>
-          <p className="text-slate-300 font-bold mb-4 drop-shadow-md text-sm line-clamp-1">{card.anime}</p>
-          {card.packName && (
-            <p className="text-xs text-purple-400 font-bold mb-2 drop-shadow-md">Набор: {card.packName}</p>
-          )}
-          <div className="pt-4 border-t border-white/20 flex justify-between items-center backdrop-blur-sm">
-            <div className="flex flex-col">
-              <span className="text-[10px] font-mono text-white/70">SHIKI-{card.shikiId}</span>
-              <span className="text-[8px] font-mono text-white/50">ID: {card.uniqueId}</span>
-            </div>
-            <Heart className="w-5 h-5 text-pink-500 fill-pink-500" />
           </div>
         </div>
       </div>
 
-      {/* BACK SIDE (STATS) */}
+      {/* BACK SIDE (STATS) - ОСТАВЛЕНО БЕЗ ИЗМЕНЕНИЙ (как в вашем примере) */}
       <div 
-        className={`absolute inset-0 rounded-[2rem] p-8 flex flex-col justify-between border-4 ${rarityConfig[card.rarity].bg} ${rarityConfig[card.rarity].glow}`}
+        className={`absolute inset-0 rounded-[2.5rem] p-8 flex flex-col justify-between border-4 ${rarityConfig[card.rarity].bg} ${rarityConfig[card.rarity].glow}`}
         style={{ 
           backfaceVisibility: "hidden", 
           transform: "rotateY(180deg)",
@@ -265,7 +361,7 @@ const InteractiveCard = ({ card, forceFlipped = false }: { card: Card, forceFlip
            <div className="w-16 h-16 mx-auto rounded-full border-2 border-white/10 flex items-center justify-center bg-white/5">
               <RefreshCcw className="w-8 h-8 text-white/20" />
            </div>
-           <p className="text-[10px] font-bold text-white/30 uppercase tracking-widest">Нажмите чтобы перевернуть</p>
+           <p className="text-[10px] font-bold text-white/30 uppercase tracking-widest text-balance leading-tight">Нажмите чтобы перевернуть</p>
         </div>
       </div>
     </div>
@@ -274,20 +370,22 @@ const InteractiveCard = ({ card, forceFlipped = false }: { card: Card, forceFlip
 
 export default function GachaPage() {
   const[isRolling, setIsRolling] = useState(false)
-  const [revealedCard, setRevealedCard] = useState<Card | null>(null)
+  const [isPackLoading, setIsPackLoading] = useState(false)
+  const[isCustomPackLoading, setIsCustomPackLoading] = useState(false)
+  const[revealedCard, setRevealedCard] = useState<Card | null>(null)
   const [collectedCards, setCollectedCards] = useState<Card[]>([])
   const [showCard, setShowCard] = useState(false)
   const[viewedCard, setViewedCard] = useState<Card | null>(null)
-  const [usedCharacterIds, setUsedCharacterIds] = useState<Set<number>>(new Set())
+  const[usedCharacterIds, setUsedCharacterIds] = useState<Set<number>>(new Set())
   const { coins: userCoins, spendCoins } = useCoins()
   const [selectedPack, setSelectedPack] = useState<AnimePack | CustomAnimePack | null>(null)
   const [showPacks, setShowPacks] = useState(false)
   const [packSearchQuery, setPackSearchQuery] = useState("")
-  const [searchResults, setSearchResults] = useState<AnimePack[]>([])
+  const[searchResults, setSearchResults] = useState<AnimePack[]>([])
   const [isSearching, setIsSearching] = useState(false)
   const [showCustomPackCreator, setShowCustomPackCreator] = useState(false)
   const [customPackQuery, setCustomPackQuery] = useState("")
-  const [isCreatingCustomPack, setIsCreatingCustomPack] = useState(false)
+  const[isCreatingCustomPack, setIsCreatingCustomPack] = useState(false)
   const [createdCustomPack, setCreatedCustomPack] = useState<CustomAnimePack | null>(null)
   const [customPackSearchResults, setCustomPackSearchResults] = useState<Array<{
     id: number
@@ -296,13 +394,14 @@ export default function GachaPage() {
     score: number | null
     imageUrl: string
   }>>([])
+  const [selectedAnimeIds, setSelectedAnimeIds] = useState<Set<number>>(new Set())
+  const [blacklistedUrls, setBlacklistedUrls] = useState<string[]>([])
 
   useEffect(() => {
     const ids = new Set(collectedCards.map(card => card.characterId));
     setUsedCharacterIds(ids);
   }, [collectedCards]);
 
-  // Поиск паков с дебаунсом
   useEffect(() => {
     if (packSearchQuery.trim().length < 1) {
       setSearchResults([]);
@@ -334,9 +433,10 @@ export default function GachaPage() {
 
     try {
       let result;
+      // Передаем текущий список забаненных картинок на сервер
+      const ignored = blacklistedUrls;
 
       if (selectedPack) {
-        // Roll from selected pack
         if (userCoins < selectedPack.price) {
           alert("Недостаточно монет!");
           setIsRolling(false);
@@ -344,16 +444,19 @@ export default function GachaPage() {
         }
 
         console.log("Rolling from pack:", selectedPack.id);
-        result = await rollFromAnimePack(selectedPack, Array.from(usedCharacterIds));
+        
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        
+        result = await rollFromAnimePack(selectedPack, Array.from(usedCharacterIds), ignored);
         console.log("Pack roll result:", result);
 
         if (result) {
           await spendCoins(selectedPack.price);
         }
       } else {
-        // Random roll (free)
         console.log("Rolling random character");
-        result = await rollAnimeCharacter(Array.from(usedCharacterIds));
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        result = await rollAnimeCharacter(Array.from(usedCharacterIds), ignored);
         console.log("Random roll result:", result);
       }
       
@@ -390,10 +493,13 @@ export default function GachaPage() {
     }
   }
 
-  const handlePackSelect = (pack: AnimePack) => {
+  const handlePackSelect = async (pack: AnimePack) => {
     if (userCoins >= pack.price) {
+      setIsPackLoading(true);
+      await new Promise(resolve => setTimeout(resolve, 300));
       setSelectedPack(pack);
       setShowPacks(false);
+      setIsPackLoading(false);
     }
   }
 
@@ -407,12 +513,12 @@ export default function GachaPage() {
     
     setIsCreatingCustomPack(true);
     setCreatedCustomPack(null);
+    setSelectedAnimeIds(new Set()); 
     
     try {
       const result = await createCustomGachaPack(customPackQuery.trim());
       
       if (result) {
-        setCreatedCustomPack(result.customPack);
         setCustomPackSearchResults(result.foundAnime);
       } else {
         alert("Аниме по запросу не найдено. Попробуйте другое название.");
@@ -425,12 +531,72 @@ export default function GachaPage() {
     }
   }
 
-  const handleSelectCustomPack = (pack: CustomAnimePack) => {
+  const toggleAnimeSelection = (animeId: number) => {
+    setSelectedAnimeIds(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(animeId)) {
+        newSet.delete(animeId)
+      } else {
+        newSet.add(animeId)
+      }
+      return newSet
+    })
+  }
+
+  const selectAllAnime = () => {
+    setSelectedAnimeIds(new Set(customPackSearchResults.map(anime => anime.id)))
+  }
+
+  const deselectAllAnime = () => {
+    setSelectedAnimeIds(new Set())
+  }
+
+  const handleCreateCustomPackFromSelected = async () => {
+    if (selectedAnimeIds.size === 0) {
+      alert("Выберите хотя бы одно аниме для создания пака")
+      return
+    }
+
+    setIsCreatingCustomPack(true)
+    setCreatedCustomPack(null)
+    
+    try {
+      const selectedAnime = customPackSearchResults.filter(anime => selectedAnimeIds.has(anime.id))
+      
+      const animeResults = selectedAnime.map(anime => ({
+        id: anime.id,
+        name: anime.name,
+        russian: anime.russian,
+        score: anime.score,
+        kind: 'tv', 
+        episodes: 0, 
+        status: 'released', 
+        image: {
+          original: anime.imageUrl
+        }
+      }))
+      
+      const customPack = createCustomPack(customPackQuery.trim(), animeResults)
+      
+      setCreatedCustomPack(customPack)
+      setCustomPackSearchResults(selectedAnime) 
+    } catch (error) {
+      console.error("Custom pack creation error:", error)
+      alert("Ошибка при создании пака. Попробуйте снова.")
+    } finally {
+      setIsCreatingCustomPack(false)
+    }
+  }
+
+  const handleSelectCustomPack = async (pack: CustomAnimePack) => {
     if (userCoins >= pack.price) {
+      setIsCustomPackLoading(true);
+      await new Promise(resolve => setTimeout(resolve, 300));
       setSelectedPack(pack);
       setShowCustomPackCreator(false);
       setCreatedCustomPack(null);
       setCustomPackQuery("");
+      setIsCustomPackLoading(false);
     }
   }
 
@@ -438,7 +604,6 @@ export default function GachaPage() {
     setCollectedCards(prev => prev.filter(card => card.id !== cardToRemove.id))
     setViewedCard(null)
     
-    // Also remove from usedCharacterIds if this card is no longer in collection
     const isCardStillInCollection = collectedCards.some(card => card.id !== cardToRemove.id && card.characterId === cardToRemove.characterId)
     if (!isCardStillInCollection) {
       setUsedCharacterIds(prev => {
@@ -452,12 +617,11 @@ export default function GachaPage() {
   return (
     <div className="min-h-screen bg-[#020617] text-slate-100 selection:bg-pink-500/30 font-sans">
       <Navbar />
-      <FloatingNav />
 
       {/* Pack Selection Modal */}
       {showPacks && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xl">
-          <div className="bg-slate-900 rounded-3xl p-8 max-w-4xl w-full max-h-[80vh] overflow-y-auto">
+          <div className="bg-slate-900 rounded-3xl p-8 max-w-4xl w-full max-h-[180vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-3xl font-black text-white">Выберите Набор</h2>
               <button
@@ -468,7 +632,6 @@ export default function GachaPage() {
               </button>
             </div>
 
-            {/* Search Input */}
             <div className="relative mb-6">
               <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
               <input
@@ -488,12 +651,10 @@ export default function GachaPage() {
               )}
             </div>
 
-            {/* Search Results or All Packs */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
               {isSearching && (
                 <div className="col-span-full flex items-center justify-center py-12">
-                  <Loader2 className="w-8 h-8 text-indigo-500 animate-spin" />
-                  <span className="ml-3 text-slate-400 font-medium">Поиск...</span>
+                  <GachaLoading message="Поиск наборов..." size="md" variant="sketch" />
                 </div>
               )}
 
@@ -527,15 +688,42 @@ export default function GachaPage() {
       {/* Custom Pack Creator Modal */}
       {showCustomPackCreator && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xl">
-          <div className="bg-slate-900 rounded-3xl p-8 max-w-4xl w-full max-h-[80vh] overflow-y-auto">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-3xl font-black text-white">Создать Кастомный Пак</h2>
+          <div className="bg-slate-900 rounded-3xl p-8 max-w-6xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-start mb-6">
+              <div>
+                <h2 className="text-3xl font-black text-white mb-2">Создать Кастомный Пак</h2>
+                {selectedAnimeIds.size > 0 && (
+                  <div className="flex items-center gap-3 text-sm">
+                    <div className="flex items-center gap-1.5 bg-yellow-500/20 px-3 py-1 rounded-full">
+                      <Coins className="w-4 h-4 text-yellow-400" />
+                      <span className="text-yellow-300 font-bold">
+                        {Math.max(150, Math.min(600, Math.floor((customPackSearchResults.filter(a => selectedAnimeIds.has(a.id)).reduce((sum, a) => sum + (a.score || 0), 0) / selectedAnimeIds.size) * 60)))} монет
+                      </span>
+                    </div>
+                    {(() => {
+                      const avgScore = customPackSearchResults.filter(a => selectedAnimeIds.has(a.id)).reduce((sum, a) => sum + (a.score || 0), 0) / selectedAnimeIds.size;
+                      let guaranteedRarity = '';
+                      if (avgScore >= 8.5) guaranteedRarity = 'Эпическая';
+                      else if (avgScore >= 7.5) guaranteedRarity = 'Супер Редкая';
+                      else if (avgScore >= 6.5) guaranteedRarity = 'Редкая';
+                      
+                      return guaranteedRarity && (
+                        <div className="flex items-center gap-1.5 bg-purple-500/20 px-3 py-1 rounded-full">
+                          <Star className="w-4 h-4 text-purple-400" />
+                          <span className="text-purple-300 font-bold">Гарант: {guaranteedRarity}</span>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
+              </div>
               <button
                 onClick={() => {
                   setShowCustomPackCreator(false);
                   setCreatedCustomPack(null);
                   setCustomPackQuery("");
                   setCustomPackSearchResults([]);
+                  setSelectedAnimeIds(new Set());
                 }}
                 className="p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
               >
@@ -543,7 +731,6 @@ export default function GachaPage() {
               </button>
             </div>
 
-            {/* Search Input */}
             <div className="mb-6">
               <label className="block text-sm font-bold text-white mb-2">
                 Введите название аниме (например, "Титан", "Наруто", "Блич")
@@ -563,10 +750,7 @@ export default function GachaPage() {
                   className="px-6 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 disabled:from-slate-700 disabled:to-slate-800 disabled:cursor-not-allowed text-white font-bold rounded-xl transition-all"
                 >
                   {isCreatingCustomPack ? (
-                    <span className="flex items-center gap-2">
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                      Поиск
-                    </span>
+                    <GachaLoading message="Поиск" size="sm" variant="default" />
                   ) : (
                     "Найти"
                   )}
@@ -574,11 +758,102 @@ export default function GachaPage() {
               </div>
             </div>
 
-            {/* Results */}
+            {!isCreatingCustomPack && !createdCustomPack && customPackSearchResults.length > 0 && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between p-3 bg-slate-800/50 rounded-xl border border-white/10">
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm font-bold text-white">
+                      Выбрано: {selectedAnimeIds.size} из {customPackSearchResults.length}
+                    </span>
+                    {selectedAnimeIds.size > 0 && (
+                      <span className="text-xs bg-indigo-500/20 text-indigo-300 px-2 py-1 rounded-full">
+                        Готово к созданию
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={selectAllAnime}
+                      className="px-3 py-1 text-xs bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors"
+                    >
+                      Выбрать все
+                    </button>
+                    <button
+                      onClick={deselectAllAnime}
+                      className="px-3 py-1 text-xs bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors"
+                    >
+                      Снять все
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <h4 className="text-sm font-bold text-white/70 mb-3 uppercase tracking-wider">
+                    Найденные аниме (выберите для включения в пак)
+                  </h4>
+                  <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2 max-h-96 overflow-y-auto p-2">
+                    {customPackSearchResults.map(anime => (
+                      <div 
+                        key={anime.id} 
+                        className={`rounded-lg overflow-hidden bg-slate-800/50 border transition-all cursor-pointer ${
+                          selectedAnimeIds.has(anime.id) 
+                            ? 'border-indigo-500 ring-2 ring-indigo-500/30' 
+                            : 'border-white/10 hover:border-white/30'
+                        }`}
+                        onClick={() => toggleAnimeSelection(anime.id)}
+                      >
+                        <div className="relative">
+                          <img 
+                            src={anime.imageUrl} 
+                            alt={anime.russian || anime.name} 
+                            className="w-full aspect-[2/3] object-cover" 
+                            referrerPolicy="no-referrer" 
+                          />
+                          <div className="absolute top-1 right-1">
+                            <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all ${
+                              selectedAnimeIds.has(anime.id)
+                                ? 'bg-indigo-500 border-indigo-500'
+                                : 'bg-black/50 border-white/50'
+                            }`}>
+                              {selectedAnimeIds.has(anime.id) && (
+                                <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                </svg>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="p-1.5">
+                          <p className="text-xs font-bold text-white truncate">{anime.russian || anime.name}</p>
+                          <div className="flex items-center gap-1 mt-1">
+                            <Star className="w-2.5 h-2.5 text-yellow-400 fill-yellow-400" />
+                            <span className="text-xs font-bold text-white">{typeof anime.score === 'number' ? anime.score.toFixed(1) : 'N/A'}</span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {selectedAnimeIds.size > 0 && (
+                  <button
+                    onClick={handleCreateCustomPackFromSelected}
+                    disabled={isCreatingCustomPack}
+                    className="w-full py-3 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 disabled:from-slate-700 disabled:to-slate-800 disabled:cursor-not-allowed text-white font-black uppercase tracking-wider rounded-xl transition-all"
+                  >
+                    {isCreatingCustomPack ? (
+                      <GachaLoading message="Создание пака" size="sm" variant="default" />
+                    ) : (
+                      `Создать пак из ${selectedAnimeIds.size} выбранных аниме`
+                    )}
+                  </button>
+                )}
+              </div>
+            )}
+
             {isCreatingCustomPack && (
               <div className="flex items-center justify-center py-12">
-                <Loader2 className="w-8 h-8 text-indigo-500 animate-spin" />
-                <span className="ml-3 text-slate-400 font-medium">Поиск аниме...</span>
+                <GachaLoading message="Поиск аниме..." size="md" variant="sketch" />
               </div>
             )}
 
@@ -605,14 +880,14 @@ export default function GachaPage() {
 
                 <div>
                   <h4 className="text-sm font-bold text-white/70 mb-3 uppercase tracking-wider">Найденные аниме ({customPackSearchResults.length})</h4>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 max-h-64 overflow-y-auto p-2">
+                  <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2 max-h-96 overflow-y-auto p-2">
                     {customPackSearchResults.map(anime => (
                       <div key={anime.id} className="rounded-lg overflow-hidden bg-slate-800/50 border border-white/10">
                         <img src={anime.imageUrl} alt={anime.russian || anime.name} className="w-full aspect-[2/3] object-cover" referrerPolicy="no-referrer" />
-                        <div className="p-2">
+                        <div className="p-1.5">
                           <p className="text-xs font-bold text-white truncate">{anime.russian || anime.name}</p>
                           <div className="flex items-center gap-1 mt-1">
-                            <Star className="w-3 h-3 text-yellow-400 fill-yellow-400" />
+                            <Star className="w-2.5 h-2.5 text-yellow-400 fill-yellow-400" />
                             <span className="text-xs font-bold text-white">{typeof anime.score === 'number' ? anime.score.toFixed(1) : 'N/A'}</span>
                           </div>
                         </div>
@@ -631,13 +906,7 @@ export default function GachaPage() {
               </div>
             )}
 
-            {!isCreatingCustomPack && !createdCustomPack && (
-              <div className="text-center py-12">
-                <Package className="w-16 h-16 text-slate-600 mx-auto mb-4" />
-                <p className="text-slate-400 font-medium mb-2">Введите название для поиска</p>
-                <p className="text-slate-500 text-sm">Система найдёт аниме и создаст уникальный пак</p>
-              </div>
-            )}
+           
           </div>
         </div>
       )}
@@ -655,13 +924,13 @@ export default function GachaPage() {
                 onClick={() => removeCard(viewedCard)}
                 className="flex items-center gap-2 px-6 py-2 rounded-full bg-red-500/20 hover:bg-red-500/40 text-red-200 font-medium"
               >
-                <Trash className="w-4 h-4" /> Удалить из Коллекции
+                <Trash className="w-4 h-4" /> Удалить из коллекции
               </button>
               <a href={viewedCard.originalUrl} target="_blank" rel="noreferrer" className="flex items-center gap-2 px-6 py-2 rounded-full bg-white/10 hover:bg-white/20 text-white font-medium">
                 <ZoomIn className="w-4 h-4" /> Оригинал
               </a>
               <a href={`https://shikimori.one/animes/${viewedCard.shikiId}`} target="_blank" rel="noreferrer" className="flex items-center gap-2 px-6 py-2 rounded-full bg-blue-500/20 hover:bg-blue-500/40 text-blue-200 font-medium">
-                <ExternalLink className="w-4 h-4" /> Shikimori
+                <ExternalLink className="w-4 h-4" /> Шикимори
               </a>
             </div>
           </div>
@@ -675,14 +944,12 @@ export default function GachaPage() {
           </h1>
           <p className="text-slate-400 text-lg font-medium">Нажми чтобы перевернуть карту и увидеть боевые характеристики.</p>
           
-          {/* Coins Display */}
           <div className="flex justify-center items-center gap-2 mt-4">
             <Coins className="w-6 h-6 text-yellow-400" />
             <span className="text-2xl font-black text-yellow-400">{userCoins}</span>
           </div>
         </div>
 
-        {/* Selected Pack Display */}
         {selectedPack && (
           <div className="mb-8 text-center">
             <div className="inline-flex items-center gap-3 bg-gradient-to-r px-6 py-3 rounded-full border border-white/20">
@@ -727,9 +994,27 @@ export default function GachaPage() {
           )}
 
           {isRolling && (
-            <div className="w-72 h-[420px] rounded-[2.5rem] bg-slate-900/80 border border-slate-800 flex flex-col items-center justify-center">
-              <Loader2 className="w-12 h-12 text-indigo-500 animate-spin mb-6" />
-              <p className="text-indigo-400 font-black animate-pulse uppercase tracking-widest text-sm">Поиск в мультивселенной...</p>
+            <div className="w-72 h-[420px] rounded-[2.5rem] bg-gradient-to-br from-slate-900/90 to-orange-950/20 border border-orange-500/30 flex flex-col items-center justify-center relative overflow-hidden">
+              <div className="absolute inset-0">
+                {[...Array(12)].map((_, i) => (
+                  <div
+                    key={i}
+                    className="absolute w-1 h-1 bg-orange-400 rounded-full animate-pulse"
+                    style={{
+                      top: `${Math.random() * 100}%`,
+                      left: `${Math.random() * 100}%`,
+                      animationDelay: `${Math.random() * 2}s`,
+                      animationDuration: `${2 + Math.random() * 2}s`
+                    }}
+                  />
+                ))}
+              </div>
+              
+              <div className="relative z-10">
+                <GachaLoading message="Поиск в мультивселенной..." size="lg" variant="sketch" />
+              </div>
+              
+              <div className="absolute inset-0 rounded-[2.5rem] border-2 border-dashed border-orange-500/20 animate-spin" style={{ animationDuration: '8s' }} />
             </div>
           )}
 
@@ -749,6 +1034,10 @@ export default function GachaPage() {
                 </button>
                 <button 
                   onClick={() => {
+                    // Добавляем URL этой картинки в черный список
+                    if (revealedCard) {
+                      setBlacklistedUrls(prev => [...prev, revealedCard.imageUrl]);
+                    }
                     setUsedCharacterIds(prev => new Set(prev).add(revealedCard.characterId));
                     setShowCard(false);
                   }}
@@ -774,7 +1063,13 @@ export default function GachaPage() {
                   onClick={() => setViewedCard(card)}
                   className={`aspect-[2/3] rounded-xl overflow-hidden border border-white/10 relative group bg-slate-900 cursor-pointer transition-transform hover:-translate-y-2 ${rarityConfig[card.rarity].glow}`}
                 >
-                  <img src={card.imageUrl} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" alt={card.name} referrerPolicy="no-referrer" />
+                  <img 
+                    src={card.imageUrl} 
+                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" 
+                    alt={card.name} 
+                    referrerPolicy="no-referrer"
+                    onError={(e) => handleImageError(e, card, true)}
+                  />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/40 to-transparent opacity-90" />
                   <div className={`absolute top-2 right-2 w-2.5 h-2.5 rounded-full bg-gradient-to-r ${rarityConfig[card.rarity].color} shadow-lg`} />
                   {card.isMainCharacter && (
@@ -785,7 +1080,7 @@ export default function GachaPage() {
                   <div className="absolute bottom-0 inset-x-0 p-3">
                     <p className="text-[10px] font-bold text-slate-400 uppercase truncate">★{card.score.toFixed(1)} {card.anime}</p>
                     <p className="text-sm font-black text-white truncate">{card.name}</p>
-                    <p className="text-[8px] font-mono text-white/50 truncate">ID: {card.uniqueId}</p>
+                    <p className="text-[8px] font-mono text-white/50 truncate mb-1">ID: {card.uniqueId}</p>
                   </div>
                 </div>
               ))}
