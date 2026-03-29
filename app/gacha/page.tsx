@@ -37,6 +37,7 @@ export interface Card {
   isMainCharacter?: boolean
   packId?: string
   packName?: string
+  isArtBlacklisted?: boolean
 }
 
 function generateCardUniqueId(characterId: number, packId?: string): string {
@@ -312,6 +313,14 @@ const InteractiveCard = ({ card, forceFlipped = false }: { card: Card, forceFlip
             {/* Тонкая полоска редкости сбоку */}
             <div className={`absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b ${rarityConfig[card.rarity].color}`} />
             
+            {/* Индикатор заблокированного арта */}
+            {card.isArtBlacklisted && (
+              <div className="absolute top-2 right-2 px-2 py-1 rounded-full bg-red-500/20 border border-red-500/30 flex items-center gap-1">
+                <RefreshCcw className="w-3 h-3 text-red-400" />
+                <span className="text-[8px] font-bold text-red-400 uppercase">Арт отклонен</span>
+              </div>
+            )}
+            
             <h3 className="text-xl font-black text-white uppercase leading-none drop-shadow-lg truncate mb-1">
               {card.name}
             </h3>
@@ -396,6 +405,7 @@ export default function GachaPage() {
   }>>([])
   const [selectedAnimeIds, setSelectedAnimeIds] = useState<Set<number>>(new Set())
   const [blacklistedUrls, setBlacklistedUrls] = useState<string[]>([])
+  const [showArtWarning, setShowArtWarning] = useState(false)
 
   useEffect(() => {
     const ids = new Set(collectedCards.map(card => card.characterId));
@@ -480,7 +490,8 @@ export default function GachaPage() {
         stats: result.stats,
         isMainCharacter: result.isMainCharacter || false,
         packId: (result as any).packId,
-        packName: (result as any).packName
+        packName: (result as any).packName,
+        isArtBlacklisted: blacklistedUrls.includes(result.imageUrl || '')
       }
 
       setRevealedCard(newCard)
@@ -598,6 +609,13 @@ export default function GachaPage() {
       setCustomPackQuery("");
       setIsCustomPackLoading(false);
     }
+  }
+
+  const unblacklistArt = (card: Card) => {
+    setBlacklistedUrls(prev => prev.filter(url => url !== card.imageUrl));
+    setCollectedCards(prev => prev.map(c => 
+      c.uniqueId === card.uniqueId ? { ...c, isArtBlacklisted: false } : c
+    ));
   }
 
   const removeCard = (cardToRemove: Card) => {
@@ -911,6 +929,48 @@ export default function GachaPage() {
         </div>
       )}
 
+      {/* Art Warning Modal */}
+      {showArtWarning && revealedCard && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xl animate-in fade-in duration-200">
+          <div className="bg-slate-900 rounded-3xl p-8 max-w-md w-full border border-white/10">
+            <div className="text-center space-y-6">
+              <div className="w-16 h-16 mx-auto rounded-full bg-yellow-500/20 flex items-center justify-center">
+                <RefreshCcw className="w-8 h-8 text-yellow-400" />
+              </div>
+              
+              <div>
+                <h3 className="text-2xl font-black text-white mb-3">Отбросить арт?</h3>
+                <p className="text-slate-300 leading-relaxed">
+                  Этот арт будет добавлен в черный список и не будет появляться при следующих призывах этого персонажа. 
+                  Вместо него будут показываться другие арты.
+                </p>
+              </div>
+              
+              <div className="flex gap-3">
+                <button 
+                  onClick={() => {
+                    // Добавляем URL этой картинки в черный список
+                    setBlacklistedUrls(prev => [...prev, revealedCard.imageUrl]);
+                    setUsedCharacterIds(prev => new Set(prev).add(revealedCard.characterId));
+                    setShowCard(false);
+                    setShowArtWarning(false);
+                  }}
+                  className="flex-1 px-4 py-3 bg-red-500/20 hover:bg-red-500/30 text-red-300 font-bold rounded-xl transition-all border border-red-500/30"
+                >
+                  Да, отбросить
+                </button>
+                <button 
+                  onClick={() => setShowArtWarning(false)}
+                  className="flex-1 px-4 py-3 bg-slate-700 hover:bg-slate-600 text-white font-bold rounded-xl transition-all"
+                >
+                  Отмена
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {viewedCard && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xl animate-in fade-in duration-200">
           <button onClick={() => setViewedCard(null)} className="absolute top-8 right-8 p-3 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors">
@@ -926,6 +986,14 @@ export default function GachaPage() {
               >
                 <Trash className="w-4 h-4" /> Удалить из коллекции
               </button>
+              {viewedCard.isArtBlacklisted && (
+                <button 
+                  onClick={() => unblacklistArt(viewedCard)}
+                  className="flex items-center gap-2 px-6 py-2 rounded-full bg-green-500/20 hover:bg-green-500/40 text-green-200 font-medium"
+                >
+                  <RefreshCcw className="w-4 h-4" /> Разблокировать арт
+                </button>
+              )}
               <a href={viewedCard.originalUrl} target="_blank" rel="noreferrer" className="flex items-center gap-2 px-6 py-2 rounded-full bg-white/10 hover:bg-white/20 text-white font-medium">
                 <ZoomIn className="w-4 h-4" /> Оригинал
               </a>
@@ -1034,12 +1102,7 @@ export default function GachaPage() {
                 </button>
                 <button 
                   onClick={() => {
-                    // Добавляем URL этой картинки в черный список
-                    if (revealedCard) {
-                      setBlacklistedUrls(prev => [...prev, revealedCard.imageUrl]);
-                    }
-                    setUsedCharacterIds(prev => new Set(prev).add(revealedCard.characterId));
-                    setShowCard(false);
+                    setShowArtWarning(true);
                   }}
                   className="px-8 py-4 bg-slate-800/80 text-slate-300 font-bold uppercase tracking-wider rounded-2xl hover:bg-slate-700 transition-all"
                 >
@@ -1075,6 +1138,11 @@ export default function GachaPage() {
                   {card.isMainCharacter && (
                     <div className="absolute top-2 left-2 w-5 h-5 rounded-full bg-gradient-to-r from-yellow-400 to-amber-500 shadow-lg flex items-center justify-center">
                       <Crown className="w-3 h-3 text-black" />
+                    </div>
+                  )}
+                  {card.isArtBlacklisted && (
+                    <div className="absolute top-8 left-2 w-4 h-4 rounded-full bg-red-500/80 border border-red-300 flex items-center justify-center">
+                      <RefreshCcw className="w-2 h-2 text-white" />
                     </div>
                   )}
                   <div className="absolute bottom-0 inset-x-0 p-3">

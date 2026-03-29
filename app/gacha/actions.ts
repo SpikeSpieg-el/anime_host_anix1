@@ -91,32 +91,50 @@ async function fetchHighQualityArt(characterName: string, animeName: string, ign
       // ИСПОЛЬЗУЕМ SAFEBOORU КАК ОСНОВНОЙ (он лоялен к хотлинку)
       const sRes = await fetch(`https://safebooru.org/index.php?page=dapi&s=post&q=index&json=1&tags=${encodeURIComponent(seriesTag + ' ' + charTags[0])}&limit=20`);
       if (sRes.ok) {
-        const sData = await sRes.json();
-        if (Array.isArray(sData)) {
-          sData.forEach((p: any) => {
-            if (p.directory && p.image) {
-              // Формируем прямую ссылку
-              pool.push(`https://safebooru.org/images/${p.directory}/${p.image}`);
+        const sText = await sRes.text();
+        if (sText.trim()) {
+          try {
+            const sData = JSON.parse(sText);
+            if (Array.isArray(sData)) {
+              sData.forEach((p: any) => {
+                if (p.directory && p.image) {
+                  // Формируем прямую ссылку
+                  pool.push(`https://safebooru.org/images/${p.directory}/${p.image}`);
+                }
+              });
             }
-          });
+          } catch (jsonError) {
+            console.log("Safebooru JSON parse error, response length:", sText.length, jsonError);
+            // Safebooru иногда возвращает XML вместо JSON, пробуем парсить как текст
+          }
+        } else {
+          console.log("Safebooru returned empty response");
         }
       }
 
       // Если на Safebooru пусто, пробуем Danbooru, но берем только "sample" или "preview" (они реже блокируются)
       if (pool.length === 0) {
-        const dRes = await fetch(`https://danbooru.donmai.us/posts.json?tags=${encodeURIComponent(charTags[0] + ' ' + seriesTag)}&limit=10&order=score`);
-        if (dRes.ok) {
-          const dData = await dRes.json();
-          dData.forEach((p: any) => {
-            // Берем large_file_url вместо original, он чаще доступен
-            const url = p.large_file_url || p.file_url;
-            if (url) pool.push(url);
-          });
+        try {
+          const dRes = await fetch(`https://danbooru.donmai.us/posts.json?tags=${encodeURIComponent(charTags[0] + ' ' + seriesTag)}&limit=10&order=score`);
+          if (dRes.ok) {
+            const dData = await dRes.json();
+            if (Array.isArray(dData)) {
+              dData.forEach((p: any) => {
+                // Берем large_file_url вместо original, он чаще доступен
+                const url = p.large_file_url || p.file_url;
+                if (url) pool.push(url);
+              });
+            }
+          }
+        } catch (danbooruError) {
+          console.log("Danbooru fetch error for", charTags[0], seriesTag, ":", danbooruError);
         }
       }
       
       characterArtCache.set(cacheKey, pool);
-    } catch (e) { console.error("Art fetch error", e); }
+    } catch (e) { 
+      console.error("Art fetch error for", charTags[0], seriesTag, ":", e); 
+    }
   }
 
   const filteredPool = pool.filter(url => !ignoredUrls.includes(url));
@@ -183,7 +201,7 @@ async function processCharacterData(anime: any, usedIds: number[], ignoredUrls: 
   if (available.length === 0) return null;
 
   const mainChars = available.filter((r: any) => (r.roles || []).includes('Main') || (r.roles_ru || []).includes('Главный'));
-  const selectedRole = (mainChars.length > 0 && Math.random() > 0.3)
+  const selectedRole = (mainChars.length > 0 && Math.random() > 0.9)
     ? mainChars[Math.floor(Math.random() * mainChars.length)]
     : available[Math.floor(Math.random() * available.length)];
 
