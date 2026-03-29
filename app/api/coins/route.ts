@@ -16,7 +16,10 @@ export async function GET(request: Request) {
     }
 
     // Use service role key for admin operations (bypasses RLS)
-    const supabase = createClient(supabaseUrl, supabaseServiceKey || supabaseAnonKey)
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey || supabaseAnonKey)
+    
+    // Also create a client for JWT verification with anon key
+    const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey)
 
     // Get the authorization header
     const authHeader = request.headers.get('authorization')
@@ -27,8 +30,8 @@ export async function GET(request: Request) {
 
     const token = authHeader.substring(7)
 
-    // Verify the JWT token
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token)
+    // Verify the JWT token using anon key client
+    const { data: { user }, error: authError } = await supabaseAuth.auth.getUser(token)
 
     if (authError || !user) {
       console.error('Auth error:', authError)
@@ -36,7 +39,7 @@ export async function GET(request: Request) {
     }
 
     // Get user's coins
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from('user_coins')
       .select('coins')
       .eq('id', user.id)
@@ -48,7 +51,7 @@ export async function GET(request: Request) {
       // PGRST116 = row not found
       if (error.code === 'PGRST116') {
         // User has no coins record, create one with 10000 bonus (1000 base + 9000 registration bonus)
-        const { data: newRecord, error: insertError } = await supabase
+        const { data: newRecord, error: insertError } = await supabaseAdmin
           .from('user_coins')
           .insert({ id: user.id, coins: 10000 })
           .select('coins')
@@ -108,7 +111,10 @@ export async function POST(request: Request) {
     }
 
     // Use service role key for admin operations (bypasses RLS)
-    const supabase = createClient(supabaseUrl, supabaseServiceKey || supabaseAnonKey)
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey || supabaseAnonKey)
+    
+    // Also create a client for JWT verification with anon key
+    const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey)
 
     // Get the authorization header
     const authHeader = request.headers.get('authorization')
@@ -118,8 +124,8 @@ export async function POST(request: Request) {
 
     const token = authHeader.substring(7)
 
-    // Verify the JWT token
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token)
+    // Verify the JWT token using anon key client
+    const { data: { user }, error: authError } = await supabaseAuth.auth.getUser(token)
 
     if (authError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -132,7 +138,7 @@ export async function POST(request: Request) {
     }
 
     // Update or insert coins
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from('user_coins')
       .upsert({ id: user.id, coins, updated_at: new Date().toISOString() })
       .select('coins')
