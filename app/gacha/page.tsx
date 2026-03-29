@@ -2,8 +2,9 @@
 
 import { useState, useRef, MouseEvent, useCallback, useEffect } from "react"
 import { Navbar } from "@/components/navbar"
-import { Sparkles, Star, Heart, Loader2, X, ZoomIn, ExternalLink, RefreshCcw, Trash, Crown, Package, Coins, Search } from "lucide-react"
-import { rollAnimeCharacter, rollFromAnimePack, searchGachaPacks, createCustomGachaPack} from "./actions"
+import { Sparkles, Star, Heart, Loader2, X, ZoomIn, ExternalLink, RefreshCcw, Trash, Crown, Package, Coins, Search, Database } from "lucide-react"
+import { rollAnimeCharacter, rollFromAnimePack, searchGachaPacks, createCustomGachaPack } from "./actions"
+import { saveCardToDatabase, loadUserCards, deleteCardFromDatabase } from "./client-actions"
 import { ANIME_PACKS, AnimePack, CustomAnimePack, createCustomPack } from "@/lib/gacha-packs"
 import { useCoins } from "@/hooks/use-coins"
 import { GachaLoading } from "@/components/gacha-loading" 
@@ -421,6 +422,57 @@ export default function GachaPage() {
   const [artChangeError, setArtChangeError] = useState<string | null>(null)
   const [isSyncingCoins, setIsSyncingCoins] = useState(false)
   const [isFixingCoins, setIsFixingCoins] = useState(false)
+  const [isSavingCard, setIsSavingCard] = useState(false)
+  const [isLoaded, setIsLoaded] = useState(false)
+  
+  // Filter states
+  const [searchQuery, setSearchQuery] = useState("")
+  const [selectedRarity, setSelectedRarity] = useState<Rarity | "all">("all")
+  const [sortBy, setSortBy] = useState<"date" | "rarity" | "score" | "name" | "anime">("date")
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc")
+  const [selectedPackFilter, setSelectedPackFilter] = useState<string | "all">("all")
+  const [showFilters, setShowFilters] = useState(false)
+
+  // Load saved cards from database on mount (when user is authenticated)
+  useEffect(() => {
+    const loadSavedCards = async () => {
+      if (isLoaded) return // Prevent double loading
+      
+      const { supabase } = await import('@/lib/supabase')
+      const { data: { session } } = await supabase.auth.getSession()
+      
+      if (session) {
+        console.log('[GachaPage] User authenticated, loading saved cards...')
+        const savedCards = await loadUserCards()
+        if (savedCards.length > 0) {
+          console.log('[GachaPage] Loaded', savedCards.length, 'cards from database')
+          setCollectedCards(savedCards)
+          // Also update used character IDs
+          const ids = new Set(savedCards.map(card => card.characterId))
+          setUsedCharacterIds(ids)
+        }
+      } else {
+        console.log('[GachaPage] No user session, loading from localStorage only')
+        // Try to load from localStorage for guest users
+        try {
+          const saved = localStorage.getItem('gacha-collection')
+          if (saved) {
+            const parsed = JSON.parse(saved)
+            if (Array.isArray(parsed)) {
+              setCollectedCards(parsed)
+              const ids = new Set(parsed.map((c: Card) => c.characterId))
+              setUsedCharacterIds(ids)
+            }
+          }
+        } catch (e) {
+          console.error('Error loading collection from localStorage:', e)
+        }
+      }
+      setIsLoaded(true)
+    }
+
+    loadSavedCards()
+  }, [])
 
   useEffect(() => {
     const ids = new Set(collectedCards.map(card => card.characterId));
@@ -543,6 +595,49 @@ export default function GachaPage() {
     }
   }
 
+  // Save card to database (and localStorage as fallback)
+  const saveCard = async (card: Card) => {
+    setIsSavingCard(true)
+    try {
+      const { supabase } = await import('@/lib/supabase')
+      const { data: { session } } = await supabase.auth.getSession()
+      
+      if (session) {
+        // Save to database
+        const result = await saveCardToDatabase(card)
+        if (result.success) {
+          console.log('[saveCard] Card saved to database')
+          setCollectedCards(prev => [card, ...prev])
+          setUsedCharacterIds(prev => new Set(prev).add(card.characterId))
+          setShowCard(false)
+        } else {
+          console.warn('[saveCard] Database save failed, using localStorage fallback')
+          // Fallback to localStorage
+          const savedCards = JSON.parse(localStorage.getItem('gacha-collection') || '[]')
+          savedCards.unshift(card)
+          localStorage.setItem('gacha-collection', JSON.stringify(savedCards))
+          setCollectedCards(prev => [card, ...prev])
+          setUsedCharacterIds(prev => new Set(prev).add(card.characterId))
+          setShowCard(false)
+        }
+      } else {
+        // Guest user - save to localStorage only
+        console.log('[saveCard] Guest user, saving to localStorage')
+        const savedCards = JSON.parse(localStorage.getItem('gacha-collection') || '[]')
+        savedCards.unshift(card)
+        localStorage.setItem('gacha-collection', JSON.stringify(savedCards))
+        setCollectedCards(prev => [card, ...prev])
+        setUsedCharacterIds(prev => new Set(prev).add(card.characterId))
+        setShowCard(false)
+      }
+    } catch (error) {
+      console.error('[saveCard] Error:', error)
+      alert('Ошибка при сохранении карты')
+    } finally {
+      setIsSavingCard(false)
+    }
+  }
+
   const handlePackSelect = async (pack: AnimePack) => {
     if (userCoins >= pack.price) {
       setIsPackLoading(true);
@@ -657,17 +752,48 @@ export default function GachaPage() {
     ));
   }
 
-  const removeCard = (cardToRemove: Card) => {
-    setCollectedCards(prev => prev.filter(card => card.id !== cardToRemove.id))
-    setViewedCard(null)
-    
-    const isCardStillInCollection = collectedCards.some(card => card.id !== cardToRemove.id && card.characterId === cardToRemove.characterId)
-    if (!isCardStillInCollection) {
-      setUsedCharacterIds(prev => {
-        const newSet = new Set(prev)
-        newSet.delete(cardToRemove.characterId)
-        return newSet
-      })
+  const removeCard = async (cardToRemove: Card) => {
+    try {
+      const { supabase } = await import('@/lib/supabase')
+      const { data: { session } } = await supabase.auth.getSession()
+      
+      if (session) {
+        // Delete from database
+        const result = await deleteCardFromDatabase(cardToRemove.uniqueId)
+        if (!result.success) {
+          console.warn('[removeCard] Database delete failed')
+        }
+      }
+      
+      // Also remove from localStorage (cleanup)
+      try {
+        const savedCards = JSON.parse(localStorage.getItem('gacha-collection') || '[]')
+        const filteredCards = savedCards.filter((c: Card) => c.uniqueId !== cardToRemove.uniqueId)
+        if (savedCards.length !== filteredCards.length) {
+          localStorage.setItem('gacha-collection', JSON.stringify(filteredCards))
+        }
+      } catch (e) {
+        console.error('Error removing card from localStorage:', e)
+      }
+      
+      // Update state
+      setCollectedCards(prev => prev.filter(card => card.uniqueId !== cardToRemove.uniqueId))
+      setViewedCard(null)
+
+      const isCardStillInCollection = collectedCards.some(card => 
+        card.uniqueId !== cardToRemove.uniqueId && 
+        card.characterId === cardToRemove.characterId
+      )
+      if (!isCardStillInCollection) {
+        setUsedCharacterIds(prev => {
+          const newSet = new Set(prev)
+          newSet.delete(cardToRemove.characterId)
+          return newSet
+        })
+      }
+    } catch (error) {
+      console.error('[removeCard] Error:', error)
+      alert('Ошибка при удалении карты')
     }
   }
 
@@ -703,6 +829,72 @@ export default function GachaPage() {
       setIsFixingCoins(false)
     }
   }
+
+  const resetFilters = () => {
+    setSearchQuery("")
+    setSelectedRarity("all")
+    setSortBy("date")
+    setSortOrder("desc")
+    setSelectedPackFilter("all")
+  }
+
+  const getUniquePacks = () => {
+    const packs = new Set<string>()
+    collectedCards.forEach(card => {
+      if (card.packName) packs.add(card.packName)
+    })
+    return Array.from(packs).sort()
+  }
+
+  const filteredAndSortedCards = (() => {
+    let result = [...collectedCards]
+
+    // Search filter
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase()
+      result = result.filter(card =>
+        card.name.toLowerCase().includes(query) ||
+        card.anime.toLowerCase().includes(query)
+      )
+    }
+
+    // Rarity filter
+    if (selectedRarity !== "all") {
+      result = result.filter(card => card.rarity === selectedRarity)
+    }
+
+    // Pack filter
+    if (selectedPackFilter !== "all") {
+      result = result.filter(card => card.packName === selectedPackFilter)
+    }
+
+    // Sorting
+    result.sort((a, b) => {
+      let comparison = 0
+      switch (sortBy) {
+        case "rarity":
+          const rarityOrder = ["trash", "common", "uncommon", "rare", "super_rare", "epic", "mythic", "legendary", "ancient", "divine", "transcendent", "omnipotent"]
+          comparison = rarityOrder.indexOf(a.rarity) - rarityOrder.indexOf(b.rarity)
+          break
+        case "score":
+          comparison = a.score - b.score
+          break
+        case "name":
+          comparison = a.name.localeCompare(b.name)
+          break
+        case "anime":
+          comparison = a.anime.localeCompare(b.anime)
+          break
+        case "date":
+        default:
+          comparison = a.id - b.id
+          break
+      }
+      return sortOrder === "desc" ? -comparison : comparison
+    })
+
+    return result
+  })()
 
   return (
     <div className="min-h-screen bg-[#020617] text-slate-100 selection:bg-pink-500/30 font-sans">
@@ -1052,7 +1244,7 @@ export default function GachaPage() {
           <div className="flex flex-col items-center animate-in zoom-in-95 duration-300">
             <InteractiveCard card={viewedCard} />
             <div className="flex gap-2 sm:gap-4 mt-4 sm:mt-8 flex-wrap justify-center">
-              <button 
+              <button
                 onClick={() => removeCard(viewedCard)}
                 className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-6 py-1.5 sm:py-2 rounded-full bg-red-500/20 hover:bg-red-500/40 text-red-200 font-medium text-xs sm:text-sm"
               >
@@ -1173,17 +1365,24 @@ export default function GachaPage() {
             <div className="flex flex-col items-center animate-in zoom-in-95 duration-500">
               <InteractiveCard card={revealedCard} />
               <div className="flex gap-4 mt-8">
-                <button 
-                  onClick={() => {
-                    setCollectedCards(prev =>[revealedCard, ...prev]);
-                    setUsedCharacterIds(prev => new Set(prev).add(revealedCard.characterId));
-                    setShowCard(false);
-                  }}
-                  className="px-6 sm:px-8 py-3 sm:py-4 bg-white text-black font-black uppercase tracking-wider rounded-xl sm:rounded-2xl hover:bg-indigo-500 hover:text-white transition-all text-sm sm:text-base"
+                <button
+                  onClick={() => saveCard(revealedCard)}
+                  disabled={isSavingCard}
+                  className="px-6 sm:px-8 py-3 sm:py-4 bg-white text-black font-black uppercase tracking-wider rounded-xl sm:rounded-2xl hover:bg-indigo-500 hover:text-white transition-all text-sm sm:text-base disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                 >
-                  Сохранить Карту
+                  {isSavingCard ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      Сохранение...
+                    </>
+                  ) : (
+                    <>
+                      <Database className="w-5 h-5" />
+                      Сохранить Карту
+                    </>
+                  )}
                 </button>
-                <button 
+                <button
                   onClick={() => {
                     if (revealedCard.isMainCharacter) {
                       setShowArtWarning(true);
@@ -1205,44 +1404,214 @@ export default function GachaPage() {
 
         {collectedCards.length > 0 && (
           <div className="space-y-6">
-            <h2 className="text-xl sm:text-2xl font-black uppercase flex items-center gap-2 sm:gap-3">
-              <Star className="w-4 sm:w-5 md:w-6 h-4 sm:h-5 md:h-6 text-yellow-500" />
-              Коллекция ({collectedCards.length})
-            </h2>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2 sm:gap-3 md:gap-4">
-              {collectedCards.map((card) => (
-                <div 
-                  key={card.uniqueId} 
-                  onClick={() => setViewedCard(card)}
-                  className={`aspect-[2/3] rounded-xl overflow-hidden border border-white/10 relative group bg-slate-900 cursor-pointer transition-transform hover:-translate-y-2 ${rarityConfig[card.rarity].glow}`}
-                >
-                  <img 
-                    src={card.imageUrl} 
-                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" 
-                    alt={card.name} 
-                    referrerPolicy="no-referrer"
-                    onError={(e) => handleImageError(e, card, true)}
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/40 to-transparent opacity-90" />
-                  <div className={`absolute top-2 right-2 w-2.5 h-2.5 rounded-full bg-gradient-to-r ${rarityConfig[card.rarity].color} shadow-lg`} />
-                  {card.isMainCharacter && (
-                    <div className="absolute top-2 left-2 w-5 h-5 rounded-full bg-gradient-to-r from-yellow-400 to-amber-500 shadow-lg flex items-center justify-center">
-                      <Crown className="w-3 h-3 text-black" />
-                    </div>
-                  )}
-                  {card.isMainCharacter && card.isArtBlacklisted && (
-                    <div className="absolute top-8 left-2 w-4 h-4 rounded-full bg-red-500/80 border border-red-300 flex items-center justify-center">
-                      <RefreshCcw className="w-2 h-2 text-white" />
-                    </div>
-                  )}
-                  <div className="absolute bottom-0 inset-x-0 p-3">
-                    <p className="text-[10px] font-bold text-slate-400 uppercase truncate">★{card.score.toFixed(1)} {card.anime}</p>
-                    <p className="text-sm font-black text-white truncate">{card.name}</p>
-                    <p className="text-[8px] font-mono text-white/50 truncate mb-1">ID: {card.uniqueId}</p>
+            <div className="flex flex-col gap-4">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <h2 className="text-xl sm:text-2xl font-black uppercase flex items-center gap-2 sm:gap-3">
+                  <Star className="w-4 sm:w-5 md:w-6 h-4 sm:h-5 md:h-6 text-yellow-500" />
+                  Коллекция ({collectedCards.length})
+                </h2>
+                {isLoaded && (
+                  <div className="flex items-center gap-2 text-xs text-slate-400">
+                    <Database className="w-4 h-4" />
+                    <span>Сохранено в аккаунт</span>
                   </div>
+                )}
+              </div>
+
+              {/* Filter Toggle Button */}
+              <button
+                onClick={() => setShowFilters(!showFilters)}
+                className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-xl transition-all text-sm w-fit"
+              >
+                <Search className="w-4 h-4" />
+                Фильтры
+                {showFilters ? <X className="w-4 h-4" /> : null}
+              </button>
+
+              {/* Filter Panel */}
+              {showFilters && (
+                <div className="bg-slate-900/50 border border-white/10 rounded-2xl p-4 sm:p-6 space-y-4 animate-in fade-in slide-in-from-top-4 duration-200">
+                  {/* Search */}
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                    <input
+                      type="text"
+                      placeholder="Поиск по имени или аниме..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="w-full h-10 rounded-xl bg-slate-800 border border-slate-700 pl-10 pr-10 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 transition-all placeholder:text-slate-500"
+                    />
+                    {searchQuery && (
+                      <button
+                        onClick={() => setSearchQuery("")}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white transition-colors"
+                      >
+                        <X size={14} />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Filters Grid */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {/* Rarity Filter */}
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Редкость</label>
+                      <select
+                        value={selectedRarity}
+                        onChange={(e) => setSelectedRarity(e.target.value as Rarity | "all")}
+                        className="w-full h-10 rounded-xl bg-slate-800 border border-slate-700 px-3 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all"
+                      >
+                        <option value="all">Все редкости</option>
+                        {Object.entries(rarityConfig).map(([key, config]) => (
+                          <option key={key} value={key}>{config.label}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Pack Filter */}
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Набор</label>
+                      <select
+                        value={selectedPackFilter}
+                        onChange={(e) => setSelectedPackFilter(e.target.value)}
+                        className="w-full h-10 rounded-xl bg-slate-800 border border-slate-700 px-3 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all"
+                      >
+                        <option value="all">Все наборы</option>
+                        {getUniquePacks().map(packName => (
+                          <option key={packName} value={packName}>{packName}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Sort By */}
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Сортировка</label>
+                      <select
+                        value={sortBy}
+                        onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
+                        className="w-full h-10 rounded-xl bg-slate-800 border border-slate-700 px-3 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all"
+                      >
+                        <option value="date">По дате</option>
+                        <option value="rarity">По редкости</option>
+                        <option value="score">По рейтингу</option>
+                        <option value="name">По имени</option>
+                        <option value="anime">По аниме</option>
+                      </select>
+                    </div>
+
+                    {/* Sort Order */}
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Порядок</label>
+                      <select
+                        value={sortOrder}
+                        onChange={(e) => setSortOrder(e.target.value as typeof sortOrder)}
+                        className="w-full h-10 rounded-xl bg-slate-800 border border-slate-700 px-3 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all"
+                      >
+                        <option value="desc">По убыванию</option>
+                        <option value="asc">По возрастанию</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Reset Button */}
+                  <div className="flex justify-end">
+                    <button
+                      onClick={resetFilters}
+                      className="flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white font-bold rounded-xl transition-all text-sm"
+                    >
+                      <RefreshCcw className="w-4 h-4" />
+                      Сбросить фильтры
+                    </button>
+                  </div>
+
+                  {/* Active Filters Info */}
+                  {(searchQuery || selectedRarity !== "all" || selectedPackFilter !== "all") && (
+                    <div className="flex flex-wrap gap-2 pt-2 border-t border-white/10">
+                      <span className="text-xs font-bold text-slate-400 uppercase">Активные фильтры:</span>
+                      {searchQuery && (
+                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-indigo-500/20 text-indigo-300 text-xs font-bold">
+                          Поиск: {searchQuery}
+                          <button onClick={() => setSearchQuery("")} className="hover:text-white">
+                            <X size={12} />
+                          </button>
+                        </span>
+                      )}
+                      {selectedRarity !== "all" && (
+                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-purple-500/20 text-purple-300 text-xs font-bold">
+                          {rarityConfig[selectedRarity].label}
+                          <button onClick={() => setSelectedRarity("all")} className="hover:text-white">
+                            <X size={12} />
+                          </button>
+                        </span>
+                      )}
+                      {selectedPackFilter !== "all" && (
+                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-pink-500/20 text-pink-300 text-xs font-bold">
+                          {selectedPackFilter}
+                          <button onClick={() => setSelectedPackFilter("all")} className="hover:text-white">
+                            <X size={12} />
+                          </button>
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
-              ))}
+              )}
             </div>
+
+            {/* Results Info */}
+            {filteredAndSortedCards.length !== collectedCards.length && (
+              <div className="text-sm text-slate-400">
+                Показано {filteredAndSortedCards.length} из {collectedCards.length}
+              </div>
+            )}
+
+            {/* Cards Grid */}
+            {filteredAndSortedCards.length === 0 ? (
+              <div className="text-center py-12">
+                <p className="text-slate-400 font-medium">Нет карт по выбранным фильтрам</p>
+                <button
+                  onClick={resetFilters}
+                  className="mt-4 px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white font-bold rounded-xl transition-all"
+                >
+                  Сбросить фильтры
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2 sm:gap-3 md:gap-4">
+                {filteredAndSortedCards.map((card) => (
+                  <div
+                    key={card.uniqueId}
+                    onClick={() => setViewedCard(card)}
+                    className={`aspect-[2/3] rounded-xl overflow-hidden border border-white/10 relative group bg-slate-900 cursor-pointer transition-transform hover:-translate-y-2 ${rarityConfig[card.rarity].glow}`}
+                  >
+                    <img
+                      src={card.imageUrl}
+                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                      alt={card.name}
+                      referrerPolicy="no-referrer"
+                      onError={(e) => handleImageError(e, card, true)}
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/40 to-transparent opacity-90" />
+                    <div className={`absolute top-2 right-2 w-2.5 h-2.5 rounded-full bg-gradient-to-r ${rarityConfig[card.rarity].color} shadow-lg`} />
+                    {card.isMainCharacter && (
+                      <div className="absolute top-2 left-2 w-5 h-5 rounded-full bg-gradient-to-r from-yellow-400 to-amber-500 shadow-lg flex items-center justify-center">
+                        <Crown className="w-3 h-3 text-black" />
+                      </div>
+                    )}
+                    {card.isMainCharacter && card.isArtBlacklisted && (
+                      <div className="absolute top-8 left-2 w-4 h-4 rounded-full bg-red-500/80 border border-red-300 flex items-center justify-center">
+                        <RefreshCcw className="w-2 h-2 text-white" />
+                      </div>
+                    )}
+                    <div className="absolute bottom-0 inset-x-0 p-3">
+                      <p className="text-[10px] font-bold text-slate-400 uppercase truncate">★{card.score.toFixed(1)} {card.anime}</p>
+                      <p className="text-sm font-black text-white truncate">{card.name}</p>
+                      <p className="text-[8px] font-mono text-white/50 truncate mb-1">ID: {card.uniqueId}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>
