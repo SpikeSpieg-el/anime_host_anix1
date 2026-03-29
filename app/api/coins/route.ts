@@ -7,6 +7,13 @@ export async function GET(request: Request) {
     const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
     const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
+    console.log('API: Environment check:', {
+      hasUrl: !!supabaseUrl,
+      hasAnonKey: !!supabaseAnonKey,
+      hasServiceKey: !!supabaseServiceKey,
+      urlPrefix: supabaseUrl?.substring(0, 20) + '...'
+    })
+
     if (!supabaseUrl || !supabaseAnonKey) {
       console.error('Supabase env vars missing')
       return NextResponse.json(
@@ -21,6 +28,21 @@ export async function GET(request: Request) {
     // Also create a client for JWT verification with anon key
     const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey)
 
+    // Test database connection
+    try {
+      const { data: testData, error: testError } = await supabaseAdmin
+        .from('user_coins')
+        .select('id')
+        .limit(1)
+      
+      console.log('API: DB connection test:', {
+        hasData: !!testData,
+        testError: testError?.code || testError?.message
+      })
+    } catch (dbTestError: any) {
+      console.error('API: DB connection test failed:', dbTestError.message)
+    }
+
     // Get the authorization header
     const authHeader = request.headers.get('authorization')
     if (!authHeader?.startsWith('Bearer ')) {
@@ -32,6 +54,13 @@ export async function GET(request: Request) {
 
     // Verify the JWT token using anon key client
     const { data: { user }, error: authError } = await supabaseAuth.auth.getUser(token)
+
+    console.log('API: Auth result:', {
+      hasUser: !!user,
+      userId: user?.id,
+      authError: authError?.message,
+      tokenLength: token.length
+    })
 
     if (authError || !user) {
       console.error('Auth error:', authError)
@@ -46,7 +75,13 @@ export async function GET(request: Request) {
       .single()
 
     if (error) {
-      console.log('Coins query error:', error.code, error.message)
+      console.error('Coins query error:', {
+        code: error.code,
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        userId: user.id
+      })
       
       // PGRST116 = row not found
       if (error.code === 'PGRST116') {
