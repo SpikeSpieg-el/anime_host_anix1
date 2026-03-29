@@ -11,6 +11,7 @@ export function useCoins() {
   const retryCountRef = useRef(0)
 
   const MAX_RETRIES = 3
+  const RETRY_DELAY_BASE = 2000 // Increased base delay to 2 seconds
 
   // Загрузка монет
   const loadCoins = useCallback(async () => {
@@ -78,12 +79,12 @@ export function useCoins() {
           console.warn('[useCoins] Server error, attempt:', retryCountRef.current + 1, 'of', MAX_RETRIES)
           
           if (retryCountRef.current < MAX_RETRIES) {
-            // Retry after a delay
+            // Retry after a delay with exponential backoff
             retryCountRef.current += 1
             clearTimeout(loadingTimeout)
             setTimeout(() => {
               loadCoins()
-            }, 1000 * retryCountRef.current) // Exponential backoff
+            }, RETRY_DELAY_BASE * Math.pow(2, retryCountRef.current - 1)) // 2s, 4s, 8s
             return
           } else {
             // Max retries reached, use fallback

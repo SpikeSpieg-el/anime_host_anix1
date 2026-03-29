@@ -23,7 +23,17 @@ export async function GET(request: Request) {
     }
 
     // Use service role key for admin operations (bypasses RLS)
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey || supabaseAnonKey)
+    // Fall back to anon key if service key is not available
+    const supabaseAdmin = createClient(
+      supabaseUrl, 
+      supabaseServiceKey || supabaseAnonKey,
+      {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false
+        }
+      }
+    )
     
     // Also create a client for JWT verification with anon key
     const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey)
@@ -146,7 +156,17 @@ export async function POST(request: Request) {
     }
 
     // Use service role key for admin operations (bypasses RLS)
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey || supabaseAnonKey)
+    // Fall back to anon key if service key is not available
+    const supabaseAdmin = createClient(
+      supabaseUrl, 
+      supabaseServiceKey || supabaseAnonKey,
+      {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false
+        }
+      }
+    )
     
     // Also create a client for JWT verification with anon key
     const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey)
