@@ -254,15 +254,26 @@ export interface GachaResult {
 
 async function processCharacterData(anime: any, usedIds: number[], ignoredUrls: string[], rarityBoost: number = 0): Promise<GachaResult | null> {
   const score = parseFloat(anime.score || "0");
+  console.log(`[processCharacterData] Processing anime: ${anime.name} (ID: ${anime.id}), score: ${score}`);
+  
   const rolesRes = await fetch(`https://shikimori.one/api/animes/${anime.id}/roles`);
-  if (!rolesRes.ok) return null;
+  if (!rolesRes.ok) {
+    console.log(`[processCharacterData] Failed to fetch roles for anime ${anime.id}: ${rolesRes.status}`);
+    return null;
+  }
   const rolesData = await rolesRes.json();
+  console.log(`[processCharacterData] Got ${rolesData.length} roles for anime ${anime.name}`);
 
   const available = rolesData
     .filter((r: any) => r.character && r.character.id && !usedIds.includes(r.character.id))
     .filter((r: any) => !r.character.image.original.includes('missing'));
 
-  if (available.length === 0) return null;
+  console.log(`[processCharacterData] Available characters after filtering: ${available.length} (used IDs: ${usedIds.length})`);
+
+  if (available.length === 0) {
+    console.log(`[processCharacterData] No available characters for anime ${anime.name}`);
+    return null;
+  }
 
   const mainChars = available.filter((r: any) => (r.roles || []).includes('Main') || (r.roles_ru || []).includes('Главный'));
   const selectedRole = (mainChars.length > 0 && Math.random() > 0.9)
@@ -271,6 +282,8 @@ async function processCharacterData(anime: any, usedIds: number[], ignoredUrls: 
 
   const char = selectedRole.character;
   const isMain = (selectedRole.roles || []).includes('Main') || (selectedRole.roles_ru || []).includes('Главный');
+
+  console.log(`[processCharacterData] Selected character: ${char.name} (ID: ${char.id}), isMain: ${isMain}`);
 
   let rarity = calculateRarityWithBoost(score, rarityBoost);
 
@@ -281,10 +294,12 @@ async function processCharacterData(anime: any, usedIds: number[], ignoredUrls: 
   // Ищем фан-арт только для главных персонажей
   let fanArt: string | null = null;
   if (isMain) {
+    console.log(`[processCharacterData] Searching fan art for main character: ${char.name}`);
     fanArt = await fetchHighQualityArt(char.name, anime.name, ignoredUrls);
+    console.log(`[processCharacterData] Fan art result: ${fanArt ? 'found' : 'not found'}`);
   }
 
-  return {
+  const result = {
     animeName: anime.russian || anime.name,
     score: score,
     rarity: rarity,
@@ -296,12 +311,19 @@ async function processCharacterData(anime: any, usedIds: number[], ignoredUrls: 
     stats: generateStats(rarity),
     isMainCharacter: isMain
   };
+
+  console.log(`[processCharacterData] Returning result for ${result.characterName} from ${result.animeName}`);
+  return result;
 }
 
 export async function rollAnimeCharacter(usedCharacterIds: number[] = [], ignoredUrls: string[] = []): Promise<GachaResult | null> {
   try {
+    console.log(`[rollAnimeCharacter] Starting roll, used IDs: ${usedCharacterIds.length}, ignored URLs: ${ignoredUrls.length}`);
+    
     const shikiRes = await fetch("https://shikimori.one/api/animes?limit=20&order=random&kind=tv&score=7", { cache: "no-store" });
     const data = await shikiRes.json();
+    console.log(`[rollAnimeCharacter] Got ${data.length} anime series`);
+    
     for (const anime of data) {
       const result = await processCharacterData(anime, usedCharacterIds, ignoredUrls, 0);
       if (result) {
@@ -311,24 +333,38 @@ export async function rollAnimeCharacter(usedCharacterIds: number[] = [], ignore
           const boostedRarity = RARITY_ORDER[Math.min(currentRarityIndex + 1, RARITY_ORDER.length - 1)];
           result.rarity = boostedRarity;
           result.stats = generateStats(boostedRarity);
+          console.log(`[rollAnimeCharacter] Boosted main character ${result.characterName} rarity to ${boostedRarity}`);
         }
+        console.log(`[rollAnimeCharacter] Successfully rolled: ${result.characterName} from ${result.animeName}`);
         return result;
       }
     }
+    
+    console.log(`[rollAnimeCharacter] No valid characters found in ${data.length} anime series`);
     return null;
-  } catch (e) { return null; }
+  } catch (e) { 
+    console.error(`[rollAnimeCharacter] Error:`, e);
+    return null; 
+  }
 }
 
 export async function rollFromAnimePack(pack: AnimePack, usedCharacterIds: number[] = [], ignoredUrls: string[] = []): Promise<GachaResult | null> {
+  console.log(`[rollFromAnimePack] Starting pack roll: ${pack.name}, anime IDs: ${pack.animeIds.length}`);
+  
   const shuffledIds = [...pack.animeIds].sort(() => Math.random() - 0.5);
   
   // Определяем, будет ли это гарантированная карточка (20% шанс)
   const isGuaranteedRoll = pack.guaranteedRarity && Math.random() < 0.2;
+  console.log(`[rollFromAnimePack] Guaranteed roll: ${isGuaranteedRoll}, rarity: ${pack.guaranteedRarity}`);
   
   for (const id of shuffledIds) {
     const res = await fetch(`https://shikimori.one/api/animes/${id}`);
-    if (!res.ok) continue;
+    if (!res.ok) {
+      console.log(`[rollFromAnimePack] Failed to fetch anime ${id}: ${res.status}`);
+      continue;
+    }
     const anime = await res.json();
+    console.log(`[rollFromAnimePack] Processing anime: ${anime.name} (ID: ${id})`);
     
     // Если это гарантированный ролл, применяем гарантию
     const rarityBoost = isGuaranteedRoll ? 0 : 0.2; // 20% буст для обычных карточек
@@ -339,6 +375,7 @@ export async function rollFromAnimePack(pack: AnimePack, usedCharacterIds: numbe
       if (isGuaranteedRoll && pack.guaranteedRarity) {
         result.rarity = pack.guaranteedRarity;
         result.stats = generateStats(result.rarity);
+        console.log(`[rollFromAnimePack] Applied guaranteed rarity ${pack.guaranteedRarity} to ${result.characterName}`);
       }
       
       // Затем для главных героев повышаем на 1 уровень выше
@@ -347,11 +384,15 @@ export async function rollFromAnimePack(pack: AnimePack, usedCharacterIds: numbe
         const boostedRarity = RARITY_ORDER[Math.min(currentRarityIndex + 1, RARITY_ORDER.length - 1)];
         result.rarity = boostedRarity;
         result.stats = generateStats(boostedRarity);
+        console.log(`[rollFromAnimePack] Boosted main character ${result.characterName} rarity to ${boostedRarity}`);
       }
       
+      console.log(`[rollFromAnimePack] Successfully rolled: ${result.characterName} from ${result.animeName}`);
       return { ...result, packId: pack.id, packName: pack.name };
     }
   }
+  
+  console.log(`[rollFromAnimePack] No valid characters found in pack ${pack.name}`);
   return null;
 }
 

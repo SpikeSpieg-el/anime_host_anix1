@@ -395,7 +395,7 @@ export default function GachaPage() {
   const [showCard, setShowCard] = useState(false)
   const[viewedCard, setViewedCard] = useState<Card | null>(null)
   const[usedCharacterIds, setUsedCharacterIds] = useState<Set<number>>(new Set())
-  const { coins: userCoins, spendCoins, forceSync } = useCoins()
+  const { coins: userCoins, spendCoins, forceSync, fixOverflow } = useCoins()
   const [selectedPack, setSelectedPack] = useState<AnimePack | CustomAnimePack | null>(null)
   const [showPacks, setShowPacks] = useState(false)
   const [packSearchQuery, setPackSearchQuery] = useState("")
@@ -420,6 +420,7 @@ export default function GachaPage() {
   const [isChangingArt, setIsChangingArt] = useState(false)
   const [artChangeError, setArtChangeError] = useState<string | null>(null)
   const [isSyncingCoins, setIsSyncingCoins] = useState(false)
+  const [isFixingCoins, setIsFixingCoins] = useState(false)
 
   useEffect(() => {
     const ids = new Set(collectedCards.map(card => card.characterId));
@@ -459,6 +460,7 @@ export default function GachaPage() {
       let result;
       // Передаем текущий список забаненных картинок на сервер
       const ignored = blacklistedUrls;
+      console.log('[handleRoll] Starting roll, selectedPack:', selectedPack?.name, 'usedCharacterIds:', usedCharacterIds.size);
 
       if (selectedPack) {
         if (userCoins < selectedPack.price) {
@@ -476,20 +478,40 @@ export default function GachaPage() {
 
         if (result) {
           await spendCoins(selectedPack.price);
-          // Автоматическая синхронизация монет после успешной крутки
-          await forceSync();
+          // Автоматическая синхронизация монет после успешной крутки (в фоне, без блокировки)
+          forceSync().catch(error => {
+            console.warn('Background sync failed:', error);
+          });
         }
       } else {
         console.log("Rolling random character");
+        
+        // Check if user has enough coins for regular roll (50 coins)
+        if (userCoins < 50) {
+          alert("Недостаточно монет! Обычная крутка стоит 50 монет.");
+          setIsRolling(false);
+          return;
+        }
+        
         await new Promise(resolve => setTimeout(resolve, 1000));
         result = await rollAnimeCharacter(Array.from(usedCharacterIds), ignored);
         console.log("Random roll result:", result);
+        
+        if (result) {
+          await spendCoins(50);
+          // Автоматическая синхронизация монет после успешной крутки (в фоне, без блокировки)
+          forceSync().catch(error => {
+            console.warn('Background sync failed:', error);
+          });
+        }
       }
       
       if (!result) {
         console.error("No result from roll function");
         throw new Error("Не удалось получить персонажа. Попробуйте снова!");
       }
+
+      console.log('[handleRoll] Creating card from result:', result);
 
       const newCard: Card = {
         id: Date.now(),
@@ -510,6 +532,7 @@ export default function GachaPage() {
         isArtBlacklisted: result.isMainCharacter && blacklistedUrls.includes(result.imageUrl || '')
       }
 
+      console.log('[handleRoll] Created new card:', newCard);
       setRevealedCard(newCard)
       setShowCard(true)
     } catch (error) {
@@ -651,12 +674,33 @@ export default function GachaPage() {
   const handleForceSyncCoins = async () => {
     setIsSyncingCoins(true)
     try {
-      await forceSync()
+      const result = await forceSync()
+      if (result !== null) {
+        console.log('Force sync successful, new coin amount:', result)
+      } else {
+        console.log('Force sync returned null - may be no session or other issue')
+      }
     } catch (error) {
       console.error('Force sync error:', error)
-      alert('Ошибка при синхронизации монет')
+      // Не показываем алерт, просто логируем ошибку
     } finally {
       setIsSyncingCoins(false)
+    }
+  }
+
+  const handleFixCoins = async () => {
+    setIsFixingCoins(true)
+    try {
+      await fixOverflow(70000) // Восстанавливаем до 70к
+      // После fixOverflow уже вызывается loadCoins(), который обновит состояние
+      const currentCoins = userCoins // Берем из состояния после обновления
+      console.log('Coins fixed successfully')
+      alert(`Монеты исправлены! Теперь у вас ${currentCoins.toLocaleString()} монет`)
+    } catch (error) {
+      console.error('Fix coins error:', error)
+      alert('Ошибка при исправлении монет')
+    } finally {
+      setIsFixingCoins(false)
     }
   }
 
@@ -700,7 +744,7 @@ export default function GachaPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
               {isSearching && (
                 <div className="col-span-full flex items-center justify-center py-12">
-                  <GachaLoading message="Поиск наборов..." size="md" variant="sketch" />
+                  <GachaLoading message="Поиск наборов..." size="md" />
                 </div>
               )}
 
@@ -725,7 +769,7 @@ export default function GachaPage() {
               onClick={handleRandomRoll}
               className="w-full py-3 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-xl transition-colors"
             >
-              Случайный призыв (Бесплатно)
+              Случайный призыв (50 монет)
             </button>
           </div>
         </div>
@@ -796,7 +840,7 @@ export default function GachaPage() {
                   className="px-6 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 disabled:from-slate-700 disabled:to-slate-800 disabled:cursor-not-allowed text-white font-bold rounded-xl transition-all"
                 >
                   {isCreatingCustomPack ? (
-                    <GachaLoading message="Поиск" size="sm" variant="default" />
+                    <GachaLoading message="Поиск" size="sm" />
                   ) : (
                     "Найти"
                   )}
@@ -888,7 +932,7 @@ export default function GachaPage() {
                     className="w-full py-3 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 disabled:from-slate-700 disabled:to-slate-800 disabled:cursor-not-allowed text-white font-black uppercase tracking-wider rounded-xl transition-all"
                   >
                     {isCreatingCustomPack ? (
-                      <GachaLoading message="Создание пака" size="sm" variant="default" />
+                      <GachaLoading message="Создание пака" size="sm" />
                     ) : (
                       `Создать пак из ${selectedAnimeIds.size} выбранных аниме`
                     )}
@@ -899,7 +943,7 @@ export default function GachaPage() {
 
             {isCreatingCustomPack && (
               <div className="flex items-center justify-center py-12">
-                <GachaLoading message="Поиск аниме..." size="md" variant="sketch" />
+                <GachaLoading message="Поиск аниме..." size="md" />
               </div>
             )}
 
@@ -1040,9 +1084,22 @@ export default function GachaPage() {
           </h1>
           <p className="text-slate-400 text-lg font-medium">Нажми чтобы перевернуть карту и увидеть боевые характеристики.</p>
           
-          <div className="flex justify-center items-center gap-2 mt-4">
-            <Coins className="w-6 h-6 text-yellow-400" />
-            <span className="text-2xl font-black text-yellow-400">{userCoins}</span>
+          <div className="flex justify-center items-center gap-4 mt-4">
+            <div className="flex items-center gap-2">
+              <Coins className="w-6 h-6 text-yellow-400" />
+              <span className="text-2xl font-black text-yellow-400">{userCoins}</span>
+            </div>
+            {userCoins > 1000000 && (
+              <button
+                onClick={handleFixCoins}
+                disabled={isFixingCoins}
+                className="flex items-center gap-2 px-3 py-1 rounded-full bg-red-500/20 hover:bg-red-500/40 disabled:opacity-50 disabled:cursor-not-allowed text-red-300 text-sm font-medium transition-all"
+                title="Исправить монеты"
+              >
+                <RefreshCcw className={`w-4 h-4 ${isFixingCoins ? 'animate-spin' : ''}`} />
+                {isFixingCoins ? 'Исправление...' : 'Испр.'}
+              </button>
+            )}
           </div>
         </div>
 
@@ -1067,7 +1124,7 @@ export default function GachaPage() {
               <button onClick={handleRoll} className="group relative w-72 h-[420px] rounded-[2.5rem] border-2 border-dashed border-slate-700/50 bg-slate-900/50 backdrop-blur-sm flex flex-col items-center justify-center hover:border-indigo-500 transition-all">
                 <Sparkles className="w-12 h-12 text-indigo-500 mb-4 animate-pulse" />
                 <span className="font-black text-slate-500 group-hover:text-indigo-400 uppercase tracking-widest">
-                  {selectedPack ? `Призвать (${selectedPack.price} монет)` : "Призвать"}
+                  {selectedPack ? `Призвать (${selectedPack.price} монет)` : "Призвать (50 монет)"}
                 </span>
               </button>
               
@@ -1107,10 +1164,8 @@ export default function GachaPage() {
               </div>
               
               <div className="relative z-10">
-                <GachaLoading message="Поиск в мультивселенной..." size="lg" variant="sketch" />
+                <GachaLoading message="Поиск в мультивселенной..." size="lg" />
               </div>
-              
-              <div className="absolute inset-0 rounded-[2.5rem] border-2 border-dashed border-orange-500/20 animate-spin" style={{ animationDuration: '8s' }} />
             </div>
           )}
 

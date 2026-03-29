@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useAuth } from '@/components/auth-provider'
-import { supabase, syncLocalDataToAccount, forceSyncCoins } from '@/lib/supabase'
+import { supabase, syncLocalDataToAccount, forceSyncCoins, fixOverflowCoins } from '@/lib/supabase'
 
 const COINS_STORAGE_KEY = 'gacha-coins'
 
@@ -174,6 +174,15 @@ export function useCoins() {
       if (syncedCoins !== null) {
         setCoins(syncedCoins)
         localStorage.setItem(COINS_STORAGE_KEY, syncedCoins.toString())
+      }
+      await loadCoins()
+    },
+    fixOverflow: async (targetAmount: number = 70000) => {
+      if (!user) return
+      const fixedCoins = await fixOverflowCoins(user.id, targetAmount)
+      if (fixedCoins !== null && fixedCoins !== undefined) {
+        setCoins(fixedCoins)
+        localStorage.setItem(COINS_STORAGE_KEY, fixedCoins.toString())
       }
       await loadCoins()
     }
