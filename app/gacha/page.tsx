@@ -3,7 +3,7 @@
 import { useState, useRef, MouseEvent, useCallback, useEffect } from "react"
 import { Navbar } from "@/components/navbar"
 import { Sparkles, Star, Heart, Loader2, X, ZoomIn, ExternalLink, RefreshCcw, Trash, Crown, Package, Coins, Search } from "lucide-react"
-import { rollAnimeCharacter, rollFromAnimePack, searchGachaPacks, createCustomGachaPack } from "./actions"
+import { rollAnimeCharacter, rollFromAnimePack, searchGachaPacks, createCustomGachaPack} from "./actions"
 import { ANIME_PACKS, AnimePack, CustomAnimePack, createCustomPack } from "@/lib/gacha-packs"
 import { useCoins } from "@/hooks/use-coins"
 import { GachaLoading } from "@/components/gacha-loading" 
@@ -406,6 +406,10 @@ export default function GachaPage() {
   const [selectedAnimeIds, setSelectedAnimeIds] = useState<Set<number>>(new Set())
   const [blacklistedUrls, setBlacklistedUrls] = useState<string[]>([])
   const [showArtWarning, setShowArtWarning] = useState(false)
+  const [showArtChangeModal, setShowArtChangeModal] = useState(false)
+  const [selectedCardForArtChange, setSelectedCardForArtChange] = useState<Card | null>(null)
+  const [isChangingArt, setIsChangingArt] = useState(false)
+  const [artChangeError, setArtChangeError] = useState<string | null>(null)
 
   useEffect(() => {
     const ids = new Set(collectedCards.map(card => card.characterId));
@@ -979,7 +983,7 @@ export default function GachaPage() {
           
           <div className="flex flex-col items-center animate-in zoom-in-95 duration-300">
             <InteractiveCard card={viewedCard} />
-            <div className="flex gap-4 mt-8">
+            <div className="flex gap-4 mt-8 flex-wrap justify-center">
               <button 
                 onClick={() => removeCard(viewedCard)}
                 className="flex items-center gap-2 px-6 py-2 rounded-full bg-red-500/20 hover:bg-red-500/40 text-red-200 font-medium"

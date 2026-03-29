@@ -189,6 +189,10 @@ export function createCustomPack(query: string, animeResults: ShikimoriAnimeResu
   const validScores = animeResults.map(a => a.score).filter((s): s is number => typeof s === 'number');
   const topScore = validScores.length > 0 ? Math.max(...validScores) : 0;
   
+  // Берем название первого аниме для названия пака
+  const primaryAnime = animeResults[0];
+  const packName = primaryAnime?.russian || primaryAnime?.name || query;
+  
   // Динамическая цена на основе среднего рейтинга найденных аниме (x3 для кастомных паков)
   const avgScore = validScores.length > 0 
     ? validScores.reduce((sum, s) => sum + s, 0) / validScores.length 
@@ -210,7 +214,7 @@ export function createCustomPack(query: string, animeResults: ShikimoriAnimeResu
 
   return {
     id: `custom_${Date.now()}`,
-    name: `Пак: ${query}`,
+    name: packName,
     description: `Кастомный пак из ${animeResults.length} аниме по запросу "${query}"`,
     animeIds,
     price,

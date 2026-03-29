@@ -13,7 +13,7 @@ const RARITY_ORDER = [
  * УТИЛИТЫ ОЧИСТКИ И ФОРМАТИРОВАНИЯ
  */
 
-// Умная генерация тегов персонажа (исключает кириллицу и иероглифы)
+// Умная генерация тегов персонажа (поддержка японских имен и транслитерации)
 function getCharacterTags(name: string): string[] {
   // Берем только английскую часть, если есть слэш (на Шикимори формат "Штарк / Stark")
   const engName = name.includes('/') ? name.split('/')[1] : name;
@@ -30,6 +30,31 @@ function getCharacterTags(name: string): string[] {
   } else if (parts.length === 1 && parts[0]) {
     tags.push(parts[0]);
   }
+  
+  // Если теги не сгенерировались (например, из-за русского имени), пробуем маппинги
+  if (tags.length === 0) {
+    const nameMappings: Record<string, string[]> = {
+      'рюко матой': ['ryuko_matoi', 'matoi_ryuko'],
+      'сацуки кирюин': ['satsuki_kiryuin', 'kiryuin_satsuki'],
+      'мако манканшок': ['mako_mankanshoku', 'mankanshoku_mako'],
+      'аикуро микисуги': ['aikuro_mikisugi', 'mikisugi_aikuro'],
+      'узумаки наруто': ['naruto_uzumaki', 'uzumaki_naruto'],
+      'учиха саске': ['sasuke_uchiha', 'uchiha_sasuke'],
+      'харuno сакура': ['sakura_haruno', 'haruno_sakura'],
+      'эрен егер': ['eren_yeager', 'yeager_eren'],
+      'микаса аккерман': ['mikasa_ackerman', 'ackerman_mikasa'],
+      'армин арлерт': ['armin_arlert', 'arlert_armin']
+    };
+    
+    const lowerName = name.toLowerCase();
+    for (const [key, values] of Object.entries(nameMappings)) {
+      if (lowerName.includes(key)) {
+        tags.push(...values);
+        break;
+      }
+    }
+  }
+  
   return tags;
 }
 
@@ -66,7 +91,9 @@ function getCopyrightTag(animeName: string): string {
     'konosuba': 'kono_subarashii_sekai_ni_shukufuku_wo',
     'mushoku tensei': 'mushoku_tensei',
     'one punch man': 'one_punch_man',
-    'jojo': 'jojos_bizarre_adventure'
+    'jojo': 'jojos_bizarre_adventure',
+    'kill la kill': 'kill_la_kill',
+    'убей или умри': 'kill_la_kill'
   };
 
   for (const [key, value] of Object.entries(mapping)) {
@@ -81,6 +108,7 @@ function getCopyrightTag(animeName: string): string {
 async function fetchHighQualityArt(characterName: string, animeName: string, ignoredUrls: string[]): Promise<string | null> {
   const charTags = getCharacterTags(characterName);
   const seriesTag = getCopyrightTag(animeName);
+  console.log(`[Art Search] Character: ${characterName}, Generated tags: [${charTags.join(', ')}], Series tag: ${seriesTag}`);
   if (charTags.length === 0) return null;
 
   const cacheKey = `${charTags[0]}_${seriesTag}`;
@@ -89,27 +117,50 @@ async function fetchHighQualityArt(characterName: string, animeName: string, ign
   if (pool.length === 0) {
     try {
       // ИСПОЛЬЗУЕМ SAFEBOORU КАК ОСНОВНОЙ (он лоялен к хотлинку)
-      const sRes = await fetch(`https://safebooru.org/index.php?page=dapi&s=post&q=index&json=1&tags=${encodeURIComponent(seriesTag + ' ' + charTags[0])}&limit=20`);
-      if (sRes.ok) {
-        const sText = await sRes.text();
-        if (sText.trim()) {
-          try {
-            const sData = JSON.parse(sText);
-            if (Array.isArray(sData)) {
-              sData.forEach((p: any) => {
-                if (p.directory && p.image) {
-                  // Формируем прямую ссылку
-                  pool.push(`https://safebooru.org/images/${p.directory}/${p.image}`);
-                }
-              });
+      // Пробуем разные комбинации тегов для лучших результатов
+      const tagCombinations = [
+        seriesTag + ' ' + charTags[0],  // Аниме + персонаж
+        charTags[0],                    // Только персонаж
+        seriesTag,                      // Только аниме
+      ];
+      
+      // Если есть несколько тегов персонажа, пробуем их все
+      if (charTags.length > 1) {
+        tagCombinations.push(seriesTag + ' ' + charTags[1]);
+        tagCombinations.push(charTags[1]);
+      }
+      
+      for (const tags of tagCombinations) {
+        console.log(`[Safebooru Search] Character: ${characterName}, Anime: ${animeName}, Tags: ${tags}`);
+        const sRes = await fetch(`https://safebooru.org/index.php?page=dapi&s=post&q=index&json=1&tags=${encodeURIComponent(tags)}&limit=20`);
+        if (sRes.ok) {
+          const sText = await sRes.text();
+          console.log(`[Safebooru Response] Length: ${sText.length}, Preview: ${sText.substring(0, 200)}`);
+          if (sText.trim()) {
+            try {
+              const sData = JSON.parse(sText);
+              if (Array.isArray(sData) && sData.length > 0) {
+                sData.forEach((p: any) => {
+                  if (p.directory && p.image) {
+                    // Формируем прямую ссылку
+                    pool.push(`https://safebooru.org/images/${p.directory}/${p.image}`);
+                  }
+                });
+                break; // Нашли результаты, выходим из цикла
+              }
+            } catch (jsonError) {
+              console.log("Safebooru JSON parse error, response length:", sText.length, jsonError);
+              // Safebooru иногда возвращает XML вместо JSON, пробуем парсить как текст
             }
-          } catch (jsonError) {
-            console.log("Safebooru JSON parse error, response length:", sText.length, jsonError);
-            // Safebooru иногда возвращает XML вместо JSON, пробуем парсить как текст
+          } else {
+            console.log("Safebooru returned empty response for tags:", tags);
           }
         } else {
-          console.log("Safebooru returned empty response");
+          console.log(`Safebooru HTTP error: ${sRes.status} ${sRes.statusText} for tags: ${tags}`);
         }
+        
+        // Если нашли результаты, не продолжаем поиск
+        if (pool.length > 0) break;
       }
 
       // Если на Safebooru пусто, пробуем Danbooru, но берем только "sample" или "preview" (они реже блокируются)
@@ -209,14 +260,16 @@ async function processCharacterData(anime: any, usedIds: number[], ignoredUrls: 
   const isMain = (selectedRole.roles || []).includes('Main') || (selectedRole.roles_ru || []).includes('Главный');
 
   let rarity = calculateBaseRarity(score);
-  if (isMain) rarity = RARITY_ORDER[Math.min(RARITY_ORDER.indexOf(rarity) + 1, RARITY_ORDER.length - 1)];
 
   const originalShikiUrl = char.image.original.startsWith("/") 
     ? `https://shikimori.one${char.image.original}` 
     : char.image.original;
 
-  // Ищем фан-арт
-  const fanArt = await fetchHighQualityArt(char.name, anime.name, ignoredUrls);
+  // Ищем фан-арт только для главных персонажей
+  let fanArt: string | null = null;
+  if (isMain) {
+    fanArt = await fetchHighQualityArt(char.name, anime.name, ignoredUrls);
+  }
 
   return {
     animeName: anime.russian || anime.name,
@@ -225,7 +278,7 @@ async function processCharacterData(anime: any, usedIds: number[], ignoredUrls: 
     characterName: char.russian || char.name, 
     characterId: char.id,
     originalUrl: originalShikiUrl, // Всегда храним официальный
-    imageUrl: fanArt || originalShikiUrl, // Приоритет фан-арту, если он нашелся
+    imageUrl: fanArt || originalShikiUrl, // Фан-арт только для главных, иначе официальный
     shikiId: anime.id,
     stats: generateStats(rarity),
     isMainCharacter: isMain
@@ -238,7 +291,16 @@ export async function rollAnimeCharacter(usedCharacterIds: number[] = [], ignore
     const data = await shikiRes.json();
     for (const anime of data) {
       const result = await processCharacterData(anime, usedCharacterIds, ignoredUrls);
-      if (result) return result;
+      if (result) {
+        // Для главных героев повышаем редкость на +1 уровень
+        if (result.isMainCharacter) {
+          const currentRarityIndex = RARITY_ORDER.indexOf(result.rarity);
+          const boostedRarity = RARITY_ORDER[Math.min(currentRarityIndex + 1, RARITY_ORDER.length - 1)];
+          result.rarity = boostedRarity;
+          result.stats = generateStats(boostedRarity);
+        }
+        return result;
+      }
     }
     return null;
   } catch (e) { return null; }
@@ -252,6 +314,7 @@ export async function rollFromAnimePack(pack: AnimePack, usedCharacterIds: numbe
     const anime = await res.json();
     const result = await processCharacterData(anime, usedCharacterIds, ignoredUrls);
     if (result) {
+      // Сначала применяем гарантию пака
       if (pack.guaranteedRarity) {
         const gIdx = RARITY_ORDER.indexOf(pack.guaranteedRarity);
         if (RARITY_ORDER.indexOf(result.rarity) < gIdx) {
@@ -259,6 +322,15 @@ export async function rollFromAnimePack(pack: AnimePack, usedCharacterIds: numbe
           result.stats = generateStats(result.rarity);
         }
       }
+      
+      // Затем для главных героев повышаем на 1 уровень выше (включая выше гарантированной)
+      if (result.isMainCharacter) {
+        const currentRarityIndex = RARITY_ORDER.indexOf(result.rarity);
+        const boostedRarity = RARITY_ORDER[Math.min(currentRarityIndex + 1, RARITY_ORDER.length - 1)];
+        result.rarity = boostedRarity;
+        result.stats = generateStats(boostedRarity);
+      }
+      
       return { ...result, packId: pack.id, packName: pack.name };
     }
   }
