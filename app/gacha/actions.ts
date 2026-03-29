@@ -224,6 +224,19 @@ function calculateBaseRarity(score: number): string {
   return "trash";
 }
 
+function calculateRarityWithBoost(score: number, boostPercent: number = 0): string {
+  let rarity = calculateBaseRarity(score);
+  
+  if (boostPercent > 0 && Math.random() < boostPercent) {
+    const currentIndex = RARITY_ORDER.indexOf(rarity);
+    if (currentIndex < RARITY_ORDER.length - 1) {
+      rarity = RARITY_ORDER[currentIndex + 1];
+    }
+  }
+  
+  return rarity;
+}
+
 export interface GachaResult {
   animeName: string;
   score: number;
@@ -239,7 +252,7 @@ export interface GachaResult {
   packName?: string;
 }
 
-async function processCharacterData(anime: any, usedIds: number[], ignoredUrls: string[]): Promise<GachaResult | null> {
+async function processCharacterData(anime: any, usedIds: number[], ignoredUrls: string[], rarityBoost: number = 0): Promise<GachaResult | null> {
   const score = parseFloat(anime.score || "0");
   const rolesRes = await fetch(`https://shikimori.one/api/animes/${anime.id}/roles`);
   if (!rolesRes.ok) return null;
@@ -259,7 +272,7 @@ async function processCharacterData(anime: any, usedIds: number[], ignoredUrls: 
   const char = selectedRole.character;
   const isMain = (selectedRole.roles || []).includes('Main') || (selectedRole.roles_ru || []).includes('Главный');
 
-  let rarity = calculateBaseRarity(score);
+  let rarity = calculateRarityWithBoost(score, rarityBoost);
 
   const originalShikiUrl = char.image.original.startsWith("/") 
     ? `https://shikimori.one${char.image.original}` 
@@ -290,7 +303,7 @@ export async function rollAnimeCharacter(usedCharacterIds: number[] = [], ignore
     const shikiRes = await fetch("https://shikimori.one/api/animes?limit=20&order=random&kind=tv&score=7", { cache: "no-store" });
     const data = await shikiRes.json();
     for (const anime of data) {
-      const result = await processCharacterData(anime, usedCharacterIds, ignoredUrls);
+      const result = await processCharacterData(anime, usedCharacterIds, ignoredUrls, 0);
       if (result) {
         // Для главных героев повышаем редкость на +1 уровень
         if (result.isMainCharacter) {
@@ -308,22 +321,27 @@ export async function rollAnimeCharacter(usedCharacterIds: number[] = [], ignore
 
 export async function rollFromAnimePack(pack: AnimePack, usedCharacterIds: number[] = [], ignoredUrls: string[] = []): Promise<GachaResult | null> {
   const shuffledIds = [...pack.animeIds].sort(() => Math.random() - 0.5);
+  
+  // Определяем, будет ли это гарантированная карточка (20% шанс)
+  const isGuaranteedRoll = pack.guaranteedRarity && Math.random() < 0.2;
+  
   for (const id of shuffledIds) {
     const res = await fetch(`https://shikimori.one/api/animes/${id}`);
     if (!res.ok) continue;
     const anime = await res.json();
-    const result = await processCharacterData(anime, usedCharacterIds, ignoredUrls);
+    
+    // Если это гарантированный ролл, применяем гарантию
+    const rarityBoost = isGuaranteedRoll ? 0 : 0.2; // 20% буст для обычных карточек
+    const result = await processCharacterData(anime, usedCharacterIds, ignoredUrls, rarityBoost);
+    
     if (result) {
-      // Сначала применяем гарантию пака
-      if (pack.guaranteedRarity) {
-        const gIdx = RARITY_ORDER.indexOf(pack.guaranteedRarity);
-        if (RARITY_ORDER.indexOf(result.rarity) < gIdx) {
-          result.rarity = pack.guaranteedRarity;
-          result.stats = generateStats(result.rarity);
-        }
+      // Если это гарантированный ролл, применяем гарантию
+      if (isGuaranteedRoll && pack.guaranteedRarity) {
+        result.rarity = pack.guaranteedRarity;
+        result.stats = generateStats(result.rarity);
       }
       
-      // Затем для главных героев повышаем на 1 уровень выше (включая выше гарантированной)
+      // Затем для главных героев повышаем на 1 уровень выше
       if (result.isMainCharacter) {
         const currentRarityIndex = RARITY_ORDER.indexOf(result.rarity);
         const boostedRarity = RARITY_ORDER[Math.min(currentRarityIndex + 1, RARITY_ORDER.length - 1)];

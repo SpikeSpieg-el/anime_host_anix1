@@ -42,6 +42,50 @@ export const supabase = isValidConfig
   ? createClient(supabaseUrl, supabaseKey)
   : createMockClient()
 
+// --- ФУНКЦИЯ ПРИНУДИТЕЛЬНОЙ СИНХРОНИЗАЦИИ МОНЕТ ---
+// Используется для исправления расхождений между localStorage и БД
+export async function forceSyncCoins(userId: string) {
+  if (typeof window === 'undefined') return
+
+  try {
+    const rawCoins = localStorage.getItem("gacha-coins")
+    const localCoins = rawCoins ? parseInt(rawCoins, 10) || 1000 : 0
+    
+    const { data: existingData } = await supabase
+      .from('user_coins')
+      .select('coins')
+      .eq('id', userId)
+      .single()
+
+    if (existingData && existingData.coins !== null) {
+      // Всегда суммируем для принудительной синхронизации
+      const finalCoins = localCoins + existingData.coins
+      console.log(`Force sync coins: local=${localCoins}, db=${existingData.coins}, total=${finalCoins}`)
+      
+      const { error } = await supabase
+        .from('user_coins')
+        .upsert({ id: userId, coins: finalCoins, updated_at: new Date().toISOString() }, {
+          onConflict: 'id'
+        })
+
+      if (!error) {
+        localStorage.removeItem("gacha-coins")
+        console.log('Force sync completed successfully, final amount:', finalCoins)
+        return finalCoins
+      } else {
+        console.error('Force sync error:', error)
+        return null
+      }
+    } else {
+      console.log('No existing coins record found during force sync')
+      return null
+    }
+  } catch (error) {
+    console.error('Force sync exception:', error)
+    return null
+  }
+}
+
 // --- ФУНКЦИЯ СИНХРОНИЗАЦИИ ---
 // Берет данные из LocalStorage и отправляет в БД при входе
 export async function syncLocalDataToAccount(userId: string) {
@@ -109,20 +153,24 @@ export async function syncLocalDataToAccount(userId: string) {
   const rawCoins = localStorage.getItem("gacha-coins")
   if (rawCoins) {
     try {
-      const coins = parseInt(rawCoins, 10) || 1000
+      const localCoins = parseInt(rawCoins, 10) || 1000
       const { data: existingData } = await supabase
         .from('user_coins')
         .select('coins')
         .eq('id', userId)
         .single()
 
-      let finalCoins = coins
+      let finalCoins = localCoins
       if (existingData && existingData.coins !== null) {
-        // Если в БД есть запись, берём максимальное значение
-        finalCoins = Math.max(coins, existingData.coins)
+        // Если в БД есть запись, СУММИРУЕМ монеты из localStorage и БД
+        // Это гарантирует, что локальные монеты не потеряются
+        finalCoins = localCoins + existingData.coins
+        console.log(`Coins sync: local=${localCoins}, db=${existingData.coins}, total=${finalCoins}`)
       } else {
         // Если записи нет, даём бонус 10000 монет (1000 база + 9000 бонус)
-        finalCoins = 10000
+        // ПЛЮС локальные монеты, если они больше 1000
+        finalCoins = Math.max(10000, localCoins)
+        console.log(`Coins sync: no DB record, using max(10000, ${localCoins}) = ${finalCoins}`)
       }
 
       const { error } = await supabase
@@ -133,10 +181,12 @@ export async function syncLocalDataToAccount(userId: string) {
 
       if (!error) {
         localStorage.removeItem("gacha-coins")
-        console.log('Coins synced')
+        console.log('Coins synced successfully, final amount:', finalCoins)
+      } else {
+        console.error('Coins sync error:', error)
       }
-    } catch {
-      // ignore invalid json
+    } catch (error) {
+      console.error('Coins sync exception:', error)
     }
   }
 }

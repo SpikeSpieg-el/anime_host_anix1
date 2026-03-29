@@ -42,6 +42,7 @@ export const ANIME_PACKS: AnimePack[] = [
     animeIds: [16498, 25777, 35760, 38524, 40028, 48583],
     price: 100,
     color: "from-slate-700 to-slate-900",
+    bgImage: "https://shikimori.one/system/animes/original/16498.jpg",
     guaranteedRarity: "rare"
   },
   {
@@ -52,6 +53,7 @@ export const ANIME_PACKS: AnimePack[] = [
     animeIds: [38000, 40417, 49926, 43656, 51019],
     price: 120,
     color: "from-red-600 to-pink-800",
+    bgImage: "https://shikimori.one/system/animes/original/38000.jpg",
     guaranteedRarity: "rare"
   },
   {
@@ -61,7 +63,8 @@ export const ANIME_PACKS: AnimePack[] = [
     // Основной сериал и популярные фильмы (Red, Stampede, Gold)
     animeIds: [21, 41433, 38234, 31490],
     price: 150,
-    color: "from-orange-500 to-red-700"
+    color: "from-orange-500 to-red-700",
+    bgImage: "https://shikimori.one/system/animes/original/21.jpg"
   },
   {
     id: "naruto",
@@ -71,6 +74,7 @@ export const ANIME_PACKS: AnimePack[] = [
     animeIds: [20, 1735, 34566],
     price: 130,
     color: "from-orange-400 to-blue-600",
+    bgImage: "https://shikimori.one/system/animes/original/20.jpg",
     guaranteedRarity: "uncommon"
   },
   {
@@ -80,7 +84,8 @@ export const ANIME_PACKS: AnimePack[] = [
     // S1, S2, S3, S4, S5, S6
     animeIds: [31964, 34572, 36956, 40022, 42897, 49918],
     price: 110,
-    color: "from-green-500 to-blue-600"
+    color: "from-green-500 to-blue-600",
+    bgImage: "https://shikimori.one/system/animes/original/31964.jpg"
   },
   {
     id: "death_note",
@@ -89,6 +94,7 @@ export const ANIME_PACKS: AnimePack[] = [
     animeIds: [1535],
     price: 90,
     color: "from-black to-gray-800",
+    bgImage: "https://shikimori.one/system/animes/original/1535.jpg",
     guaranteedRarity: "epic"
   },
   {
@@ -99,6 +105,7 @@ export const ANIME_PACKS: AnimePack[] = [
     animeIds: [9253, 30484],
     price: 85,
     color: "from-blue-800 to-purple-900",
+    bgImage: "https://shikimori.one/system/animes/original/9253.jpg",
     guaranteedRarity: "super_rare"
   },
   {
@@ -109,6 +116,7 @@ export const ANIME_PACKS: AnimePack[] = [
     animeIds: [22319, 27899, 36511, 37785],
     price: 95,
     color: "from-purple-700 to-black",
+    bgImage: "https://shikimori.one/system/animes/original/22319.jpg",
     guaranteedRarity: "rare"
   },
   {
@@ -119,6 +127,7 @@ export const ANIME_PACKS: AnimePack[] = [
     animeIds: [5114, 121],
     price: 100,
     color: "from-red-600 to-blue-800",
+    bgImage: "https://shikimori.one/system/animes/original/5114.jpg",
     guaranteedRarity: "epic"
   },
   {
@@ -126,9 +135,10 @@ export const ANIME_PACKS: AnimePack[] = [
     name: "Евангелион",
     description: "Пилоты Евы и апокалиптическая битва",
     // Сериал, End of Evangelion, Rebuild 1.11
-    animeIds: [30, 32, 2759],
+    animeIds: [30, 32],
     price: 140,
     color: "from-green-600 to-purple-800",
+    bgImage: "https://shikimori.one/system/animes/original/30.jpg",
     guaranteedRarity: "legendary"
   }
 ];

@@ -165,8 +165,17 @@ const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>, card
 const PackCard = ({ pack, onSelect, userCoins }: { pack: AnimePack; onSelect: (pack: AnimePack) => void; userCoins: number }) => (
   <div 
     onClick={() => onSelect(pack)}
-    className={`relative group cursor-pointer rounded-2xl overflow-hidden border border-white/10 bg-gradient-to-br ${pack.color} p-6 transition-all hover:scale-105 hover:border-white/30 ${userCoins < pack.price ? 'opacity-50 cursor-not-allowed' : ''}`}
+    className={`relative group cursor-pointer rounded-2xl overflow-hidden border border-white/10 p-6 transition-all hover:scale-105 hover:border-white/30 ${userCoins < pack.price ? 'opacity-50 cursor-not-allowed' : ''}`}
+    style={{
+      backgroundImage: pack.bgImage ? `linear-gradient(rgba(0,0,0,0.4), rgba(0,0,0,0.6)), url(${pack.bgImage})` : undefined,
+      backgroundSize: 'cover',
+      backgroundPosition: 'center',
+      backgroundColor: pack.bgImage ? undefined : undefined
+    }}
   >
+    {!pack.bgImage && (
+      <div className={`absolute inset-0 bg-gradient-to-br ${pack.color}`} />
+    )}
     <div className="absolute inset-0 bg-black/20 group-hover:bg-black/10 transition-colors" />
     
     <div className="relative z-10">
@@ -314,7 +323,7 @@ const InteractiveCard = ({ card, forceFlipped = false }: { card: Card, forceFlip
             <div className={`absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b ${rarityConfig[card.rarity].color}`} />
             
             {/* Индикатор заблокированного арта */}
-            {card.isArtBlacklisted && (
+            {card.isMainCharacter && card.isArtBlacklisted && (
               <div className="absolute top-2 right-2 px-2 py-1 rounded-full bg-red-500/20 border border-red-500/30 flex items-center gap-1">
                 <RefreshCcw className="w-3 h-3 text-red-400" />
                 <span className="text-[8px] font-bold text-red-400 uppercase">Арт отклонен</span>
@@ -386,7 +395,7 @@ export default function GachaPage() {
   const [showCard, setShowCard] = useState(false)
   const[viewedCard, setViewedCard] = useState<Card | null>(null)
   const[usedCharacterIds, setUsedCharacterIds] = useState<Set<number>>(new Set())
-  const { coins: userCoins, spendCoins } = useCoins()
+  const { coins: userCoins, spendCoins, forceSync } = useCoins()
   const [selectedPack, setSelectedPack] = useState<AnimePack | CustomAnimePack | null>(null)
   const [showPacks, setShowPacks] = useState(false)
   const [packSearchQuery, setPackSearchQuery] = useState("")
@@ -410,6 +419,7 @@ export default function GachaPage() {
   const [selectedCardForArtChange, setSelectedCardForArtChange] = useState<Card | null>(null)
   const [isChangingArt, setIsChangingArt] = useState(false)
   const [artChangeError, setArtChangeError] = useState<string | null>(null)
+  const [isSyncingCoins, setIsSyncingCoins] = useState(false)
 
   useEffect(() => {
     const ids = new Set(collectedCards.map(card => card.characterId));
@@ -466,6 +476,8 @@ export default function GachaPage() {
 
         if (result) {
           await spendCoins(selectedPack.price);
+          // Автоматическая синхронизация монет после успешной крутки
+          await forceSync();
         }
       } else {
         console.log("Rolling random character");
@@ -495,7 +507,7 @@ export default function GachaPage() {
         isMainCharacter: result.isMainCharacter || false,
         packId: (result as any).packId,
         packName: (result as any).packName,
-        isArtBlacklisted: blacklistedUrls.includes(result.imageUrl || '')
+        isArtBlacklisted: result.isMainCharacter && blacklistedUrls.includes(result.imageUrl || '')
       }
 
       setRevealedCard(newCard)
@@ -636,6 +648,18 @@ export default function GachaPage() {
     }
   }
 
+  const handleForceSyncCoins = async () => {
+    setIsSyncingCoins(true)
+    try {
+      await forceSync()
+    } catch (error) {
+      console.error('Force sync error:', error)
+      alert('Ошибка при синхронизации монет')
+    } finally {
+      setIsSyncingCoins(false)
+    }
+  }
+
   return (
     <div className="min-h-screen bg-[#020617] text-slate-100 selection:bg-pink-500/30 font-sans">
       <Navbar />
@@ -643,7 +667,7 @@ export default function GachaPage() {
       {/* Pack Selection Modal */}
       {showPacks && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xl">
-          <div className="bg-slate-900 rounded-3xl p-8 max-w-4xl w-full max-h-[180vh] overflow-y-auto">
+          <div className="bg-slate-900 rounded-3xl p-8 max-w-4xl w-full max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-3xl font-black text-white">Выберите Набор</h2>
               <button
@@ -990,7 +1014,7 @@ export default function GachaPage() {
               >
                 <Trash className="w-4 h-4" /> Удалить из коллекции
               </button>
-              {viewedCard.isArtBlacklisted && (
+              {viewedCard.isMainCharacter && viewedCard.isArtBlacklisted && (
                 <button 
                   onClick={() => unblacklistArt(viewedCard)}
                   className="flex items-center gap-2 px-6 py-2 rounded-full bg-green-500/20 hover:bg-green-500/40 text-green-200 font-medium"
@@ -1106,7 +1130,14 @@ export default function GachaPage() {
                 </button>
                 <button 
                   onClick={() => {
-                    setShowArtWarning(true);
+                    if (revealedCard.isMainCharacter) {
+                      setShowArtWarning(true);
+                    } else {
+                      // Для не главных героев просто добавляем в коллекцию
+                      setCollectedCards(prev =>[revealedCard, ...prev]);
+                      setUsedCharacterIds(prev => new Set(prev).add(revealedCard.characterId));
+                      setShowCard(false);
+                    }
                   }}
                   className="px-8 py-4 bg-slate-800/80 text-slate-300 font-bold uppercase tracking-wider rounded-2xl hover:bg-slate-700 transition-all"
                 >
@@ -1144,7 +1175,7 @@ export default function GachaPage() {
                       <Crown className="w-3 h-3 text-black" />
                     </div>
                   )}
-                  {card.isArtBlacklisted && (
+                  {card.isMainCharacter && card.isArtBlacklisted && (
                     <div className="absolute top-8 left-2 w-4 h-4 rounded-full bg-red-500/80 border border-red-300 flex items-center justify-center">
                       <RefreshCcw className="w-2 h-2 text-white" />
                     </div>

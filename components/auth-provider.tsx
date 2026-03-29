@@ -96,12 +96,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const refreshProfile = async () => {
     if (!user) return
     setProfileLoading(true)
+    
+    // Добавим timeout для защиты от бесконечной загрузки
+    const timeoutId = setTimeout(() => {
+      console.warn('[Auth] Profile loading timeout, forcing loading to false')
+      setProfileLoading(false)
+    }, 10000) // 10 секунд
+    
     try {
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', user.id)
         .single()
+
+      clearTimeout(timeoutId)
 
       if (error) {
         if (error.code === 'PGRST116') {
@@ -110,6 +119,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               .insert({ id: user.id, username: user.email })
               .select()
               .single()
+
+          clearTimeout(timeoutId)
 
           if (!createError) {
               setProfile(newProfile)
@@ -121,6 +132,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 .select('*')
                 .eq('id', user.id)
                 .single()
+
+             clearTimeout(timeoutId)
 
              if (!retryError && retryData) {
                setProfile(retryData)
@@ -143,6 +156,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setProfile(data)
       setProfileLoading(false)
     } catch (error: any) {
+      clearTimeout(timeoutId)
       loggers.auth.error('Error fetching profile:', error)
       setProfileLoading(false)
       if (error.message?.includes('406') || error.details?.includes('Not Acceptable') || error.code === 'PGRST116') {
@@ -158,12 +172,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (user) {
-      refreshProfile()
+      // Добавим защиту от повторных вызовов, если профиль уже загружается
+      if (!profileLoading) {
+        refreshProfile()
+      }
     } else {
       setProfile(null)
       setProfileLoading(false)
     }
-  }, [user])
+  }, [user?.id])
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }: { data: { session: any } }) => {

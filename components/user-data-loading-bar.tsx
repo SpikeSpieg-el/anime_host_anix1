@@ -2,11 +2,27 @@
 
 import { useAuth } from "@/components/auth-provider"
 import { Loader2 } from "lucide-react"
+import { useEffect, useState } from "react"
 
 export function UserDataLoadingBar() {
   const { user, profileLoading } = useAuth()
+  const [forceHide, setForceHide] = useState(false)
 
-  if (!user || !profileLoading) return null
+  // Автоматически скрываем через 15 секунд для защиты от зависания
+  useEffect(() => {
+    if (user && profileLoading) {
+      const timeout = setTimeout(() => {
+        console.warn('[UserDataLoadingBar] Force hiding after timeout')
+        setForceHide(true)
+      }, 15000)
+
+      return () => clearTimeout(timeout)
+    } else {
+      setForceHide(false)
+    }
+  }, [user, profileLoading])
+
+  if (!user || !profileLoading || forceHide) return null
 
   return (
     <div

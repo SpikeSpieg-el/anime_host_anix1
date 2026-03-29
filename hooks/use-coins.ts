@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useAuth } from '@/components/auth-provider'
-import { supabase } from '@/lib/supabase'
+import { supabase, syncLocalDataToAccount, forceSyncCoins } from '@/lib/supabase'
 
 const COINS_STORAGE_KEY = 'gacha-coins'
 
@@ -16,12 +16,19 @@ export function useCoins() {
   const loadCoins = useCallback(async () => {
     console.log('[useCoins] loadCoins called, user:', user?.id || 'null', 'retry:', retryCountRef.current)
     
+    // Добавим timeout для защиты от бесконечной загрузки
+    const loadingTimeout = setTimeout(() => {
+      console.warn('[useCoins] Loading timeout, forcing loading to false')
+      setLoading(false)
+    }, 15000) // 15 секунд
+    
     if (!user) {
       // Для неавторизованных - загружаем из localStorage (гостевой баланс 1000)
       const saved = localStorage.getItem(COINS_STORAGE_KEY)
       const savedCoins = saved ? parseInt(saved, 10) || 1000 : 1000
       console.log('[useCoins] No user, using localStorage:', savedCoins)
       setCoins(savedCoins)
+      clearTimeout(loadingTimeout)
       setLoading(false)
       return
     }
@@ -38,6 +45,7 @@ export function useCoins() {
         console.warn('[useCoins] No valid session found, using localStorage fallback')
         const saved = localStorage.getItem(COINS_STORAGE_KEY)
         setCoins(saved ? parseInt(saved, 10) || 1000 : 1000)
+        clearTimeout(loadingTimeout)
         setLoading(false)
         return
       }
@@ -72,6 +80,7 @@ export function useCoins() {
           if (retryCountRef.current < MAX_RETRIES) {
             // Retry after a delay
             retryCountRef.current += 1
+            clearTimeout(loadingTimeout)
             setTimeout(() => {
               loadCoins()
             }, 1000 * retryCountRef.current) // Exponential backoff
@@ -83,6 +92,7 @@ export function useCoins() {
             setCoins(fallbackCoins)
             localStorage.setItem(COINS_STORAGE_KEY, fallbackCoins.toString())
             retryCountRef.current = 0
+            clearTimeout(loadingTimeout)
             return
           }
         }
@@ -101,6 +111,7 @@ export function useCoins() {
       const saved = localStorage.getItem(COINS_STORAGE_KEY)
       setCoins(saved ? parseInt(saved, 10) || 1000 : 1000)
     } finally {
+      clearTimeout(loadingTimeout)
       setLoading(false)
       console.log('[useCoins] Loading complete, final coins:', coins)
     }
@@ -156,6 +167,15 @@ export function useCoins() {
     updateCoins,
     spendCoins,
     addCoins,
-    refresh: loadCoins
+    refresh: loadCoins,
+    forceSync: async () => {
+      if (!user) return
+      const syncedCoins = await forceSyncCoins(user.id)
+      if (syncedCoins !== null) {
+        setCoins(syncedCoins)
+        localStorage.setItem(COINS_STORAGE_KEY, syncedCoins.toString())
+      }
+      await loadCoins()
+    }
   }
 }
