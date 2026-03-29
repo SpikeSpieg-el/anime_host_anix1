@@ -254,7 +254,7 @@ const InteractiveCard = ({ card, forceFlipped = false }: { card: Card, forceFlip
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
       onClick={() => setIsFlipped(!isFlipped)}
-      className="relative w-80 h-[480px] transition-transform duration-500 ease-out cursor-pointer"
+      className="relative w-64 sm:w-72 md:w-80 h-[400px] sm:h-[440px] md:h-[480px] transition-transform duration-500 ease-out cursor-pointer"
       style={{
         transform: `perspective(1000px) rotateX(${rotation.x}deg) rotateY(${rotation.y + (isFlipped ? 180 : 0)}deg)`,
         transformStyle: "preserve-3d",
@@ -262,7 +262,7 @@ const InteractiveCard = ({ card, forceFlipped = false }: { card: Card, forceFlip
     >
       {/* FRONT SIDE - АКЦЕНТ НА АРТ */}
       <div 
-        className={`absolute inset-0 rounded-[2.5rem] overflow-hidden ${rarityConfig[card.rarity].bg} ${rarityConfig[card.rarity].glow} border-2 border-white/10`}
+        className={`absolute inset-0 rounded-[1.5rem] sm:rounded-[2rem] md:rounded-[2.5rem] overflow-hidden ${rarityConfig[card.rarity].bg} ${rarityConfig[card.rarity].glow} border-2 border-white/10`}
         style={{ backfaceVisibility: "hidden" }}
       >
         {/* Само изображение персонажа - теперь занимает всё пространство без искажений */}
@@ -296,29 +296,29 @@ const InteractiveCard = ({ card, forceFlipped = false }: { card: Card, forceFlip
         {/* UI элементы - Сделаны максимально компактными и "парящими" */}
         
         {/* Верхняя панель: Редкость и Рейтинг */}
-        <div className="absolute top-5 inset-x-5 flex justify-between items-start pointer-events-none">
+        <div className="absolute top-3 sm:top-4 md:top-5 inset-x-3 sm:inset-x-4 md:inset-x-5 flex justify-between items-start pointer-events-none">
           <div className="flex flex-col gap-2">
-            <div className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-tighter backdrop-blur-md bg-black/40 border border-white/20 text-white shadow-xl`}>
+            <div className={`px-2 sm:px-3 py-0.5 sm:py-1 rounded-full text-[8px] sm:text-[9px] font-black uppercase tracking-tighter backdrop-blur-md bg-black/40 border border-white/20 text-white shadow-xl`}>
               <span className={`bg-gradient-to-r ${rarityConfig[card.rarity].color} bg-clip-text text-transparent`}>
                 {rarityConfig[card.rarity].label}
               </span>
             </div>
             {card.isMainCharacter && (
-              <div className="w-fit flex items-center gap-1 px-2 py-1 rounded-full text-[9px] font-black uppercase bg-yellow-400 text-black shadow-lg">
-                <Crown className="w-3 h-3" />
+              <div className="w-fit flex items-center gap-0.5 sm:gap-1 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-full text-[7px] sm:text-[9px] font-black uppercase bg-yellow-400 text-black shadow-lg">
+                <Crown className="w-2 sm:w-3 h-2 sm:h-3" />
                 Главный герой
               </div>
             )}
           </div>
-          <div className="flex items-center gap-1 bg-black/40 backdrop-blur-md px-2.5 py-1 rounded-full border border-white/20 shadow-xl">
-            <Star className="w-3 h-3 text-yellow-400 fill-yellow-400" />
-            <span className="text-[11px] font-black text-white">{card.score.toFixed(1)}</span>
+          <div className="flex items-center gap-0.5 sm:gap-1 bg-black/40 backdrop-blur-md px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full border border-white/20 shadow-xl">
+            <Star className="w-2 sm:w-3 h-2 sm:h-3 text-yellow-400 fill-yellow-400" />
+            <span className="text-[9px] sm:text-[11px] font-black text-white">{card.score.toFixed(1)}</span>
           </div>
         </div>
 
         {/* Нижняя панель: Информация в "стеклянном" блоке */}
-        <div className="absolute bottom-5 inset-x-5 pointer-events-none">
-          <div className="backdrop-blur-xl bg-white/5 border border-white/10 rounded-2xl p-4 shadow-2xl relative overflow-hidden">
+        <div className="absolute bottom-3 sm:bottom-4 md:bottom-5 inset-x-3 sm:inset-x-4 md:inset-x-5 pointer-events-none">
+          <div className="backdrop-blur-xl bg-white/5 border border-white/10 rounded-xl sm:rounded-2xl p-3 sm:p-4 shadow-2xl relative overflow-hidden">
             {/* Тонкая полоска редкости сбоку */}
             <div className={`absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b ${rarityConfig[card.rarity].color}`} />
             
@@ -330,17 +330,17 @@ const InteractiveCard = ({ card, forceFlipped = false }: { card: Card, forceFlip
               </div>
             )}
             
-            <h3 className="text-xl font-black text-white uppercase leading-none drop-shadow-lg truncate mb-1">
+            <h3 className="text-lg sm:text-xl font-black text-white uppercase leading-none drop-shadow-lg truncate mb-1">
               {card.name}
             </h3>
-            <p className="text-[10px] text-white/60 font-bold uppercase tracking-wider truncate">
+            <p className="text-[9px] sm:text-[10px] text-white/60 font-bold uppercase tracking-wider truncate">
               {card.anime}
             </p>
             
             <div className="mt-3 flex items-center justify-between border-t border-white/5 pt-2">
-              <span className="text-[8px] font-mono text-white/30 tracking-tighter">ШИКИ-{card.shikiId}</span>
+              <span className="text-[7px] sm:text-[8px] font-mono text-white/30 tracking-tighter">ШИКИ-{card.shikiId}</span>
               {card.packName && (
-                <span className="text-[8px] font-bold text-indigo-400/80 uppercase">{card.packName}</span>
+                <span className="text-[7px] sm:text-[8px] font-bold text-indigo-400/80 uppercase">{card.packName}</span>
               )}
             </div>
           </div>
@@ -349,7 +349,7 @@ const InteractiveCard = ({ card, forceFlipped = false }: { card: Card, forceFlip
 
       {/* BACK SIDE (STATS) - ОСТАВЛЕНО БЕЗ ИЗМЕНЕНИЙ (как в вашем примере) */}
       <div 
-        className={`absolute inset-0 rounded-[2.5rem] p-8 flex flex-col justify-between border-4 ${rarityConfig[card.rarity].bg} ${rarityConfig[card.rarity].glow}`}
+        className={`absolute inset-0 rounded-[1.5rem] sm:rounded-[2rem] md:rounded-[2.5rem] p-4 sm:p-6 md:p-8 flex flex-col justify-between border-4 ${rarityConfig[card.rarity].bg} ${rarityConfig[card.rarity].glow}`}
         style={{ 
           backfaceVisibility: "hidden", 
           transform: "rotateY(180deg)",
@@ -359,14 +359,14 @@ const InteractiveCard = ({ card, forceFlipped = false }: { card: Card, forceFlip
         <div className={`absolute inset-0 opacity-10 ${rarityConfig[card.rarity].fx}`} />
         
         <div className="relative z-10 space-y-4">
-          <div className="text-center pb-4 border-b border-white/10">
-            <p className={`text-[10px] font-black uppercase tracking-tighter bg-gradient-to-r ${rarityConfig[card.rarity].color} bg-clip-text text-transparent`}>
+          <div className="text-center pb-2 sm:pb-4 border-b border-white/10">
+            <p className={`text-[9px] sm:text-[10px] md:text-[11px] font-black uppercase tracking-tighter bg-gradient-to-r ${rarityConfig[card.rarity].color} bg-clip-text text-transparent`}>
               Характеристики Персонажа
             </p>
-            <h4 className="text-xl font-black text-white uppercase truncate">{card.name}</h4>
+            <h4 className="text-lg sm:text-xl md:text-2xl font-black text-white uppercase truncate">{card.name}</h4>
           </div>
 
-          <div className="space-y-5 pt-4">
+          <div className="space-y-3 sm:space-y-4 md:space-y-5 pt-2 sm:pt-4">
             <StatBar label={statLabels.hp} value={card.stats.hp} color={rarityConfig[card.rarity].color} />
             <StatBar label={statLabels.atk} value={card.stats.atk} color={rarityConfig[card.rarity].color} />
             <StatBar label={statLabels.def} value={card.stats.def} color={rarityConfig[card.rarity].color} />
@@ -376,10 +376,10 @@ const InteractiveCard = ({ card, forceFlipped = false }: { card: Card, forceFlip
         </div>
 
         <div className="relative z-10 text-center space-y-2">
-           <div className="w-16 h-16 mx-auto rounded-full border-2 border-white/10 flex items-center justify-center bg-white/5">
-              <RefreshCcw className="w-8 h-8 text-white/20" />
+           <div className="w-12 sm:w-14 md:w-16 h-12 sm:h-14 md:h-16 mx-auto rounded-full border-2 border-white/10 flex items-center justify-center bg-white/5">
+              <RefreshCcw className="w-6 sm:w-7 md:w-8 h-6 sm:h-7 md:h-8 text-white/20" />
            </div>
-           <p className="text-[10px] font-bold text-white/30 uppercase tracking-widest text-balance leading-tight">Нажмите чтобы перевернуть</p>
+           <p className="text-[8px] sm:text-[9px] md:text-[10px] font-bold text-white/30 uppercase tracking-widest text-balance leading-tight">Нажмите чтобы перевернуть</p>
         </div>
       </div>
     </div>
@@ -711,9 +711,9 @@ export default function GachaPage() {
       {/* Pack Selection Modal */}
       {showPacks && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xl">
-          <div className="bg-slate-900 rounded-3xl p-8 max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-3xl font-black text-white">Выберите Набор</h2>
+          <div className="bg-slate-900 rounded-2xl sm:rounded-3xl p-4 sm:p-6 md:p-8 max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4 sm:mb-6">
+              <h2 className="text-2xl sm:text-3xl font-black text-white">Выберите Набор</h2>
               <button
                 onClick={() => setShowPacks(false)}
                 className="p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
@@ -722,7 +722,7 @@ export default function GachaPage() {
               </button>
             </div>
 
-            <div className="relative mb-6">
+            <div className="relative mb-4 sm:mb-6">
               <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
               <input
                 type="text"
@@ -741,7 +741,7 @@ export default function GachaPage() {
               )}
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+            <div className="grid grid-cols-1 gap-3 sm:gap-4 mb-4 sm:mb-6">
               {isSearching && (
                 <div className="col-span-full flex items-center justify-center py-12">
                   <GachaLoading message="Поиск наборов..." size="md" />
@@ -765,9 +765,9 @@ export default function GachaPage() {
               ))}
             </div>
 
-            <button
+              <button
               onClick={handleRandomRoll}
-              className="w-full py-3 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-xl transition-colors"
+              className="w-full py-2.5 sm:py-3 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-xl transition-colors text-sm sm:text-base"
             >
               Случайный призыв (50 монет)
             </button>
@@ -778,15 +778,15 @@ export default function GachaPage() {
       {/* Custom Pack Creator Modal */}
       {showCustomPackCreator && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xl">
-          <div className="bg-slate-900 rounded-3xl p-8 max-w-6xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-start mb-6">
+          <div className="bg-slate-900 rounded-2xl sm:rounded-3xl p-4 sm:p-6 md:p-8 max-w-6xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4 mb-4 sm:mb-6">
               <div>
-                <h2 className="text-3xl font-black text-white mb-2">Создать Кастомный Пак</h2>
+                <h2 className="text-2xl sm:text-3xl font-black text-white mb-2">Создать Кастомный Пак</h2>
                 {selectedAnimeIds.size > 0 && (
-                  <div className="flex items-center gap-3 text-sm">
+                  <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-sm">
                     <div className="flex items-center gap-1.5 bg-yellow-500/20 px-3 py-1 rounded-full">
                       <Coins className="w-4 h-4 text-yellow-400" />
-                      <span className="text-yellow-300 font-bold">
+                      <span className="text-yellow-300 font-bold text-sm sm:text-base">
                         {Math.max(150, Math.min(600, Math.floor((customPackSearchResults.filter(a => selectedAnimeIds.has(a.id)).reduce((sum, a) => sum + (a.score || 0), 0) / selectedAnimeIds.size) * 60)))} монет
                       </span>
                     </div>
@@ -799,8 +799,8 @@ export default function GachaPage() {
                       
                       return guaranteedRarity && (
                         <div className="flex items-center gap-1.5 bg-purple-500/20 px-3 py-1 rounded-full">
-                          <Star className="w-4 h-4 text-purple-400" />
-                          <span className="text-purple-300 font-bold">Гарант: {guaranteedRarity}</span>
+                          <Star className="w-3 sm:w-4 h-3 sm:h-4 text-purple-400" />
+                          <span className="text-purple-300 font-bold text-sm sm:text-base">Гарант: {guaranteedRarity}</span>
                         </div>
                       );
                     })()}
@@ -821,7 +821,7 @@ export default function GachaPage() {
               </button>
             </div>
 
-            <div className="mb-6">
+            <div className="mb-4 sm:mb-6">
               <label className="block text-sm font-bold text-white mb-2">
                 Введите название аниме (например, "Титан", "Наруто", "Блич")
               </label>
@@ -832,12 +832,12 @@ export default function GachaPage() {
                   value={customPackQuery}
                   onChange={(e) => setCustomPackQuery(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && handleCreateCustomPack()}
-                  className="flex-1 h-12 rounded-xl bg-slate-800/50 border border-slate-700 px-4 text-white focus:bg-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 transition-all placeholder:text-slate-500"
+                  className="flex-1 h-10 sm:h-12 rounded-xl bg-slate-800/50 border border-slate-700 px-3 sm:px-4 text-sm text-white focus:bg-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 transition-all placeholder:text-slate-500"
                 />
                 <button
                   onClick={handleCreateCustomPack}
                   disabled={isCreatingCustomPack || !customPackQuery.trim()}
-                  className="px-6 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 disabled:from-slate-700 disabled:to-slate-800 disabled:cursor-not-allowed text-white font-bold rounded-xl transition-all"
+                  className="px-4 sm:px-6 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 disabled:from-slate-700 disabled:to-slate-800 disabled:cursor-not-allowed text-white font-bold rounded-xl transition-all text-sm sm:text-base"
                 >
                   {isCreatingCustomPack ? (
                     <GachaLoading message="Поиск" size="sm" />
@@ -1004,7 +1004,7 @@ export default function GachaPage() {
       {/* Art Warning Modal */}
       {showArtWarning && revealedCard && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xl animate-in fade-in duration-200">
-          <div className="bg-slate-900 rounded-3xl p-8 max-w-md w-full border border-white/10">
+          <div className="bg-slate-900 rounded-2xl sm:rounded-3xl p-4 sm:p-6 md:p-8 max-w-md w-full border border-white/10">
             <div className="text-center space-y-6">
               <div className="w-16 h-16 mx-auto rounded-full bg-yellow-500/20 flex items-center justify-center">
                 <RefreshCcw className="w-8 h-8 text-yellow-400" />
@@ -1045,58 +1045,58 @@ export default function GachaPage() {
 
       {viewedCard && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xl animate-in fade-in duration-200">
-          <button onClick={() => setViewedCard(null)} className="absolute top-8 right-8 p-3 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors">
+          <button onClick={() => setViewedCard(null)} className="absolute top-4 sm:top-8 right-4 sm:right-8 p-2 sm:p-3 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors">
             <X className="w-6 h-6" />
           </button>
           
           <div className="flex flex-col items-center animate-in zoom-in-95 duration-300">
             <InteractiveCard card={viewedCard} />
-            <div className="flex gap-4 mt-8 flex-wrap justify-center">
+            <div className="flex gap-2 sm:gap-4 mt-4 sm:mt-8 flex-wrap justify-center">
               <button 
                 onClick={() => removeCard(viewedCard)}
-                className="flex items-center gap-2 px-6 py-2 rounded-full bg-red-500/20 hover:bg-red-500/40 text-red-200 font-medium"
+                className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-6 py-1.5 sm:py-2 rounded-full bg-red-500/20 hover:bg-red-500/40 text-red-200 font-medium text-xs sm:text-sm"
               >
-                <Trash className="w-4 h-4" /> Удалить из коллекции
+                <Trash className="w-3 sm:w-4 h-3 sm:h-4" /> <span className="hidden sm:inline">Удалить из коллекции</span><span className="sm:hidden">Удалить</span>
               </button>
               {viewedCard.isMainCharacter && viewedCard.isArtBlacklisted && (
                 <button 
                   onClick={() => unblacklistArt(viewedCard)}
-                  className="flex items-center gap-2 px-6 py-2 rounded-full bg-green-500/20 hover:bg-green-500/40 text-green-200 font-medium"
+                  className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-6 py-1.5 sm:py-2 rounded-full bg-green-500/20 hover:bg-green-500/40 text-green-200 font-medium text-xs sm:text-sm"
                 >
-                  <RefreshCcw className="w-4 h-4" /> Разблокировать арт
+                  <RefreshCcw className="w-3 sm:w-4 h-3 sm:h-4" /> <span className="hidden sm:inline">Разблокировать арт</span><span className="sm:hidden">Разблокировать</span>
                 </button>
               )}
-              <a href={viewedCard.originalUrl} target="_blank" rel="noreferrer" className="flex items-center gap-2 px-6 py-2 rounded-full bg-white/10 hover:bg-white/20 text-white font-medium">
-                <ZoomIn className="w-4 h-4" /> Оригинал
+              <a href={viewedCard.originalUrl} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-6 py-1.5 sm:py-2 rounded-full bg-white/10 hover:bg-white/20 text-white font-medium text-xs sm:text-sm">
+                <ZoomIn className="w-3 sm:w-4 h-3 sm:h-4" /> <span className="hidden sm:inline">Оригинал</span>
               </a>
-              <a href={`https://shikimori.one/animes/${viewedCard.shikiId}`} target="_blank" rel="noreferrer" className="flex items-center gap-2 px-6 py-2 rounded-full bg-blue-500/20 hover:bg-blue-500/40 text-blue-200 font-medium">
-                <ExternalLink className="w-4 h-4" /> Шикимори
+              <a href={`https://shikimori.one/animes/${viewedCard.shikiId}`} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-6 py-1.5 sm:py-2 rounded-full bg-blue-500/20 hover:bg-blue-500/40 text-blue-200 font-medium text-xs sm:text-sm">
+                <ExternalLink className="w-3 sm:w-4 h-3 sm:h-4" /> <span className="hidden sm:inline">Шикимори</span>
               </a>
             </div>
           </div>
         </div>
       )}
 
-      <div className="container mx-auto px-4 py-12 max-w-6xl">
-        <div className="text-center mb-16">
-          <h1 className="text-5xl md:text-7xl font-black tracking-tighter mb-4 text-transparent bg-clip-text bg-gradient-to-r from-white to-slate-400 uppercase">
+      <div className="container mx-auto px-3 sm:px-4 py-8 sm:py-12 max-w-6xl">
+        <div className="text-center mb-8 sm:mb-16">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-black tracking-tighter mb-4 text-transparent bg-clip-text bg-gradient-to-r from-white to-slate-400 uppercase">
             WEEB.<span className="text-primary">X</span> ГАЧА
           </h1>
-          <p className="text-slate-400 text-lg font-medium">Нажми чтобы перевернуть карту и увидеть боевые характеристики.</p>
+          <p className="text-slate-400 text-sm sm:text-base md:text-lg font-medium">Нажми чтобы перевернуть карту и увидеть боевые характеристики.</p>
           
-          <div className="flex justify-center items-center gap-4 mt-4">
+          <div className="flex justify-center items-center gap-2 sm:gap-4 mt-3 sm:mt-4">
             <div className="flex items-center gap-2">
-              <Coins className="w-6 h-6 text-yellow-400" />
-              <span className="text-2xl font-black text-yellow-400">{userCoins}</span>
+              <Coins className="w-4 sm:w-5 md:w-6 h-4 sm:h-5 md:h-6 text-yellow-400" />
+              <span className="text-lg sm:text-xl md:text-2xl font-black text-yellow-400">{userCoins}</span>
             </div>
             {userCoins > 1000000 && (
               <button
                 onClick={handleFixCoins}
                 disabled={isFixingCoins}
-                className="flex items-center gap-2 px-3 py-1 rounded-full bg-red-500/20 hover:bg-red-500/40 disabled:opacity-50 disabled:cursor-not-allowed text-red-300 text-sm font-medium transition-all"
+                className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1 rounded-full bg-red-500/20 hover:bg-red-500/40 disabled:opacity-50 disabled:cursor-not-allowed text-red-300 text-xs sm:text-sm font-medium transition-all"
                 title="Исправить монеты"
               >
-                <RefreshCcw className={`w-4 h-4 ${isFixingCoins ? 'animate-spin' : ''}`} />
+                <RefreshCcw className={`w-3 sm:w-4 h-3 sm:h-4 ${isFixingCoins ? 'animate-spin' : ''}`} />
                 {isFixingCoins ? 'Исправление...' : 'Испр.'}
               </button>
             )}
@@ -1118,36 +1118,36 @@ export default function GachaPage() {
           </div>
         )}
 
-        <div className="flex flex-col items-center justify-center min-h-[550px] mb-24 relative">
+        <div className="flex flex-col items-center justify-center min-h-[400px] sm:min-h-[500px] md:min-h-[550px] mb-12 sm:mb-20 md:mb-24 relative">
           {!showCard && !isRolling && (
             <div className="flex flex-col items-center gap-6">
-              <button onClick={handleRoll} className="group relative w-72 h-[420px] rounded-[2.5rem] border-2 border-dashed border-slate-700/50 bg-slate-900/50 backdrop-blur-sm flex flex-col items-center justify-center hover:border-indigo-500 transition-all">
-                <Sparkles className="w-12 h-12 text-indigo-500 mb-4 animate-pulse" />
-                <span className="font-black text-slate-500 group-hover:text-indigo-400 uppercase tracking-widest">
+              <button onClick={handleRoll} className="group relative w-56 sm:w-64 md:w-72 h-[350px] sm:h-[380px] md:h-[420px] rounded-[1.5rem] sm:rounded-[2rem] md:rounded-[2.5rem] border-2 border-dashed border-slate-700/50 bg-slate-900/50 backdrop-blur-sm flex flex-col items-center justify-center hover:border-indigo-500 transition-all">
+                <Sparkles className="w-8 sm:w-10 md:w-12 h-8 sm:h-10 md:h-12 text-indigo-500 mb-3 sm:mb-4 animate-pulse" />
+                <span className="font-black text-slate-500 group-hover:text-indigo-400 uppercase tracking-widest text-xs sm:text-sm text-center px-2">
                   {selectedPack ? `Призвать (${selectedPack.price} монет)` : "Призвать (50 монет)"}
                 </span>
               </button>
               
               <button
                 onClick={() => setShowPacks(true)}
-                className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-bold rounded-xl transition-all"
+                className="flex items-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-bold rounded-xl transition-all text-sm sm:text-base"
               >
-                <Package className="w-5 h-5" />
+                <Package className="w-4 sm:w-5 h-4 sm:h-5" />
                 Выбрать набор
               </button>
 
               <button
                 onClick={() => setShowCustomPackCreator(true)}
-                className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white font-bold rounded-xl transition-all"
+                className="flex items-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white font-bold rounded-xl transition-all text-sm sm:text-base"
               >
-                <Search className="w-5 h-5" />
+                <Search className="w-4 sm:w-5 h-4 sm:h-5" />
                 Создать пак
               </button>
             </div>
           )}
 
           {isRolling && (
-            <div className="w-72 h-[420px] rounded-[2.5rem] bg-gradient-to-br from-slate-900/90 to-orange-950/20 border border-orange-500/30 flex flex-col items-center justify-center relative overflow-hidden">
+            <div className="w-56 sm:w-64 md:w-72 h-[350px] sm:h-[380px] md:h-[420px] rounded-[1.5rem] sm:rounded-[2rem] md:rounded-[2.5rem] bg-gradient-to-br from-slate-900/90 to-orange-950/20 border border-orange-500/30 flex flex-col items-center justify-center relative overflow-hidden">
               <div className="absolute inset-0">
                 {[...Array(12)].map((_, i) => (
                   <div
@@ -1179,7 +1179,7 @@ export default function GachaPage() {
                     setUsedCharacterIds(prev => new Set(prev).add(revealedCard.characterId));
                     setShowCard(false);
                   }}
-                  className="px-8 py-4 bg-white text-black font-black uppercase tracking-wider rounded-2xl hover:bg-indigo-500 hover:text-white transition-all"
+                  className="px-6 sm:px-8 py-3 sm:py-4 bg-white text-black font-black uppercase tracking-wider rounded-xl sm:rounded-2xl hover:bg-indigo-500 hover:text-white transition-all text-sm sm:text-base"
                 >
                   Сохранить Карту
                 </button>
@@ -1194,7 +1194,7 @@ export default function GachaPage() {
                       setShowCard(false);
                     }
                   }}
-                  className="px-8 py-4 bg-slate-800/80 text-slate-300 font-bold uppercase tracking-wider rounded-2xl hover:bg-slate-700 transition-all"
+                  className="px-6 sm:px-8 py-3 sm:py-4 bg-slate-800/80 text-slate-300 font-bold uppercase tracking-wider rounded-xl sm:rounded-2xl hover:bg-slate-700 transition-all text-sm sm:text-base"
                 >
                   Отбросить
                 </button>
@@ -1205,11 +1205,11 @@ export default function GachaPage() {
 
         {collectedCards.length > 0 && (
           <div className="space-y-6">
-            <h2 className="text-2xl font-black uppercase flex items-center gap-3">
-              <Star className="w-6 h-6 text-yellow-500" />
+            <h2 className="text-xl sm:text-2xl font-black uppercase flex items-center gap-2 sm:gap-3">
+              <Star className="w-4 sm:w-5 md:w-6 h-4 sm:h-5 md:h-6 text-yellow-500" />
               Коллекция ({collectedCards.length})
             </h2>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2 sm:gap-3 md:gap-4">
               {collectedCards.map((card) => (
                 <div 
                   key={card.uniqueId} 
