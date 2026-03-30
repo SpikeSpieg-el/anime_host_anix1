@@ -49,19 +49,150 @@ function generateCardUniqueId(characterId: number, packId?: string): string {
   return `${packPrefix}-${characterId}-${timestamp}-${random}`;
 }
 
-const rarityConfig: Record<Rarity, { color: string; bg: string; label: string; glow: string; fx: string; rgb: string }> = {
-  trash: { color: "from-stone-500 to-stone-700", bg: "bg-stone-950", label: "Мусор", glow: "shadow-stone-500/10", fx: "bg-gradient-to-br from-stone-400/10 to-transparent", rgb: "120, 113, 108" },
-  common: { color: "from-slate-400 to-slate-500", bg: "bg-slate-900", label: "Обычная", glow: "shadow-slate-400/20", fx: "bg-gradient-to-br from-white/10 to-transparent", rgb: "148, 163, 184" },
-  uncommon: { color: "from-emerald-400 to-teal-500", bg: "bg-emerald-950", label: "Необычная", glow: "shadow-emerald-500/20", fx: "bg-gradient-to-br from-emerald-400/20 to-transparent", rgb: "52, 211, 153" },
-  rare: { color: "from-blue-400 to-cyan-500", bg: "bg-cyan-950", label: "Редкая", glow: "shadow-blue-500/30", fx: "bg-gradient-to-br from-blue-400/20 to-transparent", rgb: "34, 211, 238" },
-  super_rare: { color: "from-indigo-400 to-blue-600", bg: "bg-indigo-950", label: "Супер Редкая", glow: "shadow-indigo-500/40", fx: "bg-gradient-to-br from-indigo-400/30 to-transparent", rgb: "129, 140, 248" },
-  epic: { color: "from-purple-500 to-pink-500", bg: "bg-purple-950", label: "Эпическая", glow: "shadow-purple-500/50", fx: "bg-gradient-to-br from-purple-400/30 to-transparent", rgb: "192, 132, 252" },
-  mythic: { color: "from-fuchsia-400 to-rose-500", bg: "bg-fuchsia-950", label: "Мифическая", glow: "shadow-fuchsia-500/50", fx: "bg-gradient-to-br from-fuchsia-400/40 to-transparent", rgb: "232, 121, 249" },
-  legendary: { color: "from-pink-400 to-rose-600", bg: "bg-pink-950", label: "Легендарная", glow: "shadow-pink-500/60", fx: "bg-gradient-to-tr from-pink-300/40 via-transparent to-rose-300/40", rgb: "244, 114, 182" },
-  ancient: { color: "from-amber-400 to-orange-500", bg: "bg-amber-950", label: "Древняя", glow: "shadow-amber-500/70", fx: "bg-gradient-to-tr from-amber-300/50 via-transparent to-yellow-300/40", rgb: "251, 191, 36" },
-  divine: { color: "from-orange-400 to-red-500", bg: "bg-orange-950", label: "Божественная", glow: "shadow-orange-500/80", fx: "bg-gradient-to-tr from-orange-400/50 via-transparent to-red-400/40", rgb: "251, 146, 60" },
-  transcendent: { color: "from-red-500 to-rose-700", bg: "bg-red-950", label: "Трансцендентная", glow: "shadow-red-500/90", fx: "bg-gradient-to-tr from-red-400/60 via-transparent to-rose-400/50", rgb: "248, 113, 113" },
-  omnipotent: { color: "from-white via-yellow-200 to-amber-500", bg: "bg-zinc-900", label: "Всемогущая", glow: "shadow-white/100", fx: "bg-gradient-to-tr from-white/60 via-yellow-200/40 to-white/60", rgb: "255, 255, 255" },
+const rarityConfig: Record<Rarity, { color: string; bg: string; label: string; glow: string; fx: string; rgb: string; weight: number }> = {
+  trash: { color: "from-stone-500 to-stone-700", bg: "bg-stone-950", label: "Мусор", glow: "shadow-stone-500/10", fx: "bg-gradient-to-br from-stone-400/10 to-transparent", rgb: "120, 113, 108", weight: 1 },
+  common: { color: "from-slate-400 to-slate-500", bg: "bg-slate-900", label: "Обычная", glow: "shadow-slate-400/20", fx: "bg-gradient-to-br from-white/10 to-transparent", rgb: "148, 163, 184", weight: 2 },
+  uncommon: { color: "from-emerald-400 to-teal-500", bg: "bg-emerald-950", label: "Необычная", glow: "shadow-emerald-500/20", fx: "bg-gradient-to-br from-emerald-400/20 to-transparent", rgb: "52, 211, 153", weight: 3 },
+  rare: { color: "from-blue-400 to-cyan-500", bg: "bg-cyan-950", label: "Редкая", glow: "shadow-blue-500/30", fx: "bg-gradient-to-br from-blue-400/20 to-transparent", rgb: "34, 211, 238", weight: 5 },
+  super_rare: { color: "from-indigo-400 to-blue-600", bg: "bg-indigo-950", label: "Супер Редкая", glow: "shadow-indigo-500/40", fx: "bg-gradient-to-br from-indigo-400/30 to-transparent", rgb: "129, 140, 248", weight: 8 },
+  epic: { color: "from-purple-500 to-pink-500", bg: "bg-purple-950", label: "Эпическая", glow: "shadow-purple-500/50", fx: "bg-gradient-to-br from-purple-400/30 to-transparent", rgb: "192, 132, 252", weight: 12 },
+  mythic: { color: "from-fuchsia-400 to-rose-500", bg: "bg-fuchsia-950", label: "Мифическая", glow: "shadow-fuchsia-500/50", fx: "bg-gradient-to-br from-fuchsia-400/40 to-transparent", rgb: "232, 121, 249", weight: 18 },
+  legendary: { color: "from-pink-400 to-rose-600", bg: "bg-pink-950", label: "Легендарная", glow: "shadow-pink-500/60", fx: "bg-gradient-to-tr from-pink-300/40 via-transparent to-rose-300/40", rgb: "244, 114, 182", weight: 25 },
+  ancient: { color: "from-amber-400 to-orange-500", bg: "bg-amber-950", label: "Древняя", glow: "shadow-amber-500/70", fx: "bg-gradient-to-tr from-amber-300/50 via-transparent to-yellow-300/40", rgb: "251, 191, 36", weight: 35 },
+  divine: { color: "from-orange-400 to-red-500", bg: "bg-orange-950", label: "Божественная", glow: "shadow-orange-500/80", fx: "bg-gradient-to-tr from-orange-400/50 via-transparent to-red-400/40", rgb: "251, 146, 60", weight: 50 },
+  transcendent: { color: "from-red-500 to-rose-700", bg: "bg-red-950", label: "Трансцендентная", glow: "shadow-red-500/90", fx: "bg-gradient-to-tr from-red-400/60 via-transparent to-rose-400/50", rgb: "248, 113, 113", weight: 75 },
+  omnipotent: { color: "from-white via-yellow-200 to-amber-500", bg: "bg-zinc-900", label: "Всемогущая", glow: "shadow-white/100", fx: "bg-gradient-to-tr from-white/60 via-yellow-200/40 to-white/60", rgb: "255, 255, 255", weight: 100 },
+}
+
+const RARITY_ORDER = ["trash", "common", "uncommon", "rare", "super_rare", "epic", "mythic", "legendary", "ancient", "divine", "transcendent", "omnipotent"] as const
+
+interface CollectionRating {
+  overallScore: number
+  grade: string
+  gradeColor: string
+  totalPower: number
+  avgRarity: number
+  rarityDistribution: Record<Rarity, number>
+  topCards: Card[]
+  stats: {
+    avgHp: number
+    avgAtk: number
+    avgDef: number
+    avgSpd: number
+    avgLuck: number
+  }
+}
+
+function calculateCollectionRating(cards: Card[]): CollectionRating {
+  if (cards.length === 0) {
+    return {
+      overallScore: 0,
+      grade: "F",
+      gradeColor: "text-stone-400",
+      totalPower: 0,
+      avgRarity: 0,
+      rarityDistribution: {} as Record<Rarity, number>,
+      topCards: [],
+      stats: { avgHp: 0, avgAtk: 0, avgDef: 0, avgSpd: 0, avgLuck: 0 }
+    }
+  }
+
+  // Calculate rarity distribution
+  const rarityDistribution: Record<Rarity, number> = {
+    trash: 0, common: 0, uncommon: 0, rare: 0, super_rare: 0, epic: 0,
+    mythic: 0, legendary: 0, ancient: 0, divine: 0, transcendent: 0, omnipotent: 0
+  }
+  
+  let totalRarityWeight = 0
+  let totalPower = 0
+  let totalStats = { hp: 0, atk: 0, def: 0, spd: 0, luck: 0 }
+
+  cards.forEach(card => {
+    rarityDistribution[card.rarity] = (rarityDistribution[card.rarity] || 0) + 1
+    const rarityWeight = rarityConfig[card.rarity].weight
+    totalRarityWeight += rarityWeight
+    
+    // Calculate card power (sum of all stats)
+    const cardPower = card.stats.hp + card.stats.atk + card.stats.def + card.stats.spd + card.stats.luck
+    totalPower += cardPower
+    
+    // Accumulate stats
+    totalStats.hp += card.stats.hp
+    totalStats.atk += card.stats.atk
+    totalStats.def += card.stats.def
+    totalStats.spd += card.stats.spd
+    totalStats.luck += card.stats.luck
+  })
+
+  const numCards = cards.length
+  
+  // Average stats
+  const avgStats = {
+    avgHp: Math.round(totalStats.hp / numCards),
+    avgAtk: Math.round(totalStats.atk / numCards),
+    avgDef: Math.round(totalStats.def / numCards),
+    avgSpd: Math.round(totalStats.spd / numCards),
+    avgLuck: Math.round(totalStats.luck / numCards)
+  }
+  
+  // Calculate average rarity score (0-100 scale)
+  const avgRarityWeight = totalRarityWeight / numCards
+  const maxRarityWeight = 100 // omnipotent
+  const avgRarity = Math.round((avgRarityWeight / maxRarityWeight) * 100)
+  
+  // Calculate power score (0-100 scale, assuming 500 is max reasonable total stats)
+  const avgPower = totalPower / numCards
+  const powerScore = Math.min(Math.round((avgPower / 500) * 100), 100)
+  
+  // Calculate overall score (weighted average: 60% rarity, 40% power)
+  const overallScore = Math.round((avgRarity * 0.6) + (powerScore * 0.4))
+  
+  // Determine grade
+  let grade: string
+  let gradeColor: string
+  
+  if (overallScore >= 90) {
+    grade = "S+"
+    gradeColor = "from-amber-400 to-orange-500"
+  } else if (overallScore >= 80) {
+    grade = "S"
+    gradeColor = "from-amber-500 to-yellow-500"
+  } else if (overallScore >= 70) {
+    grade = "A"
+    gradeColor = "from-purple-400 to-pink-500"
+  } else if (overallScore >= 60) {
+    grade = "B"
+    gradeColor = "from-blue-400 to-cyan-500"
+  } else if (overallScore >= 50) {
+    grade = "C"
+    gradeColor = "from-emerald-400 to-teal-500"
+  } else if (overallScore >= 40) {
+    grade = "D"
+    gradeColor = "from-slate-400 to-slate-500"
+  } else {
+    grade = "F"
+    gradeColor = "from-stone-500 to-stone-700"
+  }
+  
+  // Get top cards (by rarity weight + power)
+  const topCards = [...cards]
+    .sort((a, b) => {
+      const aScore = rarityConfig[a.rarity].weight + (a.stats.hp + a.stats.atk + a.stats.def + a.stats.spd + a.stats.luck) * 0.1
+      const bScore = rarityConfig[b.rarity].weight + (b.stats.hp + b.stats.atk + b.stats.def + b.stats.spd + b.stats.luck) * 0.1
+      return bScore - aScore
+    })
+    .slice(0, 5)
+  
+  return {
+    overallScore,
+    grade,
+    gradeColor,
+    totalPower,
+    avgRarity,
+    rarityDistribution,
+    topCards,
+    stats: avgStats
+  }
 }
 
 const StatBar = ({ label, value, color }: { label: string; value: number; color: string }) => (
@@ -463,6 +594,10 @@ export default function GachaPage() {
   const [selectedPackFilter, setSelectedPackFilter] = useState<string | "all">("all")
   const [selectedMainCharacterFilter, setSelectedMainCharacterFilter] = useState<"all" | "main" | "supporting">("all")
   const [showFilters, setShowFilters] = useState(false)
+  const [showRatingModal, setShowRatingModal] = useState(false)
+  
+  // Calculate collection rating
+  const collectionRating = calculateCollectionRating(collectedCards)
 
   // Load saved cards from database on mount (when user is authenticated)
   useEffect(() => {
@@ -575,7 +710,20 @@ export default function GachaPage() {
       }
       
       if (!result) {
-        throw new Error("Не удалось получить персонажа. Попробуйте снова!");
+        let errorMessage = "Не удалось получить персонажа. Попробуйте снова!";
+
+        // Check if it's likely due to too many collected characters
+        if (usedCharacterIds.size > 500) {
+          errorMessage = "Вы собрали слишком много персонажей! Попробуйте очистить коллекцию или выберите другой пэк.";
+        } else if (usedCharacterIds.size > 100) {
+          errorMessage = "Многие персонажи уже собраны. Рекомендуется выбрать тематический пэк для лучших результатов.";
+        } else {
+          // Add more context about possible API issues
+          console.warn(`Roll failed: usedCharacterIds=${usedCharacterIds.size}, selectedPack=${selectedPack?.id || 'none'}`);
+          errorMessage = "Не удалось получить персонажа. Возможно, проблемы с API Shikimori. Попробуйте снова через несколько секунд!";
+        }
+
+        throw new Error(errorMessage);
       }
 
       const newCard: Card = {
@@ -1208,10 +1356,10 @@ export default function GachaPage() {
               </div>
               
               <div className="flex flex-col gap-3">
-                <button 
+                <button
                   onClick={() => {
                     setBlacklistedUrls(prev =>[...prev, revealedCard.imageUrl]);
-                    setUsedCharacterIds(prev => new Set(prev).add(revealedCard.characterId));
+                    // НЕ добавляем characterId в used — персонаж должен оставаться в пуле для призыва с другим артом
                     setShowCard(false);
                     setShowArtWarning(false);
                   }}
@@ -1219,12 +1367,139 @@ export default function GachaPage() {
                 >
                   Да, отбросить
                 </button>
-                <button 
+                <button
                   onClick={() => setShowArtWarning(false)}
                   className="w-full py-3.5 sm:py-4 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-xl transition-all"
                 >
                   Отмена
                 </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Collection Rating Modal */}
+      {showRatingModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-slate-950/80 backdrop-blur-xl animate-in fade-in duration-200 overflow-y-auto"
+          onClick={() => setShowRatingModal(false)}
+        >
+          <div
+            className="bg-slate-900 border border-slate-700/50 rounded-2xl sm:rounded-3xl p-5 sm:p-6 md:p-8 max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-2xl my-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex justify-between items-center mb-6 sm:mb-8">
+              <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">Рейтинг Коллекции</h2>
+              <button
+                onClick={() => setShowRatingModal(false)}
+                className="p-2 sm:p-2.5 rounded-full bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-colors border border-white/5"
+              >
+                <X className="w-5 h-5 sm:w-6 sm:h-6" />
+              </button>
+            </div>
+
+            {/* Overall Grade */}
+            <div className="flex flex-col sm:flex-row items-center gap-6 sm:gap-8 mb-8 p-6 sm:p-8 rounded-2xl bg-gradient-to-br from-slate-800/50 to-slate-900/50 border border-slate-700/50">
+              <div className={`w-24 h-24 sm:w-32 sm:h-32 rounded-2xl bg-gradient-to-br ${collectionRating.gradeColor} flex items-center justify-center shadow-2xl`}>
+                <span className="text-5xl sm:text-6xl font-black text-white">{collectionRating.grade}</span>
+              </div>
+              <div className="flex-1 text-center sm:text-left">
+                <div className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-2">Общий счёт</div>
+                <div className="text-4xl sm:text-5xl font-black text-white mb-3">{collectionRating.overallScore}<span className="text-lg sm:text-xl text-slate-400">/100</span></div>
+                <div className="flex flex-wrap items-center justify-center sm:justify-start gap-3">
+                  <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-indigo-500/10 border border-indigo-500/20">
+                    <Star className="w-4 h-4 text-indigo-400" />
+                    <span className="text-sm font-bold text-indigo-200">Редкость: {collectionRating.avgRarity}%</span>
+                  </div>
+                  <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-purple-500/10 border border-purple-500/20">
+                    <Heart className="w-4 h-4 text-purple-400" />
+                    <span className="text-sm font-bold text-purple-200">Сила: {Math.round((collectionRating.totalPower / (collectedCards.length || 1)) / 5 * 100) / 100}%</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8">
+              {/* Stats Overview */}
+              <div className="space-y-4 sm:space-y-5">
+                <h3 className="text-lg sm:text-xl font-black text-white uppercase tracking-tight flex items-center gap-2">
+                  <Sparkles className="w-5 h-5 text-yellow-400" />
+                  Характеристики
+                </h3>
+                <div className="space-y-3 sm:space-y-4 p-4 sm:p-5 rounded-xl bg-slate-800/30 border border-slate-700/50">
+                  <StatBar label={statLabels.hp} value={collectionRating.stats.avgHp} color="from-red-400 to-rose-500" />
+                  <StatBar label={statLabels.atk} value={collectionRating.stats.avgAtk} color="from-orange-400 to-amber-500" />
+                  <StatBar label={statLabels.def} value={collectionRating.stats.avgDef} color="from-blue-400 to-cyan-500" />
+                  <StatBar label={statLabels.spd} value={collectionRating.stats.avgSpd} color="from-emerald-400 to-teal-500" />
+                  <StatBar label={statLabels.luck} value={collectionRating.stats.avgLuck} color="from-purple-400 to-pink-500" />
+                </div>
+                <div className="p-4 rounded-xl bg-slate-800/30 border border-slate-700/50">
+                  <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Общая сила</div>
+                  <div className="text-2xl sm:text-3xl font-black text-white">{collectionRating.totalPower.toLocaleString()}</div>
+                </div>
+              </div>
+
+              {/* Rarity Distribution */}
+              <div className="space-y-4 sm:space-y-5">
+                <h3 className="text-lg sm:text-xl font-black text-white uppercase tracking-tight flex items-center gap-2">
+                  <Crown className="w-5 h-5 text-amber-400" />
+                  Распределение редкости
+                </h3>
+                <div className="p-4 sm:p-5 rounded-xl bg-slate-800/30 border border-slate-700/50 space-y-2">
+                  {RARITY_ORDER.map((rarity) => {
+                    const count = collectionRating.rarityDistribution[rarity] || 0
+                    if (count === 0) return null
+                    const percentage = Math.round((count / collectedCards.length) * 100)
+                    return (
+                      <div key={rarity} className="flex items-center gap-3">
+                        <div className={`w-3 h-3 rounded-full bg-gradient-to-r ${rarityConfig[rarity].color}`} />
+                        <span className="text-xs sm:text-sm font-bold text-slate-300 min-w-[100px]">{rarityConfig[rarity].label}</span>
+                        <div className="flex-1 h-2 bg-slate-700/50 rounded-full overflow-hidden">
+                          <div className={`h-full bg-gradient-to-r ${rarityConfig[rarity].color}`} style={{ width: `${percentage}%` }} />
+                        </div>
+                        <span className="text-xs sm:text-sm font-black text-white w-8 text-right">{count}</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* Top Cards */}
+            <div className="mt-6 sm:mt-8 space-y-4 sm:space-y-5">
+              <h3 className="text-lg sm:text-xl font-black text-white uppercase tracking-tight flex items-center gap-2">
+                <Star className="w-5 h-5 text-yellow-400 fill-yellow-400" />
+                Лучшие карты
+              </h3>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 sm:gap-4">
+                {collectionRating.topCards.map((card) => (
+                  <div
+                    key={card.uniqueId}
+                    className="aspect-[2/3] rounded-xl overflow-hidden border border-white/10 relative group bg-slate-900 cursor-pointer transition-all hover:scale-105 hover:shadow-xl hover:shadow-indigo-500/20"
+                    onClick={() => {
+                      setViewedCard(card)
+                      setShowRatingModal(false)
+                    }}
+                  >
+                    <img
+                      src={card.imageUrl}
+                      className="absolute inset-0 w-full h-full object-cover"
+                      alt={card.name}
+                      referrerPolicy="no-referrer"
+                      onError={(e) => handleImageError(e, card, true)}
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/30 to-transparent" />
+                    <div className={`absolute top-2 right-2 w-3 h-3 rounded-full bg-gradient-to-r ${rarityConfig[card.rarity].color} shadow-lg border border-white/20`} />
+                    <div className="absolute bottom-0 inset-x-0 p-2 sm:p-3">
+                      <p className="text-[9px] sm:text-xs font-bold text-slate-300 truncate">{card.name}</p>
+                      <div className="flex items-center gap-1 mt-0.5">
+                        <Star className="w-2.5 h-2.5 text-yellow-400 fill-yellow-400" />
+                        <span className="text-[9px] sm:text-xs font-bold text-white">{card.score.toFixed(1)}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
@@ -1441,21 +1716,37 @@ export default function GachaPage() {
                   </h2>
                 </div>
 
-                {!isLoaded ? (
-                  <div className="flex items-center gap-2 px-5 py-2.5 bg-slate-900 border border-slate-800 text-slate-500 font-bold rounded-xl text-sm w-fit cursor-not-allowed">
-                    <Search className="w-4 h-4" />
-                    Загрузка...
-                  </div>
-                ) : (
+                <div className="flex items-center gap-3">
+                  {/* Collection Rating Badge */}
                   <button
-                    onClick={() => setShowFilters(!showFilters)}
-                    className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm transition-all border ${showFilters ? 'bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-500/25' : 'bg-slate-800 border-slate-700 hover:bg-slate-700 text-white'}`}
+                    onClick={() => setShowRatingModal(true)}
+                    className="flex items-center gap-2 sm:gap-3 px-4 sm:px-5 py-2.5 sm:py-3 rounded-xl bg-gradient-to-br from-slate-900 to-slate-800 border border-slate-700 hover:border-slate-600 transition-all shadow-lg hover:shadow-xl group"
                   >
-                    <Search className="w-4 h-4" />
-                    Фильтры
-                    {showFilters ? <X className="w-4 h-4 ml-1" /> : null}
+                    <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-lg bg-gradient-to-br ${collectionRating.gradeColor} flex items-center justify-center shadow-lg`}>
+                      <span className="text-lg sm:text-xl font-black text-white">{collectionRating.grade}</span>
+                    </div>
+                    <div className="text-left hidden sm:block">
+                      <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">Рейтинг</div>
+                      <div className="text-sm font-black text-white">{collectionRating.overallScore}/100</div>
+                    </div>
                   </button>
-                )}
+
+                  {!isLoaded ? (
+                    <div className="flex items-center gap-2 px-5 py-2.5 bg-slate-900 border border-slate-800 text-slate-500 font-bold rounded-xl text-sm w-fit cursor-not-allowed">
+                      <Search className="w-4 h-4" />
+                      Загрузка...
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setShowFilters(!showFilters)}
+                      className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm transition-all border ${showFilters ? 'bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-500/25' : 'bg-slate-800 border-slate-700 hover:bg-slate-700 text-white'}`}
+                    >
+                      <Search className="w-4 h-4" />
+                      Фильтры
+                      {showFilters ? <X className="w-4 h-4 ml-1" /> : null}
+                    </button>
+                  )}
+                </div>
               </div>
 
               {/* Filter Panel */}

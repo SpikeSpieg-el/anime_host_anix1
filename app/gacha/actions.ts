@@ -190,7 +190,8 @@ async function fetchHighQualityArt(characterName: string, animeName: string, ign
 
   const filteredPool = pool.filter(url => !ignoredUrls.includes(url));
   if (filteredPool.length > 0) {
-    return filteredPool[Math.floor(Math.random() * Math.min(filteredPool.length, 5))];
+    // Выбираем случайный арт из ВСЕГО доступного пула (не только первые 5)
+    return filteredPool[Math.floor(Math.random() * filteredPool.length)];
   }
   return null;
 }
@@ -255,7 +256,7 @@ export interface GachaResult {
 async function processCharacterData(anime: any, usedIds: number[], ignoredUrls: string[], rarityBoost: number = 0): Promise<GachaResult | null> {
   const score = parseFloat(anime.score || "0");
   console.log(`[processCharacterData] Processing anime: ${anime.name} (ID: ${anime.id}), score: ${score}`);
-  
+
   const rolesRes = await fetch(`https://shikimori.one/api/animes/${anime.id}/roles`);
   if (!rolesRes.ok) {
     console.log(`[processCharacterData] Failed to fetch roles for anime ${anime.id}: ${rolesRes.status}`);
@@ -264,14 +265,36 @@ async function processCharacterData(anime: any, usedIds: number[], ignoredUrls: 
   const rolesData = await rolesRes.json();
   console.log(`[processCharacterData] Got ${rolesData.length} roles for anime ${anime.name}`);
 
-  const available = rolesData
+  // Фильтрация персонажей: исключаем использованные ID и ВСЕХ персонажей с missing-изображениями
+  // missing_original.jpg, missing_image.jpg и т.д. означают, что персонаж второстепенный/непопулярный
+  let available = rolesData
     .filter((r: any) => r.character && r.character.id && !usedIds.includes(r.character.id))
-    .filter((r: any) => !r.character.image.original.includes('missing'));
+    .filter((r: any) => {
+      const imageUrl = r.character.image.original;
+      // Исключаем все варианты missing изображений
+      const isMissing = imageUrl.includes('missing');
+      if (isMissing) {
+        console.log(`[processCharacterData] Excluding character "${r.character.name}" (ID: ${r.character.id}) - missing image: ${imageUrl}`);
+      }
+      return !isMissing;
+    });
 
-  console.log(`[processCharacterData] Available characters after filtering: ${available.length} (used IDs: ${usedIds.length})`);
+  console.log(`[processCharacterData] Available characters after filtering (excluded used IDs and missing images): ${available.length} (used IDs: ${usedIds.length})`);
+
+  // If no characters available, try relaxing ONLY the usedIds filter (but NEVER missing images)
+  if (available.length === 0 && usedIds.length > 200) {
+    console.log(`[processCharacterData] No available characters, relaxing used ID filter (but keeping missing image filter)...`);
+    available = rolesData
+      .filter((r: any) => r.character && r.character.id)
+      .filter((r: any) => {
+        const imageUrl = r.character.image.original;
+        return !imageUrl.includes('missing');
+      });
+    console.log(`[processCharacterData] Available characters after relaxing used ID filter: ${available.length}`);
+  }
 
   if (available.length === 0) {
-    console.log(`[processCharacterData] No available characters for anime ${anime.name}`);
+    console.log(`[processCharacterData] No available characters for anime ${anime.name} (all have missing images or are used)`);
     return null;
   }
 
@@ -293,23 +316,37 @@ async function processCharacterData(anime: any, usedIds: number[], ignoredUrls: 
 
   // Ищем фан-арт только для главных персонажей
   let fanArt: string | null = null;
+  let allFanArtBanned = false;
   if (isMain) {
     console.log(`[processCharacterData] Searching fan art for main character: ${char.name}`);
     fanArt = await fetchHighQualityArt(char.name, anime.name, ignoredUrls);
-    console.log(`[processCharacterData] Fan art result: ${fanArt ? 'found' : 'not found'}`);
+    
+    // Проверяем, есть ли вообще фан-арты в пуле (для определения "все забанены")
+    const charTags = getCharacterTags(char.name);
+    const seriesTag = getCopyrightTag(anime.name);
+    const cacheKey = `${charTags[0]}_${seriesTag}`;
+    const artPool = characterArtCache.get(cacheKey) || [];
+    
+    if (artPool.length > 0 && !fanArt) {
+      // Фан-арты есть, но все забанены
+      allFanArtBanned = true;
+      console.log(`[processCharacterData] All fan art banned for ${char.name}, using official art`);
+    }
+    console.log(`[processCharacterData] Fan art result: ${fanArt ? 'found' : (allFanArtBanned ? 'all banned' : 'not found')}`);
   }
 
   const result = {
     animeName: anime.russian || anime.name,
     score: score,
     rarity: rarity,
-    characterName: char.russian || char.name, 
+    characterName: char.russian || char.name,
     characterId: char.id,
     originalUrl: originalShikiUrl, // Всегда храним официальный
     imageUrl: fanArt || originalShikiUrl, // Фан-арт только для главных, иначе официальный
     shikiId: anime.id,
     stats: generateStats(rarity),
-    isMainCharacter: isMain
+    isMainCharacter: isMain,
+    allFanArtBanned: allFanArtBanned // Флаг: все фан-арты забанены
   };
 
   console.log(`[processCharacterData] Returning result for ${result.characterName} from ${result.animeName}`);
@@ -342,58 +379,84 @@ export async function rollAnimeCharacter(usedCharacterIds: number[] = [], ignore
     
     console.log(`[rollAnimeCharacter] No valid characters found in ${data.length} anime series`);
     return null;
-  } catch (e) { 
+  } catch (e) {
     console.error(`[rollAnimeCharacter] Error:`, e);
-    return null; 
+    throw e; // Re-throw to provide better error context
   }
 }
 
 export async function rollFromAnimePack(pack: AnimePack, usedCharacterIds: number[] = [], ignoredUrls: string[] = []): Promise<GachaResult | null> {
-  console.log(`[rollFromAnimePack] Starting pack roll: ${pack.name}, anime IDs: ${pack.animeIds.length}`);
-  
-  const shuffledIds = [...pack.animeIds].sort(() => Math.random() - 0.5);
-  
-  // Определяем, будет ли это гарантированная карточка (20% шанс)
-  const isGuaranteedRoll = pack.guaranteedRarity && Math.random() < 0.2;
-  console.log(`[rollFromAnimePack] Guaranteed roll: ${isGuaranteedRoll}, rarity: ${pack.guaranteedRarity}`);
-  
-  for (const id of shuffledIds) {
-    const res = await fetch(`https://shikimori.one/api/animes/${id}`);
-    if (!res.ok) {
-      console.log(`[rollFromAnimePack] Failed to fetch anime ${id}: ${res.status}`);
-      continue;
+  try {
+    console.log(`[rollFromAnimePack] Starting pack roll: ${pack.name}, anime IDs: ${pack.animeIds.length}`);
+
+    if (!pack.animeIds || pack.animeIds.length === 0) {
+      console.error(`[rollFromAnimePack] Pack ${pack.name} has no anime IDs`);
+      throw new Error(`Pack ${pack.name} is empty or invalid`);
     }
-    const anime = await res.json();
-    console.log(`[rollFromAnimePack] Processing anime: ${anime.name} (ID: ${id})`);
-    
-    // Если это гарантированный ролл, применяем гарантию
-    const rarityBoost = isGuaranteedRoll ? 0 : 0.2; // 20% буст для обычных карточек
-    const result = await processCharacterData(anime, usedCharacterIds, ignoredUrls, rarityBoost);
-    
-    if (result) {
-      // Если это гарантированный ролл, применяем гарантию
-      if (isGuaranteedRoll && pack.guaranteedRarity) {
-        result.rarity = pack.guaranteedRarity;
-        result.stats = generateStats(result.rarity);
-        console.log(`[rollFromAnimePack] Applied guaranteed rarity ${pack.guaranteedRarity} to ${result.characterName}`);
+
+    // Делаем до 3 попыток с перетасовкой ID, если не нашли персонажей
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const shuffledIds = [...pack.animeIds].sort(() => Math.random() - 0.5);
+
+        // Определяем, будет ли это гарантированная карточка (20% шанс)
+        const isGuaranteedRoll = pack.guaranteedRarity && Math.random() < 0.2;
+        console.log(`[rollFromAnimePack] Attempt ${attempt + 1}/3, Guaranteed roll: ${isGuaranteedRoll}, rarity: ${pack.guaranteedRarity}`);
+
+        let processedCount = 0;
+        for (const id of shuffledIds) {
+          processedCount++;
+          
+          const res = await fetch(`https://shikimori.one/api/animes/${id}`);
+          if (!res.ok) {
+            console.log(`[rollFromAnimePack] Failed to fetch anime ${id}: ${res.status}`);
+            continue;
+          }
+          const anime = await res.json();
+          
+          const result = await processCharacterData(anime, usedCharacterIds, ignoredUrls, 0);
+
+          if (result) {
+            // Если это гарантированный ролл, применяем гарантию
+            if (isGuaranteedRoll && pack.guaranteedRarity) {
+              result.rarity = pack.guaranteedRarity;
+              result.stats = generateStats(result.rarity);
+              console.log(`[rollFromAnimePack] Applied guaranteed rarity ${pack.guaranteedRarity} to ${result.characterName}`);
+            }
+
+            // Затем для главных героев повышаем на 1 уровень выше
+            if (result.isMainCharacter) {
+              const currentRarityIndex = RARITY_ORDER.indexOf(result.rarity);
+              const boostedRarity = RARITY_ORDER[Math.min(currentRarityIndex + 1, RARITY_ORDER.length - 1)];
+              result.rarity = boostedRarity;
+              result.stats = generateStats(boostedRarity);
+              console.log(`[rollFromAnimePack] Boosted main character ${result.characterName} rarity to ${boostedRarity}`);
+            }
+
+            console.log(`[rollFromAnimePack] Successfully rolled: ${result.characterName} from ${result.animeName} (attempt ${attempt + 1}, processed ${processedCount} anime)`);
+            return { ...result, packId: pack.id, packName: pack.name };
+          }
+        }
+
+        console.log(`[rollFromAnimePack] No valid characters in attempt ${attempt + 1}, retrying...`);
+        
+        if (attempt < 2) {
+          await new Promise(resolve => setTimeout(resolve, 300)); // Короткая пауза перед новой попыткой
+        }
+      } catch (fetchError) {
+        console.error(`[rollFromAnimePack] Fetch error (attempt ${attempt + 1}):`, fetchError);
+        if (attempt >= 2) throw fetchError;
+        await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1s before retry
       }
-      
-      // Затем для главных героев повышаем на 1 уровень выше
-      if (result.isMainCharacter) {
-        const currentRarityIndex = RARITY_ORDER.indexOf(result.rarity);
-        const boostedRarity = RARITY_ORDER[Math.min(currentRarityIndex + 1, RARITY_ORDER.length - 1)];
-        result.rarity = boostedRarity;
-        result.stats = generateStats(boostedRarity);
-        console.log(`[rollFromAnimePack] Boosted main character ${result.characterName} rarity to ${boostedRarity}`);
-      }
-      
-      console.log(`[rollFromAnimePack] Successfully rolled: ${result.characterName} from ${result.animeName}`);
-      return { ...result, packId: pack.id, packName: pack.name };
     }
+
+    console.log(`[rollFromAnimePack] Exhausted all 3 attempts, no valid characters found in pack ${pack.name}`);
+    console.log(`[rollFromAnimePack] Used character IDs: [${usedCharacterIds.slice(0, 10).join(', ')}${usedCharacterIds.length > 10 ? '...' : ''}]`);
+    return null;
+  } catch (e) {
+    console.error(`[rollFromAnimePack] Error:`, e);
+    throw e; // Re-throw to provide better error context
   }
-  
-  console.log(`[rollFromAnimePack] No valid characters found in pack ${pack.name}`);
-  return null;
 }
 
 export async function searchGachaPacks(query: string): Promise<AnimePack[]> {

@@ -36,15 +36,25 @@ export async function GET(request: Request) {
 
     const authHeader = request.headers.get('authorization')
     if (!authHeader?.startsWith('Bearer ')) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      console.error('Missing or invalid authorization header:', authHeader ? 'Invalid format' : 'Missing header')
+      return NextResponse.json({ error: 'Unauthorized: Missing or invalid authorization header' }, { status: 401 })
     }
 
     const token = authHeader.substring(7)
     const { data: { user }, error: authError } = await supabaseAuth.auth.getUser(token)
 
     if (authError || !user) {
-      console.error('Auth error:', authError)
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      console.error('Auth error details:', { 
+        error: authError?.message, 
+        code: authError?.code,
+        status: authError?.status,
+        tokenLength: token.length,
+        tokenStart: token.substring(0, 10) + '...'
+      })
+      return NextResponse.json({ 
+        error: 'Unauthorized: Invalid or expired token', 
+        details: authError?.message 
+      }, { status: 401 })
     }
 
     console.log('Authenticated user:', user.id)
@@ -135,15 +145,25 @@ export async function POST(request: Request) {
 
     const authHeader = request.headers.get('authorization')
     if (!authHeader?.startsWith('Bearer ')) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      console.error('Missing or invalid authorization header:', authHeader ? 'Invalid format' : 'Missing header')
+      return NextResponse.json({ error: 'Unauthorized: Missing or invalid authorization header' }, { status: 401 })
     }
 
     const token = authHeader.substring(7)
     const { data: { user }, error: authError } = await supabaseAuth.auth.getUser(token)
 
     if (authError || !user) {
-      console.error('Auth error:', authError)
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      console.error('Auth error details:', { 
+        error: authError?.message, 
+        code: authError?.code,
+        status: authError?.status,
+        tokenLength: token.length,
+        tokenStart: token.substring(0, 10) + '...'
+      })
+      return NextResponse.json({ 
+        error: 'Unauthorized: Invalid or expired token', 
+        details: authError?.message 
+      }, { status: 401 })
     }
 
     console.log('Authenticated user:', user.id)
@@ -250,15 +270,25 @@ export async function DELETE(request: Request) {
 
     const authHeader = request.headers.get('authorization')
     if (!authHeader?.startsWith('Bearer ')) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      console.error('Missing or invalid authorization header:', authHeader ? 'Invalid format' : 'Missing header')
+      return NextResponse.json({ error: 'Unauthorized: Missing or invalid authorization header' }, { status: 401 })
     }
 
     const token = authHeader.substring(7)
     const { data: { user }, error: authError } = await supabaseAuth.auth.getUser(token)
 
     if (authError || !user) {
-      console.error('Auth error:', authError)
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      console.error('Auth error details:', { 
+        error: authError?.message, 
+        code: authError?.code,
+        status: authError?.status,
+        tokenLength: token.length,
+        tokenStart: token.substring(0, 10) + '...'
+      })
+      return NextResponse.json({ 
+        error: 'Unauthorized: Invalid or expired token', 
+        details: authError?.message 
+      }, { status: 401 })
     }
 
     console.log('Authenticated user:', user.id)
