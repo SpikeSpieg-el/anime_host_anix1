@@ -1,5 +1,5 @@
 /**
- * INFINITE ART ENGINE V5.2 - ANTI-TIMEOUT & DIRECT CDN
+ * INFINITE ART ENGINE V5.4 - INFINITE EXPLORER MODE
  */
 
 export interface ArtResult {
@@ -7,6 +7,13 @@ export interface ArtResult {
   source: string;
   tag: string;
 }
+
+interface CacheEntry {
+  pool: ArtResult[];
+  pages: Record<string, number>; // Храним последнюю страницу для каждого источника
+}
+
+const characterArtCache = new Map<string, CacheEntry>();
 
 function getCharacterTags(name: string): { booru: string[], zerochan: string[] } {
   const engName = name.includes('/') ? name.split('/')[1] : name;
@@ -20,28 +27,25 @@ function getCharacterTags(name: string): { booru: string[], zerochan: string[] }
   } else {
     booru.push(parts[0]);
   }
-
-  return { 
-    booru: [...new Set(booru)], 
-    zerochan: [cleanName] 
-  };
+  return { booru: [...new Set(booru)], zerochan: [cleanName] };
 }
 
-async function fetchFromSource(source: string, tag: string, deepSearch: boolean): Promise<ArtResult[]> {
-  const limit = 40; 
-  const page = deepSearch ? Math.floor(Math.random() * 4) + 1 : 1;
+async function fetchFromSource(
+  source: string, 
+  tag: string, 
+  page: number, 
+  ignoredUrls: string[]
+): Promise<ArtResult[]> {
+  const limit = 50; 
   const controller = new AbortController();
-  // Уменьшаем таймаут до 4 секунд, чтобы не вешать весь призыв, если один сайт тормозит
-  const timeoutId = setTimeout(() => controller.abort(), 4000); 
+  const timeoutId = setTimeout(() => controller.abort(), 6000);
 
   try {
     let results: ArtResult[] = [];
-    const headers = { 
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      'Accept': 'application/json'
-    };
+    const headers = { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' };
 
     let url = '';
+    // Пагинация везде разная: pid для Safebooru, page для остальных
     if (source === 'safebooru') {
       url = `https://safebooru.org/index.php?page=dapi&s=post&q=index&json=1&tags=${encodeURIComponent(tag)}&limit=${limit}&pid=${page - 1}`;
     } else if (source === 'danbooru') {
@@ -56,44 +60,40 @@ async function fetchFromSource(source: string, tag: string, deepSearch: boolean)
     if (!res.ok) return [];
 
     const data = await res.json();
-    
-    // --- BOORU PROCESSING ---
-    if (source === 'safebooru' || source === 'danbooru' || source === 'konachan') {
-      const items = Array.isArray(data) ? data : [];
-      items.forEach((p: any) => {
-        const h = parseInt(p.height || 0);
-        const w = parseInt(p.width || 0);
-        if (h > w && h >= 700) {
-          let finalUrl = p.file_url || p.large_file_url || p.sample_url;
-          if (source === 'safebooru' && p.directory) {
-            finalUrl = `https://safebooru.org/images/${p.directory}/${p.image}`;
-          }
-          if (finalUrl) results.push({ url: finalUrl, source, tag });
+    const items = source === 'zerochan' ? (data?.items || []) : (Array.isArray(data) ? data : []);
+
+    if (items.length === 0) return [];
+
+    items.forEach((p: any) => {
+      const h = parseInt(p.height || 0);
+      const w = parseInt(p.width || 0);
+      
+      // Фильтр: Портрет (высота > ширина) и качество (высота >= 700)
+      if (h > w && h >= 700) {
+        let finalUrl = p.file_url || p.large_file_url || p.sample_url || p.full || p.large;
+        
+        if (source === 'safebooru' && p.directory) {
+          finalUrl = `https://safebooru.org/images/${p.directory}/${p.image}`;
         }
-      });
-    } 
-    // --- ZEROCHAN PROCESSING (STABLE LINKS) ---
-    else if (source === 'zerochan' && data?.items) {
-      data.items.forEach((item: any) => {
-        if (parseInt(item.height) > parseInt(item.width) && parseInt(item.height) >= 700) {
-          // Zerochan CDN s3 часто тормозит. Используем прямые ссылки на превью, 
-          // которые быстрее грузятся и реже выдают 404/500
-          const fastUrl = item.large || item.full || item.thumbnail?.replace(/\/240\//, '/600/');
-          if (fastUrl) results.push({ url: fastUrl, source, tag });
+        
+        // Zerochan fallback для качества
+        if (source === 'zerochan' && !finalUrl && p.thumbnail) {
+          finalUrl = p.thumbnail.replace(/\/240\//, '/600/').replace(/\.avif$/, '.jpg');
         }
-      });
-    }
+
+        if (finalUrl && !ignoredUrls.includes(finalUrl)) {
+          results.push({ url: finalUrl, source, tag });
+        }
+      }
+    });
 
     return results;
   } catch (e) {
-    // Если упали по таймауту или ошибке - просто возвращаем пустой массив для этого источника
     return [];
   } finally {
     clearTimeout(timeoutId);
   }
 }
-
-const characterArtCache = new Map<string, { pool: ArtResult[] }>();
 
 export async function fetchHighQualityArt(
   characterName: string, 
@@ -103,59 +103,90 @@ export async function fetchHighQualityArt(
   const cacheKey = characterName;
   const { booru, zerochan } = getCharacterTags(characterName);
 
-  let entry = characterArtCache.get(cacheKey);
-  let pool = (entry?.pool || []).filter(item => !ignoredUrls.includes(item.url));
+  // 1. Инициализация кэша персонажа
+  if (!characterArtCache.has(cacheKey)) {
+    characterArtCache.set(cacheKey, { pool: [], pages: {} });
+  }
+  
+  const entry = characterArtCache.get(cacheKey)!;
+  
+  // 2. Фильтруем текущий пул от банов
+  entry.pool = entry.pool.filter(item => !ignoredUrls.includes(item.url));
 
-  if (pool.length < 3) {
-    console.log(`[Art Engine] Starting parallel fetch for: ${characterName}`);
+  // 3. Если в пуле мало артов — идем добывать новые
+  if (entry.pool.length < 5) {
+    console.log(`[Art Engine] Infinite Scour: Searching deeper for ${characterName}...`);
     
-    const tasks: Promise<ArtResult[]>[] = [];
-    zerochan.forEach(t => tasks.push(fetchFromSource('zerochan', t, forceNew)));
-    booru.forEach(t => {
-      tasks.push(fetchFromSource('konachan', t, forceNew));
-      tasks.push(fetchFromSource('danbooru', t, forceNew));
-      tasks.push(fetchFromSource('safebooru', t, forceNew));
+    const sourceBuckets = new Map<string, ArtResult[]>();
+    const sources = ['zerochan', 'konachan', 'danbooru', 'safebooru'];
+
+    // Запускаем запросы ко всем источникам
+    const tasks: Promise<{src: string, results: ArtResult[]}>[] = [];
+
+    sources.forEach(src => {
+      const tags = src === 'zerochan' ? zerochan : booru;
+      tags.forEach(tag => {
+        const key = `${src}:${tag}`;
+        // Увеличиваем номер страницы для этого тега
+        const lastPage = entry.pages[key] || 0;
+        const nextPage = lastPage + 1;
+        entry.pages[key] = nextPage;
+
+        tasks.push((async () => {
+          const res = await fetchFromSource(src, tag, nextPage, ignoredUrls);
+          return { src, results: res };
+        })());
+      });
     });
 
     const allResults = await Promise.allSettled(tasks);
-    const sourceBuckets = new Map<string, ArtResult[]>();
     
     allResults.forEach(r => {
-      if (r.status === 'fulfilled' && r.value.length > 0) {
-        r.value.forEach(item => {
-          const list = sourceBuckets.get(item.source) || [];
-          if (!list.some(x => x.url === item.url)) {
-            list.push(item);
-            sourceBuckets.set(item.source, list);
-          }
+      if (r.status === 'fulfilled') {
+        const { src, results } = r.value;
+        const list = sourceBuckets.get(src) || [];
+        results.forEach(item => {
+          if (!list.some(x => x.url === item.url)) list.push(item);
         });
+        if (list.length > 0) sourceBuckets.set(src, list);
       }
     });
 
+    // Честное чередование (Round-Robin)
     const interleaved: ArtResult[] = [];
-    const sources = Array.from(sourceBuckets.keys()).sort(() => Math.random() - 0.5);
-    if (sources.length === 0) return null;
-
-    sourceBuckets.forEach(list => list.sort(() => Math.random() - 0.5));
-
+    const activeSources = Array.from(sourceBuckets.keys()).sort(() => Math.random() - 0.5);
+    
     let maxItems = 0;
-    sourceBuckets.forEach(list => maxItems = Math.max(maxItems, list.length));
+    sourceBuckets.forEach(list => {
+      list.sort(() => Math.random() - 0.5);
+      maxItems = Math.max(maxItems, list.length);
+    });
 
     for (let i = 0; i < maxItems; i++) {
-      for (const src of sources) {
+      for (const src of activeSources) {
         const bucket = sourceBuckets.get(src);
         if (bucket && bucket[i]) interleaved.push(bucket[i]);
       }
     }
 
-    pool = interleaved;
-    console.log(`[Art Engine] Pool Built. Total: ${pool.length} images.`);
+    // Добавляем новые арты в конец текущего пула
+    entry.pool = [...entry.pool, ...interleaved];
+    console.log(`[Art Engine] Infinite Pool: +${interleaved.length} new images. Next pages tracked.`);
+    
+    // Если всё еще пусто (дошли до конца всех страниц), сбрасываем страницы и пробуем рандом
+    if (entry.pool.length === 0) {
+      console.warn(`[Art Engine] Exhausted all pages for ${characterName}. Resetting pages.`);
+      entry.pages = {}; 
+    }
   }
 
-  const selected = pool[0] || null;
+  // 4. Выбор арта
+  const selected = entry.pool.shift() || null;
+
   if (selected) {
-    console.log(`[Art Engine] Selected: ${selected.source.toUpperCase()} | ${selected.url}`);
-    characterArtCache.set(cacheKey, { pool: pool.slice(1) });
+    console.log(`[Art Engine] Selected: ${selected.source.toUpperCase()} | Page: ${entry.pages[`${selected.source}:${selected.tag}`]} | ${characterName}`);
+    return selected;
   }
-  return selected;
+
+  return null;
 }
