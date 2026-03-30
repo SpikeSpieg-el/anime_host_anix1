@@ -258,6 +258,87 @@ export interface CustomPackSearchResult {
   foundAnime: Array<{ id: number; name: string; russian: string | null; score: number | null; imageUrl: string }>;
 }
 
+export async function checkPackAvailability(
+  pack: AnimePack,
+  usedCharacterIds: number[] = []
+): Promise<{
+  totalCharacters: number;
+  collectedCount: number;
+  availableCount: number;
+  collectionRate: number;
+  isEmpty: boolean;
+  isNearlyComplete: boolean;
+}> {
+  try {
+    if (!pack.animeIds || pack.animeIds.length === 0) {
+      return {
+        totalCharacters: 0,
+        collectedCount: usedCharacterIds.length,
+        availableCount: 0,
+        collectionRate: 1,
+        isEmpty: true,
+        isNearlyComplete: true
+      };
+    }
+
+    // Для каждого аниме в паке получаем количество персонажей
+    let totalCharacterCount = 0;
+    let availableCharacterCount = 0;
+
+    for (const animeId of pack.animeIds) {
+      try {
+        const res = await fetch(`https://shikimori.one/api/animes/${animeId}/roles`);
+        if (res.ok) {
+          const roles = await res.json();
+          const validCharacters = roles.filter((r: any) => 
+            r.character && 
+            r.character.id && 
+            !r.character.image.original.includes('missing')
+          );
+          
+          totalCharacterCount += validCharacters.length;
+          
+          // Считаем персонажей, которых еще нет в коллекции
+          const newCharacters = validCharacters.filter((r: any) => 
+            !usedCharacterIds.includes(r.character.id)
+          );
+          availableCharacterCount += newCharacters.length;
+        }
+      } catch (error) {
+        console.error(`Error checking anime ${animeId}:`, error);
+        // В случае ошибки, предполагаем 5 персонажей в среднем
+        totalCharacterCount += 5;
+        availableCharacterCount += Math.max(0, 5 - usedCharacterIds.length);
+      }
+    }
+
+    const collectionRate = totalCharacterCount > 0 ? (totalCharacterCount - availableCharacterCount) / totalCharacterCount : 0;
+    const collectedFromPack = totalCharacterCount - availableCharacterCount;
+    
+    const isNearlyComplete = availableCharacterCount < (totalCharacterCount * 0.2); // Менее 20% доступно
+    const isEmpty = availableCharacterCount === 0;
+
+    return {
+      totalCharacters: totalCharacterCount,
+      collectedCount: collectedFromPack,
+      availableCount: availableCharacterCount,
+      collectionRate,
+      isEmpty,
+      isNearlyComplete
+    };
+  } catch (error) {
+    console.error('[checkPackAvailability] Error:', error);
+    return {
+      totalCharacters: pack.animeIds ? pack.animeIds.length * 5 : 0, // Оценка
+      collectedCount: usedCharacterIds.length,
+      availableCount: Math.max(0, (pack.animeIds ? pack.animeIds.length * 5 : 0) - usedCharacterIds.length),
+      collectionRate: usedCharacterIds.length / (pack.animeIds ? pack.animeIds.length * 5 : 1),
+      isEmpty: false,
+      isNearlyComplete: false
+    };
+  }
+}
+
 export async function createCustomGachaPack(query: string): Promise<CustomPackSearchResult | null> {
   if (!query.trim()) return null;
   try {

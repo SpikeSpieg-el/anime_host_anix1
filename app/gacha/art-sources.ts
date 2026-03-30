@@ -69,7 +69,8 @@ async function fetchFromSource(
       const w = parseInt(p.width || 0);
       
       // Фильтр: Портрет (высота > ширина) и качество (высота >= 700)
-      if (h > w && h >= 700) {
+      // if (h > w && h >= 700) {
+      if (h >= 700) {
         let finalUrl = p.file_url || p.large_file_url || p.sample_url || p.full || p.large;
         
         if (source === 'safebooru' && p.directory) {

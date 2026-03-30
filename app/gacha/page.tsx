@@ -4,13 +4,14 @@ import { useState, useRef, MouseEvent, useCallback, useEffect, useMemo } from "r
 import Image from "next/image"
 import { Navbar } from "@/components/navbar"
 import { Sparkles, Star, Heart, Loader2, X, ZoomIn, ExternalLink, RefreshCcw, Trash, Crown, Package, Coins, Search, Database } from "lucide-react"
-import { rollAnimeCharacter, rollFromAnimePack, searchGachaPacks, createCustomGachaPack } from "./actions"
+import { rollAnimeCharacter, rollFromAnimePack, searchGachaPacks, createCustomGachaPack, checkPackAvailability } from "./actions"
 import { saveCardToDatabase, loadUserCards, deleteCardFromDatabase } from "./client-actions"
 import { ANIME_PACKS, AnimePack, CustomAnimePack, createCustomPack, loadYearBasedPacks } from "@/lib/gacha-packs"
 import { useCoins } from "@/hooks/use-coins"
 import { GachaLoading } from "@/components/gacha-loading"
 import { CollectionCardSkeleton } from "@/components/collection-skeleton"
-import { PackCardSkeleton } from "@/components/pack-skeleton" 
+import { PackCardSkeleton } from "@/components/pack-skeleton"
+import { GachaErrorPopup } from "@/components/gacha-error-popup" 
 
 export type Rarity = 
   | "trash" | "common" | "uncommon" | "rare" | "super_rare" | "epic" 
@@ -587,6 +588,16 @@ export default function GachaPage() {
   const[selectedMainCharacterFilter, setSelectedMainCharacterFilter] = useState<"all" | "main" | "supporting">("all")
   const [showFilters, setShowFilters] = useState(false)
   const[showRatingModal, setShowRatingModal] = useState(false)
+  const[showErrorPopup, setShowErrorPopup] = useState(false)
+  const[errorPopupConfig, setErrorPopupConfig] = useState<{
+    title: string;
+    message: string;
+    type?: "error" | "warning" | "info";
+    packName?: string;
+    collectedCount?: number;
+    availableCount?: number;
+    totalCharacters?: number;
+  } | null>(null)
   
   const collectionRating = calculateCollectionRating(collectedCards)
 
@@ -736,22 +747,73 @@ export default function GachaPage() {
       }
       
       if (!result) {
-        let errorMessage = "Не удалось получить персонажа. Попробуйте снова!";
-        if (selectedPack && usedCharacterIds.size >= 50) {
-          const packCollectionRate = usedCharacterIds.size / (selectedPack.animeIds?.length * 5 || 50);
-          if (packCollectionRate > 0.8) {
-            errorMessage = `Вы собрали почти всех персонажей из пака "${selectedPack.name}"! Попробуйте выбрать другой пак или начните новую коллекцию.`;
+        let errorConfig: {
+          title: string;
+          message: string;
+          type: "error" | "warning" | "info";
+          packName?: string;
+          collectedCount?: number;
+          availableCount?: number;
+          totalCharacters?: number;
+        } = {
+          title: "Ошибка получения персонажа",
+          message: "Не удалось получить персонажа. Попробуйте снова!",
+          type: "error"
+        };
+
+        if (selectedPack) {
+          const packAvailability = await checkPackAvailability(selectedPack, Array.from(usedCharacterIds));
+          
+          if (packAvailability.isEmpty) {
+            errorConfig = {
+              title: "Пак полностью собран!",
+              message: `Вы собрали всех персонажей из пака "${selectedPack.name}"! Попробуйте выбрать другой пак или начните новую коллекцию.`,
+              type: "warning",
+              packName: selectedPack.name,
+              collectedCount: packAvailability.collectedCount,
+              availableCount: packAvailability.availableCount,
+              totalCharacters: packAvailability.totalCharacters
+            };
+          } else if (packAvailability.isNearlyComplete) {
+            errorConfig = {
+              title: "Пак почти собран!",
+              message: `Вы собрали почти всех персонажей из пака "${selectedPack.name}"! Осталось всего ${packAvailability.availableCount} персонажей. Попробуйте выбрать другой пак для лучших результатов.`,
+              type: "warning",
+              packName: selectedPack.name,
+              collectedCount: packAvailability.collectedCount,
+              availableCount: packAvailability.availableCount,
+              totalCharacters: packAvailability.totalCharacters
+            };
           } else {
-            errorMessage = "Многие персонажи уже собраны. Рекомендуется выбрать тематический пак для лучших результатов.";
+            errorConfig = {
+              title: "Многие персонажи уже собраны",
+              message: "Многие персонажи уже собраны. Рекомендуется выбрать тематический пак для лучших результатов.",
+              type: "info"
+            };
           }
         } else if (usedCharacterIds.size > 500) {
-          errorMessage = "Вы собрали слишком много персонажей! Попробуйте очистить коллекцию или выберите другой пак.";
+          errorConfig = {
+            title: "Большая коллекция",
+            message: "Вы собрали слишком много персонажей! Попробуйте очистить коллекцию или выберите тематический пак.",
+            type: "warning"
+          };
         } else if (usedCharacterIds.size > 100) {
-          errorMessage = "Многие персонажи уже собраны. Рекомендуется выбрать тематический пак для лучших результатов.";
+          errorConfig = {
+            title: "Многие персонажи уже собраны",
+            message: "Многие персонажи уже собраны. Рекомендуется выбрать тематический пак для лучших результатов.",
+            type: "info"
+          };
         } else {
-          errorMessage = "Не удалось получить персонажа. Возможно, проблемы с API Shikimori. Попробуйте снова через несколько секунд!";
+          errorConfig = {
+            title: "Проблемы с API",
+            message: "Не удалось получить персонажа. Возможно, проблемы с API Shikimori. Попробуйте снова через несколько секунд!",
+            type: "error"
+          };
         }
-        throw new Error(errorMessage);
+
+        setErrorPopupConfig(errorConfig);
+        setShowErrorPopup(true);
+        return;
       }
 
       // Если все арты забанены, пробуем снова
@@ -793,7 +855,12 @@ export default function GachaPage() {
       setShowCard(true)
     } catch (error) {
       console.error("Gacha error:", error)
-      alert(`Ошибка: ${error instanceof Error ? error.message : "Неизвестная ошибка"}. Попробуйте снова!`)
+      setErrorPopupConfig({
+        title: "Ошибка",
+        message: `${error instanceof Error ? error.message : "Неизвестная ошибка"}. Попробуйте снова!`,
+        type: "error"
+      });
+      setShowErrorPopup(true);
     } finally {
       setIsRolling(false)
     }
@@ -2147,6 +2214,21 @@ export default function GachaPage() {
           </div>
         ) : null}
       </div>
+      
+      {/* Error Popup */}
+      {errorPopupConfig && (
+        <GachaErrorPopup
+          isOpen={showErrorPopup}
+          onClose={() => setShowErrorPopup(false)}
+          title={errorPopupConfig.title}
+          message={errorPopupConfig.message}
+          type={errorPopupConfig.type}
+          packName={errorPopupConfig.packName}
+          collectedCount={errorPopupConfig.collectedCount}
+          availableCount={errorPopupConfig.availableCount}
+          totalCharacters={errorPopupConfig.totalCharacters}
+        />
+      )}
     </div>
   )
 }
