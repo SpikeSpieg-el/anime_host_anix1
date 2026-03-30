@@ -1,34 +1,16 @@
 "use client"
 
-import { Loader2 } from "lucide-react"
-
 interface GachaLoadingProps {
   message?: string
-  size?: "sm" | "md" | "lg"
 }
 
-export function GachaLoading({ 
-  message = "Загрузка...", 
-  size = "md"
+export function GachaLoading({
+  message = "Загрузка..."
 }: GachaLoadingProps) {
-  const sizeClasses = {
-    sm: "w-6 h-6",
-    md: "w-12 h-12", 
-    lg: "w-16 h-16"
-  }
-
-  const textSizeClasses = {
-    sm: "text-xs",
-    md: "text-sm",
-    lg: "text-base"
-  }
-
   return (
-    <div className="flex flex-col items-center gap-3">
-      <Loader2 className={`${sizeClasses[size]} text-orange-500 animate-spin`} />
-      <p className={`${textSizeClasses[size]} text-orange-400 font-medium animate-pulse`}>
-        {message}
-      </p>
+    <div className="flex flex-col items-center gap-2">
+      <div className="w-8 h-8 border-2 border-orange-500/30 border-t-orange-500 rounded-full animate-spin" />
+      <p className="text-sm text-orange-400/80">{message}</p>
     </div>
   )
 }

@@ -7,7 +7,8 @@ import { rollAnimeCharacter, rollFromAnimePack, searchGachaPacks, createCustomGa
 import { saveCardToDatabase, loadUserCards, deleteCardFromDatabase } from "./client-actions"
 import { ANIME_PACKS, AnimePack, CustomAnimePack, createCustomPack } from "@/lib/gacha-packs"
 import { useCoins } from "@/hooks/use-coins"
-import { GachaLoading } from "@/components/gacha-loading" 
+import { GachaLoading } from "@/components/gacha-loading"
+import { CollectionCardSkeleton } from "@/components/collection-skeleton" 
 
 export type Rarity = 
   | "trash" | "common" | "uncommon" | "rare" | "super_rare" | "epic" 
@@ -65,15 +66,17 @@ const rarityConfig: Record<Rarity, { color: string; bg: string; label: string; g
 
 const StatBar = ({ label, value, color }: { label: string; value: number; color: string }) => (
   <div className="w-full space-y-1">
-    <div className="flex justify-between text-[10px] font-black uppercase tracking-widest text-white/70">
+    <div className="flex justify-between text-[10px] sm:text-xs font-black uppercase tracking-widest text-white/70">
       <span>{label}</span>
       <span>{value}</span>
     </div>
-    <div className="h-1.5 w-full bg-black/40 rounded-full overflow-hidden border border-white/5">
+    <div className="h-2 sm:h-2.5 w-full bg-black/40 rounded-full overflow-hidden border border-white/5 shadow-inner">
       <div 
-        className={`h-full bg-gradient-to-r ${color} transition-all duration-1000`} 
+        className={`h-full bg-gradient-to-r ${color} transition-all duration-1000 relative`} 
         style={{ width: `${value}%` }}
-      />
+      >
+        <div className="absolute inset-0 bg-white/20 w-full h-full" style={{ mixBlendMode: 'overlay' }} />
+      </div>
     </div>
   </div>
 )
@@ -89,24 +92,19 @@ const statLabels = {
 const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>, card: Card, isCollection: boolean = false) => {
   const target = e.target as HTMLImageElement;
   
-  // Если не загрузился imageUrl (фан-арт), пробуем originalUrl (Шикимори)
   if (!target.dataset.triedOriginal && card.originalUrl) {
     target.dataset.triedOriginal = "true";
-    // Очищаем URL от параметров (все что после ?) - это часто решает проблему 403 на Шикимори
     const cleanUrl = card.originalUrl.split('?')[0];
     target.src = cleanUrl;
     return;
   }
 
-  // Если официальный арт тоже не алё, пробуем зеркала
   if (!target.dataset.triedMirror) {
     target.dataset.triedMirror = "true";
-    // Прямая ссылка на статику Шикимори без параметров
     target.src = `https://shikimori.one/system/characters/original/${card.characterId}.jpg`;
     return;
   }
 
-  // Continue with existing fallback logic...
   if (!target.dataset.triedShikiPng) {
     console.log(`[${card.name}] Попытка Shikimori PNG`);
     target.dataset.triedShikiPng = "true";
@@ -125,7 +123,6 @@ const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>, card
           const pic = data.data.find((p: any) => p.jpg?.image_url) || data.data[0];
           target.src = pic.jpg?.image_url || pic.webp?.image_url;
         } else {
-          // Вызываем следующую ошибку для перехода к заглушке
           target.src = 'https://picsum.photos/seed/force-error/1/1';
         }
       })
@@ -144,18 +141,18 @@ const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>, card
     const placeholder = target.parentElement?.querySelector(`.${containerClass}`);
     if (!placeholder) {
       const div = document.createElement('div');
-      div.className = `${containerClass} absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-slate-800 to-slate-900 text-white p-2`;
+      div.className = `${containerClass} absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-slate-800 to-slate-950 text-white p-2`;
       if (isCollection) {
         div.innerHTML = `
-          <div class="text-2xl">🎌</div>
-          <div class="text-xs font-bold text-center mt-1 truncate w-full px-1">${card.name}</div>
+          <div class="text-2xl sm:text-3xl mb-1">🎌</div>
+          <div class="text-[10px] sm:text-xs font-bold text-center mt-1 truncate w-full px-2">${card.name}</div>
         `;
       } else {
         div.innerHTML = `
-          <div class="text-4xl mb-2">🎌</div>
-          <div class="text-sm font-bold text-center mb-1 px-4">${card.name}</div>
+          <div class="text-4xl sm:text-5xl mb-3">🎌</div>
+          <div class="text-sm sm:text-base font-bold text-center mb-1 px-4">${card.name}</div>
           <div class="text-xs text-slate-400 text-center px-4">${card.anime}</div>
-          <div class="text-xs text-slate-500 mt-2">Арт недоступен</div>
+          <div class="text-[10px] sm:text-xs px-3 py-1 bg-red-500/20 text-red-300 rounded-full mt-3">Арт недоступен</div>
         `;
       }
       target.parentElement?.appendChild(div);
@@ -166,43 +163,46 @@ const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>, card
 const PackCard = ({ pack, onSelect, userCoins }: { pack: AnimePack; onSelect: (pack: AnimePack) => void; userCoins: number }) => (
   <div 
     onClick={() => onSelect(pack)}
-    className={`relative group cursor-pointer rounded-2xl overflow-hidden border border-white/10 p-6 transition-all hover:scale-105 hover:border-white/30 ${userCoins < pack.price ? 'opacity-50 cursor-not-allowed' : ''}`}
+    className={`relative group cursor-pointer rounded-2xl sm:rounded-3xl overflow-hidden border border-white/10 p-5 sm:p-6 transition-all duration-300 hover:scale-[1.03] hover:border-indigo-500/50 hover:shadow-2xl hover:shadow-indigo-500/20 ${userCoins < pack.price ? 'opacity-50 cursor-not-allowed grayscale-[0.5]' : ''}`}
     style={{
-      backgroundImage: pack.bgImage ? `linear-gradient(rgba(0,0,0,0.4), rgba(0,0,0,0.6)), url(${pack.bgImage})` : undefined,
+      backgroundImage: pack.bgImage ? `linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.8)), url(${pack.bgImage})` : undefined,
       backgroundSize: 'cover',
       backgroundPosition: 'center',
-      backgroundColor: pack.bgImage ? undefined : undefined
     }}
   >
     {!pack.bgImage && (
-      <div className={`absolute inset-0 bg-gradient-to-br ${pack.color}`} />
+      <div className={`absolute inset-0 bg-gradient-to-br ${pack.color} opacity-80 group-hover:opacity-100 transition-opacity`} />
     )}
-    <div className="absolute inset-0 bg-black/20 group-hover:bg-black/10 transition-colors" />
+    <div className="absolute inset-0 bg-black/20 group-hover:bg-transparent transition-colors duration-300" />
     
-    <div className="relative z-10">
-      <div className="flex items-center justify-between mb-4">
-        <Package className="w-8 h-8 text-white/80" />
-        <div className="flex items-center gap-1 bg-black/30 backdrop-blur-sm px-3 py-1 rounded-full">
+    <div className="relative z-10 h-full flex flex-col">
+      <div className="flex items-start justify-between mb-4">
+        <div className="p-2 sm:p-2.5 bg-white/10 backdrop-blur-md rounded-xl border border-white/20">
+          <Package className="w-6 h-6 sm:w-7 sm:h-7 text-white" />
+        </div>
+        <div className="flex items-center gap-1.5 bg-slate-900/80 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10 shadow-lg">
           <Coins className="w-4 h-4 text-yellow-400" />
-          <span className="text-sm font-bold text-white">{pack.price}</span>
+          <span className="text-sm font-black text-white">{pack.price}</span>
         </div>
       </div>
       
-      <h3 className="text-xl font-black text-white mb-2">{pack.name}</h3>
-      <p className="text-sm text-white/70 mb-4 line-clamp-2">{pack.description}</p>
-      
-      {pack.guaranteedRarity && (
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 backdrop-blur-sm">
-          <Star className="w-3 h-3 text-yellow-400" />
-          <span className="text-xs font-bold text-white">
-            Гарантированно {rarityConfig[pack.guaranteedRarity as Rarity].label}
-          </span>
-        </div>
-      )}
-      
-      {userCoins < pack.price && (
-        <div className="mt-3 text-xs text-red-400 font-bold">Недостаточно монет</div>
-      )}
+      <div className="mt-auto">
+        <h3 className="text-xl sm:text-2xl font-black text-white mb-2 leading-tight">{pack.name}</h3>
+        <p className="text-sm text-white/70 mb-4 line-clamp-2">{pack.description}</p>
+        
+        {pack.guaranteedRarity && (
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-indigo-500/20 backdrop-blur-md border border-indigo-500/30">
+            <Star className="w-3.5 h-3.5 text-indigo-300" />
+            <span className="text-xs font-bold text-indigo-200 tracking-wide uppercase">
+              Гарант: {rarityConfig[pack.guaranteedRarity as Rarity].label}
+            </span>
+          </div>
+        )}
+        
+        {userCoins < pack.price && (
+          <div className="mt-4 text-xs bg-red-500/20 text-red-300 px-3 py-1.5 rounded-lg border border-red-500/30 font-bold inline-block">Недостаточно монет</div>
+        )}
+      </div>
     </div>
   </div>
 )
@@ -212,6 +212,7 @@ const InteractiveCard = ({ card, forceFlipped = false }: { card: Card, forceFlip
   const [rotation, setRotation] = useState({ x: 0, y: 0 })
   const [isHovered, setIsHovered] = useState(false)
   const [isFlipped, setIsFlipped] = useState(false)
+  const[isTouching, setIsTouching] = useState(false)
   const animationFrameRef = useRef<number | undefined>(undefined)
 
   useEffect(() => {
@@ -246,6 +247,40 @@ const InteractiveCard = ({ card, forceFlipped = false }: { card: Card, forceFlip
     })
   },[])
 
+  const handleTouchStart = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
+    setIsTouching(true)
+  },[])
+
+  const handleTouchMove = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
+    if (!cardRef.current || !isTouching) return
+    if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current)
+
+    animationFrameRef.current = requestAnimationFrame(() => {
+      const rect = cardRef.current?.getBoundingClientRect()
+      if (!rect) return
+      const touch = e.touches[0]
+      const x = touch.clientX - rect.left
+      const y = touch.clientY - rect.top
+      const centerX = rect.width / 2
+      const centerY = rect.height / 2
+
+      setRotation({ 
+        x: ((y - centerY) / centerY) * -12,
+        y: ((x - centerX) / centerX) * 12 
+      })
+      setIsHovered(true)
+    })
+  }, [isTouching])
+
+  const handleTouchEnd = useCallback(() => {
+    if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current)
+    animationFrameRef.current = requestAnimationFrame(() => {
+      setRotation({ x: 0, y: 0 })
+      setIsHovered(false)
+      setIsTouching(false)
+    })
+  },[])
+
   const highlightX = -rotation.y * 1.2; 
   const highlightY = rotation.x * 1.2;
 
@@ -254,19 +289,22 @@ const InteractiveCard = ({ card, forceFlipped = false }: { card: Card, forceFlip
       ref={cardRef}
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
       onClick={() => setIsFlipped(!isFlipped)}
-      className="relative w-64 sm:w-72 md:w-80 h-[400px] sm:h-[440px] md:h-[480px] transition-transform duration-500 ease-out cursor-pointer"
+      className="relative w-64 sm:w-72 md:w-80 h-[400px] sm:h-[440px] md:h-[480px] max-w-[calc(100vw-2rem)] transition-transform duration-500 ease-out cursor-pointer"
       style={{
         transform: `perspective(1000px) rotateX(${rotation.x}deg) rotateY(${rotation.y + (isFlipped ? 180 : 0)}deg)`,
         transformStyle: "preserve-3d",
+        touchAction: isTouching ? 'none' : 'auto'
       }}
     >
-      {/* FRONT SIDE - АКЦЕНТ НА АРТ */}
+      {/* FRONT SIDE */}
       <div 
         className={`absolute inset-0 rounded-[1.5rem] sm:rounded-[2rem] md:rounded-[2.5rem] overflow-hidden ${rarityConfig[card.rarity].bg} ${rarityConfig[card.rarity].glow} border-2 border-white/10`}
         style={{ backfaceVisibility: "hidden" }}
       >
-        {/* Само изображение персонажа - теперь занимает всё пространство без искажений */}
         <img 
           src={card.imageUrl} 
           alt={card.name}
@@ -275,17 +313,14 @@ const InteractiveCard = ({ card, forceFlipped = false }: { card: Card, forceFlip
           onError={(e) => handleImageError(e, card, false)}
         />
         
-        {/* Тонкий виньеточный градиент вместо глухого черного низа */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/20 pointer-events-none" />
+        <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/20 to-slate-950/20 pointer-events-none" />
         
-        {/* Эффекты редкости (блики/FX) - ОСТАВЛЕНО БЕЗ ИЗМЕНЕНИЙ */}
-        <div className={`absolute inset-0 mix-blend-overlay opacity-40 pointer-events-none ${rarityConfig[card.rarity].fx}`} />
+        <div className={`absolute inset-0 mix-blend-overlay opacity-50 pointer-events-none ${rarityConfig[card.rarity].fx}`} />
 
-        {/* Интерактивный блик при движении - ОСТАВЛЕНО БЕЗ ИЗМЕНЕНИЙ */}
         <div 
-          className="absolute inset-0 pointer-events-none rounded-[2rem]"
+          className="absolute inset-0 pointer-events-none rounded-[1.5rem] sm:rounded-[2rem] md:rounded-[2.5rem]"
           style={{
-            opacity: isHovered ? 1 : 0,
+            opacity: (isHovered || isTouching) ? 1 : 0,
             transition: 'opacity 0.2s ease-out',
             boxShadow: `
               inset ${highlightX}px ${highlightY}px 20px rgba(${rarityConfig[card.rarity].rgb}, 0.4), 
@@ -294,63 +329,58 @@ const InteractiveCard = ({ card, forceFlipped = false }: { card: Card, forceFlip
           }}
         />
 
-        {/* UI элементы - Сделаны максимально компактными и "парящими" */}
-        
-        {/* Верхняя панель: Редкость и Рейтинг */}
-        <div className="absolute top-3 sm:top-4 md:top-5 inset-x-3 sm:inset-x-4 md:inset-x-5 flex justify-between items-start pointer-events-none">
+        {/* UI элементов - FRONT */}
+        <div className="absolute top-3 sm:top-4 md:top-5 inset-x-3 sm:inset-x-4 md:inset-x-5 flex justify-between items-start pointer-events-none z-10">
           <div className="flex flex-col gap-2">
-            <div className={`px-2 sm:px-3 py-0.5 sm:py-1 rounded-full text-[8px] sm:text-[9px] font-black uppercase tracking-tighter backdrop-blur-md bg-black/40 border border-white/20 text-white shadow-xl`}>
+            <div className={`px-2.5 sm:px-3 py-1 rounded-full text-[9px] sm:text-[10px] font-black uppercase tracking-widest backdrop-blur-md bg-black/40 border border-white/20 shadow-xl`}>
               <span className={`bg-gradient-to-r ${rarityConfig[card.rarity].color} bg-clip-text text-transparent`}>
                 {rarityConfig[card.rarity].label}
               </span>
             </div>
             {card.isMainCharacter && (
-              <div className="w-fit flex items-center gap-0.5 sm:gap-1 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-full text-[7px] sm:text-[9px] font-black uppercase bg-yellow-400 text-black shadow-lg">
-                <Crown className="w-2 sm:w-3 h-2 sm:h-3" />
+              <div className="w-fit flex items-center gap-1 sm:gap-1.5 px-2 py-1 rounded-full text-[8px] sm:text-[9px] font-black uppercase tracking-wider bg-gradient-to-r from-yellow-400 to-amber-500 text-amber-950 shadow-lg border border-yellow-300">
+                <Crown className="w-2.5 sm:w-3 h-2.5 sm:h-3" />
                 Главный герой
               </div>
             )}
           </div>
-          <div className="flex items-center gap-0.5 sm:gap-1 bg-black/40 backdrop-blur-md px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full border border-white/20 shadow-xl">
-            <Star className="w-2 sm:w-3 h-2 sm:h-3 text-yellow-400 fill-yellow-400" />
-            <span className="text-[9px] sm:text-[11px] font-black text-white">{card.score.toFixed(1)}</span>
+          <div className="flex items-center gap-1 bg-black/50 backdrop-blur-md px-2.5 sm:px-3 py-1 rounded-full border border-white/20 shadow-xl">
+            <Star className="w-3 h-3 text-yellow-400 fill-yellow-400" />
+            <span className="text-[10px] sm:text-[11px] font-black text-white">{card.score.toFixed(1)}</span>
           </div>
         </div>
 
-        {/* Нижняя панель: Информация в "стеклянном" блоке */}
-        <div className="absolute bottom-3 sm:bottom-4 md:bottom-5 inset-x-3 sm:inset-x-4 md:inset-x-5 pointer-events-none">
-          <div className="backdrop-blur-xl bg-white/5 border border-white/10 rounded-xl sm:rounded-2xl p-3 sm:p-4 shadow-2xl relative overflow-hidden">
-            {/* Тонкая полоска редкости сбоку */}
-            <div className={`absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b ${rarityConfig[card.rarity].color}`} />
+        <div className="absolute bottom-3 sm:bottom-4 md:bottom-5 inset-x-3 sm:inset-x-4 md:inset-x-5 pointer-events-none z-10">
+          <div className="backdrop-blur-xl bg-slate-900/40 border border-white/10 rounded-xl sm:rounded-2xl p-3 sm:p-4 shadow-2xl relative overflow-hidden">
+            <div className={`absolute left-0 top-0 bottom-0 w-1.5 bg-gradient-to-b ${rarityConfig[card.rarity].color}`} />
             
-            {/* Индикатор заблокированного арта */}
             {card.isMainCharacter && card.isArtBlacklisted && (
-              <div className="absolute top-2 right-2 px-2 py-1 rounded-full bg-red-500/20 border border-red-500/30 flex items-center gap-1">
-                <RefreshCcw className="w-3 h-3 text-red-400" />
-                <span className="text-[8px] font-bold text-red-400 uppercase">Арт отклонен</span>
+              <div className="absolute top-2 right-2 px-2 py-0.5 rounded-full bg-red-500/20 border border-red-500/30 flex items-center gap-1">
+                <RefreshCcw className="w-2.5 h-2.5 text-red-400" />
+                <span className="text-[8px] font-bold text-red-400 uppercase tracking-wider">Арт отклонен</span>
               </div>
             )}
             
-            <h3 className="text-lg sm:text-xl font-black text-white uppercase leading-none drop-shadow-lg truncate mb-1">
+            <h3 className="text-lg sm:text-xl md:text-2xl font-black text-white uppercase leading-none drop-shadow-lg truncate mb-1">
               {card.name}
             </h3>
-            <p className="text-[9px] sm:text-[10px] text-white/60 font-bold uppercase tracking-wider truncate">
+            <p className="text-[9px] sm:text-[10px] md:text-xs text-white/70 font-bold uppercase tracking-wider truncate">
               {card.anime}
             </p>
             
-            <div className="mt-3 flex items-center justify-between border-t border-white/5 pt-2">
-              <span className="text-[7px] sm:text-[8px] font-mono text-white/30 tracking-tighter">ШИКИ-{card.shikiId}</span>
+            <div className="mt-3 flex items-center justify-between border-t border-white/10 pt-2">
+              <span className="text-[8px] sm:text-[9px] font-mono text-white/40 tracking-wider">ID: {card.shikiId}</span>
               {card.packName && (
-                <span className="text-[7px] sm:text-[8px] font-bold text-indigo-400/80 uppercase">{card.packName}</span>
+                <span className="text-[8px] sm:text-[9px] font-black text-indigo-300 uppercase tracking-widest">{card.packName}</span>
               )}
             </div>
           </div>
         </div>
       </div>
 
-      {/* BACK SIDE (STATS) - ОСТАВЛЕНО БЕЗ ИЗМЕНЕНИЙ (как в вашем примере) */}
+      {/* BACK SIDE (STATS) */}
       <div 
-        className={`absolute inset-0 rounded-[1.5rem] sm:rounded-[2rem] md:rounded-[2.5rem] p-4 sm:p-6 md:p-8 flex flex-col justify-between border-4 ${rarityConfig[card.rarity].bg} ${rarityConfig[card.rarity].glow}`}
+        className={`absolute inset-0 rounded-[1.5rem] sm:rounded-[2rem] md:rounded-[2.5rem] p-5 sm:p-6 md:p-8 flex flex-col justify-between border-[3px] sm:border-4 ${rarityConfig[card.rarity].bg} ${rarityConfig[card.rarity].glow}`}
         style={{ 
           backfaceVisibility: "hidden", 
           transform: "rotateY(180deg)",
@@ -359,15 +389,15 @@ const InteractiveCard = ({ card, forceFlipped = false }: { card: Card, forceFlip
       >
         <div className={`absolute inset-0 opacity-10 ${rarityConfig[card.rarity].fx}`} />
         
-        <div className="relative z-10 space-y-4">
-          <div className="text-center pb-2 sm:pb-4 border-b border-white/10">
-            <p className={`text-[9px] sm:text-[10px] md:text-[11px] font-black uppercase tracking-tighter bg-gradient-to-r ${rarityConfig[card.rarity].color} bg-clip-text text-transparent`}>
-              Характеристики Персонажа
+        <div className="relative z-10 space-y-4 sm:space-y-6">
+          <div className="text-center pb-3 sm:pb-4 border-b border-white/10">
+            <p className={`text-[9px] sm:text-[10px] md:text-[11px] font-black uppercase tracking-widest bg-gradient-to-r ${rarityConfig[card.rarity].color} bg-clip-text text-transparent mb-1`}>
+              Характеристики
             </p>
-            <h4 className="text-lg sm:text-xl md:text-2xl font-black text-white uppercase truncate">{card.name}</h4>
+            <h4 className="text-xl sm:text-2xl md:text-3xl font-black text-white uppercase truncate">{card.name}</h4>
           </div>
 
-          <div className="space-y-3 sm:space-y-4 md:space-y-5 pt-2 sm:pt-4">
+          <div className="space-y-3 sm:space-y-4 pt-2">
             <StatBar label={statLabels.hp} value={card.stats.hp} color={rarityConfig[card.rarity].color} />
             <StatBar label={statLabels.atk} value={card.stats.atk} color={rarityConfig[card.rarity].color} />
             <StatBar label={statLabels.def} value={card.stats.def} color={rarityConfig[card.rarity].color} />
@@ -376,11 +406,11 @@ const InteractiveCard = ({ card, forceFlipped = false }: { card: Card, forceFlip
           </div>
         </div>
 
-        <div className="relative z-10 text-center space-y-2">
-           <div className="w-12 sm:w-14 md:w-16 h-12 sm:h-14 md:h-16 mx-auto rounded-full border-2 border-white/10 flex items-center justify-center bg-white/5">
-              <RefreshCcw className="w-6 sm:w-7 md:w-8 h-6 sm:h-7 md:h-8 text-white/20" />
+        <div className="relative z-10 text-center space-y-3">
+           <div className="w-12 sm:w-14 h-12 sm:h-14 mx-auto rounded-full border-2 border-white/10 flex items-center justify-center bg-white/5 backdrop-blur-sm shadow-xl">
+              <RefreshCcw className="w-5 sm:w-6 h-5 sm:h-6 text-white/40" />
            </div>
-           <p className="text-[8px] sm:text-[9px] md:text-[10px] font-bold text-white/30 uppercase tracking-widest text-balance leading-tight">Нажмите чтобы перевернуть</p>
+           <p className="text-[8px] sm:text-[9px] font-black text-white/40 uppercase tracking-widest leading-tight">Нажмите чтобы перевернуть</p>
         </div>
       </div>
     </div>
@@ -389,11 +419,11 @@ const InteractiveCard = ({ card, forceFlipped = false }: { card: Card, forceFlip
 
 export default function GachaPage() {
   const[isRolling, setIsRolling] = useState(false)
-  const [isPackLoading, setIsPackLoading] = useState(false)
+  const[isPackLoading, setIsPackLoading] = useState(false)
   const[isCustomPackLoading, setIsCustomPackLoading] = useState(false)
   const[revealedCard, setRevealedCard] = useState<Card | null>(null)
   const [collectedCards, setCollectedCards] = useState<Card[]>([])
-  const [showCard, setShowCard] = useState(false)
+  const[showCard, setShowCard] = useState(false)
   const[viewedCard, setViewedCard] = useState<Card | null>(null)
   const[usedCharacterIds, setUsedCharacterIds] = useState<Set<number>>(new Set())
   const { coins: userCoins, spendCoins, forceSync, fixOverflow } = useCoins()
@@ -403,7 +433,7 @@ export default function GachaPage() {
   const[searchResults, setSearchResults] = useState<AnimePack[]>([])
   const [isSearching, setIsSearching] = useState(false)
   const [showCustomPackCreator, setShowCustomPackCreator] = useState(false)
-  const [customPackQuery, setCustomPackQuery] = useState("")
+  const[customPackQuery, setCustomPackQuery] = useState("")
   const[isCreatingCustomPack, setIsCreatingCustomPack] = useState(false)
   const [createdCustomPack, setCreatedCustomPack] = useState<CustomAnimePack | null>(null)
   const [customPackSearchResults, setCustomPackSearchResults] = useState<Array<{
@@ -416,27 +446,28 @@ export default function GachaPage() {
   const [selectedAnimeIds, setSelectedAnimeIds] = useState<Set<number>>(new Set())
   const [blacklistedUrls, setBlacklistedUrls] = useState<string[]>([])
   const [showArtWarning, setShowArtWarning] = useState(false)
-  const [showArtChangeModal, setShowArtChangeModal] = useState(false)
-  const [selectedCardForArtChange, setSelectedCardForArtChange] = useState<Card | null>(null)
+  const[showArtChangeModal, setShowArtChangeModal] = useState(false)
+  const[selectedCardForArtChange, setSelectedCardForArtChange] = useState<Card | null>(null)
   const [isChangingArt, setIsChangingArt] = useState(false)
   const [artChangeError, setArtChangeError] = useState<string | null>(null)
   const [isSyncingCoins, setIsSyncingCoins] = useState(false)
   const [isFixingCoins, setIsFixingCoins] = useState(false)
-  const [isSavingCard, setIsSavingCard] = useState(false)
+  const[isSavingCard, setIsSavingCard] = useState(false)
   const [isLoaded, setIsLoaded] = useState(false)
   
   // Filter states
   const [searchQuery, setSearchQuery] = useState("")
-  const [selectedRarity, setSelectedRarity] = useState<Rarity | "all">("all")
-  const [sortBy, setSortBy] = useState<"date" | "rarity" | "score" | "name" | "anime">("date")
+  const[selectedRarity, setSelectedRarity] = useState<Rarity | "all">("all")
+  const[sortBy, setSortBy] = useState<"date" | "rarity" | "score" | "name" | "anime">("date")
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc")
   const [selectedPackFilter, setSelectedPackFilter] = useState<string | "all">("all")
+  const [selectedMainCharacterFilter, setSelectedMainCharacterFilter] = useState<"all" | "main" | "supporting">("all")
   const [showFilters, setShowFilters] = useState(false)
 
   // Load saved cards from database on mount (when user is authenticated)
   useEffect(() => {
     const loadSavedCards = async () => {
-      if (isLoaded) return // Prevent double loading
+      if (isLoaded) return 
       
       const { supabase } = await import('@/lib/supabase')
       const { data: { session } } = await supabase.auth.getSession()
@@ -447,13 +478,11 @@ export default function GachaPage() {
         if (savedCards.length > 0) {
           console.log('[GachaPage] Loaded', savedCards.length, 'cards from database')
           setCollectedCards(savedCards)
-          // Also update used character IDs
           const ids = new Set(savedCards.map(card => card.characterId))
           setUsedCharacterIds(ids)
         }
       } else {
         console.log('[GachaPage] No user session, loading from localStorage only')
-        // Try to load from localStorage for guest users
         try {
           const saved = localStorage.getItem('gacha-collection')
           if (saved) {
@@ -472,7 +501,7 @@ export default function GachaPage() {
     }
 
     loadSavedCards()
-  }, [])
+  },[])
 
   useEffect(() => {
     const ids = new Set(collectedCards.map(card => card.characterId));
@@ -510,7 +539,6 @@ export default function GachaPage() {
 
     try {
       let result;
-      // Передаем текущий список забаненных картинок на сервер
       const ignored = blacklistedUrls;
       console.log('[handleRoll] Starting roll, selectedPack:', selectedPack?.name, 'usedCharacterIds:', usedCharacterIds.size);
 
@@ -522,23 +550,15 @@ export default function GachaPage() {
         }
 
         console.log("Rolling from pack:", selectedPack.id);
-        
         await new Promise(resolve => setTimeout(resolve, 1500));
-        
         result = await rollFromAnimePack(selectedPack, Array.from(usedCharacterIds), ignored);
-        console.log("Pack roll result:", result);
 
         if (result) {
           await spendCoins(selectedPack.price);
-          // Автоматическая синхронизация монет после успешной крутки (в фоне, без блокировки)
-          forceSync().catch(error => {
-            console.warn('Background sync failed:', error);
-          });
+          forceSync().catch(error => console.warn('Background sync failed:', error));
         }
       } else {
         console.log("Rolling random character");
-        
-        // Check if user has enough coins for regular roll (50 coins)
         if (userCoins < 50) {
           alert("Недостаточно монет! Обычная крутка стоит 50 монет.");
           setIsRolling(false);
@@ -547,23 +567,16 @@ export default function GachaPage() {
         
         await new Promise(resolve => setTimeout(resolve, 1000));
         result = await rollAnimeCharacter(Array.from(usedCharacterIds), ignored);
-        console.log("Random roll result:", result);
         
         if (result) {
           await spendCoins(50);
-          // Автоматическая синхронизация монет после успешной крутки (в фоне, без блокировки)
-          forceSync().catch(error => {
-            console.warn('Background sync failed:', error);
-          });
+          forceSync().catch(error => console.warn('Background sync failed:', error));
         }
       }
       
       if (!result) {
-        console.error("No result from roll function");
         throw new Error("Не удалось получить персонажа. Попробуйте снова!");
       }
-
-      console.log('[handleRoll] Creating card from result:', result);
 
       const newCard: Card = {
         id: Date.now(),
@@ -584,7 +597,6 @@ export default function GachaPage() {
         isArtBlacklisted: result.isMainCharacter && blacklistedUrls.includes(result.imageUrl || '')
       }
 
-      console.log('[handleRoll] Created new card:', newCard);
       setRevealedCard(newCard)
       setShowCard(true)
     } catch (error) {
@@ -595,7 +607,6 @@ export default function GachaPage() {
     }
   }
 
-  // Save card to database (and localStorage as fallback)
   const saveCard = async (card: Card) => {
     setIsSavingCard(true)
     try {
@@ -603,26 +614,20 @@ export default function GachaPage() {
       const { data: { session } } = await supabase.auth.getSession()
       
       if (session) {
-        // Save to database
         const result = await saveCardToDatabase(card)
         if (result.success) {
-          console.log('[saveCard] Card saved to database')
-          setCollectedCards(prev => [card, ...prev])
+          setCollectedCards(prev =>[card, ...prev])
           setUsedCharacterIds(prev => new Set(prev).add(card.characterId))
           setShowCard(false)
         } else {
-          console.warn('[saveCard] Database save failed, using localStorage fallback')
-          // Fallback to localStorage
           const savedCards = JSON.parse(localStorage.getItem('gacha-collection') || '[]')
           savedCards.unshift(card)
           localStorage.setItem('gacha-collection', JSON.stringify(savedCards))
-          setCollectedCards(prev => [card, ...prev])
+          setCollectedCards(prev =>[card, ...prev])
           setUsedCharacterIds(prev => new Set(prev).add(card.characterId))
           setShowCard(false)
         }
       } else {
-        // Guest user - save to localStorage only
-        console.log('[saveCard] Guest user, saving to localStorage')
         const savedCards = JSON.parse(localStorage.getItem('gacha-collection') || '[]')
         savedCards.unshift(card)
         localStorage.setItem('gacha-collection', JSON.stringify(savedCards))
@@ -716,9 +721,7 @@ export default function GachaPage() {
         kind: 'tv', 
         episodes: 0, 
         status: 'released', 
-        image: {
-          original: anime.imageUrl
-        }
+        image: { original: anime.imageUrl }
       }))
       
       const customPack = createCustomPack(customPackQuery.trim(), animeResults)
@@ -758,14 +761,10 @@ export default function GachaPage() {
       const { data: { session } } = await supabase.auth.getSession()
       
       if (session) {
-        // Delete from database
         const result = await deleteCardFromDatabase(cardToRemove.uniqueId)
-        if (!result.success) {
-          console.warn('[removeCard] Database delete failed')
-        }
+        if (!result.success) console.warn('[removeCard] Database delete failed')
       }
       
-      // Also remove from localStorage (cleanup)
       try {
         const savedCards = JSON.parse(localStorage.getItem('gacha-collection') || '[]')
         const filteredCards = savedCards.filter((c: Card) => c.uniqueId !== cardToRemove.uniqueId)
@@ -776,7 +775,6 @@ export default function GachaPage() {
         console.error('Error removing card from localStorage:', e)
       }
       
-      // Update state
       setCollectedCards(prev => prev.filter(card => card.uniqueId !== cardToRemove.uniqueId))
       setViewedCard(null)
 
@@ -797,30 +795,11 @@ export default function GachaPage() {
     }
   }
 
-  const handleForceSyncCoins = async () => {
-    setIsSyncingCoins(true)
-    try {
-      const result = await forceSync()
-      if (result !== null) {
-        console.log('Force sync successful, new coin amount:', result)
-      } else {
-        console.log('Force sync returned null - may be no session or other issue')
-      }
-    } catch (error) {
-      console.error('Force sync error:', error)
-      // Не показываем алерт, просто логируем ошибку
-    } finally {
-      setIsSyncingCoins(false)
-    }
-  }
-
   const handleFixCoins = async () => {
     setIsFixingCoins(true)
     try {
-      await fixOverflow(70000) // Восстанавливаем до 70к
-      // После fixOverflow уже вызывается loadCoins(), который обновит состояние
-      const currentCoins = userCoins // Берем из состояния после обновления
-      console.log('Coins fixed successfully')
+      await fixOverflow(70000)
+      const currentCoins = userCoins 
       alert(`Монеты исправлены! Теперь у вас ${currentCoins.toLocaleString()} монет`)
     } catch (error) {
       console.error('Fix coins error:', error)
@@ -836,6 +815,7 @@ export default function GachaPage() {
     setSortBy("date")
     setSortOrder("desc")
     setSelectedPackFilter("all")
+    setSelectedMainCharacterFilter("all")
   }
 
   const getUniquePacks = () => {
@@ -849,7 +829,6 @@ export default function GachaPage() {
   const filteredAndSortedCards = (() => {
     let result = [...collectedCards]
 
-    // Search filter
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase()
       result = result.filter(card =>
@@ -858,22 +837,27 @@ export default function GachaPage() {
       )
     }
 
-    // Rarity filter
     if (selectedRarity !== "all") {
       result = result.filter(card => card.rarity === selectedRarity)
     }
 
-    // Pack filter
     if (selectedPackFilter !== "all") {
       result = result.filter(card => card.packName === selectedPackFilter)
     }
 
-    // Sorting
+    if (selectedMainCharacterFilter !== "all") {
+      result = result.filter(card => {
+        if (selectedMainCharacterFilter === "main") return card.isMainCharacter === true
+        else if (selectedMainCharacterFilter === "supporting") return card.isMainCharacter !== true
+        return true
+      })
+    }
+
     result.sort((a, b) => {
       let comparison = 0
       switch (sortBy) {
         case "rarity":
-          const rarityOrder = ["trash", "common", "uncommon", "rare", "super_rare", "epic", "mythic", "legendary", "ancient", "divine", "transcendent", "omnipotent"]
+          const rarityOrder =["trash", "common", "uncommon", "rare", "super_rare", "epic", "mythic", "legendary", "ancient", "divine", "transcendent", "omnipotent"]
           comparison = rarityOrder.indexOf(a.rarity) - rarityOrder.indexOf(b.rarity)
           break
         case "score":
@@ -897,53 +881,64 @@ export default function GachaPage() {
   })()
 
   return (
-    <div className="min-h-screen bg-[#020617] text-slate-100 selection:bg-pink-500/30 font-sans">
+    <div className="min-h-screen bg-[#020617] relative text-slate-100 selection:bg-indigo-500/30 font-sans pb-24 overflow-x-hidden">
+      {/* Background decorations */}
+      <div className="fixed top-[-20%] left-[-10%] w-[50%] h-[50%] rounded-full bg-indigo-900/20 blur-[120px] pointer-events-none" />
+      <div className="fixed bottom-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-purple-900/10 blur-[120px] pointer-events-none" />
+      
       <Navbar />
 
       {/* Pack Selection Modal */}
       {showPacks && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xl">
-          <div className="bg-slate-900 rounded-2xl sm:rounded-3xl p-4 sm:p-6 md:p-8 max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center mb-4 sm:mb-6">
-              <h2 className="text-2xl sm:text-3xl font-black text-white">Выберите Набор</h2>
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-slate-950/80 backdrop-blur-xl animate-in fade-in duration-200"
+          onClick={() => setShowPacks(false)}
+        >
+          <div 
+            className="bg-slate-900 border border-slate-700/50 rounded-2xl sm:rounded-3xl p-5 sm:p-6 md:p-8 max-w-5xl w-full max-h-[90vh] overflow-y-auto shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex justify-between items-center mb-6 sm:mb-8">
+              <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">Выбрать Набор</h2>
               <button
                 onClick={() => setShowPacks(false)}
-                className="p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
+                className="p-2 sm:p-2.5 rounded-full bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-colors border border-white/5"
               >
-                <X className="w-6 h-6" />
+                <X className="w-5 h-5 sm:w-6 sm:h-6" />
               </button>
             </div>
 
-            <div className="relative mb-4 sm:mb-6">
-              <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+            <div className="relative group mb-6 sm:mb-8">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-indigo-400 transition-colors" />
               <input
                 type="text"
                 placeholder="Поиск набора по названию..."
                 value={packSearchQuery}
                 onChange={(e) => setPackSearchQuery(e.target.value)}
-                className="w-full h-10 rounded-xl bg-slate-800/50 border border-slate-700 pl-10 pr-10 text-sm text-white focus:bg-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 transition-all placeholder:text-slate-500"
+                className="w-full h-12 sm:h-14 rounded-xl sm:rounded-2xl bg-slate-950/50 border border-slate-700/50 pl-12 pr-12 text-sm sm:text-base text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all placeholder:text-slate-500"
               />
               {packSearchQuery && (
                 <button
                   onClick={() => setPackSearchQuery("")}
-                  className="absolute right-3 top-2.5 text-slate-500 hover:text-white transition-colors"
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white p-1 rounded-full hover:bg-white/10 transition-colors"
                 >
-                  <X size={14} />
+                  <X size={16} />
                 </button>
               )}
             </div>
 
-            <div className="grid grid-cols-1 gap-3 sm:gap-4 mb-4 sm:mb-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5 lg:gap-6 mb-6 sm:mb-8">
               {isSearching && (
-                <div className="col-span-full flex items-center justify-center py-12">
-                  <GachaLoading message="Поиск наборов..." size="md" />
+                <div className="col-span-full flex items-center justify-center py-16">
+                  <GachaLoading message="Поиск наборов..." />
                 </div>
               )}
 
               {!isSearching && packSearchQuery.trim() && searchResults.length === 0 && (
-                <div className="col-span-full text-center py-12">
-                  <p className="text-slate-400 font-medium mb-2">Наборы не найдены</p>
-                  <p className="text-slate-500 text-sm">Попробуйте другой запрос</p>
+                <div className="col-span-full flex flex-col items-center justify-center py-16 text-center">
+                  <Package className="w-12 h-12 text-slate-600 mb-4" />
+                  <p className="text-slate-300 font-bold text-lg mb-1">Наборы не найдены</p>
+                  <p className="text-slate-500 text-sm">Попробуйте изменить поисковый запрос</p>
                 </div>
               )}
 
@@ -957,10 +952,11 @@ export default function GachaPage() {
               ))}
             </div>
 
-              <button
+            <button
               onClick={handleRandomRoll}
-              className="w-full py-2.5 sm:py-3 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-xl transition-colors text-sm sm:text-base"
+              className="w-full flex items-center justify-center gap-2 py-3.5 sm:py-4 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-xl sm:rounded-2xl transition-all shadow-lg border border-white/5 text-sm sm:text-base"
             >
+              <Sparkles className="w-5 h-5 text-indigo-400" />
               Случайный призыв (50 монет)
             </button>
           </div>
@@ -969,16 +965,22 @@ export default function GachaPage() {
 
       {/* Custom Pack Creator Modal */}
       {showCustomPackCreator && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xl">
-          <div className="bg-slate-900 rounded-2xl sm:rounded-3xl p-4 sm:p-6 md:p-8 max-w-6xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4 mb-4 sm:mb-6">
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-slate-950/80 backdrop-blur-xl animate-in fade-in duration-200"
+          onClick={() => setShowCustomPackCreator(false)}
+        >
+          <div 
+            className="bg-slate-900 border border-slate-700/50 rounded-2xl sm:rounded-3xl p-5 sm:p-6 md:p-8 max-w-6xl w-full max-h-[90vh] overflow-y-auto shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4 mb-6 sm:mb-8">
               <div>
-                <h2 className="text-2xl sm:text-3xl font-black text-white mb-2">Создать Кастомный Пак</h2>
+                <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight mb-3">Создать Кастомный Пак</h2>
                 {selectedAnimeIds.size > 0 && (
                   <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-sm">
-                    <div className="flex items-center gap-1.5 bg-yellow-500/20 px-3 py-1 rounded-full">
+                    <div className="flex items-center gap-1.5 bg-yellow-500/10 border border-yellow-500/20 px-3 py-1.5 rounded-full">
                       <Coins className="w-4 h-4 text-yellow-400" />
-                      <span className="text-yellow-300 font-bold text-sm sm:text-base">
+                      <span className="text-yellow-400 font-bold text-sm sm:text-base">
                         {Math.max(150, Math.min(600, Math.floor((customPackSearchResults.filter(a => selectedAnimeIds.has(a.id)).reduce((sum, a) => sum + (a.score || 0), 0) / selectedAnimeIds.size) * 60)))} монет
                       </span>
                     </div>
@@ -990,9 +992,9 @@ export default function GachaPage() {
                       else if (avgScore >= 6.5) guaranteedRarity = 'Редкая';
                       
                       return guaranteedRarity && (
-                        <div className="flex items-center gap-1.5 bg-purple-500/20 px-3 py-1 rounded-full">
-                          <Star className="w-3 sm:w-4 h-3 sm:h-4 text-purple-400" />
-                          <span className="text-purple-300 font-bold text-sm sm:text-base">Гарант: {guaranteedRarity}</span>
+                        <div className="flex items-center gap-1.5 bg-indigo-500/10 border border-indigo-500/20 px-3 py-1.5 rounded-full">
+                          <Star className="w-4 h-4 text-indigo-400" />
+                          <span className="text-indigo-300 font-bold text-sm sm:text-base">Гарант: {guaranteedRarity}</span>
                         </div>
                       );
                     })()}
@@ -1007,32 +1009,32 @@ export default function GachaPage() {
                   setCustomPackSearchResults([]);
                   setSelectedAnimeIds(new Set());
                 }}
-                className="p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
+                className="p-2 sm:p-2.5 rounded-full bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-colors border border-white/5 self-end sm:self-start shrink-0"
               >
-                <X className="w-6 h-6" />
+                <X className="w-5 h-5 sm:w-6 sm:h-6" />
               </button>
             </div>
 
-            <div className="mb-4 sm:mb-6">
-              <label className="block text-sm font-bold text-white mb-2">
+            <div className="mb-6 sm:mb-8">
+              <label className="block text-sm font-bold text-slate-300 mb-2">
                 Введите название аниме (например, "Титан", "Наруто", "Блич")
               </label>
-              <div className="flex gap-2">
+              <div className="flex flex-col sm:flex-row gap-3">
                 <input
                   type="text"
-                  placeholder="Например: Титан..."
+                  placeholder="Например: Атака титанов..."
                   value={customPackQuery}
                   onChange={(e) => setCustomPackQuery(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && handleCreateCustomPack()}
-                  className="flex-1 h-10 sm:h-12 rounded-xl bg-slate-800/50 border border-slate-700 px-3 sm:px-4 text-sm text-white focus:bg-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 transition-all placeholder:text-slate-500"
+                  className="flex-1 h-12 sm:h-14 rounded-xl sm:rounded-2xl bg-slate-950/50 border border-slate-700/50 px-4 sm:px-5 text-sm sm:text-base text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all placeholder:text-slate-500"
                 />
                 <button
                   onClick={handleCreateCustomPack}
                   disabled={isCreatingCustomPack || !customPackQuery.trim()}
-                  className="px-4 sm:px-6 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 disabled:from-slate-700 disabled:to-slate-800 disabled:cursor-not-allowed text-white font-bold rounded-xl transition-all text-sm sm:text-base"
+                  className="h-12 sm:h-14 px-6 sm:px-8 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-800 disabled:text-slate-500 disabled:border-slate-700 border border-indigo-500 disabled:cursor-not-allowed text-white font-bold rounded-xl sm:rounded-2xl transition-all shadow-lg shadow-indigo-500/25 flex items-center justify-center min-w-[120px]"
                 >
                   {isCreatingCustomPack ? (
-                    <GachaLoading message="Поиск" size="sm" />
+                    <GachaLoading message="" />
                   ) : (
                     "Найти"
                   )}
@@ -1041,28 +1043,28 @@ export default function GachaPage() {
             </div>
 
             {!isCreatingCustomPack && !createdCustomPack && customPackSearchResults.length > 0 && (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between p-3 bg-slate-800/50 rounded-xl border border-white/10">
+              <div className="space-y-6">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 bg-slate-800/30 rounded-2xl border border-white/5">
                   <div className="flex items-center gap-3">
-                    <span className="text-sm font-bold text-white">
-                      Выбрано: {selectedAnimeIds.size} из {customPackSearchResults.length}
+                    <span className="text-sm sm:text-base font-bold text-white">
+                      Выбрано: <span className="text-indigo-400">{selectedAnimeIds.size}</span> из {customPackSearchResults.length}
                     </span>
                     {selectedAnimeIds.size > 0 && (
-                      <span className="text-xs bg-indigo-500/20 text-indigo-300 px-2 py-1 rounded-full">
-                        Готово к созданию
+                      <span className="text-xs font-bold bg-green-500/10 border border-green-500/20 text-green-400 px-2 py-1 rounded-md uppercase tracking-wider">
+                        Готово
                       </span>
                     )}
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
                     <button
                       onClick={selectAllAnime}
-                      className="px-3 py-1 text-xs bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors"
+                      className="px-4 py-2 text-xs sm:text-sm font-bold bg-slate-700 hover:bg-slate-600 text-white rounded-xl transition-colors"
                     >
                       Выбрать все
                     </button>
                     <button
                       onClick={deselectAllAnime}
-                      className="px-3 py-1 text-xs bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors"
+                      className="px-4 py-2 text-xs sm:text-sm font-bold bg-slate-700 hover:bg-slate-600 text-white rounded-xl transition-colors"
                     >
                       Снять все
                     </button>
@@ -1070,46 +1072,45 @@ export default function GachaPage() {
                 </div>
 
                 <div>
-                  <h4 className="text-sm font-bold text-white/70 mb-3 uppercase tracking-wider">
-                    Найденные аниме (выберите для включения в пак)
+                  <h4 className="text-xs sm:text-sm font-black text-slate-400 mb-4 uppercase tracking-widest">
+                    Найденные аниме
                   </h4>
-                  <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2 max-h-96 overflow-y-auto p-2">
+                  <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-3 sm:gap-4 max-h-[400px] overflow-y-auto p-1 scrollbar-thin scrollbar-thumb-slate-700">
                     {customPackSearchResults.map(anime => (
                       <div 
                         key={anime.id} 
-                        className={`rounded-lg overflow-hidden bg-slate-800/50 border transition-all cursor-pointer ${
+                        className={`relative rounded-xl overflow-hidden bg-slate-800/30 border transition-all duration-200 cursor-pointer hover:shadow-lg ${
                           selectedAnimeIds.has(anime.id) 
-                            ? 'border-indigo-500 ring-2 ring-indigo-500/30' 
-                            : 'border-white/10 hover:border-white/30'
+                            ? 'border-indigo-500 ring-2 ring-indigo-500/40 transform scale-[0.98]' 
+                            : 'border-white/5 hover:border-white/20 hover:scale-[1.02]'
                         }`}
                         onClick={() => toggleAnimeSelection(anime.id)}
                       >
-                        <div className="relative">
+                        <div className="relative aspect-[2/3]">
                           <img 
                             src={anime.imageUrl} 
                             alt={anime.russian || anime.name} 
-                            className="w-full aspect-[2/3] object-cover" 
+                            className="w-full h-full object-cover" 
                             referrerPolicy="no-referrer" 
                           />
-                          <div className="absolute top-1 right-1">
-                            <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all ${
+                          <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent opacity-80" />
+                          <div className="absolute top-2 right-2">
+                            <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${
                               selectedAnimeIds.has(anime.id)
-                                ? 'bg-indigo-500 border-indigo-500'
-                                : 'bg-black/50 border-white/50'
+                                ? 'bg-indigo-500 border-indigo-500 text-white shadow-lg shadow-indigo-500/50'
+                                : 'bg-slate-900/50 border-white/30 text-transparent backdrop-blur-sm'
                             }`}>
-                              {selectedAnimeIds.has(anime.id) && (
-                                <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
-                                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                </svg>
-                              )}
+                              <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                              </svg>
                             </div>
                           </div>
                         </div>
-                        <div className="p-1.5">
-                          <p className="text-xs font-bold text-white truncate">{anime.russian || anime.name}</p>
+                        <div className="absolute bottom-0 inset-x-0 p-2 sm:p-2.5">
+                          <p className="text-[10px] sm:text-xs font-bold text-white leading-tight line-clamp-2">{anime.russian || anime.name}</p>
                           <div className="flex items-center gap-1 mt-1">
-                            <Star className="w-2.5 h-2.5 text-yellow-400 fill-yellow-400" />
-                            <span className="text-xs font-bold text-white">{typeof anime.score === 'number' ? anime.score.toFixed(1) : 'N/A'}</span>
+                            <Star className="w-3 h-3 text-yellow-400 fill-yellow-400" />
+                            <span className="text-[10px] sm:text-xs font-bold text-white/80">{typeof anime.score === 'number' ? anime.score.toFixed(1) : 'N/A'}</span>
                           </div>
                         </div>
                       </div>
@@ -1121,12 +1122,15 @@ export default function GachaPage() {
                   <button
                     onClick={handleCreateCustomPackFromSelected}
                     disabled={isCreatingCustomPack}
-                    className="w-full py-3 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 disabled:from-slate-700 disabled:to-slate-800 disabled:cursor-not-allowed text-white font-black uppercase tracking-wider rounded-xl transition-all"
+                    className="w-full py-4 sm:py-5 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-800 disabled:text-slate-500 text-white font-black uppercase tracking-wider rounded-xl sm:rounded-2xl transition-all shadow-lg shadow-indigo-500/25 flex items-center justify-center gap-3"
                   >
                     {isCreatingCustomPack ? (
-                      <GachaLoading message="Создание пака" size="sm" />
+                      <GachaLoading message="Открытие набора..." />
                     ) : (
-                      `Создать пак из ${selectedAnimeIds.size} выбранных аниме`
+                      <>
+                        <Package className="w-5 h-5" />
+                        Создать пак ({selectedAnimeIds.size} аниме)
+                      </>
                     )}
                   </button>
                 )}
@@ -1134,25 +1138,26 @@ export default function GachaPage() {
             )}
 
             {isCreatingCustomPack && (
-              <div className="flex items-center justify-center py-12">
-                <GachaLoading message="Поиск аниме..." size="md" />
+              <div className="flex items-center justify-center py-16">
+                <GachaLoading message="Поиск и сборка аниме..." />
               </div>
             )}
 
             {createdCustomPack && customPackSearchResults.length > 0 && (
-              <div className="space-y-4">
-                <div className="p-4 rounded-xl bg-gradient-to-r border border-white/10 animate-in fade-in slide-in-from-top-4 duration-300" style={{backgroundImage: `linear-gradient(to right, var(--tw-gradient-stops))`, ...{ '--tw-gradient-from': 'oklch(0.5 0.2 280)', '--tw-gradient-to': 'oklch(0.5 0.2 320)' } as React.CSSProperties}}>
-                  <h3 className="text-xl font-black text-white mb-2">{createdCustomPack.name}</h3>
-                  <p className="text-sm text-white/70 mb-3">{createdCustomPack.description}</p>
+              <div className="space-y-6">
+                <div className="p-6 sm:p-8 rounded-2xl bg-gradient-to-br from-indigo-900/40 to-slate-900 border border-indigo-500/30 animate-in fade-in slide-in-from-top-4 duration-300 shadow-xl">
+                  <h3 className="text-2xl sm:text-3xl font-black text-white mb-2">{createdCustomPack.name}</h3>
+                  <p className="text-sm sm:text-base text-indigo-200/80 mb-5">{createdCustomPack.description}</p>
+                  
                   <div className="flex flex-wrap gap-3">
-                    <div className="flex items-center gap-2 bg-black/30 backdrop-blur-sm px-3 py-1.5 rounded-full">
-                      <Coins className="w-4 h-4 text-yellow-400" />
-                      <span className="text-sm font-bold text-white">{createdCustomPack.price} монет</span>
+                    <div className="flex items-center gap-2 bg-slate-950/50 border border-white/10 px-4 py-2 rounded-xl shadow-inner">
+                      <Coins className="w-5 h-5 text-yellow-400" />
+                      <span className="text-sm sm:text-base font-black text-white">{createdCustomPack.price} монет</span>
                     </div>
                     {createdCustomPack.guaranteedRarity && (
-                      <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm px-3 py-1.5 rounded-full">
-                        <Star className="w-4 h-4 text-yellow-400" />
-                        <span className="text-xs font-bold text-white">
+                      <div className="flex items-center gap-2 bg-indigo-500/20 border border-indigo-500/30 px-4 py-2 rounded-xl">
+                        <Star className="w-5 h-5 text-indigo-400" />
+                        <span className="text-sm sm:text-base font-bold text-indigo-100">
                           Гарант: {rarityConfig[createdCustomPack.guaranteedRarity as Rarity].label}
                         </span>
                       </div>
@@ -1160,72 +1165,56 @@ export default function GachaPage() {
                   </div>
                 </div>
 
-                <div>
-                  <h4 className="text-sm font-bold text-white/70 mb-3 uppercase tracking-wider">Найденные аниме ({customPackSearchResults.length})</h4>
-                  <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2 max-h-96 overflow-y-auto p-2">
-                    {customPackSearchResults.map(anime => (
-                      <div key={anime.id} className="rounded-lg overflow-hidden bg-slate-800/50 border border-white/10">
-                        <img src={anime.imageUrl} alt={anime.russian || anime.name} className="w-full aspect-[2/3] object-cover" referrerPolicy="no-referrer" />
-                        <div className="p-1.5">
-                          <p className="text-xs font-bold text-white truncate">{anime.russian || anime.name}</p>
-                          <div className="flex items-center gap-1 mt-1">
-                            <Star className="w-2.5 h-2.5 text-yellow-400 fill-yellow-400" />
-                            <span className="text-xs font-bold text-white">{typeof anime.score === 'number' ? anime.score.toFixed(1) : 'N/A'}</span>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
                 <button
                   onClick={() => handleSelectCustomPack(createdCustomPack)}
                   disabled={userCoins < createdCustomPack.price}
-                  className="w-full py-4 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 disabled:from-slate-700 disabled:to-slate-800 disabled:cursor-not-allowed text-white font-black uppercase tracking-wider rounded-xl transition-all"
+                  className="w-full py-4 sm:py-5 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-800 disabled:text-slate-500 text-white font-black uppercase tracking-wider rounded-xl sm:rounded-2xl transition-all shadow-lg shadow-indigo-500/25 flex items-center justify-center"
                 >
                   {userCoins < createdCustomPack.price ? "Недостаточно монет" : "Выбрать этот пак"}
                 </button>
               </div>
             )}
-
-           
           </div>
         </div>
       )}
 
       {/* Art Warning Modal */}
       {showArtWarning && revealedCard && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xl animate-in fade-in duration-200">
-          <div className="bg-slate-900 rounded-2xl sm:rounded-3xl p-4 sm:p-6 md:p-8 max-w-md w-full border border-white/10">
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-slate-950/80 backdrop-blur-xl animate-in fade-in duration-200"
+          onClick={() => setShowArtWarning(false)}
+        >
+          <div 
+            className="bg-slate-900 rounded-2xl sm:rounded-3xl p-6 sm:p-8 max-w-sm sm:max-w-md w-full border border-slate-700/50 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="text-center space-y-6">
-              <div className="w-16 h-16 mx-auto rounded-full bg-yellow-500/20 flex items-center justify-center">
-                <RefreshCcw className="w-8 h-8 text-yellow-400" />
+              <div className="w-16 h-16 sm:w-20 sm:h-20 mx-auto rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center">
+                <RefreshCcw className="w-8 h-8 sm:w-10 sm:h-10 text-red-400" />
               </div>
               
               <div>
-                <h3 className="text-2xl font-black text-white mb-3">Отбросить арт?</h3>
-                <p className="text-slate-300 leading-relaxed">
-                  Этот арт будет добавлен в черный список и не будет появляться при следующих призывах этого персонажа. 
-                  Вместо него будут показываться другие арты.
+                <h3 className="text-2xl sm:text-3xl font-black text-white mb-3">Отбросить арт?</h3>
+                <p className="text-slate-400 text-sm sm:text-base leading-relaxed">
+                  Этот арт будет добавлен в черный список и не появится при следующих призывах этого персонажа.
                 </p>
               </div>
               
-              <div className="flex gap-3">
+              <div className="flex flex-col gap-3">
                 <button 
                   onClick={() => {
-                    // Добавляем URL этой картинки в черный список
-                    setBlacklistedUrls(prev => [...prev, revealedCard.imageUrl]);
+                    setBlacklistedUrls(prev =>[...prev, revealedCard.imageUrl]);
                     setUsedCharacterIds(prev => new Set(prev).add(revealedCard.characterId));
                     setShowCard(false);
                     setShowArtWarning(false);
                   }}
-                  className="flex-1 px-4 py-3 bg-red-500/20 hover:bg-red-500/30 text-red-300 font-bold rounded-xl transition-all border border-red-500/30"
+                  className="w-full py-3.5 sm:py-4 bg-red-500/20 hover:bg-red-500/30 text-red-300 font-bold rounded-xl transition-all border border-red-500/30"
                 >
                   Да, отбросить
                 </button>
                 <button 
                   onClick={() => setShowArtWarning(false)}
-                  className="flex-1 px-4 py-3 bg-slate-700 hover:bg-slate-600 text-white font-bold rounded-xl transition-all"
+                  className="w-full py-3.5 sm:py-4 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-xl transition-all"
                 >
                   Отмена
                 </button>
@@ -1235,74 +1224,93 @@ export default function GachaPage() {
         </div>
       )}
 
+      {/* Viewed Card Modal */}
       {viewedCard && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xl animate-in fade-in duration-200">
-          <button onClick={() => setViewedCard(null)} className="absolute top-4 sm:top-8 right-4 sm:right-8 p-2 sm:p-3 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors">
-            <X className="w-6 h-6" />
+        <div 
+          className="fixed inset-0 z-50 flex flex-col items-center justify-center p-4 sm:p-6 bg-slate-950/90 backdrop-blur-xl animate-in fade-in duration-200 overflow-y-auto"
+          onClick={() => setViewedCard(null)}
+        >
+          <button onClick={() => setViewedCard(null)} className="absolute top-4 sm:top-6 right-4 sm:right-6 p-2.5 sm:p-3 rounded-full bg-white/5 hover:bg-white/10 text-white transition-colors border border-white/10 z-50">
+            <X className="w-5 h-5 sm:w-6 sm:h-6" />
           </button>
           
-          <div className="flex flex-col items-center animate-in zoom-in-95 duration-300">
+          <div 
+            className="flex flex-col items-center justify-center min-h-full py-12"
+            onClick={(e) => e.stopPropagation()}
+          >
             <InteractiveCard card={viewedCard} />
-            <div className="flex gap-2 sm:gap-4 mt-4 sm:mt-8 flex-wrap justify-center">
+            
+            <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-4 mt-8 sm:mt-10 w-full max-w-lg mx-auto">
               <button
                 onClick={() => removeCard(viewedCard)}
-                className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-6 py-1.5 sm:py-2 rounded-full bg-red-500/20 hover:bg-red-500/40 text-red-200 font-medium text-xs sm:text-sm"
+                className="px-4 py-2.5 sm:px-5 sm:py-3 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 font-bold text-xs sm:text-sm flex items-center gap-2 transition-colors border border-red-500/20"
               >
-                <Trash className="w-3 sm:w-4 h-3 sm:h-4" /> <span className="hidden sm:inline">Удалить из коллекции</span><span className="sm:hidden">Удалить</span>
+                <Trash className="w-4 h-4" /> <span className="hidden sm:inline">Удалить из коллекции</span><span className="sm:hidden">Удалить</span>
               </button>
+              
               {viewedCard.isMainCharacter && viewedCard.isArtBlacklisted && (
                 <button 
                   onClick={() => unblacklistArt(viewedCard)}
-                  className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-6 py-1.5 sm:py-2 rounded-full bg-green-500/20 hover:bg-green-500/40 text-green-200 font-medium text-xs sm:text-sm"
+                  className="px-4 py-2.5 sm:px-5 sm:py-3 rounded-xl bg-green-500/10 hover:bg-green-500/20 text-green-400 font-bold text-xs sm:text-sm flex items-center gap-2 transition-colors border border-green-500/20"
                 >
-                  <RefreshCcw className="w-3 sm:w-4 h-3 sm:h-4" /> <span className="hidden sm:inline">Разблокировать арт</span><span className="sm:hidden">Разблокировать</span>
+                  <RefreshCcw className="w-4 h-4" /> <span className="hidden sm:inline">Разблокировать арт</span><span className="sm:hidden">Разблокировать</span>
                 </button>
               )}
-              <a href={viewedCard.originalUrl} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-6 py-1.5 sm:py-2 rounded-full bg-white/10 hover:bg-white/20 text-white font-medium text-xs sm:text-sm">
-                <ZoomIn className="w-3 sm:w-4 h-3 sm:h-4" /> <span className="hidden sm:inline">Оригинал</span>
+              
+              <a href={viewedCard.originalUrl} target="_blank" rel="noreferrer" className="px-4 py-2.5 sm:px-5 sm:py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs sm:text-sm flex items-center gap-2 transition-colors border border-slate-700">
+                <ZoomIn className="w-4 h-4" /> <span className="hidden sm:inline">Оригинал</span>
               </a>
-              <a href={`https://shikimori.one/animes/${viewedCard.shikiId}`} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-6 py-1.5 sm:py-2 rounded-full bg-blue-500/20 hover:bg-blue-500/40 text-blue-200 font-medium text-xs sm:text-sm">
-                <ExternalLink className="w-3 sm:w-4 h-3 sm:h-4" /> <span className="hidden sm:inline">Шикимори</span>
+              
+              <a href={`https://shikimori.one/animes/${viewedCard.shikiId}`} target="_blank" rel="noreferrer" className="px-4 py-2.5 sm:px-5 sm:py-3 rounded-xl bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 font-bold text-xs sm:text-sm flex items-center gap-2 transition-colors border border-blue-500/20">
+                <ExternalLink className="w-4 h-4" /> <span className="hidden sm:inline">Шикимори</span>
               </a>
             </div>
           </div>
         </div>
       )}
 
-      <div className="container mx-auto px-3 sm:px-4 py-8 sm:py-12 max-w-6xl">
-        <div className="text-center mb-8 sm:mb-16">
-          <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-black tracking-tighter mb-4 text-transparent bg-clip-text bg-gradient-to-r from-white to-slate-400 uppercase">
-            WEEB.<span className="text-primary">X</span> ГАЧА
+      {/* MAIN CONTENT AREA */}
+      <div className="container mx-auto px-4 sm:px-6 py-8 sm:py-12 lg:py-16 max-w-7xl relative z-10">
+        
+        {/* Header Section */}
+        <div className="text-center mb-10 sm:mb-16">
+          <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-black tracking-tighter mb-4 text-transparent bg-clip-text bg-gradient-to-br from-white via-slate-200 to-slate-500 uppercase drop-shadow-sm">
+            WEEB.<span className="text-indigo-500">X</span> ГАЧА
           </h1>
-          <p className="text-slate-400 text-sm sm:text-base md:text-lg font-medium">Нажми чтобы перевернуть карту и увидеть боевые характеристики.</p>
+          <p className="text-slate-400 text-sm sm:text-base md:text-lg font-medium max-w-2xl mx-auto">
+            Призывай любимых персонажей и собирай уникальную коллекцию. Нажми на карту, чтобы увидеть характеристики.
+          </p>
           
-          <div className="flex justify-center items-center gap-2 sm:gap-4 mt-3 sm:mt-4">
-            <div className="flex items-center gap-2">
-              <Coins className="w-4 sm:w-5 md:w-6 h-4 sm:h-5 md:h-6 text-yellow-400" />
-              <span className="text-lg sm:text-xl md:text-2xl font-black text-yellow-400">{userCoins}</span>
+          <div className="flex justify-center items-center gap-3 sm:gap-4 mt-8">
+            <div className="flex items-center gap-2.5 px-5 py-2.5 rounded-2xl bg-slate-900/80 backdrop-blur-md border border-slate-800 shadow-xl shadow-yellow-500/5">
+              <Coins className="w-5 h-5 sm:w-6 sm:h-6 text-yellow-400" />
+              <span className="text-xl sm:text-2xl font-black text-yellow-400 tracking-tight">{userCoins.toLocaleString()}</span>
             </div>
+            
             {userCoins > 1000000 && (
               <button
                 onClick={handleFixCoins}
                 disabled={isFixingCoins}
-                className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1 rounded-full bg-red-500/20 hover:bg-red-500/40 disabled:opacity-50 disabled:cursor-not-allowed text-red-300 text-xs sm:text-sm font-medium transition-all"
+                className="flex items-center gap-2 px-3 py-2 sm:px-4 sm:py-3 rounded-xl bg-red-500/10 hover:bg-red-500/20 disabled:opacity-50 disabled:cursor-not-allowed text-red-400 text-xs sm:text-sm font-bold transition-all border border-red-500/20"
                 title="Исправить монеты"
               >
-                <RefreshCcw className={`w-3 sm:w-4 h-3 sm:h-4 ${isFixingCoins ? 'animate-spin' : ''}`} />
-                {isFixingCoins ? 'Исправление...' : 'Испр.'}
+                <RefreshCcw className={`w-4 h-4 ${isFixingCoins ? 'animate-spin' : ''}`} />
+                <span className="hidden sm:inline">{isFixingCoins ? 'Исправление...' : 'Испр. монеты'}</span>
               </button>
             )}
           </div>
         </div>
 
+        {/* Selected Pack Indicator */}
         {selectedPack && (
-          <div className="mb-8 text-center">
-            <div className="inline-flex items-center gap-3 bg-gradient-to-r px-6 py-3 rounded-full border border-white/20">
-              <Package className="w-5 h-5 text-white" />
-              <span className="text-white font-bold">Выбранный набор: {selectedPack.name}</span>
+          <div className="mb-8 sm:mb-12 text-center animate-in fade-in slide-in-from-top-4">
+            <div className="inline-flex items-center gap-3 bg-slate-900/80 backdrop-blur-md px-5 py-3 rounded-2xl border border-indigo-500/30 shadow-lg shadow-indigo-500/10">
+              <Package className="w-5 h-5 text-indigo-400" />
+              <span className="text-white font-bold text-sm sm:text-base">Набор: <span className="text-indigo-300">{selectedPack.name}</span></span>
+              <div className="w-px h-5 bg-white/10 mx-2" />
               <button 
                 onClick={() => setSelectedPack(null)}
-                className="text-white/70 hover:text-white transition-colors"
+                className="p-1.5 rounded-full hover:bg-slate-800 text-slate-400 hover:text-white transition-colors"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -1310,65 +1318,77 @@ export default function GachaPage() {
           </div>
         )}
 
-        <div className="flex flex-col items-center justify-center min-h-[400px] sm:min-h-[500px] md:min-h-[550px] mb-12 sm:mb-20 md:mb-24 relative">
+        {/* Action Area */}
+        <div className="flex flex-col items-center justify-center min-h-[400px] sm:min-h-[500px] mb-16 sm:mb-24 relative">
+          
+          {/* Default Empty State */}
           {!showCard && !isRolling && (
-            <div className="flex flex-col items-center gap-6">
-              <button onClick={handleRoll} className="group relative w-56 sm:w-64 md:w-72 h-[350px] sm:h-[380px] md:h-[420px] rounded-[1.5rem] sm:rounded-[2rem] md:rounded-[2.5rem] border-2 border-dashed border-slate-700/50 bg-slate-900/50 backdrop-blur-sm flex flex-col items-center justify-center hover:border-indigo-500 transition-all">
-                <Sparkles className="w-8 sm:w-10 md:w-12 h-8 sm:h-10 md:h-12 text-indigo-500 mb-3 sm:mb-4 animate-pulse" />
-                <span className="font-black text-slate-500 group-hover:text-indigo-400 uppercase tracking-widest text-xs sm:text-sm text-center px-2">
-                  {selectedPack ? `Призвать (${selectedPack.price} монет)` : "Призвать (50 монет)"}
+            <div className="flex flex-col items-center w-full max-w-md mx-auto">
+              <button 
+                onClick={handleRoll} 
+                className="group relative w-64 sm:w-72 md:w-80 h-[380px] sm:h-[420px] md:h-[480px] rounded-[2rem] sm:rounded-[2.5rem] border-2 border-dashed border-slate-700/50 bg-slate-900/40 hover:bg-slate-800/60 backdrop-blur-md flex flex-col items-center justify-center hover:border-indigo-500/50 transition-all duration-300 overflow-hidden shadow-2xl"
+              >
+                <div className="absolute inset-0 bg-gradient-to-b from-transparent to-indigo-500/5 group-hover:to-indigo-500/10 transition-colors" />
+                <Sparkles className="w-10 sm:w-12 h-10 sm:h-12 text-indigo-500/70 group-hover:text-indigo-400 mb-5 animate-pulse" />
+                <span className="font-black text-slate-400 group-hover:text-indigo-300 uppercase tracking-widest text-sm sm:text-base text-center px-4 relative z-10">
+                  {selectedPack ? `Призвать (${selectedPack.price})` : "Призвать (50)"}
                 </span>
               </button>
               
-              <button
-                onClick={() => setShowPacks(true)}
-                className="flex items-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-bold rounded-xl transition-all text-sm sm:text-base"
-              >
-                <Package className="w-4 sm:w-5 h-4 sm:h-5" />
-                Выбрать набор
-              </button>
+              <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 mt-6 sm:mt-8 w-full">
+                <button
+                  onClick={() => setShowPacks(true)}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-3.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white font-bold rounded-xl transition-all shadow-lg text-sm sm:text-base"
+                >
+                  <Package className="w-5 h-5 text-indigo-400" />
+                  Выбрать набор
+                </button>
 
-              <button
-                onClick={() => setShowCustomPackCreator(true)}
-                className="flex items-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white font-bold rounded-xl transition-all text-sm sm:text-base"
-              >
-                <Search className="w-4 sm:w-5 h-4 sm:h-5" />
-                Создать пак
-              </button>
+                <button
+                  onClick={() => setShowCustomPackCreator(true)}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-3.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white font-bold rounded-xl transition-all shadow-lg text-sm sm:text-base"
+                >
+                  <Search className="w-5 h-5 text-purple-400" />
+                  Создать пак
+                </button>
+              </div>
             </div>
           )}
 
+          {/* Rolling State */}
           {isRolling && (
-            <div className="w-56 sm:w-64 md:w-72 h-[350px] sm:h-[380px] md:h-[420px] rounded-[1.5rem] sm:rounded-[2rem] md:rounded-[2.5rem] bg-gradient-to-br from-slate-900/90 to-orange-950/20 border border-orange-500/30 flex flex-col items-center justify-center relative overflow-hidden">
+            <div className="w-64 sm:w-72 md:w-80 h-[380px] sm:h-[420px] md:h-[480px] rounded-[2rem] sm:rounded-[2.5rem] bg-gradient-to-br from-slate-900 to-indigo-950/40 border border-indigo-500/30 flex flex-col items-center justify-center relative overflow-hidden shadow-2xl shadow-indigo-500/20">
               <div className="absolute inset-0">
-                {[...Array(12)].map((_, i) => (
+                {[...Array(15)].map((_, i) => (
                   <div
                     key={i}
-                    className="absolute w-1 h-1 bg-orange-400 rounded-full animate-pulse"
+                    className="absolute w-1 h-1 bg-indigo-400 rounded-full animate-pulse"
                     style={{
                       top: `${Math.random() * 100}%`,
                       left: `${Math.random() * 100}%`,
                       animationDelay: `${Math.random() * 2}s`,
-                      animationDuration: `${2 + Math.random() * 2}s`
+                      animationDuration: `${1 + Math.random() * 2}s`
                     }}
                   />
                 ))}
               </div>
               
-              <div className="relative z-10">
-                <GachaLoading message="Поиск в мультивселенной..." size="lg" />
+              <div className="relative z-10 scale-125">
+                <GachaLoading message="Загрузка карт..." />
               </div>
             </div>
           )}
 
+          {/* Revealed Card State */}
           {showCard && revealedCard && (
-            <div className="flex flex-col items-center animate-in zoom-in-95 duration-500">
+            <div className="flex flex-col items-center animate-in zoom-in-95 duration-500 w-full">
               <InteractiveCard card={revealedCard} />
-              <div className="flex gap-4 mt-8">
+              
+              <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 mt-8 sm:mt-10 w-full max-w-xs sm:max-w-md mx-auto">
                 <button
                   onClick={() => saveCard(revealedCard)}
                   disabled={isSavingCard}
-                  className="px-6 sm:px-8 py-3 sm:py-4 bg-white text-black font-black uppercase tracking-wider rounded-xl sm:rounded-2xl hover:bg-indigo-500 hover:text-white transition-all text-sm sm:text-base disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  className="flex-1 px-4 sm:px-6 py-4 bg-indigo-600 hover:bg-indigo-500 text-white font-black uppercase tracking-wider rounded-xl sm:rounded-2xl transition-all text-sm sm:text-base disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg shadow-indigo-500/25 border border-indigo-400/50"
                 >
                   {isSavingCard ? (
                     <>
@@ -1378,7 +1398,7 @@ export default function GachaPage() {
                   ) : (
                     <>
                       <Database className="w-5 h-5" />
-                      Сохранить Карту
+                      Сохранить
                     </>
                   )}
                 </button>
@@ -1387,13 +1407,12 @@ export default function GachaPage() {
                     if (revealedCard.isMainCharacter) {
                       setShowArtWarning(true);
                     } else {
-                      // Для не главных героев просто добавляем в коллекцию
                       setCollectedCards(prev =>[revealedCard, ...prev]);
                       setUsedCharacterIds(prev => new Set(prev).add(revealedCard.characterId));
                       setShowCard(false);
                     }
                   }}
-                  className="px-6 sm:px-8 py-3 sm:py-4 bg-slate-800/80 text-slate-300 font-bold uppercase tracking-wider rounded-xl sm:rounded-2xl hover:bg-slate-700 transition-all text-sm sm:text-base"
+                  className="flex-1 px-4 sm:px-6 py-4 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold uppercase tracking-wider rounded-xl sm:rounded-2xl transition-all text-sm sm:text-base border border-slate-600 shadow-lg"
                 >
                   Отбросить
                 </button>
@@ -1402,64 +1421,69 @@ export default function GachaPage() {
           )}
         </div>
 
+        {/* Collection Section */}
         {collectedCards.length > 0 && (
-          <div className="space-y-6">
-            <div className="flex flex-col gap-4">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                <h2 className="text-xl sm:text-2xl font-black uppercase flex items-center gap-2 sm:gap-3">
-                  <Star className="w-4 sm:w-5 md:w-6 h-4 sm:h-5 md:h-6 text-yellow-500" />
-                  Коллекция ({collectedCards.length})
-                </h2>
-                {isLoaded && (
-                  <div className="flex items-center gap-2 text-xs text-slate-400">
-                    <Database className="w-4 h-4" />
-                    <span>Сохранено в аккаунт</span>
+          <div className="space-y-6 sm:space-y-8 animate-in fade-in duration-500">
+            <div className="flex flex-col gap-5">
+              
+              {/* Collection Header */}
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <h2 className="text-2xl sm:text-3xl font-black uppercase tracking-tight flex items-center gap-3">
+                    <Star className="w-6 sm:w-8 h-6 sm:h-8 text-yellow-400" />
+                    Коллекция <span className="text-slate-500 text-xl sm:text-2xl">({collectedCards.length})</span>
+                  </h2>
+                </div>
+
+                {!isLoaded ? (
+                  <div className="flex items-center gap-2 px-5 py-2.5 bg-slate-900 border border-slate-800 text-slate-500 font-bold rounded-xl text-sm w-fit cursor-not-allowed">
+                    <Search className="w-4 h-4" />
+                    Загрузка...
                   </div>
+                ) : (
+                  <button
+                    onClick={() => setShowFilters(!showFilters)}
+                    className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm transition-all border ${showFilters ? 'bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-500/25' : 'bg-slate-800 border-slate-700 hover:bg-slate-700 text-white'}`}
+                  >
+                    <Search className="w-4 h-4" />
+                    Фильтры
+                    {showFilters ? <X className="w-4 h-4 ml-1" /> : null}
+                  </button>
                 )}
               </div>
 
-              {/* Filter Toggle Button */}
-              <button
-                onClick={() => setShowFilters(!showFilters)}
-                className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-xl transition-all text-sm w-fit"
-              >
-                <Search className="w-4 h-4" />
-                Фильтры
-                {showFilters ? <X className="w-4 h-4" /> : null}
-              </button>
-
               {/* Filter Panel */}
-              {showFilters && (
-                <div className="bg-slate-900/50 border border-white/10 rounded-2xl p-4 sm:p-6 space-y-4 animate-in fade-in slide-in-from-top-4 duration-200">
-                  {/* Search */}
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              {isLoaded && showFilters && (
+                <div className="bg-slate-900/60 backdrop-blur-xl border border-slate-700/50 rounded-2xl p-5 sm:p-6 space-y-5 animate-in fade-in slide-in-from-top-2 duration-200 shadow-2xl">
+                  
+                  {/* Search Input */}
+                  <div className="relative group">
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-indigo-400 transition-colors" />
                     <input
                       type="text"
                       placeholder="Поиск по имени или аниме..."
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      className="w-full h-10 rounded-xl bg-slate-800 border border-slate-700 pl-10 pr-10 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 transition-all placeholder:text-slate-500"
+                      className="w-full h-12 rounded-xl bg-slate-950/50 border border-slate-700/50 pl-12 pr-12 text-sm sm:text-base text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all placeholder:text-slate-500"
                     />
                     {searchQuery && (
                       <button
                         onClick={() => setSearchQuery("")}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white transition-colors"
+                        className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white transition-colors p-1 rounded-full hover:bg-white/10"
                       >
-                        <X size={14} />
+                        <X size={16} />
                       </button>
                     )}
                   </div>
 
-                  {/* Filters Grid */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                    {/* Rarity Filter */}
+                  {/* Dropdowns Grid */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                     <div className="space-y-2">
-                      <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Редкость</label>
+                      <label className="text-xs font-black text-slate-500 uppercase tracking-widest pl-1">Редкость</label>
                       <select
                         value={selectedRarity}
                         onChange={(e) => setSelectedRarity(e.target.value as Rarity | "all")}
-                        className="w-full h-10 rounded-xl bg-slate-800 border border-slate-700 px-3 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all"
+                        className="w-full h-11 rounded-xl bg-slate-950/50 border border-slate-700/50 px-4 text-sm font-medium text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all"
                       >
                         <option value="all">Все редкости</option>
                         {Object.entries(rarityConfig).map(([key, config]) => (
@@ -1468,13 +1492,12 @@ export default function GachaPage() {
                       </select>
                     </div>
 
-                    {/* Pack Filter */}
                     <div className="space-y-2">
-                      <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Набор</label>
+                      <label className="text-xs font-black text-slate-500 uppercase tracking-widest pl-1">Набор</label>
                       <select
                         value={selectedPackFilter}
                         onChange={(e) => setSelectedPackFilter(e.target.value)}
-                        className="w-full h-10 rounded-xl bg-slate-800 border border-slate-700 px-3 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all"
+                        className="w-full h-11 rounded-xl bg-slate-950/50 border border-slate-700/50 px-4 text-sm font-medium text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all"
                       >
                         <option value="all">Все наборы</option>
                         {getUniquePacks().map(packName => (
@@ -1483,15 +1506,27 @@ export default function GachaPage() {
                       </select>
                     </div>
 
-                    {/* Sort By */}
                     <div className="space-y-2">
-                      <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Сортировка</label>
+                      <label className="text-xs font-black text-slate-500 uppercase tracking-widest pl-1">Тип героя</label>
+                      <select
+                        value={selectedMainCharacterFilter}
+                        onChange={(e) => setSelectedMainCharacterFilter(e.target.value as typeof selectedMainCharacterFilter)}
+                        className="w-full h-11 rounded-xl bg-slate-950/50 border border-slate-700/50 px-4 text-sm font-medium text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all"
+                      >
+                        <option value="all">Все типы</option>
+                        <option value="main">Главные герои</option>
+                        <option value="supporting">Второстепенные</option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-xs font-black text-slate-500 uppercase tracking-widest pl-1">Сортировка</label>
                       <select
                         value={sortBy}
                         onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
-                        className="w-full h-10 rounded-xl bg-slate-800 border border-slate-700 px-3 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all"
+                        className="w-full h-11 rounded-xl bg-slate-950/50 border border-slate-700/50 px-4 text-sm font-medium text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all"
                       >
-                        <option value="date">По дате</option>
+                        <option value="date">По дате получения</option>
                         <option value="rarity">По редкости</option>
                         <option value="score">По рейтингу</option>
                         <option value="name">По имени</option>
@@ -1499,13 +1534,12 @@ export default function GachaPage() {
                       </select>
                     </div>
 
-                    {/* Sort Order */}
                     <div className="space-y-2">
-                      <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Порядок</label>
+                      <label className="text-xs font-black text-slate-500 uppercase tracking-widest pl-1">Порядок</label>
                       <select
                         value={sortOrder}
                         onChange={(e) => setSortOrder(e.target.value as typeof sortOrder)}
-                        className="w-full h-10 rounded-xl bg-slate-800 border border-slate-700 px-3 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all"
+                        className="w-full h-11 rounded-xl bg-slate-950/50 border border-slate-700/50 px-4 text-sm font-medium text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all"
                       >
                         <option value="desc">По убыванию</option>
                         <option value="asc">По возрастанию</option>
@@ -1513,100 +1547,111 @@ export default function GachaPage() {
                     </div>
                   </div>
 
-                  {/* Reset Button */}
-                  <div className="flex justify-end">
-                    <button
-                      onClick={resetFilters}
-                      className="flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white font-bold rounded-xl transition-all text-sm"
-                    >
-                      <RefreshCcw className="w-4 h-4" />
-                      Сбросить фильтры
-                    </button>
-                  </div>
-
-                  {/* Active Filters Info */}
-                  {(searchQuery || selectedRarity !== "all" || selectedPackFilter !== "all") && (
-                    <div className="flex flex-wrap gap-2 pt-2 border-t border-white/10">
-                      <span className="text-xs font-bold text-slate-400 uppercase">Активные фильтры:</span>
+                  {/* Actions & Active Filters */}
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pt-4 border-t border-slate-700/50">
+                    <div className="flex flex-wrap items-center gap-2">
+                      {(searchQuery || selectedRarity !== "all" || selectedPackFilter !== "all" || selectedMainCharacterFilter !== "all") && (
+                        <span className="text-xs font-bold text-slate-500 uppercase mr-2">Активные:</span>
+                      )}
+                      
                       {searchQuery && (
-                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-indigo-500/20 text-indigo-300 text-xs font-bold">
-                          Поиск: {searchQuery}
-                          <button onClick={() => setSearchQuery("")} className="hover:text-white">
-                            <X size={12} />
-                          </button>
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-xs font-bold">
+                          {searchQuery}
+                          <button onClick={() => setSearchQuery("")} className="hover:text-white p-0.5"><X size={12} /></button>
                         </span>
                       )}
                       {selectedRarity !== "all" && (
-                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-purple-500/20 text-purple-300 text-xs font-bold">
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-purple-500/10 border border-purple-500/20 text-purple-300 text-xs font-bold">
                           {rarityConfig[selectedRarity].label}
-                          <button onClick={() => setSelectedRarity("all")} className="hover:text-white">
-                            <X size={12} />
-                          </button>
+                          <button onClick={() => setSelectedRarity("all")} className="hover:text-white p-0.5"><X size={12} /></button>
                         </span>
                       )}
                       {selectedPackFilter !== "all" && (
-                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-pink-500/20 text-pink-300 text-xs font-bold">
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-pink-500/10 border border-pink-500/20 text-pink-300 text-xs font-bold">
                           {selectedPackFilter}
-                          <button onClick={() => setSelectedPackFilter("all")} className="hover:text-white">
-                            <X size={12} />
-                          </button>
+                          <button onClick={() => setSelectedPackFilter("all")} className="hover:text-white p-0.5"><X size={12} /></button>
+                        </span>
+                      )}
+                      {selectedMainCharacterFilter !== "all" && (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-yellow-500/10 border border-yellow-500/20 text-yellow-300 text-xs font-bold">
+                          {selectedMainCharacterFilter === "main" ? "Главные герои" : "Второстепенные"}
+                          <button onClick={() => setSelectedMainCharacterFilter("all")} className="hover:text-white p-0.5"><X size={12} /></button>
                         </span>
                       )}
                     </div>
-                  )}
+                    
+                    <button
+                      onClick={resetFilters}
+                      className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white font-bold rounded-xl transition-all text-sm shrink-0 w-full sm:w-auto justify-center"
+                    >
+                      <RefreshCcw className="w-4 h-4" />
+                      Сбросить
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
 
             {/* Results Info */}
-            {filteredAndSortedCards.length !== collectedCards.length && (
-              <div className="text-sm text-slate-400">
-                Показано {filteredAndSortedCards.length} из {collectedCards.length}
+            {!isLoaded ? (
+              <div className="text-sm font-bold text-slate-500 animate-pulse">Синхронизация базы данных...</div>
+            ) : filteredAndSortedCards.length !== collectedCards.length && (
+              <div className="text-sm font-bold text-slate-400">
+                Показано <span className="text-white">{filteredAndSortedCards.length}</span> из {collectedCards.length} карт
               </div>
             )}
 
-            {/* Cards Grid */}
-            {filteredAndSortedCards.length === 0 ? (
-              <div className="text-center py-12">
-                <p className="text-slate-400 font-medium">Нет карт по выбранным фильтрам</p>
+            {/* Grid */}
+            {!isLoaded ? (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4 lg:gap-5">
+                <CollectionCardSkeleton count={12} />
+              </div>
+            ) : filteredAndSortedCards.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-16 sm:py-24 text-center border-2 border-dashed border-slate-800 rounded-3xl bg-slate-900/20">
+                <Database className="w-12 h-12 text-slate-700 mb-4" />
+                <p className="text-slate-300 font-bold text-lg mb-2">Ничего не найдено</p>
+                <p className="text-slate-500 text-sm mb-6 max-w-sm">По вашему запросу нет карт. Попробуйте изменить фильтры.</p>
                 <button
                   onClick={resetFilters}
-                  className="mt-4 px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white font-bold rounded-xl transition-all"
+                  className="px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl transition-all shadow-lg"
                 >
                   Сбросить фильтры
                 </button>
               </div>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2 sm:gap-3 md:gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4 lg:gap-5">
                 {filteredAndSortedCards.map((card) => (
                   <div
                     key={card.uniqueId}
                     onClick={() => setViewedCard(card)}
-                    className={`aspect-[2/3] rounded-xl overflow-hidden border border-white/10 relative group bg-slate-900 cursor-pointer transition-transform hover:-translate-y-2 ${rarityConfig[card.rarity].glow}`}
+                    className={`aspect-[2/3] rounded-2xl overflow-hidden border border-white/10 relative group bg-slate-900 cursor-pointer transition-all duration-300 hover:-translate-y-1.5 hover:shadow-2xl hover:shadow-indigo-500/20 ${rarityConfig[card.rarity].glow}`}
                   >
                     <img
                       src={card.imageUrl}
-                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                      className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ease-out"
                       alt={card.name}
                       referrerPolicy="no-referrer"
                       onError={(e) => handleImageError(e, card, true)}
                     />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/40 to-transparent opacity-90" />
-                    <div className={`absolute top-2 right-2 w-2.5 h-2.5 rounded-full bg-gradient-to-r ${rarityConfig[card.rarity].color} shadow-lg`} />
+                    <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/30 to-transparent opacity-90 group-hover:opacity-100 transition-opacity duration-300" />
+                    
+                    <div className={`absolute top-2.5 right-2.5 w-3 h-3 rounded-full bg-gradient-to-r ${rarityConfig[card.rarity].color} shadow-lg border border-white/20`} />
+                    
                     {card.isMainCharacter && (
-                      <div className="absolute top-2 left-2 w-5 h-5 rounded-full bg-gradient-to-r from-yellow-400 to-amber-500 shadow-lg flex items-center justify-center">
-                        <Crown className="w-3 h-3 text-black" />
+                      <div className="absolute top-2.5 left-2.5 w-6 h-6 rounded-full bg-gradient-to-r from-yellow-400 to-amber-500 shadow-lg flex items-center justify-center border border-yellow-200">
+                        <Crown className="w-3.5 h-3.5 text-amber-950" />
                       </div>
                     )}
+                    
                     {card.isMainCharacter && card.isArtBlacklisted && (
-                      <div className="absolute top-8 left-2 w-4 h-4 rounded-full bg-red-500/80 border border-red-300 flex items-center justify-center">
-                        <RefreshCcw className="w-2 h-2 text-white" />
+                      <div className="absolute top-10 left-2.5 w-6 h-6 rounded-full bg-red-500/80 border border-red-300 flex items-center justify-center backdrop-blur-sm">
+                        <RefreshCcw className="w-3 h-3 text-white" />
                       </div>
                     )}
-                    <div className="absolute bottom-0 inset-x-0 p-3">
-                      <p className="text-[10px] font-bold text-slate-400 uppercase truncate">★{card.score.toFixed(1)} {card.anime}</p>
-                      <p className="text-sm font-black text-white truncate">{card.name}</p>
-                      <p className="text-[8px] font-mono text-white/50 truncate mb-1">ID: {card.uniqueId}</p>
+                    
+                    <div className="absolute bottom-0 inset-x-0 p-3 sm:p-4 transition-transform duration-300 group-hover:translate-y-[-4px]">
+                      <p className="text-[10px] sm:text-xs font-bold text-slate-300 uppercase truncate mb-0.5">★{card.score.toFixed(1)} {card.anime}</p>
+                      <p className="text-sm sm:text-base font-black text-white truncate leading-tight drop-shadow-md">{card.name}</p>
                     </div>
                   </div>
                 ))}
