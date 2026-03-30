@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef, MouseEvent, useCallback, useEffect } from "react"
+import { useState, useRef, MouseEvent, useCallback, useEffect, useMemo } from "react"
 import { Navbar } from "@/components/navbar"
 import { Sparkles, Star, Heart, Loader2, X, ZoomIn, ExternalLink, RefreshCcw, Trash, Crown, Package, Coins, Search, Database } from "lucide-react"
 import { rollAnimeCharacter, rollFromAnimePack, searchGachaPacks, createCustomGachaPack } from "./actions"
@@ -576,8 +576,10 @@ export default function GachaPage() {
   }>>([])
   const [selectedAnimeIds, setSelectedAnimeIds] = useState<Set<number>>(new Set())
   const [blacklistedUrls, setBlacklistedUrls] = useState<string[]>([])
+  const [expandPoolForCharacters, setExpandPoolForCharacters] = useState<Set<number>>(new Set())
   const [showArtWarning, setShowArtWarning] = useState(false)
-  const[showArtChangeModal, setShowArtChangeModal] = useState(false)
+  const [showArtLimitWarning, setShowArtLimitWarning] = useState(false)
+  const [cardForArtLimitWarning, setCardForArtLimitWarning] = useState<Card | null>(null)
   const[selectedCardForArtChange, setSelectedCardForArtChange] = useState<Card | null>(null)
   const [isChangingArt, setIsChangingArt] = useState(false)
   const [artChangeError, setArtChangeError] = useState<string | null>(null)
@@ -585,6 +587,29 @@ export default function GachaPage() {
   const [isFixingCoins, setIsFixingCoins] = useState(false)
   const[isSavingCard, setIsSavingCard] = useState(false)
   const [isLoaded, setIsLoaded] = useState(false)
+
+  // Максимальное количество банов артов на персонажа перед предупреждением
+  const ART_BAN_LIMIT = 10
+
+  // Подсчёт забаненных артов по персонажам (используем revealedCard для текущего и коллекцию для прошлых)
+  const bannedArtsByCharacter = useMemo(() => {
+    const acc: Record<number, number> = {};
+    
+    // Считаем все забаненные URL из коллекции
+    blacklistedUrls.forEach(url => {
+      const card = collectedCards.find(c => c.imageUrl === url || c.originalUrl === url);
+      if (card) {
+        acc[card.characterId] = (acc[card.characterId] || 0) + 1;
+      }
+    });
+    
+    // Если есть текущая показанная карточка и её URL в blacklist — тоже считаем
+    if (revealedCard && blacklistedUrls.includes(revealedCard.imageUrl)) {
+      acc[revealedCard.characterId] = (acc[revealedCard.characterId] || 0) + 1;
+    }
+    
+    return acc;
+  }, [blacklistedUrls, collectedCards, revealedCard]);
   
   // Filter states
   const [searchQuery, setSearchQuery] = useState("")
@@ -673,9 +698,10 @@ export default function GachaPage() {
     setShowCard(false)
 
     try {
-      let result;
+      let result: Awaited<ReturnType<typeof rollAnimeCharacter>> | undefined;
       const ignored = blacklistedUrls;
-      console.log('[handleRoll] Starting roll, selectedPack:', selectedPack?.name, 'usedCharacterIds:', usedCharacterIds.size);
+      const expandChars = Array.from(expandPoolForCharacters);
+      console.log('[handleRoll] Starting roll, selectedPack:', selectedPack?.name, 'usedCharacterIds:', usedCharacterIds.size, 'expandPoolForCharacters:', expandChars);
 
       if (selectedPack) {
         if (userCoins < selectedPack.price) {
@@ -686,11 +712,19 @@ export default function GachaPage() {
 
         console.log("Rolling from pack:", selectedPack.id);
         await new Promise(resolve => setTimeout(resolve, 1500));
-        result = await rollFromAnimePack(selectedPack, Array.from(usedCharacterIds), ignored);
+        result = await rollFromAnimePack(selectedPack, Array.from(usedCharacterIds), ignored, expandChars);
 
         if (result) {
           await spendCoins(selectedPack.price);
           forceSync().catch(error => console.warn('Background sync failed:', error));
+          // Очищаем флаг расширения после успешного ролла
+          if (expandPoolForCharacters.has(result.characterId)) {
+            setExpandPoolForCharacters(prev => {
+              const next = new Set(prev);
+              next.delete(result!.characterId);
+              return next;
+            });
+          }
         }
       } else {
         console.log("Rolling random character");
@@ -699,24 +733,40 @@ export default function GachaPage() {
           setIsRolling(false);
           return;
         }
-        
+
         await new Promise(resolve => setTimeout(resolve, 1000));
-        result = await rollAnimeCharacter(Array.from(usedCharacterIds), ignored);
-        
+        result = await rollAnimeCharacter(Array.from(usedCharacterIds), ignored, expandChars);
+
         if (result) {
           await spendCoins(50);
           forceSync().catch(error => console.warn('Background sync failed:', error));
+          // Очищаем флаг расширения после успешного ролла
+          if (expandPoolForCharacters.has(result.characterId)) {
+            setExpandPoolForCharacters(prev => {
+              const next = new Set(prev);
+              next.delete(result!.characterId);
+              return next;
+            });
+          }
         }
       }
       
       if (!result) {
         let errorMessage = "Не удалось получить персонажа. Попробуйте снова!";
 
-        // Check if it's likely due to too many collected characters
-        if (usedCharacterIds.size > 500) {
-          errorMessage = "Вы собрали слишком много персонажей! Попробуйте очистить коллекцию или выберите другой пэк.";
+        // Check if it's likely due to all pack characters being collected
+        if (selectedPack && usedCharacterIds.size >= 50) {
+          // For packs, check if we've collected most characters
+          const packCollectionRate = usedCharacterIds.size / (selectedPack.animeIds?.length * 5 || 50); // Rough estimate
+          if (packCollectionRate > 0.8) {
+            errorMessage = `Вы собрали почти всех персонажей из пака "${selectedPack.name}"! Попробуйте выбрать другой пак или начните новую коллекцию.`;
+          } else {
+            errorMessage = "Многие персонажи уже собраны. Рекомендуется выбрать тематический пак для лучших результатов.";
+          }
+        } else if (usedCharacterIds.size > 500) {
+          errorMessage = "Вы собрали слишком много персонажей! Попробуйте очистить коллекцию или выберите другой пак.";
         } else if (usedCharacterIds.size > 100) {
-          errorMessage = "Многие персонажи уже собраны. Рекомендуется выбрать тематический пэк для лучших результатов.";
+          errorMessage = "Многие персонажи уже собраны. Рекомендуется выбрать тематический пак для лучших результатов.";
         } else {
           // Add more context about possible API issues
           console.warn(`Roll failed: usedCharacterIds=${usedCharacterIds.size}, selectedPack=${selectedPack?.id || 'none'}`);
@@ -1358,7 +1408,20 @@ export default function GachaPage() {
               <div className="flex flex-col gap-3">
                 <button
                   onClick={() => {
+                    const bannedCount = bannedArtsByCharacter[revealedCard.characterId] || 0;
+
+                    // Если достигли лимита банов для этого персонажа — показываем предупреждение
+                    if (bannedCount >= ART_BAN_LIMIT) {
+                      setCardForArtLimitWarning(revealedCard);
+                      setShowArtLimitWarning(true);
+                      setShowArtWarning(false);
+                      return;
+                    }
+
+                    // Иначе просто добавляем URL в blacklist
                     setBlacklistedUrls(prev =>[...prev, revealedCard.imageUrl]);
+                    // Добавляем characterId в список для расширения пула при следующем ролле
+                    setExpandPoolForCharacters(prev => new Set(prev).add(revealedCard.characterId));
                     // НЕ добавляем characterId в used — персонаж должен оставаться в пуле для призыва с другим артом
                     setShowCard(false);
                     setShowArtWarning(false);
@@ -1372,6 +1435,76 @@ export default function GachaPage() {
                   className="w-full py-3.5 sm:py-4 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-xl transition-all"
                 >
                   Отмена
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Art Limit Warning Modal */}
+      {showArtLimitWarning && cardForArtLimitWarning && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-slate-950/80 backdrop-blur-xl animate-in fade-in duration-200"
+          onClick={() => setShowArtLimitWarning(false)}
+        >
+          <div
+            className="bg-slate-900 rounded-2xl sm:rounded-3xl p-6 sm:p-8 max-w-md w-full border border-amber-500/30 shadow-2xl shadow-amber-500/10"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="text-center space-y-6">
+              <div className="w-20 h-20 mx-auto rounded-full bg-amber-500/10 border-2 border-amber-500/30 flex items-center justify-center">
+                <RefreshCcw className="w-10 h-10 text-amber-400" />
+              </div>
+
+              <div>
+                <h3 className="text-xl sm:text-2xl font-black text-white mb-2">
+                  Много отклонённых артов!
+                </h3>
+                <p className="text-slate-400 text-sm sm:text-base leading-relaxed mb-4">
+                  Вы отклонили уже <span className="text-amber-400 font-bold">{bannedArtsByCharacter[cardForArtLimitWarning.characterId] || 0}</span> артов для этого персонажа.
+                </p>
+                <div className="bg-slate-800/50 rounded-xl p-4 text-left space-y-3">
+                  <p className="text-slate-300 text-sm font-bold uppercase tracking-wide mb-2">
+                    {cardForArtLimitWarning.name}
+                  </p>
+                  <p className="text-slate-400 text-xs">
+                    Возможно, фан-арты не соответствуют персонажу или их качество низкое.
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <button
+                  onClick={() => {
+                    // Принимаем официальный арт с Shikimori
+                    setBlacklistedUrls(prev =>[...prev, cardForArtLimitWarning.imageUrl]);
+                    // Сохраняем карточку с официальным артом
+                    const officialCard: Card = {
+                      ...cardForArtLimitWarning,
+                      imageUrl: cardForArtLimitWarning.originalUrl,
+                      isArtBlacklisted: true
+                    };
+                    setRevealedCard(officialCard);
+                    setShowArtLimitWarning(false);
+                    setShowCard(true);
+                  }}
+                  className="w-full py-3.5 sm:py-4 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 font-bold rounded-xl transition-all border border-emerald-500/30 flex items-center justify-center gap-2"
+                >
+                  <Sparkles className="w-5 h-5" />
+                  Взять официальный арт с Shikimori
+                </button>
+                
+                <button
+                  onClick={() => {
+                    // Продолжаем банить — добавляем URL и закрываем карточку
+                    setBlacklistedUrls(prev =>[...prev, cardForArtLimitWarning.imageUrl]);
+                    setShowCard(false);
+                    setShowArtLimitWarning(false);
+                  }}
+                  className="w-full py-3.5 sm:py-4 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-xl transition-all border border-slate-600"
+                >
+                  Продолжить поиск артов
                 </button>
               </div>
             </div>
