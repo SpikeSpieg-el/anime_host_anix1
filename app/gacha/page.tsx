@@ -612,22 +612,29 @@ export default function GachaPage() {
     try {
       const { supabase } = await import('@/lib/supabase')
       const { data: { session } } = await supabase.auth.getSession()
-      
+
       if (session) {
         const result = await saveCardToDatabase(card)
+        // Add card to collection regardless of success/exists - card was rolled and should be shown
         if (result.success) {
-          setCollectedCards(prev =>[card, ...prev])
-          setUsedCharacterIds(prev => new Set(prev).add(card.characterId))
+          // Check if card already in collection to avoid duplicates
+          const isAlreadyCollected = collectedCards.some(c => c.uniqueId === card.uniqueId)
+          if (!isAlreadyCollected) {
+            setCollectedCards(prev => [card, ...prev])
+            setUsedCharacterIds(prev => new Set(prev).add(card.characterId))
+          }
           setShowCard(false)
         } else {
+          // Fallback to localStorage if DB save failed
           const savedCards = JSON.parse(localStorage.getItem('gacha-collection') || '[]')
           savedCards.unshift(card)
           localStorage.setItem('gacha-collection', JSON.stringify(savedCards))
-          setCollectedCards(prev =>[card, ...prev])
+          setCollectedCards(prev => [card, ...prev])
           setUsedCharacterIds(prev => new Set(prev).add(card.characterId))
           setShowCard(false)
         }
       } else {
+        // Not authenticated - save to localStorage only
         const savedCards = JSON.parse(localStorage.getItem('gacha-collection') || '[]')
         savedCards.unshift(card)
         localStorage.setItem('gacha-collection', JSON.stringify(savedCards))
@@ -1407,8 +1414,7 @@ export default function GachaPage() {
                     if (revealedCard.isMainCharacter) {
                       setShowArtWarning(true);
                     } else {
-                      setCollectedCards(prev =>[revealedCard, ...prev]);
-                      setUsedCharacterIds(prev => new Set(prev).add(revealedCard.characterId));
+                      // Just close the card without adding to collection
                       setShowCard(false);
                     }
                   }}

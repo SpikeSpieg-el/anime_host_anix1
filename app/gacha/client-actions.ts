@@ -7,10 +7,10 @@ import type { Card } from './page'
  * These functions run in the browser and have access to the user session
  */
 
-export async function saveCardToDatabase(card: Card): Promise<{ success: boolean; error?: string }> {
+export async function saveCardToDatabase(card: Card): Promise<{ success: boolean; error?: string; exists?: boolean }> {
   try {
     const { supabase } = await import('@/lib/supabase')
-    
+
     const { data: { session } } = await supabase.auth.getSession()
     if (!session) {
       console.log('[saveCardToDatabase] No session found, card not saved to DB')
@@ -33,6 +33,12 @@ export async function saveCardToDatabase(card: Card): Promise<{ success: boolean
     if (!res.ok) {
       console.error('[saveCardToDatabase] API error:', data.error)
       return { success: false, error: data.error || 'Failed to save card' }
+    }
+
+    // Card already exists for user - treat as success but mark as exists
+    if (data.exists) {
+      console.log('[saveCardToDatabase] Card already exists:', card.uniqueId)
+      return { success: true, exists: true }
     }
 
     console.log('[saveCardToDatabase] Card saved successfully:', card.uniqueId)
