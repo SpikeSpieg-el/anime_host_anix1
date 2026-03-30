@@ -87,7 +87,14 @@ export async function fetchHighQualityArt(
   let entry = characterArtCache.get(cacheKey);
   let pool = entry?.pool ||[];
   
+  // CRITICAL: Always filter the entire pool against current ignoredUrls
+  // This ensures banned URLs are removed from cache as well
   let filteredPool = pool.filter(url => !ignoredUrls.includes(url));
+  
+  // IMPORTANT: Update the cache immediately to remove banned URLs permanently
+  if (filteredPool.length !== pool.length) {
+    characterArtCache.set(cacheKey, { pool: filteredPool });
+  }
 
   if (filteredPool.length < 3) {
     console.log(`[Art Engine] Searching fanart for ${characterName}...`);
@@ -119,6 +126,8 @@ export async function fetchHighQualityArt(
 
   const selected = filteredPool[0] || null;
   if (selected) {
+    // IMPORTANT: Cache the REMAINING filtered pool, not the original pool
+    // This ensures banned URLs don't persist in cache
     characterArtCache.set(cacheKey, { pool: filteredPool.slice(1) });
   }
   return selected;
