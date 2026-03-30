@@ -136,19 +136,34 @@ async function processCharacterData(
     : char.image.original;
 
   let fanArt: string | null = null;
+  let allFanArtBanned = false;
 
-  if (isMain) {
-    // Ищем крутой фанарт для ГГ
-    fanArt = await fetchHighQualityArt(char.name, ignoredUrls, true);
-    
-    // БОЛЬШЕ НЕТ ЖЕСТКОГО СКИПА. 
-    // Если арт не найден (например непопулярный перс), просто выводим оригинал
-    if (!fanArt) {
-      console.log(`[Gacha] No fanart found for ${char.name}, using official art.`);
+  // В actions.ts найдите это место:
+if (isMain) {
+    // ВЫЗОВ ОБНОВЛЕН: получаем объект вместо строки
+    const artData = await fetchHighQualityArt(char.name, ignoredUrls, endgameArtMode);
+
+    if (artData) {
+        fanArt = artData.url; // Берем URL из объекта
+        // Можно залогировать и здесь
+        console.log(`[Server Action] Using art from ${artData.source} by tag ${artData.tag}`);
     }
-  }
 
+    if (!fanArt) {
+        if (ignoredUrls.includes(originalShikiUrl)) {
+            allFanArtBanned = true;
+            return null;
+        }
+        console.log(`[Server Action] No fanart for ${char.name}, using Shiki original.`);
+    }
+}
+
+  // Проверяем, что финальный арт не забанен
   const finalImageUrl = fanArt || originalShikiUrl;
+  if (ignoredUrls.includes(finalImageUrl)) {
+    console.log(`[Gacha] Final image ${finalImageUrl} is banned, skipping character.`);
+    return null;
+  }
 
   return {
     animeName: anime.russian || anime.name,
@@ -156,12 +171,13 @@ async function processCharacterData(
     rarity: rarity,
     characterName: char.russian || char.name,
     characterId: char.id,
-    originalUrl: originalShikiUrl, 
+    originalUrl: originalShikiUrl,
     imageUrl: finalImageUrl,
     shikiId: anime.id,
     stats: generateStats(rarity),
     isMainCharacter: isMain,
-    packId: undefined, 
+    allFanArtBanned: allFanArtBanned,
+    packId: undefined,
     packName: undefined
   };
 }

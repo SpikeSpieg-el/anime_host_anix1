@@ -408,6 +408,7 @@ const InteractiveCard = ({ card, forceFlipped = false }: { card: Card, forceFlip
         <Image 
           src={card.imageUrl} 
           alt={card.name}
+          unoptimized={true}
           className="absolute inset-0 w-full h-full object-cover scale-[1.02]"
           fill
           sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 40vw"
@@ -748,6 +749,22 @@ export default function GachaPage() {
           errorMessage = "Не удалось получить персонажа. Возможно, проблемы с API Shikimori. Попробуйте снова через несколько секунд!";
         }
         throw new Error(errorMessage);
+      }
+
+      // Если все арты забанены, пробуем снова
+      if (result.allFanArtBanned) {
+        console.log('[handleRoll] All art banned for this character, rolling again...');
+        // Рекурсивный реролл (один раз)
+        await new Promise(resolve => setTimeout(resolve, 500));
+        const retryResult = selectedPack
+          ? await rollFromAnimePack(selectedPack, Array.from(usedCharacterIds), ignored, expandChars)
+          : await rollAnimeCharacter(Array.from(usedCharacterIds), ignored, expandChars);
+        
+        if (retryResult && !retryResult.allFanArtBanned) {
+          result = retryResult;
+        } else {
+          throw new Error('Все арты для этого персонажа забанены. Попробуйте снова!');
+        }
       }
 
       const newCard: Card = {
