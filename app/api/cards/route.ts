@@ -53,6 +53,7 @@ export async function GET(request: Request) {
     const { data, error } = await supabaseAdmin
       .from('user_cards')
       .select('*')
+      .eq('user_id', user.id)
       .order('created_at', { ascending: false })
 
     if (error) {
