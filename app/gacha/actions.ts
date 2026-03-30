@@ -14,8 +14,14 @@ const RARITY_ORDER = [
 
 function generateStats(rarity: string) {
   const index = RARITY_ORDER.indexOf(rarity);
-  const baseMin = 5 + (index * 7);
-  const baseMax = 25 + (index * 7);
+  
+  // Базовые значения для каждой редкости
+  const baseMinTable = [5, 12, 19, 26, 33, 40, 47, 54, 62, 72, 82, 90];
+  const baseMaxTable = [25, 32, 39, 46, 53, 60, 67, 74, 82, 90, 96, 100];
+  
+  const baseMin = baseMinTable[index] || 5;
+  const baseMax = baseMaxTable[index] || 25;
+  
   const roll = (min: number, max: number) => Math.min(Math.floor(Math.random() * (max - min + 1) + min), 100);
 
   return {
@@ -37,16 +43,55 @@ function calculateBaseRarity(score: number): string {
   return "trash";
 }
 
-function calculateRarityWithBoost(score: number, boostPercent: number = 0): string {
+function calculateRarityWithBoost(score: number, boostPercent: number = 0, isMainCharacter: boolean = false): string {
   let rarity = calculateBaseRarity(score);
-  
-  if (boostPercent > 0 && Math.random() < boostPercent) {
-    const currentIndex = RARITY_ORDER.indexOf(rarity);
-    if (currentIndex < RARITY_ORDER.length - 1) {
-      rarity = RARITY_ORDER[currentIndex + 1];
+  let boostApplied = 0;
+
+  // 🎰 БУСТ 1: Легендарный рейтинг (9.0+) — шанс на +1-2 уровня
+  if (score >= 9.0) {
+    const legendaryRoll = Math.random();
+    if (legendaryRoll < 0.03) { // 3% шанс на +2 уровня (divine+)
+      boostApplied += 2;
+      console.log(`[RarityBoost] LEGENDARY 9.0+ score triggered +2 boost!`);
+    } else if (legendaryRoll < 0.10) { // 7% шанс на +1 уровень
+      boostApplied += 1;
+      console.log(`[RarityBoost] LEGENDARY 9.0+ score triggered +1 boost`);
     }
   }
-  
+  // 🎰 БУСТ 2: Очень высокий рейтинг (8.5-8.9) — шанс на +1 уровень
+  else if (score >= 8.5) {
+    if (Math.random() < 0.08) { // 8% шанс
+      boostApplied += 1;
+      console.log(`[RarityBoost] HIGH 8.5+ score triggered +1 boost`);
+    }
+  }
+
+  // 🎭 БУСТ 3: Главный персонаж — всегда +1 уровень (стекается)
+  if (isMainCharacter) {
+    boostApplied += 1;
+    console.log(`[RarityBoost] Main Character +1 boost`);
+  }
+
+  // 🎲 БУСТ 4: Гарантированный буст из пака (20% шанс)
+  if (boostPercent > 0 && Math.random() < boostPercent) {
+    boostApplied += 1;
+    console.log(`[RarityBoost] Pack guaranteed +1 boost`);
+  }
+
+  // 🍀 БУСТ 5: Случайная удача (1% шанс на любой карте)
+  if (Math.random() < 0.01) {
+    boostApplied += 1;
+    console.log(`[RarityBoost] LUCKY 1% chance +1 boost!`);
+  }
+
+  // Применяем все бусты
+  if (boostApplied > 0) {
+    const currentIndex = RARITY_ORDER.indexOf(rarity);
+    const newIndex = Math.min(currentIndex + boostApplied, RARITY_ORDER.length - 1);
+    rarity = RARITY_ORDER[newIndex];
+    console.log(`[RarityBoost] Total boost: +${boostApplied}, final rarity: ${rarity}`);
+  }
+
   return rarity;
 }
 
@@ -138,7 +183,8 @@ async function processCharacterData(
 
   console.log(`[processCharacterData] Selected character: ${char.name} (ID: ${char.id}), isMain: ${isMain}`);
 
-  let rarity = calculateRarityWithBoost(score, rarityBoost);
+  // Передаём isMain в функцию расчёта редкости для буста главного персонажа
+  let rarity = calculateRarityWithBoost(score, rarityBoost, isMain);
 
   const originalShikiUrl = char.image.original.startsWith("/") 
     ? `https://shikimori.one${char.image.original}` 
