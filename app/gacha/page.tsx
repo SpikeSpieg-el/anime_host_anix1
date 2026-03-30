@@ -578,7 +578,7 @@ export default function GachaPage() {
   const[showCard, setShowCard] = useState(false)
   const[viewedCard, setViewedCard] = useState<Card | null>(null)
   const[usedCharacterIds, setUsedCharacterIds] = useState<Set<number>>(new Set())
-  const { coins: userCoins, spendCoins, forceSync, fixOverflow } = useCoins()
+  const { coins: userCoins, loading: coinsLoading, spendCoins, forceSync, fixOverflow } = useCoins()
   const [selectedPack, setSelectedPack] = useState<AnimePack | CustomAnimePack | null>(null)
   const [showPacks, setShowPacks] = useState(false)
   const [packSearchQuery, setPackSearchQuery] = useState("")
@@ -1764,7 +1764,11 @@ export default function GachaPage() {
           <div className="flex justify-center items-center gap-3 sm:gap-4 mt-8">
             <div className="flex items-center gap-2.5 px-5 py-2.5 rounded-2xl bg-slate-900/80 backdrop-blur-md border border-slate-800 shadow-xl shadow-yellow-500/5">
               <Coins className="w-5 h-5 sm:w-6 sm:h-6 text-yellow-400" />
-              <span className="text-xl sm:text-2xl font-black text-yellow-400 tracking-tight">{userCoins.toLocaleString()}</span>
+              {coinsLoading ? (
+                <Loader2 className="w-5 h-5 sm:w-6 sm:h-6 text-yellow-400 animate-spin" />
+              ) : (
+                <span className="text-xl sm:text-2xl font-black text-yellow-400 tracking-tight">{userCoins.toLocaleString()}</span>
+              )}
             </div>
             
             {userCoins > 1000000 && (
