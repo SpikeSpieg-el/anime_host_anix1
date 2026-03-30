@@ -5,10 +5,11 @@ import { Navbar } from "@/components/navbar"
 import { Sparkles, Star, Heart, Loader2, X, ZoomIn, ExternalLink, RefreshCcw, Trash, Crown, Package, Coins, Search, Database } from "lucide-react"
 import { rollAnimeCharacter, rollFromAnimePack, searchGachaPacks, createCustomGachaPack } from "./actions"
 import { saveCardToDatabase, loadUserCards, deleteCardFromDatabase } from "./client-actions"
-import { ANIME_PACKS, AnimePack, CustomAnimePack, createCustomPack } from "@/lib/gacha-packs"
+import { ANIME_PACKS, AnimePack, CustomAnimePack, createCustomPack, loadYearBasedPacks } from "@/lib/gacha-packs"
 import { useCoins } from "@/hooks/use-coins"
 import { GachaLoading } from "@/components/gacha-loading"
-import { CollectionCardSkeleton } from "@/components/collection-skeleton" 
+import { CollectionCardSkeleton } from "@/components/collection-skeleton"
+import { PackCardSkeleton } from "@/components/pack-skeleton" 
 
 export type Rarity = 
   | "trash" | "common" | "uncommon" | "rare" | "super_rare" | "epic" 
@@ -72,6 +73,7 @@ interface CollectionRating {
   gradeColor: string
   totalPower: number
   avgRarity: number
+  powerScore: number
   rarityDistribution: Record<Rarity, number>
   topCards: Card[]
   stats: {
@@ -91,10 +93,26 @@ function calculateCollectionRating(cards: Card[]): CollectionRating {
       gradeColor: "text-stone-400",
       totalPower: 0,
       avgRarity: 0,
+      powerScore: 0,
       rarityDistribution: {} as Record<Rarity, number>,
       topCards: [],
       stats: { avgHp: 0, avgAtk: 0, avgDef: 0, avgSpd: 0, avgLuck: 0 }
     }
+  }
+
+  const rarityScoreByRarity: Record<Rarity, number> = {
+    trash: 0,
+    common: 10,
+    uncommon: 20,
+    rare: 32,
+    super_rare: 45,
+    epic: 60,
+    mythic: 72,
+    legendary: 82,
+    ancient: 90,
+    divine: 95,
+    transcendent: 98,
+    omnipotent: 100,
   }
 
   // Calculate rarity distribution
@@ -103,14 +121,11 @@ function calculateCollectionRating(cards: Card[]): CollectionRating {
     mythic: 0, legendary: 0, ancient: 0, divine: 0, transcendent: 0, omnipotent: 0
   }
   
-  let totalRarityWeight = 0
   let totalPower = 0
   let totalStats = { hp: 0, atk: 0, def: 0, spd: 0, luck: 0 }
 
   cards.forEach(card => {
     rarityDistribution[card.rarity] = (rarityDistribution[card.rarity] || 0) + 1
-    const rarityWeight = rarityConfig[card.rarity].weight
-    totalRarityWeight += rarityWeight
     
     // Calculate card power (sum of all stats)
     const cardPower = card.stats.hp + card.stats.atk + card.stats.def + card.stats.spd + card.stats.luck
@@ -136,16 +151,16 @@ function calculateCollectionRating(cards: Card[]): CollectionRating {
   }
   
   // Calculate average rarity score (0-100 scale)
-  const avgRarityWeight = totalRarityWeight / numCards
-  const maxRarityWeight = 100 // omnipotent
-  const avgRarity = Math.round((avgRarityWeight / maxRarityWeight) * 100)
+  const avgRarity = Math.round(
+    cards.reduce((acc, c) => acc + (rarityScoreByRarity[c.rarity] ?? 0), 0) / numCards
+  )
   
-  // Calculate power score (0-100 scale, assuming 500 is max reasonable total stats)
+  // Calculate power score (0-100 scale)
   const avgPower = totalPower / numCards
-  const powerScore = Math.min(Math.round((avgPower / 500) * 100), 100)
+  const powerScore = Math.max(0, Math.min(Math.round((avgPower / 500) * 100), 100))
   
-  // Calculate overall score (weighted average: 60% rarity, 40% power)
-  const overallScore = Math.round((avgRarity * 0.6) + (powerScore * 0.4))
+  // Calculate overall score
+  const overallScore = Math.round((avgRarity * 0.55) + (powerScore * 0.45))
   
   // Determine grade
   let grade: string
@@ -189,6 +204,7 @@ function calculateCollectionRating(cards: Card[]): CollectionRating {
     gradeColor,
     totalPower,
     avgRarity,
+    powerScore,
     rarityDistribution,
     topCards,
     stats: avgStats
@@ -219,6 +235,11 @@ const statLabels = {
   spd: "Скорость",
   luck: "Удача"
 } as const
+
+const getOptimizedThumbSrc = (url: string, width: number = 384, quality: number = 60) => {
+  if (!url) return url;
+  return `/_next/image?url=${encodeURIComponent(url)}&w=${width}&q=${quality}`;
+}
 
 const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>, card: Card, isCollection: boolean = false) => {
   const target = e.target as HTMLImageElement;
@@ -325,7 +346,7 @@ const PackCard = ({ pack, onSelect, userCoins }: { pack: AnimePack; onSelect: (p
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-indigo-500/20 backdrop-blur-md border border-indigo-500/30">
             <Star className="w-3.5 h-3.5 text-indigo-300" />
             <span className="text-xs font-bold text-indigo-200 tracking-wide uppercase">
-              Гарант: {rarityConfig[pack.guaranteedRarity as Rarity].label}
+              Гарант: {rarityConfig[pack.guaranteedRarity as Rarity].label} <span className="text-indigo-300/70 font-normal">(1 из 10)</span>
             </span>
           </div>
         )}
@@ -550,7 +571,7 @@ const InteractiveCard = ({ card, forceFlipped = false }: { card: Card, forceFlip
 
 export default function GachaPage() {
   const[isRolling, setIsRolling] = useState(false)
-  const[isPackLoading, setIsPackLoading] = useState(false)
+  const[isPackLoading, setIsPackLoading] = useState(true)
   const[isCustomPackLoading, setIsCustomPackLoading] = useState(false)
   const[revealedCard, setRevealedCard] = useState<Card | null>(null)
   const [collectedCards, setCollectedCards] = useState<Card[]>([])
@@ -663,6 +684,24 @@ export default function GachaPage() {
     loadSavedCards()
   },[])
 
+  // Load year-based packs on mount
+  useEffect(() => {
+    const loadPacks = async () => {
+      try {
+        console.log('[GachaPage] Loading year-based packs...')
+        setIsPackLoading(true)
+        await loadYearBasedPacks()
+        console.log('[GachaPage] Year-based packs loaded successfully')
+      } catch (error) {
+        console.error('[GachaPage] Error loading year-based packs:', error)
+      } finally {
+        setIsPackLoading(false)
+      }
+    }
+
+    loadPacks()
+  }, [])
+
   useEffect(() => {
     const ids = new Set(collectedCards.map(card => card.characterId));
     setUsedCharacterIds(ids);
@@ -690,6 +729,16 @@ export default function GachaPage() {
 
     return () => clearTimeout(debounce);
   }, [packSearchQuery]);
+
+  // Сбрасываем состояния при смене выбранного пака (фикс бага с переключением вкладок)
+  useEffect(() => {
+    setRevealedCard(null);
+    setShowCard(false);
+    setIsRolling(false);
+    setViewedCard(null);
+    setSearchQuery(""); // Сбрасываем поиск персонажей
+    setShowPacks(false); // Закрываем выбор паков
+  }, [selectedPack]);
 
   const handleRoll = async () => {
     if (isRolling) return
@@ -1059,27 +1108,36 @@ export default function GachaPage() {
     }
 
     result.sort((a, b) => {
-      let comparison = 0
-      switch (sortBy) {
-        case "rarity":
-          const rarityOrder =["trash", "common", "uncommon", "rare", "super_rare", "epic", "mythic", "legendary", "ancient", "divine", "transcendent", "omnipotent"]
-          comparison = rarityOrder.indexOf(a.rarity) - rarityOrder.indexOf(b.rarity)
-          break
-        case "score":
-          comparison = a.score - b.score
-          break
-        case "name":
-          comparison = a.name.localeCompare(b.name)
-          break
-        case "anime":
-          comparison = a.anime.localeCompare(b.anime)
-          break
-        case "date":
-        default:
-          comparison = a.id - b.id
-          break
+      // 🎯 По умолчанию: главные персонажи выше второстепенных
+      if (sortBy === "date") {
+        const aIsMain = a.isMainCharacter ? 1 : 0;
+        const bIsMain = b.isMainCharacter ? 1 : 0;
+        if (aIsMain !== bIsMain) return bIsMain - aIsMain; // Главные первее
+        // Если оба главные или оба второстепенные — сортируем по дате
+        const comparison = a.id - b.id;
+        return sortOrder === "desc" ? -comparison : comparison;
+      } else {
+        let comparison = 0
+        switch (sortBy) {
+          case "rarity":
+            const rarityOrder =["trash", "common", "uncommon", "rare", "super_rare", "epic", "mythic", "legendary", "ancient", "divine", "transcendent", "omnipotent"]
+            comparison = rarityOrder.indexOf(a.rarity) - rarityOrder.indexOf(b.rarity)
+            break
+          case "score":
+            comparison = a.score - b.score
+            break
+          case "name":
+            comparison = a.name.localeCompare(b.name)
+            break
+          case "anime":
+            comparison = a.anime.localeCompare(b.anime)
+            break
+          default:
+            comparison = a.id - b.id
+            break
+        }
+        return sortOrder === "desc" ? -comparison : comparison
       }
-      return sortOrder === "desc" ? -comparison : comparison
     })
 
     return result
@@ -1133,13 +1191,17 @@ export default function GachaPage() {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5 lg:gap-6 mb-6 sm:mb-8">
-              {isSearching && (
+              {isPackLoading && (
+                <PackCardSkeleton count={6} />
+              )}
+
+              {isSearching && !isPackLoading && (
                 <div className="col-span-full flex items-center justify-center py-16">
                   <GachaLoading message="Поиск наборов..." />
                 </div>
               )}
 
-              {!isSearching && packSearchQuery.trim() && searchResults.length === 0 && (
+              {!isPackLoading && !isSearching && packSearchQuery.trim() && searchResults.length === 0 && (
                 <div className="col-span-full flex flex-col items-center justify-center py-16 text-center">
                   <Package className="w-12 h-12 text-slate-600 mb-4" />
                   <p className="text-slate-300 font-bold text-lg mb-1">Наборы не найдены</p>
@@ -1147,7 +1209,7 @@ export default function GachaPage() {
                 </div>
               )}
 
-              {(!packSearchQuery.trim() ? ANIME_PACKS : searchResults).map(pack => (
+              {!isPackLoading && (!packSearchQuery.trim() ? ANIME_PACKS : searchResults).map(pack => (
                 <PackCard
                   key={pack.id}
                   pack={pack}
@@ -1186,7 +1248,7 @@ export default function GachaPage() {
                     <div className="flex items-center gap-1.5 bg-yellow-500/10 border border-yellow-500/20 px-3 py-1.5 rounded-full">
                       <Coins className="w-4 h-4 text-yellow-400" />
                       <span className="text-yellow-400 font-bold text-sm sm:text-base">
-                        {Math.max(150, Math.min(600, Math.floor((customPackSearchResults.filter(a => selectedAnimeIds.has(a.id)).reduce((sum, a) => sum + (a.score || 0), 0) / selectedAnimeIds.size) * 60)))} монет
+                        {2000 + Math.max(0, Math.min(1000, Math.floor((customPackSearchResults.filter(a => selectedAnimeIds.has(a.id)).reduce((sum, a) => sum + (a.score || 0), 0) / selectedAnimeIds.size) * 100)))} монет
                       </span>
                     </div>
                     {(() => {
@@ -1195,11 +1257,13 @@ export default function GachaPage() {
                       if (avgScore >= 8.5) guaranteedRarity = 'Эпическая';
                       else if (avgScore >= 7.5) guaranteedRarity = 'Супер Редкая';
                       else if (avgScore >= 6.5) guaranteedRarity = 'Редкая';
-                      
+
                       return guaranteedRarity && (
                         <div className="flex items-center gap-1.5 bg-indigo-500/10 border border-indigo-500/20 px-3 py-1.5 rounded-full">
                           <Star className="w-4 h-4 text-indigo-400" />
-                          <span className="text-indigo-300 font-bold text-sm sm:text-base">Гарант: {guaranteedRarity}</span>
+                          <span className="text-indigo-300 font-bold text-sm sm:text-base">
+                            Гарант: {guaranteedRarity} <span className="text-indigo-400/70 font-normal">(1 из 10)</span>
+                          </span>
                         </div>
                       );
                     })()}
@@ -1293,7 +1357,7 @@ export default function GachaPage() {
                       >
                         <div className="relative aspect-[2/3]">
                           <img 
-                            src={anime.imageUrl} 
+                            src={getOptimizedThumbSrc(anime.imageUrl, 256, 60)} 
                             alt={anime.russian || anime.name} 
                             className="w-full h-full object-cover" 
                             referrerPolicy="no-referrer" 
@@ -1547,7 +1611,7 @@ export default function GachaPage() {
                   </div>
                   <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-purple-500/10 border border-purple-500/20">
                     <Heart className="w-4 h-4 text-purple-400" />
-                    <span className="text-sm font-bold text-purple-200">Сила: {Math.round((collectionRating.totalPower / (collectedCards.length || 1)) / 5 * 100) / 100}%</span>
+                    <span className="text-sm font-bold text-purple-200">Сила: {collectionRating.powerScore}%</span>
                   </div>
                 </div>
               </div>
@@ -1616,7 +1680,7 @@ export default function GachaPage() {
                     }}
                   >
                     <img
-                      src={card.imageUrl}
+                      src={getOptimizedThumbSrc(card.imageUrl, 384, 60)}
                       className="absolute inset-0 w-full h-full object-cover"
                       alt={card.name}
                       referrerPolicy="no-referrer"
@@ -1736,8 +1800,26 @@ export default function GachaPage() {
         {/* Action Area */}
         <div className="flex flex-col items-center justify-center min-h-[400px] sm:min-h-[500px] mb-16 sm:mb-24 relative">
           
+          {/* Initial Loading State */}
+          {!isLoaded && (
+            <div className="flex flex-col items-center w-full max-w-md mx-auto">
+              <div className="w-64 sm:w-72 md:w-80 h-[380px] sm:h-[420px] md:h-[480px] rounded-[2rem] sm:rounded-[2.5rem] bg-slate-900/40 border border-slate-700/50 animate-pulse flex flex-col items-center justify-center relative overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-br from-slate-800 via-slate-900 to-indigo-950/40 opacity-50" />
+                <div className="relative z-10 flex flex-col items-center gap-4">
+                  <div className="w-16 h-16 border-3 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin" />
+                  <p className="text-slate-400 font-medium text-sm">Загрузка гачи...</p>
+                </div>
+              </div>
+              
+              <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 mt-6 sm:mt-8 w-full">
+                <div className="flex-1 h-12 bg-slate-800/50 rounded-xl animate-pulse border border-slate-700/50" />
+                <div className="flex-1 h-12 bg-slate-800/50 rounded-xl animate-pulse border border-slate-700/50" />
+              </div>
+            </div>
+          )}
+          
           {/* Default Empty State */}
-          {!showCard && !isRolling && (
+          {isLoaded && !showCard && !isRolling && (
             <div className="flex flex-col items-center w-full max-w-md mx-auto">
               <button 
                 onClick={handleRoll} 
@@ -1836,7 +1918,29 @@ export default function GachaPage() {
         </div>
 
         {/* Collection Section */}
-        {collectedCards.length > 0 && (
+        {!isLoaded ? (
+          <div className="space-y-6 sm:space-y-8 animate-in fade-in duration-500">
+            <div className="flex flex-col gap-5">
+              {/* Collection Header Skeleton */}
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 bg-slate-700 rounded-lg animate-pulse" />
+                  <div className="h-8 w-32 bg-slate-700 rounded-lg animate-pulse" />
+                  <div className="h-6 w-12 bg-slate-800 rounded-lg animate-pulse" />
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="w-16 h-10 bg-slate-700 rounded-lg animate-pulse" />
+                  <div className="w-24 h-10 bg-slate-800 rounded-lg animate-pulse" />
+                </div>
+              </div>
+              
+              {/* Collection Grid Skeleton */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4 lg:gap-5">
+                <CollectionCardSkeleton count={12} />
+              </div>
+            </div>
+          </div>
+        ) : collectedCards.length > 0 ? (
           <div className="space-y-6 sm:space-y-8 animate-in fade-in duration-500">
             <div className="flex flex-col gap-5">
               
@@ -2057,7 +2161,7 @@ export default function GachaPage() {
                     className={`aspect-[2/3] rounded-2xl overflow-hidden border border-white/10 relative group bg-slate-900 cursor-pointer transition-all duration-300 hover:-translate-y-1.5 hover:shadow-2xl hover:shadow-indigo-500/20 ${rarityConfig[card.rarity].glow}`}
                   >
                     <img
-                      src={card.imageUrl}
+                      src={getOptimizedThumbSrc(card.imageUrl, 384, 60)}
                       className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ease-out"
                       alt={card.name}
                       referrerPolicy="no-referrer"
@@ -2088,7 +2192,7 @@ export default function GachaPage() {
               </div>
             )}
           </div>
-        )}
+        ) : null}
       </div>
     </div>
   )

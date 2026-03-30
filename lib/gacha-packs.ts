@@ -1,6 +1,7 @@
 // lib/gacha-packs.ts
 
 import { searchAnime } from "./shikimori/api";
+import { getAnimeCatalog } from "./shikimori/api";
 
 export interface AnimePack {
   id: string
@@ -140,6 +141,33 @@ export const ANIME_PACKS: AnimePack[] = [
     color: "from-green-600 to-purple-800",
     bgImage: "https://shikimori.one/system/animes/original/30.jpg",
     guaranteedRarity: "legendary"
+  },
+  {
+    id: "main_characters_2000_2010",
+    name: "Главные герои 2000-2010",
+    description: "Легендарные главные герои золотой эры аниме 2000-2010 годов",
+    animeIds: [], // Будет заполнено динамически через API
+    price: 3000,
+    color: "from-indigo-600 to-purple-700",
+    guaranteedRarity: "epic"
+  },
+  {
+    id: "main_characters_2010_2020",
+    name: "Главные герои 2010-2020",
+    description: "Популярные главные герои эры 2010-2020 годов",
+    animeIds: [], // Будет заполнено динамически через API
+    price: 3000,
+    color: "from-cyan-600 to-blue-700",
+    guaranteedRarity: "super_rare"
+  },
+  {
+    id: "main_characters_2015_2026",
+    name: "Главные герои 2015-2026",
+    description: "Современные главные герои с 2015 по текущий 2026 год",
+    animeIds: [], // Будет заполнено динамически через API
+    price: 3000,
+    color: "from-rose-600 to-pink-700",
+    guaranteedRarity: "legendary"
   }
 ];
 
@@ -203,11 +231,12 @@ export function createCustomPack(query: string, animeResults: ShikimoriAnimeResu
   const primaryAnime = animeResults[0];
   const packName = primaryAnime?.russian || primaryAnime?.name || query;
   
-  // Динамическая цена на основе среднего рейтинга найденных аниме (x3 для кастомных паков)
+  // Базовая цена 2000 для кастомных паков + динамическая надбавка за рейтинг
   const avgScore = validScores.length > 0 
     ? validScores.reduce((sum, s) => sum + s, 0) / validScores.length 
     : 0;
-  const price = Math.max(150, Math.min(600, Math.floor(avgScore * 60)));
+  const ratingBonus = Math.max(0, Math.min(1000, Math.floor(avgScore * 100)));
+  const price = 2000 + ratingBonus;
   
   // Динамическая редкость на основе СРЕДНЕГО рейтинга (унификация с заголовком)
   let guaranteedRarity: string | undefined;
@@ -225,7 +254,7 @@ export function createCustomPack(query: string, animeResults: ShikimoriAnimeResu
   return {
     id: `custom_${Date.now()}`,
     name: packName,
-    description: `Кастомный пак из ${animeResults.length} аниме по запросу "${query}"`,
+    description: `Кастомный пак из ${animeResults.length} аниме по запросу "${query}" (база: 2000 + бонус за рейтинг)`,
     animeIds,
     price,
     color,
@@ -234,4 +263,48 @@ export function createCustomPack(query: string, animeResults: ShikimoriAnimeResu
     searchQuery: query,
     createdAt: Date.now()
   };
+}
+
+// Поиск аниме по годовому диапазону
+export async function getAnimeByYearRange(startYear: number, endYear: number, limit: number = 50): Promise<number[]> {
+  try {
+    // Используем year параметр для поиска по диапазону лет
+    const yearRange = `${startYear}_${endYear}`;
+    const animeList = await getAnimeCatalog({
+      year: yearRange,
+      limit: limit,
+      order: 'ranked',
+      score: '7' // Только аниме с рейтингом 7+
+    });
+    
+    // Возвращаем только ID аниме
+    return animeList.map(anime => parseInt(anime.shikimoriId));
+  } catch (error) {
+    console.error(`Error fetching anime for years ${startYear}-${endYear}:`, error);
+    return [];
+  }
+}
+
+// Динамическое заполнение пакетов по годам
+export async function loadYearBasedPacks(): Promise<void> {
+  try {
+    // Заполняем паки аниме ID по годовым диапазонам
+    const pack2000_2010 = ANIME_PACKS.find(pack => pack.id === "main_characters_2000_2010");
+    const pack2010_2020 = ANIME_PACKS.find(pack => pack.id === "main_characters_2010_2020");
+    const pack2015_2026 = ANIME_PACKS.find(pack => pack.id === "main_characters_2015_2026");
+
+    if (pack2000_2010) {
+      pack2000_2010.animeIds = await getAnimeByYearRange(2000, 2010, 40);
+    }
+
+    if (pack2010_2020) {
+      pack2010_2020.animeIds = await getAnimeByYearRange(2010, 2020, 40);
+    }
+
+    if (pack2015_2026) {
+      pack2015_2026.animeIds = await getAnimeByYearRange(2015, 2026, 40);
+    }
+  } catch (error) {
+    console.error("Error loading year-based packs:", error);
+  }
 }
