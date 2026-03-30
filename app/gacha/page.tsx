@@ -608,6 +608,7 @@ export default function GachaPage() {
   const [isFixingCoins, setIsFixingCoins] = useState(false)
   const[isSavingCard, setIsSavingCard] = useState(false)
   const [isLoaded, setIsLoaded] = useState(false)
+  const [displayedCardsCount, setDisplayedCardsCount] = useState(60)
 
   // Максимальное количество банов артов на персонажа перед предупреждением
   const ART_BAN_LIMIT = 10
@@ -2153,8 +2154,9 @@ export default function GachaPage() {
                 </button>
               </div>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4 lg:gap-5">
-                {filteredAndSortedCards.map((card) => (
+              <>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4 lg:gap-5">
+                  {filteredAndSortedCards.slice(0, displayedCardsCount).map((card) => (
                   <div
                     key={card.uniqueId}
                     onClick={() => setViewedCard(card)}
@@ -2190,6 +2192,19 @@ export default function GachaPage() {
                   </div>
                 ))}
               </div>
+              {/* Show More Button */}
+              {filteredAndSortedCards.length > displayedCardsCount && (
+                <div className="flex justify-center mt-8">
+                  <button
+                    onClick={() => setDisplayedCardsCount(prev => prev + 60)}
+                    className="px-8 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold rounded-xl transition-all shadow-lg border border-white/10 flex items-center gap-2"
+                  >
+                    <Sparkles className="w-5 h-5" />
+                    Показать ещё
+                  </button>
+                </div>
+              )}
+              </>
             )}
           </div>
         ) : null}
