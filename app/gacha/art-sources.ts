@@ -297,7 +297,9 @@ export async function fetchHighQualityArt(
   
   if (filteredPool.length > 0) {
     // Выбираем случайный арт из ВСЕГО доступного пула
-    return filteredPool[Math.floor(Math.random() * filteredPool.length)];
+    const selectedUrl = filteredPool[Math.floor(Math.random() * filteredPool.length)];
+    console.log(`[Art Search] Selected URL: ${selectedUrl}`);
+    return selectedUrl;
   }
   
   console.log(`[Art Search] No available art found, returning null`);

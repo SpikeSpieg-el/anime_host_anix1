@@ -43,7 +43,7 @@ function calculateBaseRarity(score: number): string {
   return "trash";
 }
 
-function calculateRarityWithBoost(score: number, boostPercent: number = 0, isMainCharacter: boolean = false): string {
+function calculateRarityWithBoost(score: number, isMainCharacter: boolean = false): string {
   let rarity = calculateBaseRarity(score);
   let boostApplied = 0;
 
@@ -72,16 +72,22 @@ function calculateRarityWithBoost(score: number, boostPercent: number = 0, isMai
     console.log(`[RarityBoost] Main Character +1 boost`);
   }
 
-  // 🎲 БУСТ 4: Гарантированный буст из пака (20% шанс)
-  if (boostPercent > 0 && Math.random() < boostPercent) {
-    boostApplied += 1;
-    console.log(`[RarityBoost] Pack guaranteed +1 boost`);
-  }
-
-  // 🍀 БУСТ 5: Случайная удача (1% шанс на любой карте)
+  // 🍀 БУСТ 4: Случайная удача (1% шанс на любой карте)
   if (Math.random() < 0.01) {
     boostApplied += 1;
     console.log(`[RarityBoost] LUCKY 1% chance +1 boost!`);
+  }
+
+  // 🌟 БУСТ 5: Божественное провидение (0.1% = 1 к 1000)
+  if (Math.random() < 0.001) {
+    boostApplied += 3;
+    console.log(`[RarityBoost] ✨ DIVINE PROVIDENCE 0.1% +3 boost!`);
+  }
+
+  // 💫 БУСТ 6: Абсолютная удача (0.01% = 1 к 10000)
+  if (Math.random() < 0.0001) {
+    boostApplied += 5;
+    console.log(`[RarityBoost] 💫 ABSOLUTE LUCK 0.01% JACKPOT +5 boost!`);
   }
 
   // Применяем все бусты
@@ -115,13 +121,11 @@ async function processCharacterData(
   anime: any,
   usedIds: number[],
   ignoredUrls: string[],
-  rarityBoost: number = 0,
   expandPool: boolean = false,
-  isPackRoll: boolean = false,  // true если ролл из пака (даёт +20% буст на не-гарант картах)
   forceMainCharacter: boolean = false  // true если должны выпадать только главные герои
 ): Promise<GachaResult | null> {
   const score = parseFloat(anime.score || "0");
-  console.log(`[processCharacterData] Processing anime: ${anime.name} (ID: ${anime.id}), score: ${score}, expandPool: ${expandPool}, isPackRoll: ${isPackRoll}`);
+  console.log(`[processCharacterData] Processing anime: ${anime.name} (ID: ${anime.id}), score: ${score}, expandPool: ${expandPool}`);
 
   const rolesRes = await fetch(`https://shikimori.one/api/animes/${anime.id}/roles`);
   if (!rolesRes.ok) {
@@ -180,9 +184,14 @@ async function processCharacterData(
   
   // Если forceMainCharacter=true, выбираем только из главных героев
   let selectedRole;
-  if (forceMainCharacter && mainChars.length > 0) {
-    selectedRole = mainChars[Math.floor(Math.random() * mainChars.length)];
-    console.log(`[processCharacterData] Force main character: selected from ${mainChars.length} main characters`);
+  if (forceMainCharacter) {
+    if (mainChars.length > 0) {
+      selectedRole = mainChars[Math.floor(Math.random() * mainChars.length)];
+      console.log(`[processCharacterData] Force main character: selected from ${mainChars.length} main characters`);
+    } else {
+      console.log(`[processCharacterData] Force main character: NO main characters available, skipping this anime`);
+      return null; // Возвращаем null, если нет главных героев при forceMainCharacter=true
+    }
   } else {
     // Стандартная логика: 10% шанс на главного героя
     selectedRole = (mainChars.length > 0 && Math.random() > 0.9)
@@ -195,8 +204,7 @@ async function processCharacterData(
 
   console.log(`[processCharacterData] Selected character: ${char.name} (ID: ${char.id}), isMain: ${isMain}`);
 
-  // 🎯 Передаём isPackRoll для +20% буста на обычных картах из пака (не гарант)
-  let rarity = calculateRarityWithBoost(score, isPackRoll ? 0.20 : rarityBoost, isMain);
+  let rarity = calculateRarityWithBoost(score, isMain);
 
   const originalShikiUrl = char.image.original.startsWith("/") 
     ? `https://shikimori.one${char.image.original}` 
@@ -209,11 +217,13 @@ async function processCharacterData(
     console.log(`[processCharacterData] Searching fan art for main character: ${char.name}, expandPool: ${expandPool}`);
     // Передаём expandPool=true если запрошено расширение или если это повторная попытка
     fanArt = await fetchHighQualityArt(char.name, anime.name, ignoredUrls, expandPool);
+    console.log(`[processCharacterData] fetchHighQualityArt returned: ${fanArt ? 'URL' : 'null'}`);
 
     // Если арт не найден и не запрашивали расширение — пробуем расширить пул
     if (!fanArt && !expandPool) {
       console.log(`[processCharacterData] No art found, trying to expand pool...`);
       fanArt = await fetchHighQualityArt(char.name, anime.name, ignoredUrls, true);
+      console.log(`[processCharacterData] fetchHighQualityArt (expanded) returned: ${fanArt ? 'URL' : 'null'}`);
       if (fanArt) {
         console.log(`[processCharacterData] Found art after expanding pool`);
       } else {
@@ -240,6 +250,7 @@ async function processCharacterData(
     allFanArtBanned: allFanArtBanned // Флаг: все фан-арты забанены
   };
 
+  console.log(`[processCharacterData] Final imageUrl: ${result.imageUrl === fanArt ? 'FAN ART' : 'SHIKIMORI'}, fanArt was: ${fanArt ? 'SET' : 'NULL'}`);
   console.log(`[processCharacterData] Returning result for ${result.characterName} from ${result.animeName}`);
   return result;
 }
@@ -257,8 +268,7 @@ export async function rollAnimeCharacter(
     console.log(`[rollAnimeCharacter] Got ${data.length} anime series`);
 
     for (const anime of data) {
-      // Передаём isMain=true чтобы главный персонаж получил +1 буст внутри calculateRarityWithBoost
-      const result = await processCharacterData(anime, usedCharacterIds, ignoredUrls, 0, expandForCharacterIds.includes(anime.id), false);
+      const result = await processCharacterData(anime, usedCharacterIds, ignoredUrls, expandForCharacterIds.includes(anime.id), false);
       if (result) {
         console.log(`[rollAnimeCharacter] Successfully rolled: ${result.characterName} from ${result.animeName}`);
         return result;
@@ -313,17 +323,13 @@ export async function rollFromAnimePack(
           }
           const anime = await res.json();
 
-          // 🎯 Передаём isPackRoll=true для включения +20% буста на обычных картах
-          // expandPool будет true, если персонаж найден в expandForCharacterIds
-          let expandPool = false;
-          
-          const result = await processCharacterData(anime, usedCharacterIds, ignoredUrls, 0, expandPool, isGuaranteedRoll, forceMainCharacter);
+          let expandPool = expandForCharacterIds.length > 0;
+          const result = await processCharacterData(anime, usedCharacterIds, ignoredUrls, expandPool, forceMainCharacter);
           
           // Если результат получен и это главный персонаж из списка расширения - пробуем снова с расширенным пулом
           if (result && result.isMainCharacter && expandForCharacterIds.includes(result.characterId)) {
             console.log(`[rollFromAnimePack] Main character ${result.characterName} needs expanded pool, retrying...`);
-            // Пробуем снова с расширенным пулом
-            const expandedResult = await processCharacterData(anime, usedCharacterIds, ignoredUrls, 0, true, isGuaranteedRoll, forceMainCharacter);
+            const expandedResult = await processCharacterData(anime, usedCharacterIds, ignoredUrls, true, forceMainCharacter);
             if (expandedResult) {
               // Используем результат с расширенным пулом
               result.imageUrl = expandedResult.imageUrl;
@@ -340,7 +346,6 @@ export async function rollFromAnimePack(
               result.stats = generateStats(result.rarity);
               console.log(`[rollFromAnimePack] 🎯 GUARANTEED: Applied ${pack.guaranteedRarity} to ${result.characterName}`);
             }
-            // Иначе rarity уже рассчитан с +20% бустом в processCharacterData
 
             console.log(`[rollFromAnimePack] Successfully rolled: ${result.characterName} from ${result.animeName} (attempt ${attempt + 1}, processed ${processedCount} anime)`);
             return { ...result, packId: pack.id, packName: pack.name };
