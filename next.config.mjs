@@ -3,12 +3,11 @@
 const nextConfig = {
   images: {
     remotePatterns: [
-      {
-        protocol: 'https',
-        hostname: '**',
-      },
+      { protocol: 'https', hostname: '**' },
+      { protocol: 'http', hostname: '**' },
     ],
-    qualities: [50, 60, 75, 90],
+    // Добавляем 80 в список
+    qualities: [35, 50, 60, 75, 80, 90], 
   },
   async headers() {
     return [

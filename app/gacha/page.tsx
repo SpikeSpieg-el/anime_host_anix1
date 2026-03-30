@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useRef, MouseEvent, useCallback, useEffect, useMemo } from "react"
+import Image from "next/image"
 import { Navbar } from "@/components/navbar"
 import { Sparkles, Star, Heart, Loader2, X, ZoomIn, ExternalLink, RefreshCcw, Trash, Crown, Package, Coins, Search, Database } from "lucide-react"
 import { rollAnimeCharacter, rollFromAnimePack, searchGachaPacks, createCustomGachaPack } from "./actions"
@@ -65,7 +66,7 @@ const rarityConfig: Record<Rarity, { color: string; bg: string; label: string; g
   omnipotent: { color: "from-white via-yellow-200 to-amber-500", bg: "bg-zinc-900", label: "Всемогущая", glow: "shadow-white/100", fx: "bg-gradient-to-tr from-white/60 via-yellow-200/40 to-white/60", rgb: "255, 255, 255", weight: 100 },
 }
 
-const RARITY_ORDER = ["trash", "common", "uncommon", "rare", "super_rare", "epic", "mythic", "legendary", "ancient", "divine", "transcendent", "omnipotent"] as const
+const RARITY_ORDER =["trash", "common", "uncommon", "rare", "super_rare", "epic", "mythic", "legendary", "ancient", "divine", "transcendent", "omnipotent"] as const
 
 interface CollectionRating {
   overallScore: number
@@ -95,27 +96,16 @@ function calculateCollectionRating(cards: Card[]): CollectionRating {
       avgRarity: 0,
       powerScore: 0,
       rarityDistribution: {} as Record<Rarity, number>,
-      topCards: [],
+      topCards:[],
       stats: { avgHp: 0, avgAtk: 0, avgDef: 0, avgSpd: 0, avgLuck: 0 }
     }
   }
 
   const rarityScoreByRarity: Record<Rarity, number> = {
-    trash: 0,
-    common: 10,
-    uncommon: 20,
-    rare: 32,
-    super_rare: 45,
-    epic: 60,
-    mythic: 72,
-    legendary: 82,
-    ancient: 90,
-    divine: 95,
-    transcendent: 98,
-    omnipotent: 100,
+    trash: 0, common: 10, uncommon: 20, rare: 32, super_rare: 45, epic: 60,
+    mythic: 72, legendary: 82, ancient: 90, divine: 95, transcendent: 98, omnipotent: 100,
   }
 
-  // Calculate rarity distribution
   const rarityDistribution: Record<Rarity, number> = {
     trash: 0, common: 0, uncommon: 0, rare: 0, super_rare: 0, epic: 0,
     mythic: 0, legendary: 0, ancient: 0, divine: 0, transcendent: 0, omnipotent: 0
@@ -126,12 +116,8 @@ function calculateCollectionRating(cards: Card[]): CollectionRating {
 
   cards.forEach(card => {
     rarityDistribution[card.rarity] = (rarityDistribution[card.rarity] || 0) + 1
-    
-    // Calculate card power (sum of all stats)
     const cardPower = card.stats.hp + card.stats.atk + card.stats.def + card.stats.spd + card.stats.luck
     totalPower += cardPower
-    
-    // Accumulate stats
     totalStats.hp += card.stats.hp
     totalStats.atk += card.stats.atk
     totalStats.def += card.stats.def
@@ -141,7 +127,6 @@ function calculateCollectionRating(cards: Card[]): CollectionRating {
 
   const numCards = cards.length
   
-  // Average stats
   const avgStats = {
     avgHp: Math.round(totalStats.hp / numCards),
     avgAtk: Math.round(totalStats.atk / numCards),
@@ -150,46 +135,24 @@ function calculateCollectionRating(cards: Card[]): CollectionRating {
     avgLuck: Math.round(totalStats.luck / numCards)
   }
   
-  // Calculate average rarity score (0-100 scale)
   const avgRarity = Math.round(
     cards.reduce((acc, c) => acc + (rarityScoreByRarity[c.rarity] ?? 0), 0) / numCards
   )
   
-  // Calculate power score (0-100 scale)
   const avgPower = totalPower / numCards
   const powerScore = Math.max(0, Math.min(Math.round((avgPower / 500) * 100), 100))
-  
-  // Calculate overall score
   const overallScore = Math.round((avgRarity * 0.55) + (powerScore * 0.45))
   
-  // Determine grade
-  let grade: string
-  let gradeColor: string
+  let grade: string, gradeColor: string
   
-  if (overallScore >= 90) {
-    grade = "S+"
-    gradeColor = "from-amber-400 to-orange-500"
-  } else if (overallScore >= 80) {
-    grade = "S"
-    gradeColor = "from-amber-500 to-yellow-500"
-  } else if (overallScore >= 70) {
-    grade = "A"
-    gradeColor = "from-purple-400 to-pink-500"
-  } else if (overallScore >= 60) {
-    grade = "B"
-    gradeColor = "from-blue-400 to-cyan-500"
-  } else if (overallScore >= 50) {
-    grade = "C"
-    gradeColor = "from-emerald-400 to-teal-500"
-  } else if (overallScore >= 40) {
-    grade = "D"
-    gradeColor = "from-slate-400 to-slate-500"
-  } else {
-    grade = "F"
-    gradeColor = "from-stone-500 to-stone-700"
-  }
+  if (overallScore >= 90) { grade = "S+"; gradeColor = "from-amber-400 to-orange-500" }
+  else if (overallScore >= 80) { grade = "S"; gradeColor = "from-amber-500 to-yellow-500" }
+  else if (overallScore >= 70) { grade = "A"; gradeColor = "from-purple-400 to-pink-500" }
+  else if (overallScore >= 60) { grade = "B"; gradeColor = "from-blue-400 to-cyan-500" }
+  else if (overallScore >= 50) { grade = "C"; gradeColor = "from-emerald-400 to-teal-500" }
+  else if (overallScore >= 40) { grade = "D"; gradeColor = "from-slate-400 to-slate-500" }
+  else { grade = "F"; gradeColor = "from-stone-500 to-stone-700" }
   
-  // Get top cards (by rarity weight + power)
   const topCards = [...cards]
     .sort((a, b) => {
       const aScore = rarityConfig[a.rarity].weight + (a.stats.hp + a.stats.atk + a.stats.def + a.stats.spd + a.stats.luck) * 0.1
@@ -198,17 +161,7 @@ function calculateCollectionRating(cards: Card[]): CollectionRating {
     })
     .slice(0, 5)
   
-  return {
-    overallScore,
-    grade,
-    gradeColor,
-    totalPower,
-    avgRarity,
-    powerScore,
-    rarityDistribution,
-    topCards,
-    stats: avgStats
-  }
+  return { overallScore, grade, gradeColor, totalPower, avgRarity, powerScore, rarityDistribution, topCards, stats: avgStats }
 }
 
 const StatBar = ({ label, value, color }: { label: string; value: number; color: string }) => (
@@ -218,23 +171,14 @@ const StatBar = ({ label, value, color }: { label: string; value: number; color:
       <span>{value}</span>
     </div>
     <div className="h-2 sm:h-2.5 w-full bg-black/40 rounded-full overflow-hidden border border-white/5 shadow-inner">
-      <div 
-        className={`h-full bg-gradient-to-r ${color} transition-all duration-1000 relative`} 
-        style={{ width: `${value}%` }}
-      >
+      <div className={`h-full bg-gradient-to-r ${color} transition-all duration-1000 relative`} style={{ width: `${value}%` }}>
         <div className="absolute inset-0 bg-white/20 w-full h-full" style={{ mixBlendMode: 'overlay' }} />
       </div>
     </div>
   </div>
 )
 
-const statLabels = {
-  hp: "Очки Здоровья",
-  atk: "Сила Атаки",
-  def: "Защита",
-  spd: "Скорость",
-  luck: "Удача"
-} as const
+const statLabels = { hp: "Очки Здоровья", atk: "Сила Атаки", def: "Защита", spd: "Скорость", luck: "Удача" } as const
 
 const getOptimizedThumbSrc = (url: string, width: number = 384, quality: number = 60) => {
   if (!url) return url;
@@ -243,6 +187,10 @@ const getOptimizedThumbSrc = (url: string, width: number = 384, quality: number 
 
 const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>, card: Card, isCollection: boolean = false) => {
   const target = e.target as HTMLImageElement;
+  
+  // КРИТИЧЕСКИ ВАЖНО: Очищаем srcset! Иначе Next.js заставляет браузер 
+  // бесконечно пытаться загрузить битые ссылки разных размеров из srcset
+  target.srcset = "";
   
   if (!target.dataset.triedOriginal && card.originalUrl) {
     target.dataset.triedOriginal = "true";
@@ -457,10 +405,14 @@ const InteractiveCard = ({ card, forceFlipped = false }: { card: Card, forceFlip
         className={`absolute inset-0 rounded-[1.5rem] sm:rounded-[2rem] md:rounded-[2.5rem] overflow-hidden ${rarityConfig[card.rarity].bg} ${rarityConfig[card.rarity].glow} border-2 border-white/10`}
         style={{ backfaceVisibility: "hidden" }}
       >
-        <img 
+        <Image 
           src={card.imageUrl} 
           alt={card.name}
           className="absolute inset-0 w-full h-full object-cover scale-[1.02]"
+          fill
+          sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 40vw"
+          quality={80}
+          priority={true}
           referrerPolicy="no-referrer"
           onError={(e) => handleImageError(e, card, false)}
         />
@@ -574,79 +526,69 @@ export default function GachaPage() {
   const[isPackLoading, setIsPackLoading] = useState(true)
   const[isCustomPackLoading, setIsCustomPackLoading] = useState(false)
   const[revealedCard, setRevealedCard] = useState<Card | null>(null)
-  const [collectedCards, setCollectedCards] = useState<Card[]>([])
+  const[collectedCards, setCollectedCards] = useState<Card[]>([])
   const[showCard, setShowCard] = useState(false)
   const[viewedCard, setViewedCard] = useState<Card | null>(null)
   const[usedCharacterIds, setUsedCharacterIds] = useState<Set<number>>(new Set())
   const { coins: userCoins, loading: coinsLoading, spendCoins, forceSync, fixOverflow } = useCoins()
-  const [selectedPack, setSelectedPack] = useState<AnimePack | CustomAnimePack | null>(null)
-  const [showPacks, setShowPacks] = useState(false)
-  const [packSearchQuery, setPackSearchQuery] = useState("")
+  const[selectedPack, setSelectedPack] = useState<AnimePack | CustomAnimePack | null>(null)
+  const[showPacks, setShowPacks] = useState(false)
+  const[packSearchQuery, setPackSearchQuery] = useState("")
   const[searchResults, setSearchResults] = useState<AnimePack[]>([])
-  const [isSearching, setIsSearching] = useState(false)
-  const [showCustomPackCreator, setShowCustomPackCreator] = useState(false)
+  const[isSearching, setIsSearching] = useState(false)
+  const[showCustomPackCreator, setShowCustomPackCreator] = useState(false)
   const[customPackQuery, setCustomPackQuery] = useState("")
   const[isCreatingCustomPack, setIsCreatingCustomPack] = useState(false)
-  const [createdCustomPack, setCreatedCustomPack] = useState<CustomAnimePack | null>(null)
-  const [customPackSearchResults, setCustomPackSearchResults] = useState<Array<{
+  const[createdCustomPack, setCreatedCustomPack] = useState<CustomAnimePack | null>(null)
+  const[customPackSearchResults, setCustomPackSearchResults] = useState<Array<{
     id: number
     name: string
     russian: string | null
     score: number | null
     imageUrl: string
   }>>([])
-  const [selectedAnimeIds, setSelectedAnimeIds] = useState<Set<number>>(new Set())
-  const [blacklistedUrls, setBlacklistedUrls] = useState<string[]>([])
-  const [expandPoolForCharacters, setExpandPoolForCharacters] = useState<Set<number>>(new Set())
-  const [showArtWarning, setShowArtWarning] = useState(false)
-  const [showArtLimitWarning, setShowArtLimitWarning] = useState(false)
-  const [cardForArtLimitWarning, setCardForArtLimitWarning] = useState<Card | null>(null)
+  const[selectedAnimeIds, setSelectedAnimeIds] = useState<Set<number>>(new Set())
+  const[blacklistedUrls, setBlacklistedUrls] = useState<string[]>([])
+  const[expandPoolForCharacters, setExpandPoolForCharacters] = useState<Set<number>>(new Set())
+  const[showArtWarning, setShowArtWarning] = useState(false)
+  const[showArtLimitWarning, setShowArtLimitWarning] = useState(false)
+  const[cardForArtLimitWarning, setCardForArtLimitWarning] = useState<Card | null>(null)
   const[selectedCardForArtChange, setSelectedCardForArtChange] = useState<Card | null>(null)
-  const [isChangingArt, setIsChangingArt] = useState(false)
+  const[isChangingArt, setIsChangingArt] = useState(false)
   const [artChangeError, setArtChangeError] = useState<string | null>(null)
-  const [isSyncingCoins, setIsSyncingCoins] = useState(false)
-  const [isFixingCoins, setIsFixingCoins] = useState(false)
+  const[isSyncingCoins, setIsSyncingCoins] = useState(false)
+  const[isFixingCoins, setIsFixingCoins] = useState(false)
   const[isSavingCard, setIsSavingCard] = useState(false)
   const [isLoaded, setIsLoaded] = useState(false)
-  const [displayedCardsCount, setDisplayedCardsCount] = useState(60)
+  const[displayedCardsCount, setDisplayedCardsCount] = useState(60)
 
-  // Максимальное количество банов артов на персонажа перед предупреждением
   const ART_BAN_LIMIT = 10
 
-  // Подсчёт забаненных артов по персонажам (используем revealedCard для текущего и коллекцию для прошлых)
   const bannedArtsByCharacter = useMemo(() => {
     const acc: Record<number, number> = {};
-    
-    // Считаем все забаненные URL из коллекции
     blacklistedUrls.forEach(url => {
       const card = collectedCards.find(c => c.imageUrl === url || c.originalUrl === url);
       if (card) {
         acc[card.characterId] = (acc[card.characterId] || 0) + 1;
       }
     });
-    
-    // Если есть текущая показанная карточка и её URL в blacklist — тоже считаем
     if (revealedCard && blacklistedUrls.includes(revealedCard.imageUrl)) {
       acc[revealedCard.characterId] = (acc[revealedCard.characterId] || 0) + 1;
     }
-    
     return acc;
   }, [blacklistedUrls, collectedCards, revealedCard]);
   
-  // Filter states
-  const [searchQuery, setSearchQuery] = useState("")
+  const[searchQuery, setSearchQuery] = useState("")
   const[selectedRarity, setSelectedRarity] = useState<Rarity | "all">("all")
   const[sortBy, setSortBy] = useState<"date" | "rarity" | "score" | "name" | "anime">("date")
-  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc")
-  const [selectedPackFilter, setSelectedPackFilter] = useState<string | "all">("all")
-  const [selectedMainCharacterFilter, setSelectedMainCharacterFilter] = useState<"all" | "main" | "supporting">("all")
+  const[sortOrder, setSortOrder] = useState<"asc" | "desc">("desc")
+  const[selectedPackFilter, setSelectedPackFilter] = useState<string | "all">("all")
+  const[selectedMainCharacterFilter, setSelectedMainCharacterFilter] = useState<"all" | "main" | "supporting">("all")
   const [showFilters, setShowFilters] = useState(false)
-  const [showRatingModal, setShowRatingModal] = useState(false)
+  const[showRatingModal, setShowRatingModal] = useState(false)
   
-  // Calculate collection rating
   const collectionRating = calculateCollectionRating(collectedCards)
 
-  // Load saved cards from database on mount (when user is authenticated)
   useEffect(() => {
     const loadSavedCards = async () => {
       if (isLoaded) return 
@@ -655,16 +597,13 @@ export default function GachaPage() {
       const { data: { session } } = await supabase.auth.getSession()
       
       if (session) {
-        console.log('[GachaPage] User authenticated, loading saved cards...')
         const savedCards = await loadUserCards()
         if (savedCards.length > 0) {
-          console.log('[GachaPage] Loaded', savedCards.length, 'cards from database')
           setCollectedCards(savedCards)
           const ids = new Set(savedCards.map(card => card.characterId))
           setUsedCharacterIds(ids)
         }
       } else {
-        console.log('[GachaPage] No user session, loading from localStorage only')
         try {
           const saved = localStorage.getItem('gacha-collection')
           if (saved) {
@@ -685,14 +624,11 @@ export default function GachaPage() {
     loadSavedCards()
   },[])
 
-  // Load year-based packs on mount
   useEffect(() => {
     const loadPacks = async () => {
       try {
-        console.log('[GachaPage] Loading year-based packs...')
         setIsPackLoading(true)
         await loadYearBasedPacks()
-        console.log('[GachaPage] Year-based packs loaded successfully')
       } catch (error) {
         console.error('[GachaPage] Error loading year-based packs:', error)
       } finally {
@@ -701,7 +637,7 @@ export default function GachaPage() {
     }
 
     loadPacks()
-  }, [])
+  },[])
 
   useEffect(() => {
     const ids = new Set(collectedCards.map(card => card.characterId));
@@ -731,14 +667,13 @@ export default function GachaPage() {
     return () => clearTimeout(debounce);
   }, [packSearchQuery]);
 
-  // Сбрасываем состояния при смене выбранного пака (фикс бага с переключением вкладок)
   useEffect(() => {
     setRevealedCard(null);
     setShowCard(false);
     setIsRolling(false);
     setViewedCard(null);
-    setSearchQuery(""); // Сбрасываем поиск персонажей
-    setShowPacks(false); // Закрываем выбор паков
+    setSearchQuery(""); 
+    setShowPacks(false); 
   }, [selectedPack]);
 
   const handleRoll = async () => {
@@ -751,7 +686,6 @@ export default function GachaPage() {
       let result: Awaited<ReturnType<typeof rollAnimeCharacter>> | undefined;
       const ignored = blacklistedUrls;
       const expandChars = Array.from(expandPoolForCharacters);
-      console.log('[handleRoll] Starting roll, selectedPack:', selectedPack?.name, 'usedCharacterIds:', usedCharacterIds.size, 'expandPoolForCharacters:', expandChars);
 
       if (selectedPack) {
         if (userCoins < selectedPack.price) {
@@ -760,14 +694,12 @@ export default function GachaPage() {
           return;
         }
 
-        console.log("Rolling from pack:", selectedPack.id);
         await new Promise(resolve => setTimeout(resolve, 1500));
         result = await rollFromAnimePack(selectedPack, Array.from(usedCharacterIds), ignored, expandChars);
 
         if (result) {
           await spendCoins(selectedPack.price);
           forceSync().catch(error => console.warn('Background sync failed:', error));
-          // Очищаем флаг расширения после успешного ролла
           if (expandPoolForCharacters.has(result.characterId)) {
             setExpandPoolForCharacters(prev => {
               const next = new Set(prev);
@@ -777,7 +709,6 @@ export default function GachaPage() {
           }
         }
       } else {
-        console.log("Rolling random character");
         if (userCoins < 50) {
           alert("Недостаточно монет! Обычная крутка стоит 50 монет.");
           setIsRolling(false);
@@ -790,7 +721,6 @@ export default function GachaPage() {
         if (result) {
           await spendCoins(50);
           forceSync().catch(error => console.warn('Background sync failed:', error));
-          // Очищаем флаг расширения после успешного ролла
           if (expandPoolForCharacters.has(result.characterId)) {
             setExpandPoolForCharacters(prev => {
               const next = new Set(prev);
@@ -803,11 +733,8 @@ export default function GachaPage() {
       
       if (!result) {
         let errorMessage = "Не удалось получить персонажа. Попробуйте снова!";
-
-        // Check if it's likely due to all pack characters being collected
         if (selectedPack && usedCharacterIds.size >= 50) {
-          // For packs, check if we've collected most characters
-          const packCollectionRate = usedCharacterIds.size / (selectedPack.animeIds?.length * 5 || 50); // Rough estimate
+          const packCollectionRate = usedCharacterIds.size / (selectedPack.animeIds?.length * 5 || 50);
           if (packCollectionRate > 0.8) {
             errorMessage = `Вы собрали почти всех персонажей из пака "${selectedPack.name}"! Попробуйте выбрать другой пак или начните новую коллекцию.`;
           } else {
@@ -818,11 +745,8 @@ export default function GachaPage() {
         } else if (usedCharacterIds.size > 100) {
           errorMessage = "Многие персонажи уже собраны. Рекомендуется выбрать тематический пак для лучших результатов.";
         } else {
-          // Add more context about possible API issues
-          console.warn(`Roll failed: usedCharacterIds=${usedCharacterIds.size}, selectedPack=${selectedPack?.id || 'none'}`);
           errorMessage = "Не удалось получить персонажа. Возможно, проблемы с API Shikimori. Попробуйте снова через несколько секунд!";
         }
-
         throw new Error(errorMessage);
       }
 
@@ -863,17 +787,14 @@ export default function GachaPage() {
 
       if (session) {
         const result = await saveCardToDatabase(card)
-        // Add card to collection regardless of success/exists - card was rolled and should be shown
         if (result.success) {
-          // Check if card already in collection to avoid duplicates
           const isAlreadyCollected = collectedCards.some(c => c.uniqueId === card.uniqueId)
           if (!isAlreadyCollected) {
-            setCollectedCards(prev => [card, ...prev])
+            setCollectedCards(prev =>[card, ...prev])
             setUsedCharacterIds(prev => new Set(prev).add(card.characterId))
           }
           setShowCard(false)
         } else {
-          // Fallback to localStorage if DB save failed
           const savedCards = JSON.parse(localStorage.getItem('gacha-collection') || '[]')
           savedCards.unshift(card)
           localStorage.setItem('gacha-collection', JSON.stringify(savedCards))
@@ -882,7 +803,6 @@ export default function GachaPage() {
           setShowCard(false)
         }
       } else {
-        // Not authenticated - save to localStorage only
         const savedCards = JSON.parse(localStorage.getItem('gacha-collection') || '[]')
         savedCards.unshift(card)
         localStorage.setItem('gacha-collection', JSON.stringify(savedCards))
@@ -1109,12 +1029,10 @@ export default function GachaPage() {
     }
 
     result.sort((a, b) => {
-      // 🎯 По умолчанию: главные персонажи выше второстепенных
       if (sortBy === "date") {
         const aIsMain = a.isMainCharacter ? 1 : 0;
         const bIsMain = b.isMainCharacter ? 1 : 0;
-        if (aIsMain !== bIsMain) return bIsMain - aIsMain; // Главные первее
-        // Если оба главные или оба второстепенные — сортируем по дате
+        if (aIsMain !== bIsMain) return bIsMain - aIsMain; 
         const comparison = a.id - b.id;
         return sortOrder === "desc" ? -comparison : comparison;
       } else {
@@ -1475,7 +1393,6 @@ export default function GachaPage() {
                   onClick={() => {
                     const bannedCount = bannedArtsByCharacter[revealedCard.characterId] || 0;
 
-                    // Если достигли лимита банов для этого персонажа — показываем предупреждение
                     if (bannedCount >= ART_BAN_LIMIT) {
                       setCardForArtLimitWarning(revealedCard);
                       setShowArtLimitWarning(true);
@@ -1483,11 +1400,8 @@ export default function GachaPage() {
                       return;
                     }
 
-                    // Иначе просто добавляем URL в blacklist
                     setBlacklistedUrls(prev =>[...prev, revealedCard.imageUrl]);
-                    // Добавляем characterId в список для расширения пула при следующем ролле
                     setExpandPoolForCharacters(prev => new Set(prev).add(revealedCard.characterId));
-                    // НЕ добавляем characterId в used — персонаж должен оставаться в пуле для призыва с другим артом
                     setShowCard(false);
                     setShowArtWarning(false);
                   }}
@@ -1542,9 +1456,7 @@ export default function GachaPage() {
               <div className="space-y-3">
                 <button
                   onClick={() => {
-                    // Принимаем официальный арт с Shikimori
                     setBlacklistedUrls(prev =>[...prev, cardForArtLimitWarning.imageUrl]);
-                    // Сохраняем карточку с официальным артом
                     const officialCard: Card = {
                       ...cardForArtLimitWarning,
                       imageUrl: cardForArtLimitWarning.originalUrl,
@@ -1562,7 +1474,6 @@ export default function GachaPage() {
                 
                 <button
                   onClick={() => {
-                    // Продолжаем банить — добавляем URL и закрываем карточку
                     setBlacklistedUrls(prev =>[...prev, cardForArtLimitWarning.imageUrl]);
                     setShowCard(false);
                     setShowArtLimitWarning(false);
@@ -1909,7 +1820,6 @@ export default function GachaPage() {
                     if (revealedCard.isMainCharacter) {
                       setShowArtWarning(true);
                     } else {
-                      // Just close the card without adding to collection
                       setShowCard(false);
                     }
                   }}
@@ -2166,10 +2076,14 @@ export default function GachaPage() {
                     onClick={() => setViewedCard(card)}
                     className={`aspect-[2/3] rounded-2xl overflow-hidden border border-white/10 relative group bg-slate-900 cursor-pointer transition-all duration-300 hover:-translate-y-1.5 hover:shadow-2xl hover:shadow-indigo-500/20 ${rarityConfig[card.rarity].glow}`}
                   >
-                    <img
-                      src={getOptimizedThumbSrc(card.imageUrl, 384, 60)}
+                    <Image
+                      src={card.imageUrl}
                       className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ease-out"
                       alt={card.name}
+                      fill
+                      sizes="(max-width: 640px) 33vw, (max-width: 1024px) 20vw, 15vw"
+                      quality={50}
+                      loading="lazy"
                       referrerPolicy="no-referrer"
                       onError={(e) => handleImageError(e, card, true)}
                     />
