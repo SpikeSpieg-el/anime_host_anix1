@@ -699,9 +699,12 @@ export default function GachaPage() {
         result = await rollFromAnimePack(selectedPack, Array.from(usedCharacterIds), ignored, expandChars);
 
         if (result) {
+          // Добавляем ID в список использованных СРАЗУ, не дожидаясь сохранения
+          setUsedCharacterIds(prev => new Set(prev).add(result!.characterId));
+          
           await spendCoins(selectedPack.price);
           forceSync().catch(error => console.warn('Background sync failed:', error));
-          if (expandPoolForCharacters.has(result.characterId)) {
+          if (expandPoolForCharacters.has(result!.characterId)) {
             setExpandPoolForCharacters(prev => {
               const next = new Set(prev);
               next.delete(result!.characterId);

@@ -104,18 +104,21 @@ async function processCharacterData(
     return !usedIds.includes(r.character.id);
   });
 
+  // УДАЛИ ИЛИ ЗАКОММЕНТИРУЙ ЭТОТ БЛОК, чтобы не было повторов, пока пак не пуст
+  /*
   let endgameArtMode = false;
   if (available.length === 0 && allValidMainChars.length > 0) {
-    available = allValidMainChars;
-    endgameArtMode = true; 
+     available = allValidMainChars;
+     endgameArtMode = true; 
   }
+  */
 
-  if (available.length === 0) return null;
+  if (available.length === 0) return null; // Если в этом аниме все выбиты, идем к следующему
 
   const mainChars = available.filter((r: any) => (r.roles || []).includes('Main') || (r.roles_ru ||[]).includes('Главный'));
   
   let selectedRole;
-  if (forceMainCharacter || endgameArtMode) {
+  if (forceMainCharacter) {
     if (mainChars.length > 0) {
       selectedRole = mainChars[Math.floor(Math.random() * mainChars.length)];
     } else {
@@ -141,7 +144,7 @@ async function processCharacterData(
   // В actions.ts найдите это место:
 if (isMain) {
     // ВЫЗОВ ОБНОВЛЕН: получаем объект вместо строки
-    const artData = await fetchHighQualityArt(char.name, ignoredUrls, endgameArtMode);
+    const artData = await fetchHighQualityArt(char.name, ignoredUrls, false);
 
     if (artData) {
         fanArt = artData.url; // Берем URL из объекта
@@ -213,6 +216,7 @@ export async function rollFromAnimePack(
 
     const forceMainCharacter = pack.id.includes('main_characters');
 
+    // 1 проход: ищем только НОВЫХ
     for (let attempt = 0; attempt < 3; attempt++) {
       const shuffledIds = [...pack.animeIds].sort(() => Math.random() - 0.5);
       const isGuaranteedRoll = !!pack.guaranteedRarity && Math.random() < 0.10;
@@ -235,7 +239,10 @@ export async function rollFromAnimePack(
       }
       await new Promise(resolve => setTimeout(resolve, 300));
     }
-    return null;
+
+    // Если ничего не нашли (все выбиты), можно запустить 2-й проход БЕЗ фильтра usedIds (опционально)
+    // Но лучше просто вернуть null, чтобы фронтенд показал ошибку "Пак пуст"
+    return null; 
   } catch (e) {
     console.error(`[rollFromAnimePack] Error:`, e);
     return null;
