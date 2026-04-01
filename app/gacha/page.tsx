@@ -824,6 +824,25 @@ export default function GachaPage() {
     await loadListedCards()
   }, [refreshCollectionMerge, refreshCoins, loadListedCards])
 
+  const handleTradeComplete = useCallback(async () => {
+    await refreshCollectionMerge()
+    await refreshCoins()
+    await loadListedCards()
+  }, [refreshCollectionMerge, refreshCoins, loadListedCards])
+
+  const handleMarketNotify = useCallback((title: string, message: string, type: "error" | "warning" | "info" = "error") => {
+    setErrorPopupConfig({ title, message, type })
+    setShowErrorPopup(true)
+  }, [])
+
+  const handleArtChanged = useCallback((newImageUrl: string, newOriginalUrl: string) => {
+    setCollectedCards(prev => prev.map(card => 
+      card.uniqueId === cardToChangeArt?.uniqueId 
+        ? { ...card, imageUrl: newImageUrl, originalUrl: newOriginalUrl }
+        : card
+    ))
+  }, [cardToChangeArt?.uniqueId])
+
   useEffect(() => {
     const handleVisibilityChange = () => {
     if (!document.hidden) {
@@ -2376,15 +2395,8 @@ useEffect(() => {
 
         {gachaMainTab === "market" ? (
           <GachaMarketPanel
-            onTradeComplete={async () => {
-              await refreshCollectionMerge()
-              await refreshCoins()
-              await loadListedCards()
-            }}
-            onNotify={(title, message, type = "error") => {
-              setErrorPopupConfig({ title, message, type })
-              setShowErrorPopup(true)
-            }}
+            onTradeComplete={handleTradeComplete}
+            onNotify={handleMarketNotify}
           />
         ) : (
           <>
@@ -2582,7 +2594,7 @@ useEffect(() => {
               </div>
             </div>
           </div>
-        ) : collectedCards.length > 0 ? (
+        ) : (  // Убрали проверку на > 0, теперь коллекция рендерится всегда
           <div className="space-y-6 sm:space-y-8 animate-in fade-in duration-500">
             <div className="flex flex-col gap-5">
               
@@ -2847,7 +2859,7 @@ useEffect(() => {
               </>
             )}
           </div>
-        ) : null}
+        )}
           </>
         )}
       </div>
@@ -2858,10 +2870,7 @@ useEffect(() => {
           collectedCards={collectedCards}
           onClose={() => setCardToSell(null)}
           onListed={handleListedOnMarket}
-          onNotify={(title, message, type = "error") => {
-            setErrorPopupConfig({ title, message, type })
-            setShowErrorPopup(true)
-          }}
+          onNotify={handleMarketNotify}
         />
       )}
 
@@ -2869,13 +2878,7 @@ useEffect(() => {
         <ChangeArtModal
           card={cardToChangeArt}
           onClose={() => setCardToChangeArt(null)}
-          onArtChanged={(newImageUrl, newOriginalUrl) => {
-            setCollectedCards(prev => prev.map(card => 
-              card.uniqueId === cardToChangeArt.uniqueId 
-                ? { ...card, imageUrl: newImageUrl, originalUrl: newOriginalUrl }
-                : card
-            ))
-          }}
+          onArtChanged={handleArtChanged}
         />
       )}
       
