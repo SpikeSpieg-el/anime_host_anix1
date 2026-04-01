@@ -4,7 +4,7 @@ import { useState, useRef, MouseEvent, useCallback, useEffect, useMemo } from "r
 import { flushSync } from "react-dom"
 import Image from "next/image"
 import { Navbar } from "@/components/navbar"
-import { Sparkles, Star, Heart, Loader2, X, ZoomIn, ExternalLink, RefreshCcw, Trash, Trash2, Crown, Package, Coins, Search, Database } from "lucide-react"
+import { Sparkles, Star, Heart, Loader2, X, ZoomIn, ExternalLink, RefreshCcw, Trash, Trash2, Crown, Package, Coins, Search, Database, Store } from "lucide-react"
 import { rollAnimeCharacter, rollFromAnimePack, searchGachaPacks, createCustomGachaPack, checkPackAvailability, updateUserPityAfterRoll } from "./actions"
 import { saveCardToDatabase, loadUserCards, deleteCardFromDatabase, queueCardForSync, syncQueuedCards } from "./client-actions"
 import { loadUserPity, updateUserPity, type PityData } from "./pity-actions"
@@ -21,6 +21,9 @@ import { BulkDismantleFilterPopup } from "@/components/bulk-dismantle-filter-pop
 import { BulkDismantleConfirmPopup } from "@/components/bulk-dismantle-confirm-popup"
 import { BulkDismantleSuccessPopup } from "@/components/bulk-dismantle-success-popup"
 import { Rarity, rarityConfig, getDismantleValue } from "@/types/gacha"
+import { GachaMarketPanel } from "@/components/gacha-market-panel"
+import { GachaSellMarketModal } from "@/components/gacha-sell-market-modal"
+import { useAuth } from "@/components/auth-provider"
 
 export interface CardStats {
   hp: number
@@ -442,17 +445,13 @@ const InteractiveCard = ({ card, forceFlipped = false }: { card: Card, forceFlip
         
         <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/20 to-slate-950/20 pointer-events-none" />
         
-        <div className={`absolute inset-0 mix-blend-overlay opacity-50 pointer-events-none ${rarityConfig[card.rarity].fx}`} />
-
+        
+        {/* Hover highlight effect */}
         <div 
-          className="absolute inset-0 pointer-events-none rounded-[1.5rem] sm:rounded-[2rem] md:rounded-[2.5rem]"
-          style={{
-            opacity: (isHovered || isTouching) ? 1 : 0,
-            transition: 'opacity 0.2s ease-out',
-            boxShadow: `
-              inset ${highlightX}px ${highlightY}px 20px rgba(${rarityConfig[card.rarity].rgb}, 0.4), 
-              inset ${highlightX * 0.3}px ${highlightY * 0.3}px 4px rgba(${rarityConfig[card.rarity].rgb}, 0.8)
-            `
+          className="absolute inset-0 opacity-0 transition-opacity duration-300 pointer-events-none"
+          style={{ 
+            background: `radial-gradient(circle at ${50 + highlightX}% ${50 + highlightY}%, rgba(255,255,255,0.15) 0%, transparent 50%)`,
+            opacity: isHovered ? 1 : 0 
           }}
         />
 
@@ -514,8 +513,7 @@ const InteractiveCard = ({ card, forceFlipped = false }: { card: Card, forceFlip
           borderColor: `rgba(${rarityConfig[card.rarity].rgb}, 0.5)`
         }}
       >
-        <div className={`absolute inset-0 opacity-10 ${rarityConfig[card.rarity].fx}`} />
-        
+                
         <div className="relative z-10 space-y-4 sm:space-y-6">
           <div className="text-center pb-3 sm:pb-4 border-b border-white/10">
             <p className={`text-[9px] sm:text-[10px] md:text-[11px] font-black uppercase tracking-widest bg-gradient-to-r ${rarityConfig[card.rarity].color} bg-clip-text text-transparent mb-1`}>
@@ -553,7 +551,8 @@ export default function GachaPage() {
   const[showCard, setShowCard] = useState(false)
   const[viewedCard, setViewedCard] = useState<Card | null>(null)
   const[usedCharacterIds, setUsedCharacterIds] = useState<Set<number>>(new Set())
-  const { coins: userCoins, loading: coinsLoading, spendCoins, addCoins, forceSync, fixOverflow } = useCoins()
+  const { user: authUser } = useAuth()
+  const { coins: userCoins, loading: coinsLoading, spendCoins, addCoins, forceSync, fixOverflow, refresh: refreshCoins } = useCoins()
   const { dust, loading: dustLoading, addDust } = useDust()
   const[selectedPack, setSelectedPack] = useState<AnimePack | CustomAnimePack | null>(null)
   const[showPacks, setShowPacks] = useState(false)
@@ -638,11 +637,79 @@ export default function GachaPage() {
   const[isBulkDismantling, setIsBulkDismantling] = useState(false)
   const[bulkDismantleReward, setBulkDismantleReward] = useState(0)
   const[bulkDismantleProgress, setBulkDismantleProgress] = useState({ processed: 0, total: 0 })
-  
+
+  const [gachaMainTab, setGachaMainTab] = useState<"gacha" | "market">("gacha")
+  const [cardToSell, setCardToSell] = useState<Card | null>(null)
+  const [listedCardIds, setListedCardIds] = useState<Set<string>>(new Set())
+
   const collectionRating = calculateCollectionRating(collectedCards)
 
-useEffect(() => {
-  const handleVisibilityChange = () => {
+  const loadListedCards = useCallback(async () => {
+    const { supabase } = await import("@/lib/supabase")
+    const {
+      data: { session },
+    } = await supabase.auth.getSession()
+    if (!session) return
+
+    try {
+      const { data, error } = await supabase
+        .from("market_listings")
+        .select("unique_id")
+        .eq("seller_id", session.user.id)
+
+      if (error) throw error
+      setListedCardIds(new Set(data?.map((item: { unique_id: string }) => item.unique_id) || []))
+    } catch (error) {
+      console.error("Error loading listed cards:", error)
+    }
+  }, [])
+
+  const refreshCollectionMerge = useCallback(async () => {
+    const { supabase } = await import("@/lib/supabase")
+    const {
+      data: { session },
+    } = await supabase.auth.getSession()
+    if (!session) return
+
+    const dbCards = await loadUserCards()
+    let localCollection: Card[] = []
+    try {
+      const raw = localStorage.getItem("gacha-collection")
+      if (raw) localCollection = JSON.parse(raw)
+    } catch {
+      /* ignore */
+    }
+
+    const dbIds = new Set(dbCards.map((c) => c.uniqueId))
+    const dbCardsWithOrder = dbCards.map((card, idx) => ({
+      ...card,
+      orderIndex: localCollection.length + idx,
+    }))
+
+    const merged: Card[] = [
+      ...dbCardsWithOrder,
+      ...localCollection
+        .filter((c) => !dbIds.has(c.uniqueId))
+        .map((card, i) => ({
+          ...card,
+          orderIndex: i,
+        })),
+    ]
+
+    setCollectedCards(merged)
+    setUsedCharacterIds(new Set(merged.map((c) => c.characterId)))
+  }, [])
+
+  const handleListedOnMarket = useCallback(async () => {
+    setViewedCard(null)
+    setCardToSell(null)
+    await refreshCollectionMerge()
+    await refreshCoins()
+    await loadListedCards()
+  }, [refreshCollectionMerge, refreshCoins, loadListedCards])
+
+  useEffect(() => {
+    const handleVisibilityChange = () => {
     if (!document.hidden) {
       // Если вкладка стала видимой, проверяем, не застряла ли операция
       if ((isRolling || isSavingCard) && operationStartTime.current) {
@@ -722,6 +789,9 @@ useEffect(() => {
       setCollectedCards(finalCollection);
       setUsedCharacterIds(new Set(finalCollection.map(c => c.characterId)));
       setIsLoaded(true);
+      
+      // Загружаем список выставленных на рынок карт
+      await loadListedCards();
     }
 
     loadSavedCards();
@@ -1407,6 +1477,9 @@ useEffect(() => {
   const filteredAndSortedCards = (() => {
     let result = [...collectedCards]
 
+    // Исключаем карты, выставленные на рынке
+    result = result.filter(card => !listedCardIds.has(card.uniqueId))
+
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase()
       result = result.filter(card =>
@@ -2064,6 +2137,20 @@ useEffect(() => {
                 <RefreshCcw className="w-4 h-4" />
                 <span>Распылить (+{getDismantleValue(viewedCard.rarity)} пыли)</span>
               </button>
+
+              {authUser && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCardToSell(viewedCard)
+                  }}
+                  className="px-4 py-2.5 sm:px-5 sm:py-3 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 font-bold text-xs sm:text-sm flex items-center gap-2 transition-colors border border-cyan-500/30"
+                >
+                  <Store className="w-4 h-4" />
+                  <span className="hidden sm:inline">Продать на маркете</span>
+                  <span className="sm:hidden">Маркет</span>
+                </button>
+              )}
               
               {viewedCard.isMainCharacter && viewedCard.isArtBlacklisted && (
                 <button 
@@ -2154,6 +2241,47 @@ useEffect(() => {
           </div>
         </div>
 
+        <div className="flex flex-wrap justify-center gap-2 sm:gap-3 mb-8 sm:mb-10">
+          <button
+            type="button"
+            onClick={() => setGachaMainTab("gacha")}
+            className={`flex items-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl text-sm font-black uppercase tracking-wide border transition-all ${
+              gachaMainTab === "gacha"
+                ? "bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-500/25"
+                : "bg-slate-800/80 border-slate-700 text-slate-300 hover:bg-slate-800"
+            }`}
+          >
+            <Sparkles className="w-4 h-4" />
+            Призыв и коллекция
+          </button>
+          <button
+            type="button"
+            onClick={() => setGachaMainTab("market")}
+            className={`flex items-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl text-sm font-black uppercase tracking-wide border transition-all ${
+              gachaMainTab === "market"
+                ? "bg-cyan-600 border-cyan-500 text-white shadow-lg shadow-cyan-500/25"
+                : "bg-slate-800/80 border-slate-700 text-slate-300 hover:bg-slate-800"
+            }`}
+          >
+            <Store className="w-4 h-4" />
+            Маркет
+          </button>
+        </div>
+
+        {gachaMainTab === "market" ? (
+          <GachaMarketPanel
+            onTradeComplete={async () => {
+              await refreshCollectionMerge()
+              await refreshCoins()
+              await loadListedCards()
+            }}
+            onNotify={(title, message, type = "error") => {
+              setErrorPopupConfig({ title, message, type })
+              setShowErrorPopup(true)
+            }}
+          />
+        ) : (
+          <>
         {/* Selected Pack Indicator */}
         {selectedPack && (
           <div className="mb-8 sm:mb-12 text-center animate-in fade-in slide-in-from-top-4">
@@ -2646,7 +2774,22 @@ useEffect(() => {
             )}
           </div>
         ) : null}
+          </>
+        )}
       </div>
+
+      {cardToSell && (
+        <GachaSellMarketModal
+          card={cardToSell}
+          collectedCards={collectedCards}
+          onClose={() => setCardToSell(null)}
+          onListed={handleListedOnMarket}
+          onNotify={(title, message, type = "error") => {
+            setErrorPopupConfig({ title, message, type })
+            setShowErrorPopup(true)
+          }}
+        />
+      )}
       
       {/* Error Popup */}
       {errorPopupConfig && (

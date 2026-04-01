@@ -8,6 +8,36 @@ import { Input } from "@/components/ui/input"
 import { Loader2, Mail, Lock, LogIn, UserPlus, AlertCircle, X } from "lucide-react"
 import { loggers } from "@/lib/logger"
 
+function userFacingAuthError(err: unknown): string {
+  const e = err as { message?: string; status?: number; code?: string } | null
+  const msg = (e?.message || "").trim()
+  const lower = msg.toLowerCase()
+
+  if (
+    lower.includes("invalid login credentials") ||
+    lower.includes("invalid_grant") ||
+    e?.code === "invalid_credentials"
+  ) {
+    return "Неверный email или пароль"
+  }
+  if (lower.includes("email not confirmed")) {
+    return "Подтвердите email по ссылке из письма (или отключите подтверждение в Supabase для разработки)"
+  }
+  if (lower.includes("user already registered")) {
+    return "Пользователь с таким email уже зарегистрирован"
+  }
+  if (lower.includes("password should be") || lower.includes("password is known to be weak")) {
+    return "Пароль слишком слабый. Задайте более длинный пароль"
+  }
+  if (lower.includes("signup is disabled") || lower.includes("email signups are disabled")) {
+    return "Регистрация по email отключена в настройках проекта Supabase"
+  }
+  if (e?.status === 400 && !msg) {
+    return "Запрос отклонён (400). Проверьте URL проекта и ключи в .env, включите Email в Authentication → Providers"
+  }
+  return msg || "Не удалось выполнить вход. Проверьте данные или настройки Supabase Auth"
+}
+
 interface AuthModalProps {
   isOpen?: boolean
   onClose?: () => void
@@ -37,20 +67,23 @@ export function AuthModal({ isOpen: externalIsOpen, onClose, children }: AuthMod
     setLoading(true)
     setError(null)
 
+    const emailTrim = email.trim()
+    const passwordTrim = password.trim()
+
     // Basic validation
-    if (!email.trim() || !password.trim()) {
+    if (!emailTrim || !passwordTrim) {
       setError("Email и пароль обязательны")
       setLoading(false)
       return
     }
 
-    if (!email.includes('@') || !email.includes('.')) {
+    if (!emailTrim.includes('@') || !emailTrim.includes('.')) {
       setError("Введите корректный email адрес")
       setLoading(false)
       return
     }
 
-    if (password.length < 6) {
+    if (passwordTrim.length < 6) {
       setError("Пароль должен содержать минимум 6 символов")
       setLoading(false)
       return
@@ -58,38 +91,36 @@ export function AuthModal({ isOpen: externalIsOpen, onClose, children }: AuthMod
 
     try {
       if (isLogin) {
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
+        const { error } = await supabase.auth.signInWithPassword({
+          email: emailTrim,
+          password: passwordTrim,
         })
 
         if (error) {
-          if (error.message.includes('Invalid login credentials')) {
-            throw new Error('Неверный email или пароль')
-          } else if (error.message.includes('Email not confirmed')) {
-            throw new Error('Пожалуйста, подтвердите ваш email')
-          } else {
-            throw error
-          }
+          loggers.auth.error("signInWithPassword", {
+            message: error.message,
+            status: error.status,
+            code: (error as { code?: string }).code,
+          })
+          setError(userFacingAuthError(error))
+          return
         }
 
         setIsOpen(false)
       } else {
         const { data, error } = await supabase.auth.signUp({
-          email,
-          password,
+          email: emailTrim,
+          password: passwordTrim,
         })
 
         if (error) {
-          if (error.message.includes('User already registered')) {
-            throw new Error('Пользователь с таким email уже существует')
-          } else if (error.message.includes('Password should be')) {
-            throw new Error('Пароль слишком слабый. Используйте минимум 6 символов')
-          } else if (error.message.includes('Unable to validate email address')) {
-            throw new Error('Некорректный формат email')
-          } else {
-            throw error
-          }
+          loggers.auth.error("signUp", {
+            message: error.message,
+            status: error.status,
+            code: (error as { code?: string }).code,
+          })
+          setError(userFacingAuthError(error))
+          return
         }
 
         if (data.user && !data.user.email_confirmed_at) {
@@ -101,8 +132,8 @@ export function AuthModal({ isOpen: externalIsOpen, onClose, children }: AuthMod
         setIsOpen(false)
       }
     } catch (err: any) {
-      loggers.auth.error('Auth error:', err)
-      setError(err.message || "Произошла ошибка при авторизации")
+      loggers.auth.error("Auth error:", err)
+      setError(userFacingAuthError(err))
     } finally {
       setLoading(false)
     }

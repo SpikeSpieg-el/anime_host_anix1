@@ -9,11 +9,11 @@ const RARITY_ORDER =[
   "mythic", "legendary", "ancient", "divine", "transcendent", "omnipotent"
 ];
 
-// Helper function to check if rarity is Rare or better
-function isRareOrBetter(rarity: string): boolean {
-  const rareIndex = RARITY_ORDER.indexOf("rare");
+// Helper function to check if rarity is Divine or better
+function isDivineOrBetter(rarity: string): boolean {
+  const divineIndex = RARITY_ORDER.indexOf("divine");
   const rarityIndex = RARITY_ORDER.indexOf(rarity);
-  return rarityIndex >= rareIndex;
+  return rarityIndex >= divineIndex;
 }
 
 function generateStats(rarity: string) {
@@ -41,8 +41,8 @@ function calculateBaseRarity(score: number): string {
   if (score >= 8.3) return "epic";
   if (score >= 7.8) return "super_rare";
   if (score >= 7.2) return "rare";
-  if (score >= 6.5) return "uncommon";
-  if (score >= 5.5) return "common";
+  if (score >= 7.0) return "uncommon";
+  if (score >= 6.6) return "common";
   return "trash";
 }
 
@@ -221,7 +221,7 @@ export async function rollAnimeCharacter(
   badLuckStreak: number = 0
 ): Promise<GachaResult | null> {
   try {
-    const shikiRes = await fetch("https://shikimori.one/api/animes?limit=30&order=random&kind=tv&score=7", { cache: "no-store" });
+    const shikiRes = await fetch("https://shikimori.one/api/animes?limit=30&order=random&kind=tv", { cache: "no-store" });
     const data = await shikiRes.json();
 
     for (const anime of data) {
@@ -414,13 +414,13 @@ export async function updateUserPityAfterRoll(userId: string, result: GachaResul
     let newStreak: number;
     let wasReset: boolean;
 
-    if (isRareOrBetter(result.rarity)) {
-      // Reset streak on Rare+ roll
+    if (isDivineOrBetter(result.rarity)) {
+      // Reset streak on Divine+ roll
       newStreak = 0;
       wasReset = true;
       console.log(`[Pity System] User ${userId} got ${result.rarity}, resetting streak from ${currentStreak} to 0`);
     } else {
-      // Increment streak on trash/common/uncommon roll
+      // Increment streak on trash/common/uncommon/rare/super_rare/epic/mythic/legendary/ancient roll
       newStreak = currentStreak + 1;
       wasReset = false;
       console.log(`[Pity System] User ${userId} got ${result.rarity}, incrementing streak from ${currentStreak} to ${newStreak}`);

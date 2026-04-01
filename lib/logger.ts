@@ -38,14 +38,36 @@ class Logger {
   }
 
   private sanitizeData(data: any): any {
-    if (!data || typeof data !== "object") return data
-    
+    if (data == null) return data
+    if (typeof data !== "object") return data
+
     const sensitiveKeys = ["password", "secret", "token", "key", "auth", "session", "cookie"]
-    
+
+    // Error / AuthApiError: у большинства движков message/status не в enumerable — Object.entries даёт {}
+    if (data instanceof Error) {
+      const e = data as Error & { status?: number; code?: string }
+      const rec: Record<string, unknown> = {
+        name: e.name,
+        message: e.message,
+      }
+      if (typeof e.status === "number") rec.status = e.status
+      if (e.code != null && String(e.code).length > 0) rec.code = e.code
+      return rec
+    }
+
+    // Объекты в стиле Supabase AuthError без прототипа Error
+    if (typeof data.message === "string" && ("status" in data || "code" in data || data.__isAuthError)) {
+      const rec: Record<string, unknown> = { message: data.message }
+      if (typeof data.status === "number") rec.status = data.status
+      if (typeof data.code === "string") rec.code = data.code
+      if (typeof data.name === "string") rec.name = data.name
+      return rec
+    }
+
     if (Array.isArray(data)) {
       return data.map(item => this.sanitizeData(item))
     }
-    
+
     const sanitized: any = {}
     for (const [key, value] of Object.entries(data)) {
       const keyLower = key.toLowerCase()
