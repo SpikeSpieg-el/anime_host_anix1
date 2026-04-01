@@ -5,7 +5,7 @@ import Image from "next/image"
 import { Navbar } from "@/components/navbar"
 import { Sparkles, Star, Heart, Loader2, X, ZoomIn, ExternalLink, RefreshCcw, Trash, Crown, Package, Coins, Search, Database } from "lucide-react"
 import { rollAnimeCharacter, rollFromAnimePack, searchGachaPacks, createCustomGachaPack, checkPackAvailability } from "./actions"
-import { saveCardToDatabase, loadUserCards, deleteCardFromDatabase } from "./client-actions"
+import { saveCardToDatabase, loadUserCards, deleteCardFromDatabase, queueCardForSync, syncQueuedCards } from "./client-actions"
 import { ANIME_PACKS, AnimePack, CustomAnimePack, createCustomPack, loadYearBasedPacks } from "@/lib/gacha-packs"
 import { useCoins } from "@/hooks/use-coins"
 import { GachaLoading } from "@/components/gacha-loading"
@@ -43,6 +43,7 @@ export interface Card {
   packId?: string
   packName?: string
   isArtBlacklisted?: boolean
+  orderIndex?: number // Индекс порядка добавления в коллекцию
 }
 
 function generateCardUniqueId(characterId: number, packId?: string): string {
@@ -320,6 +321,36 @@ const InteractiveCard = ({ card, forceFlipped = false }: { card: Card, forceFlip
     setIsFlipped(forceFlipped)
   }, [forceFlipped])
 
+  // Handle page visibility change to reset animation state when tab is switched/minimized
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        // Tab is hidden - cancel any pending animation frames and reset state
+        if (animationFrameRef.current) {
+          cancelAnimationFrame(animationFrameRef.current)
+          animationFrameRef.current = undefined
+        }
+        setRotation({ x: 0, y: 0 })
+        setIsHovered(false)
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [])
+
+  // Cleanup animation frame on unmount
+  useEffect(() => {
+    return () => {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current)
+        animationFrameRef.current = undefined
+      }
+    }
+  }, [])
+
   const handleMouseMove = useCallback((e: MouseEvent<HTMLDivElement>) => {
     if (!cardRef.current) return
     if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current)
@@ -332,9 +363,9 @@ const InteractiveCard = ({ card, forceFlipped = false }: { card: Card, forceFlip
       const centerX = rect.width / 2
       const centerY = rect.height / 2
 
-      setRotation({ 
+      setRotation({
         x: ((y - centerY) / centerY) * -12,
-        y: ((x - centerX) / centerX) * 12 
+        y: ((x - centerX) / centerX) * 12
       })
       setIsHovered(true)
     })
@@ -365,9 +396,9 @@ const InteractiveCard = ({ card, forceFlipped = false }: { card: Card, forceFlip
       const centerX = rect.width / 2
       const centerY = rect.height / 2
 
-      setRotation({ 
+      setRotation({
         x: ((y - centerY) / centerY) * -12,
-        y: ((x - centerX) / centerX) * 12 
+        y: ((x - centerX) / centerX) * 12
       })
       setIsHovered(true)
     })
@@ -555,14 +586,16 @@ export default function GachaPage() {
   const[showArtWarning, setShowArtWarning] = useState(false)
   const[showArtLimitWarning, setShowArtLimitWarning] = useState(false)
   const[cardForArtLimitWarning, setCardForArtLimitWarning] = useState<Card | null>(null)
-  const[selectedCardForArtChange, setSelectedCardForArtChange] = useState<Card | null>(null)
-  const[isChangingArt, setIsChangingArt] = useState(false)
-  const [artChangeError, setArtChangeError] = useState<string | null>(null)
-  const[isSyncingCoins, setIsSyncingCoins] = useState(false)
   const[isFixingCoins, setIsFixingCoins] = useState(false)
   const[isSavingCard, setIsSavingCard] = useState(false)
   const [isLoaded, setIsLoaded] = useState(false)
   const[displayedCardsCount, setDisplayedCardsCount] = useState(60)
+  const[isSyncingCards, setIsSyncingCards] = useState(false)
+  const[pendingSyncCount, setPendingSyncCount] = useState(0)
+  const[prioritizeMainCharacters, setPrioritizeMainCharacters] = useState(false)
+
+  // Ref for tracking operation start time
+  const operationStartTime = useRef<number | null>(null);
 
   const ART_BAN_LIMIT = 10
 
@@ -601,40 +634,91 @@ export default function GachaPage() {
   
   const collectionRating = calculateCollectionRating(collectedCards)
 
-  useEffect(() => {
-    const loadSavedCards = async () => {
-      if (isLoaded) return 
-      
-      const { supabase } = await import('@/lib/supabase')
-      const { data: { session } } = await supabase.auth.getSession()
-      
-      if (session) {
-        const savedCards = await loadUserCards()
-        if (savedCards.length > 0) {
-          setCollectedCards(savedCards)
-          const ids = new Set(savedCards.map(card => card.characterId))
-          setUsedCharacterIds(ids)
-        }
-      } else {
-        try {
-          const saved = localStorage.getItem('gacha-collection')
-          if (saved) {
-            const parsed = JSON.parse(saved)
-            if (Array.isArray(parsed)) {
-              setCollectedCards(parsed)
-              const ids = new Set(parsed.map((c: Card) => c.characterId))
-              setUsedCharacterIds(ids)
-            }
-          }
-        } catch (e) {
-          console.error('Error loading collection from localStorage:', e)
+useEffect(() => {
+  const handleVisibilityChange = () => {
+    if (!document.hidden) {
+      // Если вкладка стала видимой, проверяем, не застряла ли операция
+      if ((isRolling || isSavingCard) && operationStartTime.current) {
+        const elapsed = Date.now() - operationStartTime.current;
+        
+        // Если крутилка крутится дольше 15 секунд — скорее всего, запрос в фоне отвалился
+        if (elapsed > 15000) {
+          console.warn('[Gacha] Операция затянулась в фоне. Сброс состояния.');
+          setIsRolling(false);
+          setIsSavingCard(false);
+          operationStartTime.current = null;
         }
       }
-      setIsLoaded(true)
+    }
+  };
+
+  document.addEventListener('visibilitychange', handleVisibilityChange);
+  return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+}, [isRolling, isSavingCard]);
+
+  useEffect(() => {
+    const loadSavedCards = async () => {
+      if (isLoaded) return;
+
+      const { supabase } = await import('@/lib/supabase');
+      const { data: { session } } = await supabase.auth.getSession();
+
+      let finalCollection: Card[] = [];
+
+      // 1. Загружаем из localStorage (всегда, как буфер)
+      try {
+        const localData = localStorage.getItem('gacha-collection');
+        if (localData) {
+          finalCollection = JSON.parse(localData);
+          // Присваиваем orderIndex на основе порядка в localStorage (0 = самый новый)
+          finalCollection = finalCollection.map((card, index) => ({
+            ...card,
+            orderIndex: finalCollection.length - 1 - index
+          }));
+        }
+      } catch (e) { console.error(e); }
+
+      // 2. Загружаем настройку приоритета главных героев
+      try {
+        const savedPriority = localStorage.getItem('gacha-prioritize-main-characters');
+        if (savedPriority) {
+          setPrioritizeMainCharacters(JSON.parse(savedPriority));
+        }
+      } catch (e) { console.error(e); }
+
+      // 3. Если залогинен, загружаем из БД и объединяем
+      if (session) {
+        const dbCards = await loadUserCards();
+        
+        // Присваиваем orderIndex для карт из БД (они будут в конце)
+        const dbCardsWithOrder = dbCards.map((card, index) => ({
+          ...card,
+          orderIndex: finalCollection.length + index
+        }));
+        
+        // Объединяем без дубликатов (приоритет картам из БД)
+        const dbIds = new Set(dbCardsWithOrder.map(c => c.uniqueId));
+        finalCollection = [
+          ...dbCardsWithOrder,
+          ...finalCollection.filter(c => !dbIds.has(c.uniqueId))
+        ];
+        
+        // Пробуем досинхронизировать то, что застряло в очереди
+        const queue = JSON.parse(localStorage.getItem('gacha-sync-queue') || '[]');
+        if (queue.length > 0) {
+          setIsSyncingCards(true);
+          await syncQueuedCards();
+          setIsSyncingCards(false);
+        }
+      }
+
+      setCollectedCards(finalCollection);
+      setUsedCharacterIds(new Set(finalCollection.map(c => c.characterId)));
+      setIsLoaded(true);
     }
 
-    loadSavedCards()
-  },[])
+    loadSavedCards();
+  }, []);
 
   useEffect(() => {
     const loadPacks = async () => {
@@ -655,6 +739,12 @@ export default function GachaPage() {
     const ids = new Set(collectedCards.map(card => card.characterId));
     setUsedCharacterIds(ids);
   }, [collectedCards]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('gacha-prioritize-main-characters', JSON.stringify(prioritizeMainCharacters));
+    } catch (e) { console.error(e); }
+  }, [prioritizeMainCharacters]);
 
   useEffect(() => {
     if (packSearchQuery.trim().length < 1) {
@@ -684,224 +774,175 @@ export default function GachaPage() {
     setShowCard(false);
     setIsRolling(false);
     setViewedCard(null);
+    
+    // Сбрасываем состояние сохранения при смене пакета
+    setIsSavingCard(false);
+    operationStartTime.current = null;
     setSearchQuery(""); 
     setShowPacks(false); 
   }, [selectedPack]);
 
   const handleRoll = async () => {
-    if (isRolling) return
-    setIsRolling(true)
-    setRevealedCard(null)
-    setShowCard(false)
+    if (isRolling) return;
 
     try {
-      let result: Awaited<ReturnType<typeof rollAnimeCharacter>> | undefined;
-      const ignored = blacklistedUrls;
-      const expandChars = Array.from(expandPoolForCharacters);
-
-      if (selectedPack) {
-        if (userCoins < selectedPack.price) {
-          alert("Недостаточно монет!");
-          setIsRolling(false);
-          return;
-        }
-
-        await new Promise(resolve => setTimeout(resolve, 1500));
-        result = await rollFromAnimePack(selectedPack, Array.from(usedCharacterIds), ignored, expandChars);
-
-        if (result) {
-          // Добавляем ID в список использованных СРАЗУ, не дожидаясь сохранения
-          setUsedCharacterIds(prev => new Set(prev).add(result!.characterId));
-          
-          await spendCoins(selectedPack.price);
-          forceSync().catch(error => console.warn('Background sync failed:', error));
-          if (expandPoolForCharacters.has(result!.characterId)) {
-            setExpandPoolForCharacters(prev => {
-              const next = new Set(prev);
-              next.delete(result!.characterId);
-              return next;
-            });
-          }
-        }
-      } else {
-        if (userCoins < 50) {
-          alert("Недостаточно монет! Обычная крутка стоит 50 монет.");
-          setIsRolling(false);
-          return;
-        }
-
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        result = await rollAnimeCharacter(Array.from(usedCharacterIds), ignored, expandChars);
-
-        if (result) {
-          await spendCoins(50);
-          forceSync().catch(error => console.warn('Background sync failed:', error));
-          if (expandPoolForCharacters.has(result.characterId)) {
-            setExpandPoolForCharacters(prev => {
-              const next = new Set(prev);
-              next.delete(result!.characterId);
-              return next;
-            });
-          }
-        }
-      }
+      setIsRolling(true);
+      operationStartTime.current = Date.now();
+      setRevealedCard(null);
+      setShowCard(false);
       
-      if (!result) {
-        let errorConfig: {
-          title: string;
-          message: string;
-          type: "error" | "warning" | "info";
-          packName?: string;
-          collectedCount?: number;
-          availableCount?: number;
-          totalCharacters?: number;
-        } = {
-          title: "Ошибка получения персонажа",
-          message: "Не удалось получить персонажа. Попробуйте снова!",
-          type: "error"
-        };
+      // Сбрасываем состояние сохранения при новой крутке
+      setIsSavingCard(false);
 
-        if (selectedPack) {
-          const packAvailability = await checkPackAvailability(selectedPack, Array.from(usedCharacterIds));
-          
-          if (packAvailability.isEmpty) {
-            errorConfig = {
-              title: "Пак полностью собран!",
-              message: `Вы собрали всех персонажей из пака "${selectedPack.name}"! Попробуйте выбрать другой пак или начните новую коллекцию.`,
-              type: "warning",
-              packName: selectedPack.name,
-              collectedCount: packAvailability.collectedCount,
-              availableCount: packAvailability.availableCount,
-              totalCharacters: packAvailability.totalCharacters
-            };
-          } else if (packAvailability.isNearlyComplete) {
-            errorConfig = {
-              title: "Пак почти собран!",
-              message: `Вы собрали почти всех персонажей из пака "${selectedPack.name}"! Осталось всего ${packAvailability.availableCount} персонажей. Попробуйте выбрать другой пак для лучших результатов.`,
-              type: "warning",
-              packName: selectedPack.name,
-              collectedCount: packAvailability.collectedCount,
-              availableCount: packAvailability.availableCount,
-              totalCharacters: packAvailability.totalCharacters
-            };
-          } else {
-            errorConfig = {
-              title: "Многие персонажи уже собраны",
-              message: "Многие персонажи уже собраны. Рекомендуется выбрать тематический пак для лучших результатов.",
-              type: "info"
-            };
-          }
-        } else if (usedCharacterIds.size > 500) {
-          errorConfig = {
-            title: "Большая коллекция",
-            message: "Вы собрали слишком много персонажей! Попробуйте очистить коллекцию или выберите тематический пак.",
-            type: "warning"
-          };
-        } else if (usedCharacterIds.size > 100) {
-          errorConfig = {
-            title: "Многие персонажи уже собраны",
-            message: "Многие персонажи уже собраны. Рекомендуется выбрать тематический пак для лучших результатов.",
+      // 1. Вызываем серверный экшен
+      const rollPromise = selectedPack
+        ? rollFromAnimePack(selectedPack, Array.from(usedCharacterIds), blacklistedUrls, Array.from(expandPoolForCharacters))
+        : rollAnimeCharacter(Array.from(usedCharacterIds), blacklistedUrls, Array.from(expandPoolForCharacters));
+
+      // Добавляем жесткий тайм-аут на сетевой запрос
+      const result = await Promise.race([
+        rollPromise,
+        new Promise((_, reject) => setTimeout(() => reject(new Error("TIMEOUT")), 15000))
+      ]) as any;
+
+      // СРАЗУ ВЫКЛЮЧАЕМ КРУТИЛКУ
+      setIsRolling(false); 
+      operationStartTime.current = null;
+
+      if (result) {
+        // Запускаем списание монет "вдогонку", не дожидаясь ответа (без await)
+        spendCoins(selectedPack ? selectedPack.price : 50).catch(console.error);
+
+        if (result.allFanArtBanned) {
+          // Если все арты забанены, просто сбрасываем и просим нажать еще раз
+          setErrorPopupConfig({
+            title: "Персонаж найден, но...",
+            message: "Все доступные арты для этого героя вами отклонены. Попробуйте другой пак!",
             type: "info"
-          };
-        } else {
-          errorConfig = {
-            title: "Проблемы с API",
-            message: "Не удалось получить персонажа. Возможно, проблемы с API Shikimori. Попробуйте снова через несколько секунд!",
-            type: "error"
-          };
+          });
+          setShowErrorPopup(true);
+          return; 
         }
 
-        setErrorPopupConfig(errorConfig);
-        setShowErrorPopup(true);
-        return;
-      }
-
-      // Если все арты забанены, пробуем снова
-      if (result.allFanArtBanned) {
-        console.log('[handleRoll] All art banned for this character, rolling again...');
-        // Рекурсивный реролл (один раз)
-        await new Promise(resolve => setTimeout(resolve, 500));
-        const retryResult = selectedPack
-          ? await rollFromAnimePack(selectedPack, Array.from(usedCharacterIds), ignored, expandChars)
-          : await rollAnimeCharacter(Array.from(usedCharacterIds), ignored, expandChars);
+        // Создаем карту
+        const newCard: Card = {
+          id: Date.now(),
+          uniqueId: generateCardUniqueId(result.characterId, result.packId),
+          serialId: result.shikiId.toString(),
+          name: result.characterName,
+          anime: result.animeName,
+          rarity: result.rarity as Rarity,
+          imageUrl: result.imageUrl || '',
+          originalUrl: result.originalUrl || '',
+          score: result.score,
+          shikiId: result.shikiId,
+          characterId: result.characterId,
+          stats: result.stats,
+          isMainCharacter: result.isMainCharacter || false,
+          packId: result.packId,
+          packName: result.packName,
+          isArtBlacklisted: result.isMainCharacter && blacklistedUrls.includes(result.imageUrl || '')
+        };
         
-        if (retryResult && !retryResult.allFanArtBanned) {
-          result = retryResult;
-        } else {
-          throw new Error('Все арты для этого персонажа забанены. Попробуйте снова!');
-        }
+        // Показываем карту пользователю
+        setRevealedCard(newCard);
+        setShowCard(true);
+      } else {
+        // Если результат пустой (пак закончился)
+        handleEmptyResult(); 
       }
 
-      const newCard: Card = {
-        id: Date.now(),
-        uniqueId: generateCardUniqueId(result.characterId, (result as any).packId),
-        serialId: result.shikiId.toString(),
-        name: result.characterName,
-        anime: result.animeName,
-        rarity: result.rarity as Rarity,
-        imageUrl: result.imageUrl || '',
-        originalUrl: result.originalUrl || '',
-        score: result.score,
-        shikiId: result.shikiId,
-        characterId: result.characterId,
-        stats: result.stats,
-        isMainCharacter: result.isMainCharacter || false,
-        packId: (result as any).packId,
-        packName: (result as any).packName,
-        isArtBlacklisted: result.isMainCharacter && blacklistedUrls.includes(result.imageUrl || '')
-      }
-
-      setRevealedCard(newCard)
-      setShowCard(true)
-    } catch (error) {
-      console.error("Gacha error:", error)
+    } catch (error: any) {
+      console.error("Gacha error:", error);
+      setIsRolling(false); // На всякий случай дублируем здесь
       setErrorPopupConfig({
         title: "Ошибка",
-        message: `${error instanceof Error ? error.message : "Неизвестная ошибка"}. Попробуйте снова!`,
+        message: error.message === "TIMEOUT" ? "Сервер не ответил вовремя. Попробуйте еще раз!" : "Не удалось призвать персонажа.",
         type: "error"
       });
       setShowErrorPopup(true);
     } finally {
-      setIsRolling(false)
+      setIsRolling(false);
+      operationStartTime.current = null;
     }
-  }
+  };
+
+  // Вынесите логику проверки доступности в отдельную функцию, чтобы не загромождать handleRoll
+  const handleEmptyResult = async () => {
+    if (!selectedPack) return;
+    
+    // Показываем общую ошибку сразу
+    setErrorPopupConfig({
+      title: "Пак пуст или персонаж не найден",
+      message: "Похоже, вы собрали всех доступных героев из этого набора.",
+      type: "info"
+    });
+    setShowErrorPopup(true);
+
+    // Фоново проверяем детали, не блокируя крутилку
+    try {
+      const packAvailability = await checkPackAvailability(selectedPack as AnimePack, Array.from(usedCharacterIds));
+      if (packAvailability.isEmpty) {
+         // Можно обновить попап более точными данными
+      }
+    } catch (e) {}
+  };
 
   const saveCard = async (card: Card) => {
-    setIsSavingCard(true)
+    if (isSavingCard) return;
+    
+    // Проверяем, не сохранена ли карта уже
+    const isAlreadyIn = collectedCards.some(c => c.uniqueId === card.uniqueId);
+    if (isAlreadyIn) {
+      setShowCard(false);
+      return;
+    }
+    
+    let cardWithOrder = card;
+    
+    // Добавляем orderIndex - текущая длина массива (новые карты получают меньший индекс)
+    cardWithOrder = { ...card, orderIndex: collectedCards.length };
+    setCollectedCards(prev => [cardWithOrder, ...prev]);
+    setUsedCharacterIds(prev => new Set(prev).add(card.characterId));
+
+    // 2. СТРАХОВКА: Сохраняем в localStorage ПРЯМО СЕЙЧАС, даже если юзер залогинен.
+    // Это гарантирует, что при обновлении страницы карта не исчезнет, 
+    // даже если запрос в БД упадет.
     try {
-      const { supabase } = await import('@/lib/supabase')
-      const { data: { session } } = await supabase.auth.getSession()
+      const localSaved = JSON.parse(localStorage.getItem('gacha-collection') || '[]');
+      if (!localSaved.some((c: Card) => c.uniqueId === card.uniqueId)) {
+        localStorage.setItem('gacha-collection', JSON.stringify([cardWithOrder, ...localSaved]));
+      }
+    } catch (e) {
+      console.error("Local storage backup failed", e);
+    }
+
+    setShowCard(false);
+    setIsSavingCard(true);
+    operationStartTime.current = Date.now();
+
+    try {
+      const { supabase } = await import('@/lib/supabase');
+      const { data: { session } } = await supabase.auth.getSession();
 
       if (session) {
-        const result = await saveCardToDatabase(card)
-        if (result.success) {
-          const isAlreadyCollected = collectedCards.some(c => c.uniqueId === card.uniqueId)
-          if (!isAlreadyCollected) {
-            setCollectedCards(prev =>[card, ...prev])
-            setUsedCharacterIds(prev => new Set(prev).add(card.characterId))
-          }
-          setShowCard(false)
+        const result = await saveCardToDatabase(card);
+        if (!result.success) {
+          // Если база недоступна, кладем в очередь на синхронизацию
+          queueCardForSync(card);
         } else {
-          const savedCards = JSON.parse(localStorage.getItem('gacha-collection') || '[]')
-          savedCards.unshift(card)
-          localStorage.setItem('gacha-collection', JSON.stringify(savedCards))
-          setCollectedCards(prev => [card, ...prev])
-          setUsedCharacterIds(prev => new Set(prev).add(card.characterId))
-          setShowCard(false)
+          // Если сохранение в БД прошло успешно, можно (опционально) удалить из локалки, 
+          // но лучше оставить — при загрузке мы просто объединим массивы без дублей.
+          console.log("Card persisted to DB");
         }
-      } else {
-        const savedCards = JSON.parse(localStorage.getItem('gacha-collection') || '[]')
-        savedCards.unshift(card)
-        localStorage.setItem('gacha-collection', JSON.stringify(savedCards))
-        setCollectedCards(prev => [card, ...prev])
-        setUsedCharacterIds(prev => new Set(prev).add(card.characterId))
-        setShowCard(false)
       }
-    } catch (error) {
-      console.error('[saveCard] Error:', error)
-      alert('Ошибка при сохранении карты')
+      // Если сессии нет, карта уже лежит в localStorage благодаря шагу 2.
+    } catch (e) {
+      console.error("Critical save error:", e);
+      queueCardForSync(card);
     } finally {
-      setIsSavingCard(false)
+      setIsSavingCard(false);
+      operationStartTime.current = null;
     }
   }
 
@@ -1117,11 +1158,18 @@ export default function GachaPage() {
 
     result.sort((a, b) => {
       if (sortBy === "date") {
-        const aIsMain = a.isMainCharacter ? 1 : 0;
-        const bIsMain = b.isMainCharacter ? 1 : 0;
-        if (aIsMain !== bIsMain) return bIsMain - aIsMain; 
-        const comparison = a.id - b.id;
-        return sortOrder === "desc" ? -comparison : comparison;
+        // Если включен приоритет главных героев (GG), они всегда первые
+        if (prioritizeMainCharacters) {
+          const aIsMain = a.isMainCharacter ? 1 : 0;
+          const bIsMain = b.isMainCharacter ? 1 : 0;
+          if (aIsMain !== bIsMain) return bIsMain - aIsMain;
+        }
+        
+        // Затем сортируем по orderIndex (чем меньше, тем новее карта)
+        const aOrder = a.orderIndex ?? Infinity;
+        const bOrder = b.orderIndex ?? Infinity;
+        
+        return sortOrder === "desc" ? aOrder - bOrder : bOrder - aOrder;
       } else {
         let comparison = 0
         switch (sortBy) {
@@ -1142,6 +1190,14 @@ export default function GachaPage() {
             comparison = a.id - b.id
             break
         }
+        
+        // Если включен приоритет главных героев (GG) и сравнение равно, главные герои идут первыми
+        if (prioritizeMainCharacters && comparison === 0) {
+          const aIsMain = a.isMainCharacter ? 1 : 0;
+          const bIsMain = b.isMainCharacter ? 1 : 0;
+          if (aIsMain !== bIsMain) return bIsMain - aIsMain;
+        }
+        
         return sortOrder === "desc" ? -comparison : comparison
       }
     })
@@ -1768,7 +1824,34 @@ export default function GachaPage() {
                 <span className="text-xl sm:text-2xl font-black text-yellow-400 tracking-tight">{userCoins.toLocaleString()}</span>
               )}
             </div>
-            
+
+            {/* Sync indicator and manual sync button */}
+            {(pendingSyncCount > 0 || isSyncingCards) && (
+              <button
+                onClick={async () => {
+                  setIsSyncingCards(true);
+                  const result = await syncQueuedCards();
+                  setIsSyncingCards(false);
+                  const remainingQueue = JSON.parse(localStorage.getItem('gacha-sync-queue') || '[]');
+                  setPendingSyncCount(remainingQueue.length);
+                  alert(`Синхронизация завершена: ${result.success} успешно, ${result.failed} ошибок`);
+                }}
+                disabled={isSyncingCards}
+                className="flex items-center gap-2 px-3 py-2 sm:px-4 sm:py-3 rounded-xl bg-green-500/10 hover:bg-green-500/20 disabled:opacity-50 disabled:cursor-not-allowed text-green-400 text-xs sm:text-sm font-bold transition-all border border-green-500/20 relative"
+                title={pendingSyncCount > 0 ? `Карт в очереди: ${pendingSyncCount}. Нажмите для синхронизации` : 'Синхронизация...'}
+              >
+                <RefreshCcw className={`w-4 h-4 ${isSyncingCards ? 'animate-spin' : ''}`} />
+                <span className="hidden sm:inline">
+                  {isSyncingCards ? 'Синхронизация...' : `Ожидает: ${pendingSyncCount}`}
+                </span>
+                {pendingSyncCount > 0 && !isSyncingCards && (
+                  <span className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-green-500 text-white text-[10px] font-bold flex items-center justify-center">
+                    {pendingSyncCount}
+                  </span>
+                )}
+              </button>
+            )}
+
             {userCoins > 1000000 && (
               <button
                 onClick={handleFixCoins}
@@ -1872,7 +1955,7 @@ export default function GachaPage() {
                   />
                 ))}
               </div>
-              
+
               <div className="relative z-10 scale-125">
                 <GachaLoading message="Загрузка карт..." />
               </div>
@@ -1883,17 +1966,34 @@ export default function GachaPage() {
           {showCard && revealedCard && (
             <div className="flex flex-col items-center animate-in zoom-in-95 duration-500 w-full">
               <InteractiveCard card={revealedCard} />
-              
+
               <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 mt-8 sm:mt-10 w-full max-w-xs sm:max-w-md mx-auto">
                 <button
-                  onClick={() => saveCard(revealedCard)}
-                  disabled={isSavingCard}
-                  className="flex-1 px-4 sm:px-6 py-4 bg-indigo-600 hover:bg-indigo-500 text-white font-black uppercase tracking-wider rounded-xl sm:rounded-2xl transition-all text-sm sm:text-base disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg shadow-indigo-500/25 border border-indigo-400/50"
+                  onClick={() => {
+                    // If save is stuck (running for more than 5 seconds), allow user to force reset
+                    if (isSavingCard && operationStartTime.current && Date.now() - operationStartTime.current > 5000) {
+                      console.warn('[User] Force reset save state');
+                      setIsSavingCard(false);
+                      operationStartTime.current = null;
+                      return;
+                    }
+                    saveCard(revealedCard);
+                  }}
+                  disabled={isSavingCard && (!operationStartTime.current || Date.now() - operationStartTime.current <= 5000)}
+                  className="flex-1 px-4 sm:px-6 py-4 bg-indigo-600 hover:bg-indigo-500 text-white font-black uppercase tracking-wider rounded-xl sm:rounded-2xl transition-all text-sm sm:text-base disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg shadow-indigo-500/25 border border-indigo-400/50 relative group"
+                  title={isSavingCard && operationStartTime.current && Date.now() - operationStartTime.current > 5000 ? "Нажмите ещё раз для сброса" : undefined}
                 >
+                  {isSavingCard && operationStartTime.current && Date.now() - operationStartTime.current > 5000 && (
+                    <div className="absolute inset-0 bg-red-600/50 rounded-xl sm:rounded-2xl animate-pulse" />
+                  )}
                   {isSavingCard ? (
                     <>
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                      Сохранение...
+                      <Loader2 className="w-5 h-5 animate-spin relative z-10" />
+                      <span className="relative z-10">
+                        {isSavingCard && operationStartTime.current && Date.now() - operationStartTime.current > 5000 
+                          ? "Нажмите для сброса" 
+                          : "Сохранение..."}
+                      </span>
                     </>
                   ) : (
                     <>
@@ -2081,6 +2181,21 @@ export default function GachaPage() {
                         <option value="asc">По возрастанию</option>
                       </select>
                     </div>
+                  </div>
+
+                  {/* GG Priority Checkbox */}
+                  <div className="flex items-center gap-3 p-4 bg-slate-800/30 rounded-xl border border-slate-700/30">
+                    <input
+                      type="checkbox"
+                      id="gg-priority"
+                      checked={prioritizeMainCharacters}
+                      onChange={(e) => setPrioritizeMainCharacters(e.target.checked)}
+                      className="w-5 h-5 rounded border-2 border-slate-600 bg-slate-900 text-indigo-500 focus:ring-2 focus:ring-indigo-500/50 focus:ring-offset-0 focus:ring-offset-slate-900 cursor-pointer"
+                    />
+                    <label htmlFor="gg-priority" className="flex items-center gap-2 cursor-pointer">
+                      <span className="text-sm font-bold text-white">GG Priority</span>
+                      <span className="text-xs text-slate-400">(главные герои всегда первыми)</span>
+                    </label>
                   </div>
 
                   {/* Actions & Active Filters */}

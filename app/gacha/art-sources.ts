@@ -51,7 +51,7 @@ async function fetchFromSource(
     } else if (source === 'danbooru') {
       url = `https://danbooru.donmai.us/posts.json?tags=${encodeURIComponent(tag)}+rating:g&limit=${limit}&page=${page}`;
     } else if (source === 'konachan') {
-      url = `https://konachan.net/post.json?tags=${encodeURIComponent(tag)}&limit=${limit}&page=${page}`;
+      url = `https://konachan.net/post.json?tags=${encodeURIComponent(tag)}+rating:s&limit=${limit}&page=${page}`;
     } else if (source === 'zerochan') {
       url = `https://www.zerochan.net/${encodeURIComponent(tag)}?json&l=${limit}&p=${page}`;
     }
