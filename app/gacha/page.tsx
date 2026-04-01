@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useRef, MouseEvent, useCallback, useEffect, useMemo } from "react"
+import { flushSync } from "react-dom"
 import Image from "next/image"
 import { Navbar } from "@/components/navbar"
 import { Sparkles, Star, Heart, Loader2, X, ZoomIn, ExternalLink, RefreshCcw, Trash, Trash2, Crown, Package, Coins, Search, Database } from "lucide-react"
@@ -1172,10 +1173,17 @@ useEffect(() => {
   const confirmDismantle = async () => {
     if (!dismantleCardData) return;
     
-    setIsDismantling(true);
+    // Используем flushSync для немедленного обновления состояния
+    flushSync(() => {
+      setIsDismantling(true);
+    });
+    
     // НЕ закрываем окно подтверждения - используем его для показа прогресса
 
     try {
+      // Добавляем небольшую задержку чтобы прогресс был виден
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
       // 1. Начисляем пыль через безопасную серверную операцию
       const reward = getDismantleValue(dismantleCardData.rarity);
       const success = await addDust(reward);
@@ -1203,6 +1211,9 @@ useEffect(() => {
       // Закрываем окно подтверждения и открываем окно успеха
       setShowDismantleConfirm(false);
       setShowDismantleSuccess(true);
+      
+      // Сбрасываем состояние загрузки после показа успеха
+      setIsDismantling(false);
     } catch (e) {
       console.error("Dismantle failed", e);
       setErrorPopupConfig({
@@ -1213,8 +1224,9 @@ useEffect(() => {
       setShowErrorPopup(true);
       // Закрываем окно подтверждения при ошибке
       setShowDismantleConfirm(false);
-    } finally {
+      // Сбрасываем состояние загрузки при ошибке
       setIsDismantling(false);
+    } finally {
       setDismantleCardData(null);
     }
   };

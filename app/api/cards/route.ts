@@ -75,10 +75,6 @@ export async function GET(request: Request) {
 
     console.log('[GET] Retrieved cards for user', user.id, ':', data?.length || 0, 'cards')
     
-    // Log unique IDs for debugging
-    if (data && data.length > 0) {
-      console.log('[GET] Card unique IDs:', data.map((c: any) => c.unique_id))
-    }
 
     // Transform database rows to Card objects
     const cards: Card[] = (data || []).map(row => ({
