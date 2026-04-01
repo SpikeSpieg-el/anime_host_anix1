@@ -202,15 +202,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (user) {
+      // Ждём готовности сессии перед загрузкой профиля
+      if (sessionLoading) {
+        console.log('[Auth] Session still loading, waiting to refresh profile...')
+        return
+      }
       // Добавим защиту от повторных вызовов, если профиль уже загружается
       if (!profileLoading) {
+        console.log('[Auth] Starting profile refresh for user:', user.id)
         refreshProfile()
       }
     } else {
       setProfile(null)
       setProfileLoading(false)
     }
-  }, [user?.id])
+  }, [user?.id, user, sessionLoading])
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }: { data: { session: any } }) => {
