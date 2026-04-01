@@ -2355,7 +2355,11 @@ export default function GachaPage() {
 
             <div className="flex items-center gap-2 px-3 py-2 sm:px-5 sm:py-2.5 rounded-xl sm:rounded-2xl bg-slate-900/80 backdrop-blur-md border border-slate-800 shadow-xl shadow-amber-500/5">
               <Sparkles className="w-4 h-4 sm:w-6 sm:h-6 text-amber-400" />
-              <span className="text-lg sm:text-2xl font-black text-amber-400 tracking-tight">{dust.toLocaleString()}</span>
+              {dustLoading ? (
+                <Loader2 className="w-4 h-4 sm:w-6 sm:h-6 text-amber-400 animate-spin" />
+              ) : (
+                <span className="text-lg sm:text-2xl font-black text-amber-400 tracking-tight">{dust.toLocaleString()}</span>
+              )}
             </div>
 
             {/* Sync indicator and manual sync button */}
