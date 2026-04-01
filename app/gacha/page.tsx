@@ -304,17 +304,108 @@ const PackCard = ({ pack, onSelect, userCoins }: { pack: AnimePack; onSelect: (p
   </div>
 )
 
+const TopCard = ({ card, onClick }: { card: Card; onClick: (card: Card) => void }) => {
+  const [isImageLoading, setIsImageLoading] = useState(true)
+
+  return (
+    <div
+      className="aspect-[2/3] rounded-xl overflow-hidden border border-white/10 relative group bg-slate-900 cursor-pointer transition-all hover:scale-105 hover:shadow-xl hover:shadow-indigo-500/20"
+      onClick={() => onClick(card)}
+    >
+      <img
+        src={getOptimizedThumbSrc(card.imageUrl, 384, 60)}
+        className="absolute inset-0 w-full h-full object-cover"
+        alt={card.name}
+        referrerPolicy="no-referrer"
+        onError={(e) => handleImageError(e, card, true)}
+        onLoad={() => setIsImageLoading(false)}
+      />
+      
+      {/* Загрузчик для лучших карт */}
+      {isImageLoading && (
+        <div className="absolute inset-0 flex items-center justify-center bg-slate-900/80 backdrop-blur-sm z-20">
+          <Loader2 className="w-5 h-5 text-white/60 animate-spin" />
+        </div>
+      )}
+      
+      <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/30 to-transparent" />
+      <div className={`absolute top-2 right-2 w-3 h-3 rounded-full bg-gradient-to-r ${rarityConfig[card.rarity].color} shadow-lg border border-white/20`} />
+      <div className="absolute bottom-0 inset-x-0 p-2 sm:p-3">
+        <p className="text-[8px] sm:text-[9px] font-bold text-slate-300 uppercase truncate mb-1">{card.anime}</p>
+        <p className="text-xs sm:text-sm font-black text-white truncate leading-tight">{card.name}</p>
+      </div>
+    </div>
+  )
+}
+
+const CollectionCard = ({ card, onClick }: { card: Card; onClick: (card: Card) => void }) => {
+  const [isImageLoading, setIsImageLoading] = useState(true)
+
+  return (
+    <div
+      onClick={() => onClick(card)}
+      className={`aspect-[2/3] rounded-2xl overflow-hidden border border-white/10 relative group bg-slate-900 cursor-pointer transition-all duration-300 hover:-translate-y-1.5 hover:shadow-2xl hover:shadow-indigo-500/20 ${rarityConfig[card.rarity].glow}`}
+    >
+      <Image
+        src={card.imageUrl}
+        className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ease-out"
+        alt={card.name}
+        fill
+        sizes="(max-width: 640px) 33vw, (max-width: 1024px) 20vw, 15vw"
+        quality={50}
+        loading="lazy"
+        referrerPolicy="no-referrer"
+        onError={(e) => handleImageError(e, card, true)}
+        onLoad={() => setIsImageLoading(false)}
+      />
+      
+      {/* Загрузчик для карточки коллекции */}
+      {isImageLoading && (
+        <div className="absolute inset-0 flex items-center justify-center bg-slate-900/80 backdrop-blur-sm z-20">
+          <Loader2 className="w-6 h-6 text-white/60 animate-spin" />
+        </div>
+      )}
+      
+      <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/30 to-transparent opacity-90 group-hover:opacity-100 transition-opacity duration-300" />
+      
+      <div className={`absolute top-2.5 right-2.5 w-3 h-3 rounded-full bg-gradient-to-r ${rarityConfig[card.rarity].color} shadow-lg border border-white/20`} />
+      
+      {card.isMainCharacter && (
+        <div className="absolute top-2.5 left-2.5 w-6 h-6 rounded-full bg-gradient-to-r from-yellow-400 to-amber-500 shadow-lg flex items-center justify-center border border-yellow-200">
+          <Crown className="w-3.5 h-3.5 text-amber-950" />
+        </div>
+      )}
+      
+      {card.isMainCharacter && card.isArtBlacklisted && (
+        <div className="absolute top-10 left-2.5 w-6 h-6 rounded-full bg-red-500/80 border border-red-300 flex items-center justify-center backdrop-blur-sm">
+          <RefreshCcw className="w-3 h-3 text-white" />
+        </div>
+      )}
+      
+      <div className="absolute bottom-0 inset-x-0 p-3 sm:p-4 transition-transform duration-300 group-hover:translate-y-[-4px]">
+        <p className="text-[10px] sm:text-xs font-bold text-slate-300 uppercase truncate mb-0.5">★{card.score.toFixed(1)} {card.anime}</p>
+        <p className="text-sm sm:text-base font-black text-white truncate leading-tight drop-shadow-md">{card.name}</p>
+      </div>
+    </div>
+  )
+}
+
 const InteractiveCard = ({ card, forceFlipped = false }: { card: Card, forceFlipped?: boolean }) => {
   const cardRef = useRef<HTMLDivElement>(null)
   const [rotation, setRotation] = useState({ x: 0, y: 0 })
   const [isHovered, setIsHovered] = useState(false)
   const [isFlipped, setIsFlipped] = useState(false)
   const[isTouching, setIsTouching] = useState(false)
+  const[isImageLoading, setIsImageLoading] = useState(true)
   const animationFrameRef = useRef<number | undefined>(undefined)
 
   useEffect(() => {
     setIsFlipped(forceFlipped)
   }, [forceFlipped])
+
+  useEffect(() => {
+    setIsImageLoading(true)
+  }, [card.imageUrl])
 
   useEffect(() => {
     const handleVisibilityChange = () => {
@@ -440,7 +531,18 @@ const InteractiveCard = ({ card, forceFlipped = false }: { card: Card, forceFlip
           priority={true}
           referrerPolicy="no-referrer"
           onError={(e) => handleImageError(e, card, false)}
+          onLoad={() => setIsImageLoading(false)}
         />
+        
+        {/* Загрузчик поверх изображения */}
+        {isImageLoading && (
+          <div className="absolute inset-0 flex items-center justify-center bg-slate-900/80 backdrop-blur-sm z-20">
+            <div className="flex flex-col items-center gap-3">
+              <Loader2 className="w-8 h-8 sm:w-10 sm:h-10 text-white/80 animate-spin" />
+              <span className="text-xs sm:text-sm text-white/60 font-medium">Загрузка арта...</span>
+            </div>
+          </div>
+        )}
         
         <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/20 to-slate-950/20 pointer-events-none" />
         
@@ -934,11 +1036,23 @@ export default function GachaPage() {
           // Если все арты забанены, просто сбрасываем и просим нажать еще раз
           setErrorPopupConfig({
             title: "Персонаж найден, но...",
-            message: "Все доступные арты для этого героя вами отклонены. Попробуйте другой пак!",
+            message: "Все доступные арты для этого героя вами отклонены. Попробуйте другой пакет!",
             type: "info"
           });
           setShowErrorPopup(true);
           return; 
+        }
+
+        // Проверяем, что у результата есть imageUrl
+        if (!result.imageUrl) {
+          console.error('[handleRoll] No imageUrl in result:', result);
+          setErrorPopupConfig({
+            title: "Ошибка загрузки арта",
+            message: "Не удалось загрузить изображение персонажа. Попробуйте еще раз!",
+            type: "error"
+          });
+          setShowErrorPopup(true);
+          return;
         }
 
         // Создаем карту
@@ -964,6 +1078,7 @@ export default function GachaPage() {
         // Показываем карту пользователю
         setRevealedCard(newCard);
         setShowCard(true);
+        console.log('[handleRoll] Card revealed successfully:', newCard.name);
       } else {
         // Если результат пустой (пак закончился)
         handleEmptyResult(); 
@@ -2049,8 +2164,7 @@ export default function GachaPage() {
                 <div className="p-4 sm:p-5 rounded-xl bg-slate-800/30 border border-slate-700/50 space-y-2">
                   {RARITY_ORDER.map((rarity) => {
                     const count = collectionRating.rarityDistribution[rarity] || 0
-                    if (count === 0) return null
-                    const percentage = Math.round((count / collectedCards.length) * 100)
+                    const percentage = collectedCards.length > 0 ? Math.round((count / collectedCards.length) * 100) : 0
                     return (
                       <div key={rarity} className="flex items-center gap-3">
                         <div className={`w-3 h-3 rounded-full bg-gradient-to-r ${rarityConfig[rarity].color}`} />
@@ -2074,31 +2188,14 @@ export default function GachaPage() {
               </h3>
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 sm:gap-4">
                 {collectionRating.topCards.map((card) => (
-                  <div
+                  <TopCard 
                     key={card.uniqueId}
-                    className="aspect-[2/3] rounded-xl overflow-hidden border border-white/10 relative group bg-slate-900 cursor-pointer transition-all hover:scale-105 hover:shadow-xl hover:shadow-indigo-500/20"
-                    onClick={() => {
-                      setViewedCard(card)
+                    card={card}
+                    onClick={(clickedCard) => {
+                      setViewedCard(clickedCard)
                       setShowRatingModal(false)
                     }}
-                  >
-                    <img
-                      src={getOptimizedThumbSrc(card.imageUrl, 384, 60)}
-                      className="absolute inset-0 w-full h-full object-cover"
-                      alt={card.name}
-                      referrerPolicy="no-referrer"
-                      onError={(e) => handleImageError(e, card, true)}
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/30 to-transparent" />
-                    <div className={`absolute top-2 right-2 w-3 h-3 rounded-full bg-gradient-to-r ${rarityConfig[card.rarity].color} shadow-lg border border-white/20`} />
-                    <div className="absolute bottom-0 inset-x-0 p-2 sm:p-3">
-                      <p className="text-[9px] sm:text-xs font-bold text-slate-300 truncate">{card.name}</p>
-                      <div className="flex items-center gap-1 mt-0.5">
-                        <Star className="w-2.5 h-2.5 text-yellow-400 fill-yellow-400" />
-                        <span className="text-[9px] sm:text-xs font-bold text-white">{card.score.toFixed(1)}</span>
-                      </div>
-                    </div>
-                  </div>
+                  />
                 ))}
               </div>
             </div>
@@ -2712,45 +2809,13 @@ export default function GachaPage() {
               <>
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4 lg:gap-5">
                   {filteredAndSortedCards.slice(0, displayedCardsCount).map((card) => (
-                  <div
-                    key={card.uniqueId}
-                    onClick={() => setViewedCard(card)}
-                    className={`aspect-[2/3] rounded-2xl overflow-hidden border border-white/10 relative group bg-slate-900 cursor-pointer transition-all duration-300 hover:-translate-y-1.5 hover:shadow-2xl hover:shadow-indigo-500/20 ${rarityConfig[card.rarity].glow}`}
-                  >
-                    <Image
-                      src={card.imageUrl}
-                      className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ease-out"
-                      alt={card.name}
-                      fill
-                      sizes="(max-width: 640px) 33vw, (max-width: 1024px) 20vw, 15vw"
-                      quality={50}
-                      loading="lazy"
-                      referrerPolicy="no-referrer"
-                      onError={(e) => handleImageError(e, card, true)}
+                    <CollectionCard 
+                      key={card.uniqueId}
+                      card={card}
+                      onClick={setViewedCard}
                     />
-                    <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/30 to-transparent opacity-90 group-hover:opacity-100 transition-opacity duration-300" />
-                    
-                    <div className={`absolute top-2.5 right-2.5 w-3 h-3 rounded-full bg-gradient-to-r ${rarityConfig[card.rarity].color} shadow-lg border border-white/20`} />
-                    
-                    {card.isMainCharacter && (
-                      <div className="absolute top-2.5 left-2.5 w-6 h-6 rounded-full bg-gradient-to-r from-yellow-400 to-amber-500 shadow-lg flex items-center justify-center border border-yellow-200">
-                        <Crown className="w-3.5 h-3.5 text-amber-950" />
-                      </div>
-                    )}
-                    
-                    {card.isMainCharacter && card.isArtBlacklisted && (
-                      <div className="absolute top-10 left-2.5 w-6 h-6 rounded-full bg-red-500/80 border border-red-300 flex items-center justify-center backdrop-blur-sm">
-                        <RefreshCcw className="w-3 h-3 text-white" />
-                      </div>
-                    )}
-                    
-                    <div className="absolute bottom-0 inset-x-0 p-3 sm:p-4 transition-transform duration-300 group-hover:translate-y-[-4px]">
-                      <p className="text-[10px] sm:text-xs font-bold text-slate-300 uppercase truncate mb-0.5">★{card.score.toFixed(1)} {card.anime}</p>
-                      <p className="text-sm sm:text-base font-black text-white truncate leading-tight drop-shadow-md">{card.name}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
               {/* Show More Button */}
               {filteredAndSortedCards.length > displayedCardsCount && (
                 <div className="flex justify-center mt-8">

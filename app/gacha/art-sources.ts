@@ -74,8 +74,8 @@ async function fetchFromSource(
 ): Promise<ArtResult[]> {
   const limit = 50; 
   const controller = new AbortController();
-  // Increase timeout for sources that are known to be slower
-  const timeoutMs = source === 'safebooru' ? 15000 : 12000;
+  // Reduce timeout to make failures faster
+  const timeoutMs = source === 'safebooru' ? 10000 : 8000;
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
@@ -97,10 +97,19 @@ async function fetchFromSource(
     }
     
     console.log(`[Art Engine] Requesting ${source}: ${url}`);
-
-    const res = await fetch(url, { headers, signal: controller.signal, cache: 'no-store' });
-    if (!res.ok) return [];
-
+    
+    const res = await fetch(url, { 
+      signal: controller.signal,
+      headers 
+    });
+    
+    clearTimeout(timeoutId);
+    
+    if (!res.ok) {
+      console.warn(`[Art Engine] ${source} returned ${res.status}`);
+      return [];
+    }
+    
     let data;
     try {
       const text = await res.text();
@@ -118,7 +127,7 @@ async function fetchFromSource(
       const h = parseInt(p.height || 0);
       const w = parseInt(p.width || 0);
       
-      // Фильтр: Портрет (высота > ширина) и качество (высота >= 700)
+      // Фильтр: Портрет (высота > ширины) и качество (высота >= 700)
       // if (h > w && h >= 700) {
       if (h >= 700) {
         let finalUrl = p.file_url || p.large_file_url || p.sample_url || p.full || p.large;

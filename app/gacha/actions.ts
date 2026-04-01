@@ -168,13 +168,22 @@ async function processCharacterData(
 
   // В actions.ts найдите это место:
 if (isMain) {
-    // ВЫЗОВ ОБНОВЛЕН: получаем объект вместо строки
-    const artData = await fetchHighQualityArt(char.name, ignoredUrls, false);
+    // ВЫЗОВ ОБНОВЛЕН: получаем объект вместо строки с таймаутом
+    try {
+        const artPromise = fetchHighQualityArt(char.name, ignoredUrls, false);
+        const timeoutPromise = new Promise<null>((_, reject) => 
+            setTimeout(() => reject(new Error('Art fetch timeout')), 10000)
+        );
+        
+        const artData = await Promise.race([artPromise, timeoutPromise]);
 
-    if (artData) {
-        fanArt = artData.url; // Берем URL из объекта
-        // Можно залогировать и здесь
-        console.log(`[Server Action] Using art from ${artData.source} by tag ${artData.tag}`);
+        if (artData) {
+            fanArt = artData.url; // Берем URL из объекта
+            // Можно залогировать и здесь
+            console.log(`[Server Action] Using art from ${artData.source} by tag ${artData.tag}`);
+        }
+    } catch (error) {
+        console.log(`[Server Action] Art fetch failed or timed out for ${char.name}:`, error);
     }
 
     if (!fanArt) {
@@ -186,12 +195,18 @@ if (isMain) {
     }
 }
 
-  // Проверяем, что финальный арт не забанен
-  const finalImageUrl = fanArt || originalShikiUrl;
-  if (ignoredUrls.includes(finalImageUrl)) {
+// Проверяем, что финальный арт не забанен
+const finalImageUrl = fanArt || originalShikiUrl;
+if (ignoredUrls.includes(finalImageUrl)) {
     console.log(`[Gacha] Final image ${finalImageUrl} is banned, skipping character.`);
     return null;
-  }
+}
+
+// Дополнительная проверка: убеждаемся, что URL валидный
+if (!finalImageUrl || finalImageUrl.trim() === '') {
+    console.error(`[Gacha] Empty image URL for character ${char.name}, skipping.`);
+    return null;
+}
 
   return {
     animeName: anime.russian || anime.name,
