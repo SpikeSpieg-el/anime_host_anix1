@@ -868,15 +868,19 @@ export default function GachaPage() {
 useEffect(() => {
     let isMounted = true;
 
+    console.log('[loadSavedCards useEffect] authUser:', authUser?.id, 'isLoaded:', isLoaded);
+
     const loadSavedCards = async () => {
       // КРИТИЧНО: Здесь НЕ ДОЛЖНО БЫТЬ "if (isLoaded) return;"
-      
+      console.log('[loadSavedCards] Starting load...');
+
       try {
         let finalCollection: Card[] =[];
 
         // 1. Загружаем из localStorage (всегда, как буфер)
         try {
           const localData = localStorage.getItem('gacha-collection');
+          console.log('[loadSavedCards] LocalStorage cards:', localData ? JSON.parse(localData).length : 0);
           if (localData) {
             finalCollection = JSON.parse(localData);
             finalCollection = finalCollection.map((card: Card, index: number) => ({
@@ -895,9 +899,12 @@ useEffect(() => {
         } catch (e) { console.error(e); }
 
         // 3. Загрузка из базы данных
+        console.log('[loadSavedCards] authUser check:', !!authUser);
         if (authUser) {
           try {
+            console.log('[loadSavedCards] Calling loadUserCards...');
             const dbCards = await loadUserCards();
+            console.log('[loadSavedCards] DB cards loaded:', dbCards.length);
 
             const dbCardsWithOrder = dbCards.map((card: Card, index: number) => ({
               ...card,
@@ -911,9 +918,11 @@ useEffect(() => {
               ...finalCollection.filter(c => !dbIds.has(c.uniqueId))
             ];
 
+            console.log('[loadSavedCards] Final collection size:', finalCollection.length);
 
             if (isMounted) {
               setCollectedCards(finalCollection);
+              console.log('[loadSavedCards] Collection set, calling loadListedCards...');
               await loadListedCards(); // Подтягиваем рынок
             }
 
@@ -931,6 +940,7 @@ useEffect(() => {
           }
         } else {
           // Если юзер пока гость (или сессия еще грузится) - показываем локальные данные
+          console.log('[loadSavedCards] No authUser, using local data only');
           if (isMounted) {
             setCollectedCards(finalCollection);
           }
@@ -941,6 +951,7 @@ useEffect(() => {
         console.error('[loadSavedCards] Critical Error:', error);
       } finally {
         if (isMounted) {
+          console.log('[loadSavedCards] Setting isLoaded = true');
           setIsLoaded(true); // Разблокируем UI гачи
         }
       }
