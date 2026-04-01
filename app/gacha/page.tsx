@@ -3,19 +3,23 @@
 import { useState, useRef, MouseEvent, useCallback, useEffect, useMemo } from "react"
 import Image from "next/image"
 import { Navbar } from "@/components/navbar"
-import { Sparkles, Star, Heart, Loader2, X, ZoomIn, ExternalLink, RefreshCcw, Trash, Crown, Package, Coins, Search, Database } from "lucide-react"
-import { rollAnimeCharacter, rollFromAnimePack, searchGachaPacks, createCustomGachaPack, checkPackAvailability } from "./actions"
+import { Sparkles, Star, Heart, Loader2, X, ZoomIn, ExternalLink, RefreshCcw, Trash, Trash2, Crown, Package, Coins, Search, Database } from "lucide-react"
+import { rollAnimeCharacter, rollFromAnimePack, searchGachaPacks, createCustomGachaPack, checkPackAvailability, updateUserPityAfterRoll } from "./actions"
 import { saveCardToDatabase, loadUserCards, deleteCardFromDatabase, queueCardForSync, syncQueuedCards } from "./client-actions"
+import { loadUserPity, updateUserPity, type PityData } from "./pity-actions"
 import { ANIME_PACKS, AnimePack, CustomAnimePack, createCustomPack, loadYearBasedPacks } from "@/lib/gacha-packs"
 import { useCoins } from "@/hooks/use-coins"
+import { useDust } from "@/hooks/use-dust"
 import { GachaLoading } from "@/components/gacha-loading"
 import { CollectionCardSkeleton } from "@/components/collection-skeleton"
 import { PackCardSkeleton } from "@/components/pack-skeleton"
-import { GachaErrorPopup } from "@/components/gacha-error-popup" 
-
-export type Rarity = 
-  | "trash" | "common" | "uncommon" | "rare" | "super_rare" | "epic" 
-  | "mythic" | "legendary" | "ancient" | "divine" | "transcendent" | "omnipotent"
+import { GachaErrorPopup } from "@/components/gacha-error-popup"
+import { DismantleConfirmPopup } from "@/components/dismantle-confirm-popup"
+import { DismantleSuccessPopup } from "@/components/dismantle-success-popup"
+import { BulkDismantleFilterPopup } from "@/components/bulk-dismantle-filter-popup"
+import { BulkDismantleConfirmPopup } from "@/components/bulk-dismantle-confirm-popup"
+import { BulkDismantleSuccessPopup } from "@/components/bulk-dismantle-success-popup"
+import { Rarity, rarityConfig, getDismantleValue } from "@/types/gacha"
 
 export interface CardStats {
   hp: number
@@ -51,21 +55,6 @@ function generateCardUniqueId(characterId: number, packId?: string): string {
   const random = Math.random().toString(36).substring(2, 8);
   const packPrefix = packId ? `pack-${packId}` : 'random';
   return `${packPrefix}-${characterId}-${timestamp}-${random}`;
-}
-
-const rarityConfig: Record<Rarity, { color: string; bg: string; label: string; glow: string; fx: string; rgb: string; weight: number }> = {
-  trash: { color: "from-stone-500 to-stone-700", bg: "bg-stone-950", label: "Мусор", glow: "shadow-stone-500/10", fx: "bg-gradient-to-br from-stone-400/10 to-transparent", rgb: "120, 113, 108", weight: 1 },
-  common: { color: "from-slate-400 to-slate-500", bg: "bg-slate-900", label: "Обычная", glow: "shadow-slate-400/20", fx: "bg-gradient-to-br from-white/10 to-transparent", rgb: "148, 163, 184", weight: 2 },
-  uncommon: { color: "from-emerald-400 to-teal-500", bg: "bg-emerald-950", label: "Необычная", glow: "shadow-emerald-500/20", fx: "bg-gradient-to-br from-emerald-400/20 to-transparent", rgb: "52, 211, 153", weight: 3 },
-  rare: { color: "from-blue-400 to-cyan-500", bg: "bg-cyan-950", label: "Редкая", glow: "shadow-blue-500/30", fx: "bg-gradient-to-br from-blue-400/20 to-transparent", rgb: "34, 211, 238", weight: 5 },
-  super_rare: { color: "from-indigo-400 to-blue-600", bg: "bg-indigo-950", label: "Супер Редкая", glow: "shadow-indigo-500/40", fx: "bg-gradient-to-br from-indigo-400/30 to-transparent", rgb: "129, 140, 248", weight: 8 },
-  epic: { color: "from-purple-500 to-pink-500", bg: "bg-purple-950", label: "Эпическая", glow: "shadow-purple-500/50", fx: "bg-gradient-to-br from-purple-400/30 to-transparent", rgb: "192, 132, 252", weight: 12 },
-  mythic: { color: "from-fuchsia-400 to-rose-500", bg: "bg-fuchsia-950", label: "Мифическая", glow: "shadow-fuchsia-500/50", fx: "bg-gradient-to-br from-fuchsia-400/40 to-transparent", rgb: "232, 121, 249", weight: 18 },
-  legendary: { color: "from-pink-400 to-rose-600", bg: "bg-pink-950", label: "Легендарная", glow: "shadow-pink-500/60", fx: "bg-gradient-to-tr from-pink-300/40 via-transparent to-rose-300/40", rgb: "244, 114, 182", weight: 25 },
-  ancient: { color: "from-amber-400 to-orange-500", bg: "bg-amber-950", label: "Древняя", glow: "shadow-amber-500/70", fx: "bg-gradient-to-tr from-amber-300/50 via-transparent to-yellow-300/40", rgb: "251, 191, 36", weight: 35 },
-  divine: { color: "from-orange-400 to-red-500", bg: "bg-orange-950", label: "Божественная", glow: "shadow-orange-500/80", fx: "bg-gradient-to-tr from-orange-400/50 via-transparent to-red-400/40", rgb: "251, 146, 60", weight: 50 },
-  transcendent: { color: "from-red-500 to-rose-700", bg: "bg-red-950", label: "Трансцендентная", glow: "shadow-red-500/90", fx: "bg-gradient-to-tr from-red-400/60 via-transparent to-rose-400/50", rgb: "248, 113, 113", weight: 75 },
-  omnipotent: { color: "from-white via-yellow-200 to-amber-500", bg: "bg-zinc-900", label: "Всемогущая", glow: "shadow-white/100", fx: "bg-gradient-to-tr from-white/60 via-yellow-200/40 to-white/60", rgb: "255, 255, 255", weight: 100 },
 }
 
 const RARITY_ORDER =["trash", "common", "uncommon", "rare", "super_rare", "epic", "mythic", "legendary", "ancient", "divine", "transcendent", "omnipotent"] as const
@@ -563,7 +552,8 @@ export default function GachaPage() {
   const[showCard, setShowCard] = useState(false)
   const[viewedCard, setViewedCard] = useState<Card | null>(null)
   const[usedCharacterIds, setUsedCharacterIds] = useState<Set<number>>(new Set())
-  const { coins: userCoins, loading: coinsLoading, spendCoins, forceSync, fixOverflow } = useCoins()
+  const { coins: userCoins, loading: coinsLoading, spendCoins, addCoins, forceSync, fixOverflow } = useCoins()
+  const { dust, loading: dustLoading, addDust } = useDust()
   const[selectedPack, setSelectedPack] = useState<AnimePack | CustomAnimePack | null>(null)
   const[showPacks, setShowPacks] = useState(false)
   const[packSearchQuery, setPackSearchQuery] = useState("")
@@ -593,6 +583,7 @@ export default function GachaPage() {
   const[isSyncingCards, setIsSyncingCards] = useState(false)
   const[pendingSyncCount, setPendingSyncCount] = useState(0)
   const[prioritizeMainCharacters, setPrioritizeMainCharacters] = useState(false)
+  const[pityData, setPityData] = useState<PityData | null>(null)
 
   // Ref for tracking operation start time
   const operationStartTime = useRef<number | null>(null);
@@ -631,6 +622,21 @@ export default function GachaPage() {
     availableCount?: number;
     totalCharacters?: number;
   } | null>(null)
+  const[showDismantleConfirm, setShowDismantleConfirm] = useState(false)
+  const[showDismantleSuccess, setShowDismantleSuccess] = useState(false)
+  const[dismantleCardData, setDismantleCardData] = useState<Card | null>(null)
+  const[isDismantling, setIsDismantling] = useState(false)
+  const[dismantleReward, setDismantleReward] = useState(0)
+  
+  // Bulk dismantle states
+  const[showBulkDismantleFilter, setShowBulkDismantleFilter] = useState(false)
+  const[showBulkDismantleConfirm, setShowBulkDismantleConfirm] = useState(false)
+  const[showBulkDismantleSuccess, setShowBulkDismantleSuccess] = useState(false)
+  const[selectedBulkRarity, setSelectedBulkRarity] = useState<Rarity | "all">("all")
+  const[excludeMainCharacters, setExcludeMainCharacters] = useState(false)
+  const[isBulkDismantling, setIsBulkDismantling] = useState(false)
+  const[bulkDismantleReward, setBulkDismantleReward] = useState(0)
+  const[bulkDismantleProgress, setBulkDismantleProgress] = useState({ processed: 0, total: 0 })
   
   const collectionRating = calculateCollectionRating(collectedCards)
 
@@ -770,6 +776,19 @@ useEffect(() => {
   }, [packSearchQuery]);
 
   useEffect(() => {
+    const loadPityData = async () => {
+      try {
+        const data = await loadUserPity();
+        setPityData(data);
+      } catch (error) {
+        console.error('[loadPityData] Error:', error);
+      }
+    };
+
+    loadPityData();
+  }, []);
+
+  useEffect(() => {
     setRevealedCard(null);
     setShowCard(false);
     setIsRolling(false);
@@ -794,10 +813,13 @@ useEffect(() => {
       // Сбрасываем состояние сохранения при новой крутке
       setIsSavingCard(false);
 
-      // 1. Вызываем серверный экшен
+      // Get current bad luck streak
+      const currentBadLuckStreak = pityData?.bad_luck_streak || 0;
+
+      // 1. Вызываем серверный экшен с pity data
       const rollPromise = selectedPack
-        ? rollFromAnimePack(selectedPack, Array.from(usedCharacterIds), blacklistedUrls, Array.from(expandPoolForCharacters))
-        : rollAnimeCharacter(Array.from(usedCharacterIds), blacklistedUrls, Array.from(expandPoolForCharacters));
+        ? rollFromAnimePack(selectedPack, Array.from(usedCharacterIds), blacklistedUrls, Array.from(expandPoolForCharacters), currentBadLuckStreak)
+        : rollAnimeCharacter(Array.from(usedCharacterIds), blacklistedUrls, Array.from(expandPoolForCharacters), currentBadLuckStreak);
 
       // Добавляем жесткий тайм-аут на сетевой запрос
       const result = await Promise.race([
@@ -810,6 +832,31 @@ useEffect(() => {
       operationStartTime.current = null;
 
       if (result) {
+        // Update pity system after roll
+        try {
+          const { supabase } = await import('@/lib/supabase');
+          const { data: { session } } = await supabase.auth.getSession();
+          
+          if (session) {
+            const pityUpdate = await updateUserPityAfterRoll(session.user.id, result);
+            
+            // Update local pity state
+            setPityData(prev => prev ? {
+              ...prev,
+              bad_luck_streak: pityUpdate.newStreak
+            } : {
+              bad_luck_streak: pityUpdate.newStreak
+            });
+
+            // Show pity notification if bonus was applied
+            if (result.pityData?.pity_bonus_applied) {
+              console.log(`[Pity System] Pity bonus applied! New streak: ${pityUpdate.newStreak}`);
+            }
+          }
+        } catch (error) {
+          console.error('[handleRoll] Pity update error:', error);
+        }
+
         // Запускаем списание монет "вдогонку", не дожидаясь ответа (без await)
         spendCoins(selectedPack ? selectedPack.price : 50).catch(console.error);
 
@@ -1058,45 +1105,261 @@ useEffect(() => {
     ));
   }
 
-  const removeCard = async (cardToRemove: Card) => {
+  const removeCard = async (cardToRemove: Card, clearViewedCard: boolean = true) => {
     try {
+      console.log('[removeCard] Starting removal for card:', cardToRemove.uniqueId)
+      
       const { supabase } = await import('@/lib/supabase')
       const { data: { session } } = await supabase.auth.getSession()
       
       if (session) {
+        console.log('[removeCard] User authenticated, attempting database delete')
         const result = await deleteCardFromDatabase(cardToRemove.uniqueId)
-        if (!result.success) console.warn('[removeCard] Database delete failed')
+        if (!result.success) {
+          console.error('[removeCard] Database delete failed:', result.error)
+        } else {
+          console.log('[removeCard] Database delete successful')
+        }
+      } else {
+        console.log('[removeCard] No session, only local removal')
       }
       
       try {
-        const savedCards = JSON.parse(localStorage.getItem('gacha-collection') || '[]')
-        const filteredCards = savedCards.filter((c: Card) => c.uniqueId !== cardToRemove.uniqueId)
-        if (savedCards.length !== filteredCards.length) {
-          localStorage.setItem('gacha-collection', JSON.stringify(filteredCards))
+        const collectionData = localStorage.getItem('gacha-collection')
+        if (collectionData) {
+          const collection = JSON.parse(collectionData)
+          const updatedCollection = collection.filter((card: Card) => card.uniqueId !== cardToRemove.uniqueId)
+          localStorage.setItem('gacha-collection', JSON.stringify(updatedCollection))
+          console.log('[removeCard] Removed from localStorage collection, new count:', updatedCollection.length)
         }
-      } catch (e) {
-        console.error('Error removing card from localStorage:', e)
+      } catch (e) { 
+        console.error('[removeCard] Error updating localStorage collection:', e)
       }
       
-      setCollectedCards(prev => prev.filter(card => card.uniqueId !== cardToRemove.uniqueId))
-      setViewedCard(null)
-
-      const isCardStillInCollection = collectedCards.some(card => 
-        card.uniqueId !== cardToRemove.uniqueId && 
-        card.characterId === cardToRemove.characterId
-      )
-      if (!isCardStillInCollection) {
-        setUsedCharacterIds(prev => {
-          const newSet = new Set(prev)
-          newSet.delete(cardToRemove.characterId)
-          return newSet
-        })
+      console.log('[removeCard] Removing from local state, current count:', collectedCards.length)
+      setCollectedCards(prev => {
+        const newCards = prev.filter(card => card.uniqueId !== cardToRemove.uniqueId)
+        console.log('[removeCard] New cards count:', newCards.length)
+        return newCards
+      })
+      
+      // Only clear viewed card if explicitly requested (not during bulk operations)
+      if (clearViewedCard) {
+        setViewedCard(null)
       }
+      
+      // Обновляем список использованных ID персонажей
+      setUsedCharacterIds(prev => {
+        const newIds = new Set(prev)
+        newIds.delete(cardToRemove.characterId)
+        return newIds
+      })
+      
+      console.log('[removeCard] Card removal completed')
     } catch (error) {
       console.error('[removeCard] Error:', error)
       alert('Ошибка при удалении карты')
     }
   }
+
+  const dismantleCard = async (card: Card) => {
+    // Show confirmation popup
+    setDismantleCardData(card);
+    setDismantleReward(getDismantleValue(card.rarity));
+    setShowDismantleConfirm(true);
+  };
+
+  const confirmDismantle = async () => {
+    if (!dismantleCardData) return;
+    
+    setIsDismantling(true);
+    // НЕ закрываем окно подтверждения - используем его для показа прогресса
+
+    try {
+      // 1. Начисляем пыль через безопасную серверную операцию
+      const reward = getDismantleValue(dismantleCardData.rarity);
+      const success = await addDust(reward);
+      
+      if (!success) {
+        setErrorPopupConfig({
+          title: 'Ошибка распыления',
+          message: 'Не удалось начислить пыль. Попробуйте еще раз.',
+          type: 'error'
+        });
+        setShowErrorPopup(true);
+        // Закрываем окно подтверждения при ошибке
+        setShowDismantleConfirm(false);
+        return;
+      }
+
+      // 2. Удаляем карту из БД и локального списка
+      await removeCard(dismantleCardData); 
+      
+      setViewedCard(null);
+      
+      // Показываем успешное уведомление
+      setDismantleReward(reward);
+      
+      // Закрываем окно подтверждения и открываем окно успеха
+      setShowDismantleConfirm(false);
+      setShowDismantleSuccess(true);
+    } catch (e) {
+      console.error("Dismantle failed", e);
+      setErrorPopupConfig({
+        title: 'Ошибка распыления',
+        message: 'Произошла ошибка при распылении карты. Попробуйте еще раз.',
+        type: 'error'
+      });
+      setShowErrorPopup(true);
+      // Закрываем окно подтверждения при ошибке
+      setShowDismantleConfirm(false);
+    } finally {
+      setIsDismantling(false);
+      setDismantleCardData(null);
+    }
+  };
+
+  const cancelDismantle = () => {
+    setShowDismantleConfirm(false);
+    setDismantleCardData(null);
+    setDismantleReward(0);
+  };
+
+  // Bulk dismantle functions
+  const openBulkDismantleFilter = () => {
+    setShowBulkDismantleFilter(true);
+  };
+
+  const selectBulkRarity = (rarity: Rarity | "all", excludeMain: boolean) => {
+    setSelectedBulkRarity(rarity);
+    setExcludeMainCharacters(excludeMain);
+    setShowBulkDismantleFilter(false);
+    
+    // Calculate cards to dismantle
+    let cardsToDismantle = rarity === "all" 
+      ? [...collectedCards] 
+      : collectedCards.filter(card => card.rarity === rarity);
+    
+    // Exclude main characters if requested
+    if (excludeMain) {
+      cardsToDismantle = cardsToDismantle.filter(card => !card.isMainCharacter);
+    }
+    
+    // Calculate total dust and show confirmation
+    const totalDust = cardsToDismantle.reduce((total, card) => total + getDismantleValue(card.rarity), 0);
+    setBulkDismantleReward(totalDust);
+    setShowBulkDismantleConfirm(true);
+  };
+
+  const confirmBulkDismantle = async () => {
+    console.log('[confirmBulkDismantle] Starting bulk dismantle');
+    
+    // Force a small delay to ensure the loading state is set before starting the operation
+    await new Promise(resolve => setTimeout(resolve, 10));
+    
+    setIsBulkDismantling(true);
+    // НЕ закрываем окно подтверждения - используем его для показа прогресса
+    console.log('[confirmBulkDismantle] Set isBulkDismantling to true');
+    
+    // Another small delay to ensure the modal has time to update
+    await new Promise(resolve => setTimeout(resolve, 50));
+
+    try {
+      // Get cards to dismantle
+      let cardsToDismantle = selectedBulkRarity === "all" 
+        ? [...collectedCards] 
+        : collectedCards.filter(card => card.rarity === selectedBulkRarity);
+      
+      // Exclude main characters if requested
+      if (excludeMainCharacters) {
+        cardsToDismantle = cardsToDismantle.filter(card => !card.isMainCharacter);
+      }
+      
+      if (cardsToDismantle.length === 0) {
+        throw new Error("Нет карт для распыления");
+      }
+
+      // Initialize progress
+      console.log('[confirmBulkDismantle] Initializing progress for', cardsToDismantle.length, 'cards');
+      setBulkDismantleProgress({ processed: 0, total: cardsToDismantle.length });
+
+      // Calculate total dust
+      const totalDust = cardsToDismantle.reduce((total, card) => total + getDismantleValue(card.rarity), 0);
+      console.log('[confirmBulkDismantle] Total dust to add:', totalDust);
+      
+      // Add dust to user balance (один раз для всех карт)
+      const success = await addDust(totalDust);
+      console.log('[confirmBulkDismantle] Dust addition success:', success);
+      
+      if (!success) {
+        throw new Error("Не удалось начислить пыль");
+      }
+
+      // Remove cards in batches to avoid overwhelming the system
+      const batchSize = 5; // Уменьшаем размер партии для стабильности
+      let processedCount = 0;
+      
+      for (let i = 0; i < cardsToDismantle.length; i += batchSize) {
+        const batch = cardsToDismantle.slice(i, i + batchSize);
+        console.log(`[confirmBulkDismantle] Processing batch ${Math.floor(i/batchSize) + 1}/${Math.ceil(cardsToDismantle.length/batchSize)} with ${batch.length} cards`);
+        
+        // Process batch in parallel
+        await Promise.all(
+          batch.map(async (card) => {
+            await removeCard(card, false); // Don't clear viewed card during bulk operations
+            processedCount++;
+            console.log(`[confirmBulkDismantle] Processed ${processedCount}/${cardsToDismantle.length} cards`);
+            setBulkDismantleProgress(prev => ({ ...prev, processed: processedCount }));
+          })
+        );
+        
+        // Small delay between batches to prevent overwhelming
+        if (i + batchSize < cardsToDismantle.length) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+      }
+      
+      console.log('[confirmBulkDismantle] All cards processed successfully');
+      
+      // Close any viewed card if it was dismantled
+      if (viewedCard && cardsToDismantle.some(c => c.uniqueId === viewedCard.uniqueId)) {
+        setViewedCard(null);
+      }
+      
+      // Reset progress and show success notification
+      setBulkDismantleProgress({ processed: 0, total: 0 });
+      setBulkDismantleReward(totalDust);
+      
+      // Закрываем окно подтверждения и открываем окно успеха
+      console.log('[confirmBulkDismantle] Closing confirmation modal and opening success modal');
+      setShowBulkDismantleConfirm(false);
+      setShowBulkDismantleSuccess(true);
+    } catch (e) {
+      console.error('[confirmBulkDismantle] Bulk dismantle failed', e);
+      setErrorPopupConfig({
+        title: 'Ошибка массового распыления',
+        message: 'Произошла ошибка при массовом распылении карт. Попробуйте еще раз.',
+        type: 'error'
+      });
+      setShowErrorPopup(true);
+      // Reset progress on error
+      setBulkDismantleProgress({ processed: 0, total: 0 });
+      // Закрываем окно подтверждения при ошибке
+      setShowBulkDismantleConfirm(false);
+    } finally {
+      console.log('[confirmBulkDismantle] Finally block - setting isBulkDismantling to false');
+      setIsBulkDismantling(false);
+      setSelectedBulkRarity("all");
+      setExcludeMainCharacters(false);
+    }
+  };
+
+  const cancelBulkDismantle = () => {
+    setShowBulkDismantleConfirm(false);
+    setSelectedBulkRarity("all");
+    setExcludeMainCharacters(false);
+    setBulkDismantleReward(0);
+  };
 
   const handleFixCoins = async () => {
     setIsFixingCoins(true)
@@ -1782,6 +2045,14 @@ useEffect(() => {
                 <Trash className="w-4 h-4" /> <span className="hidden sm:inline">Удалить из коллекции</span><span className="sm:hidden">Удалить</span>
               </button>
               
+              <button
+                onClick={() => dismantleCard(viewedCard)}
+                className="px-4 py-2.5 sm:px-5 sm:py-3 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 font-bold text-xs sm:text-sm flex items-center gap-2 transition-colors border border-amber-500/20"
+              >
+                <RefreshCcw className="w-4 h-4" />
+                <span>Распылить (+{getDismantleValue(viewedCard.rarity)} пыли)</span>
+              </button>
+              
               {viewedCard.isMainCharacter && viewedCard.isArtBlacklisted && (
                 <button 
                   onClick={() => unblacklistArt(viewedCard)}
@@ -1823,6 +2094,11 @@ useEffect(() => {
               ) : (
                 <span className="text-xl sm:text-2xl font-black text-yellow-400 tracking-tight">{userCoins.toLocaleString()}</span>
               )}
+            </div>
+
+            <div className="flex items-center gap-2.5 px-5 py-2.5 rounded-2xl bg-slate-900/80 backdrop-blur-md border border-slate-800 shadow-xl shadow-amber-500/5">
+              <Sparkles className="w-5 h-5 sm:w-6 sm:h-6 text-amber-400" />
+              <span className="text-xl sm:text-2xl font-black text-amber-400 tracking-tight">{dust.toLocaleString()}</span>
             </div>
 
             {/* Sync indicator and manual sync button */}
@@ -1917,6 +2193,24 @@ useEffect(() => {
                   {selectedPack ? `Призвать (${selectedPack.price})` : "Призвать (50)"}
                 </span>
               </button>
+              
+              {/* Pity System Indicator */}
+              {pityData && pityData.bad_luck_streak > 0 && (
+                <div className="mt-4 px-4 py-2 bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/20 rounded-xl">
+                  <div className="flex items-center justify-center gap-2">
+                    <Star className="w-4 h-4 text-amber-400" />
+                    <span className="text-amber-300 font-semibold text-sm">
+                      Серия неудач: {pityData.bad_luck_streak}
+                    </span>
+                    <Star className="w-4 h-4 text-amber-400" />
+                  </div>
+                  {pityData.bad_luck_streak >= 5 && (
+                    <div className="text-center mt-1 text-xs text-amber-200">
+                      +{Math.floor(pityData.bad_luck_streak / 5)}% шанс на редкую карту
+                    </div>
+                  )}
+                </div>
+              )}
               
               <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 mt-6 sm:mt-8 w-full">
                 <button
@@ -2231,13 +2525,25 @@ useEffect(() => {
                       )}
                     </div>
                     
-                    <button
-                      onClick={resetFilters}
-                      className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white font-bold rounded-xl transition-all text-sm shrink-0 w-full sm:w-auto justify-center"
-                    >
-                      <RefreshCcw className="w-4 h-4" />
-                      Сбросить
-                    </button>
+                    <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                      <button
+                        onClick={openBulkDismantleFilter}
+                        disabled={collectedCards.length === 0 || isBulkDismantling}
+                        className="flex items-center gap-2 px-4 py-2 bg-amber-600/10 hover:bg-amber-600/20 disabled:opacity-50 disabled:cursor-not-allowed border border-amber-500/20 text-amber-400 font-bold rounded-xl transition-all text-sm justify-center"
+                        title={collectedCards.length === 0 ? "Нет карт для распыления" : "Массовое распыление карт"}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        <span>Масс. распыление</span>
+                      </button>
+                      
+                      <button
+                        onClick={resetFilters}
+                        className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white font-bold rounded-xl transition-all text-sm justify-center"
+                      >
+                        <RefreshCcw className="w-4 h-4" />
+                        Сбросить
+                      </button>
+                    </div>
                   </div>
                 </div>
               )}
@@ -2344,6 +2650,72 @@ useEffect(() => {
           totalCharacters={errorPopupConfig.totalCharacters}
         />
       )}
+
+      {/* Dismantle Confirmation Popup */}
+      {dismantleCardData && (
+        <DismantleConfirmPopup
+          isOpen={showDismantleConfirm}
+          onClose={cancelDismantle}
+          onConfirm={confirmDismantle}
+          cardName={dismantleCardData.name}
+          cardRarity={rarityConfig[dismantleCardData.rarity].label}
+          dustAmount={dismantleReward}
+          isLoading={isDismantling}
+        />
+      )}
+
+      {/* Dismantle Success Popup */}
+      <DismantleSuccessPopup
+        isOpen={showDismantleSuccess}
+        onClose={() => setShowDismantleSuccess(false)}
+        cardName={dismantleCardData?.name || ''}
+        dustAmount={dismantleReward}
+        newDustBalance={dust}
+      />
+
+      {/* Bulk Dismantle Filter Popup */}
+      <BulkDismantleFilterPopup
+        isOpen={showBulkDismantleFilter}
+        onClose={() => setShowBulkDismantleFilter(false)}
+        onConfirm={selectBulkRarity}
+        collectedCards={collectedCards}
+        isLoading={isBulkDismantling}
+      />
+
+      {/* Bulk Dismantle Confirmation Popup */}
+      <BulkDismantleConfirmPopup
+        isOpen={showBulkDismantleConfirm}
+        onClose={cancelBulkDismantle}
+        onConfirm={confirmBulkDismantle}
+        selectedRarity={selectedBulkRarity}
+        cardsCount={(() => {
+          let cards = selectedBulkRarity === "all" ? collectedCards : collectedCards.filter(card => card.rarity === selectedBulkRarity);
+          if (excludeMainCharacters) {
+            cards = cards.filter(card => !card.isMainCharacter);
+          }
+          return cards.length;
+        })()}
+        totalDustAmount={bulkDismantleReward}
+        isLoading={isBulkDismantling}
+        progress={bulkDismantleProgress}
+      />
+
+      {/* Bulk Dismantle Success Popup */}
+      <BulkDismantleSuccessPopup
+        isOpen={showBulkDismantleSuccess}
+        onClose={() => setShowBulkDismantleSuccess(false)}
+        cardsCount={(() => {
+          let cards = selectedBulkRarity === "all" ? collectedCards : collectedCards.filter(card => card.rarity === selectedBulkRarity);
+          if (excludeMainCharacters) {
+            cards = cards.filter(card => !card.isMainCharacter);
+          }
+          return cards.length;
+        })()}
+        selectedRarity={selectedBulkRarity === "all" ? "Все редкости" : rarityConfig[selectedBulkRarity].label}
+        totalDustAmount={bulkDismantleReward}
+        newDustBalance={dust}
+        excludeMainCharacters={excludeMainCharacters}
+      />
     </div>
   )
 }

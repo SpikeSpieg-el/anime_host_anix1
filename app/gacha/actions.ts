@@ -9,6 +9,13 @@ const RARITY_ORDER =[
   "mythic", "legendary", "ancient", "divine", "transcendent", "omnipotent"
 ];
 
+// Helper function to check if rarity is Rare or better
+function isRareOrBetter(rarity: string): boolean {
+  const rareIndex = RARITY_ORDER.indexOf("rare");
+  const rarityIndex = RARITY_ORDER.indexOf(rarity);
+  return rarityIndex >= rareIndex;
+}
+
 function generateStats(rarity: string) {
   const index = RARITY_ORDER.indexOf(rarity);
   
@@ -39,9 +46,10 @@ function calculateBaseRarity(score: number): string {
   return "trash";
 }
 
-function calculateRarityWithBoost(score: number, isMainCharacter: boolean = false): string {
+function calculateRarityWithBoost(score: number, isMainCharacter: boolean = false, badLuckStreak: number = 0): { rarity: string; pityBonusApplied: boolean } {
   let rarity = calculateBaseRarity(score);
   let boostApplied = 0;
+  let pityBonusApplied = false;
 
   if (score >= 9.0) {
     const legendaryRoll = Math.random();
@@ -56,13 +64,25 @@ function calculateRarityWithBoost(score: number, isMainCharacter: boolean = fals
   if (Math.random() < 0.001) boostApplied += 3;
   if (Math.random() < 0.0001) boostApplied += 5;
 
+  // Pity System: Apply bonus based on bad luck streak
+  if (badLuckStreak > 0) {
+    const pityBonusChance = Math.min(badLuckStreak * 0.02, 0.5); // Max 50% chance at 25 streak
+    const pityBoostAmount = Math.floor(badLuckStreak / 5); // 1 boost per 5 streak
+    
+    if (Math.random() < pityBonusChance) {
+      boostApplied += pityBoostAmount;
+      pityBonusApplied = true;
+      console.log(`[Pity System] Bad luck streak: ${badLuckStreak}, Applied boost: ${pityBoostAmount}`);
+    }
+  }
+
   if (boostApplied > 0) {
     const currentIndex = RARITY_ORDER.indexOf(rarity);
     const newIndex = Math.min(currentIndex + boostApplied, RARITY_ORDER.length - 1);
     rarity = RARITY_ORDER[newIndex];
   }
 
-  return rarity;
+  return { rarity, pityBonusApplied };
 }
 
 export interface GachaResult {
@@ -79,6 +99,10 @@ export interface GachaResult {
   allFanArtBanned?: boolean;
   packId?: string;
   packName?: string;
+  pityData?: {
+    bad_luck_streak: number;
+    pity_bonus_applied: boolean;
+  };
 }
 
 async function processCharacterData(
@@ -86,7 +110,8 @@ async function processCharacterData(
   usedIds: number[],
   ignoredUrls: string[],
   expandPool: boolean = false,
-  forceMainCharacter: boolean = false
+  forceMainCharacter: boolean = false,
+  badLuckStreak: number = 0
 ): Promise<GachaResult | null> {
   const score = parseFloat(anime.score || "0");
 
@@ -132,7 +157,7 @@ async function processCharacterData(
 
   const char = selectedRole.character;
   const isMain = (selectedRole.roles ||[]).includes('Main') || (selectedRole.roles_ru ||[]).includes('Главный');
-  let rarity = calculateRarityWithBoost(score, isMain);
+  const rarityResult = calculateRarityWithBoost(score, isMain, badLuckStreak);
 
   const originalShikiUrl = char.image.original.startsWith("/") 
     ? `https://shikimori.one${char.image.original}` 
@@ -171,31 +196,36 @@ if (isMain) {
   return {
     animeName: anime.russian || anime.name,
     score: score,
-    rarity: rarity,
+    rarity: rarityResult.rarity,
     characterName: char.russian || char.name,
     characterId: char.id,
     originalUrl: originalShikiUrl,
     imageUrl: finalImageUrl,
     shikiId: anime.id,
-    stats: generateStats(rarity),
+    stats: generateStats(rarityResult.rarity),
     isMainCharacter: isMain,
     allFanArtBanned: allFanArtBanned,
     packId: undefined,
-    packName: undefined
+    packName: undefined,
+    pityData: {
+      bad_luck_streak: badLuckStreak,
+      pity_bonus_applied: rarityResult.pityBonusApplied
+    }
   };
 }
 
 export async function rollAnimeCharacter(
   usedCharacterIds: number[] =[], 
   ignoredUrls: string[] = [],
-  expandForCharacterIds: number[] =[]
+  expandForCharacterIds: number[] =[],
+  badLuckStreak: number = 0
 ): Promise<GachaResult | null> {
   try {
     const shikiRes = await fetch("https://shikimori.one/api/animes?limit=30&order=random&kind=tv&score=7", { cache: "no-store" });
     const data = await shikiRes.json();
 
     for (const anime of data) {
-      const result = await processCharacterData(anime, usedCharacterIds, ignoredUrls, expandForCharacterIds.includes(anime.id), false);
+      const result = await processCharacterData(anime, usedCharacterIds, ignoredUrls, expandForCharacterIds.includes(anime.id), false, badLuckStreak);
       if (result) return result;
     }
     return null;
@@ -209,7 +239,8 @@ export async function rollFromAnimePack(
   pack: AnimePack,
   usedCharacterIds: number[] = [],
   ignoredUrls: string[] = [],
-  expandForCharacterIds: number[] =[]
+  expandForCharacterIds: number[] =[],
+  badLuckStreak: number = 0
 ): Promise<GachaResult | null> {
   try {
     if (!pack.animeIds || pack.animeIds.length === 0) throw new Error(`Pack ${pack.name} is empty`);
@@ -227,7 +258,7 @@ export async function rollFromAnimePack(
         const anime = await res.json();
 
         let expandPool = expandForCharacterIds.includes(id);
-        const result = await processCharacterData(anime, usedCharacterIds, ignoredUrls, expandPool, forceMainCharacter);
+        const result = await processCharacterData(anime, usedCharacterIds, ignoredUrls, expandPool, forceMainCharacter, badLuckStreak);
 
         if (result) {
           if (isGuaranteedRoll && pack.guaranteedRarity) {
@@ -358,5 +389,66 @@ export async function createCustomGachaPack(query: string): Promise<CustomPackSe
   } catch (error) {
     console.error("Custom pack creation error:", error);
     return null;
+  }
+}
+
+// Pity system management functions
+export async function updateUserPityAfterRoll(userId: string, result: GachaResult): Promise<{ newStreak: number; wasReset: boolean }> {
+  try {
+    // Import supabase dynamically to avoid circular dependencies
+    const { supabase } = await import('@/lib/supabase');
+    
+    // Get current pity data
+    const { data: currentPity, error: fetchError } = await supabase
+      .from('user_pity')
+      .select('bad_luck_streak')
+      .eq('id', userId)
+      .single();
+
+    if (fetchError && fetchError.code !== 'PGRST116') {
+      console.error('[updateUserPityAfterRoll] Fetch error:', fetchError);
+      return { newStreak: 0, wasReset: false };
+    }
+
+    const currentStreak = currentPity?.bad_luck_streak || 0;
+    let newStreak: number;
+    let wasReset: boolean;
+
+    if (isRareOrBetter(result.rarity)) {
+      // Reset streak on Rare+ roll
+      newStreak = 0;
+      wasReset = true;
+      console.log(`[Pity System] User ${userId} got ${result.rarity}, resetting streak from ${currentStreak} to 0`);
+    } else {
+      // Increment streak on trash/common/uncommon roll
+      newStreak = currentStreak + 1;
+      wasReset = false;
+      console.log(`[Pity System] User ${userId} got ${result.rarity}, incrementing streak from ${currentStreak} to ${newStreak}`);
+    }
+
+    // Update pity data
+    const updateData: any = { bad_luck_streak: newStreak };
+    if (wasReset) {
+      updateData.last_rare_roll = new Date().toISOString();
+    }
+
+    const { error: updateError } = await supabase
+      .from('user_pity')
+      .upsert({ 
+        id: userId, 
+        ...updateData
+      }, {
+        onConflict: 'id'
+      });
+
+    if (updateError) {
+      console.error('[updateUserPityAfterRoll] Update error:', updateError);
+      return { newStreak: currentStreak, wasReset: false };
+    }
+
+    return { newStreak, wasReset };
+  } catch (error) {
+    console.error('[updateUserPityAfterRoll] Unexpected error:', error);
+    return { newStreak: 0, wasReset: false };
   }
 }

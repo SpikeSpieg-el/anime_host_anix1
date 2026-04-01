@@ -175,6 +175,12 @@ export async function loadUserCards(): Promise<Card[]> {
 
     const data = await res.json()
     console.log('[loadUserCards] Loaded', data.cards?.length || 0, 'cards')
+    
+    // Log unique IDs for debugging
+    if (data.cards && data.cards.length > 0) {
+      console.log('[loadUserCards] Card unique IDs:', data.cards.map((c: any) => c.uniqueId))
+    }
+    
     return data.cards || []
   } catch (error) {
     console.error('[loadUserCards] Error:', error)

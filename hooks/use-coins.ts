@@ -118,44 +118,87 @@ export function useCoins() {
     }
   }, [user])
 
-  // Обновление монет
-  const updateCoins = useCallback(async (newCoins: number, syncWithDb: boolean = true) => {
-    setCoins(newCoins)
-    localStorage.setItem(COINS_STORAGE_KEY, newCoins.toString())
-
-    if (!user || !syncWithDb) return
+  // SECURE: Потратить монеты через безопасный API
+  const spendCoins = useCallback(async (amount: number): Promise<boolean> => {
+    if (!user) {
+      console.warn('[useCoins] Cannot spend coins: user not authenticated')
+      return false
+    }
 
     try {
-      const token = (await supabase.auth.getSession()).data.session?.access_token
-      if (!token) return
+      const { data: sessionData } = await supabase.auth.getSession()
+      if (!sessionData?.session?.access_token) {
+        console.warn('[useCoins] No session token available')
+        return false
+      }
 
-      await fetch('/api/coins', {
+      const res = await fetch('/api/coins', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${sessionData.session.access_token}`
         },
-        body: JSON.stringify({ coins: newCoins })
+        body: JSON.stringify({ operation: 'spend', amount })
       })
+
+      const result = await res.json()
+      
+      if (result.success) {
+        // Обновляем локальное состояние после успешной операции
+        setCoins(result.newBalance || coins)
+        localStorage.setItem(COINS_STORAGE_KEY, (result.newBalance || coins).toString())
+        console.log(`[useCoins] Successfully spent ${amount} coins`)
+        return true
+      } else {
+        console.error('[useCoins] Failed to spend coins:', result.message)
+        return false
+      }
     } catch (error) {
-      console.error('Error updating coins:', error)
+      console.error('[useCoins] Error spending coins:', error)
+      return false
     }
-  }, [user])
+  }, [user, coins])
 
-  // Потратить монеты
-  const spendCoins = useCallback(async (amount: number): Promise<boolean> => {
-    if (coins < amount) return false
+  // SECURE: Добавить монеты через безопасный API
+  const addCoins = useCallback(async (amount: number): Promise<boolean> => {
+    if (!user) {
+      console.warn('[useCoins] Cannot add coins: user not authenticated')
+      return false
+    }
 
-    const newCoins = coins - amount
-    await updateCoins(newCoins, true)
-    return true
-  }, [coins, updateCoins])
+    try {
+      const { data: sessionData } = await supabase.auth.getSession()
+      if (!sessionData?.session?.access_token) {
+        console.warn('[useCoins] No session token available')
+        return false
+      }
 
-  // Добавить монеты
-  const addCoins = useCallback(async (amount: number) => {
-    const newCoins = coins + amount
-    await updateCoins(newCoins, true)
-  }, [coins, updateCoins])
+      const res = await fetch('/api/coins', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${sessionData.session.access_token}`
+        },
+        body: JSON.stringify({ operation: 'add', amount })
+      })
+
+      const result = await res.json()
+      
+      if (result.success) {
+        // Обновляем локальное состояние после успешной операции
+        setCoins(result.newBalance || coins)
+        localStorage.setItem(COINS_STORAGE_KEY, (result.newBalance || coins).toString())
+        console.log(`[useCoins] Successfully added ${amount} coins`)
+        return true
+      } else {
+        console.error('[useCoins] Failed to add coins:', result.message)
+        return false
+      }
+    } catch (error) {
+      console.error('[useCoins] Error adding coins:', error)
+      return false
+    }
+  }, [user, coins])
 
   // Слушаем изменения авторизации
   useEffect(() => {
@@ -165,9 +208,9 @@ export function useCoins() {
   return {
     coins,
     loading,
-    updateCoins,
-    spendCoins,
-    addCoins,
+    // УБРАНО: updateCoins - небезопасная функция
+    spendCoins,      // Безопасная API операция
+    addCoins,        // Безопасная API операция  
     refresh: loadCoins,
     forceSync: async () => {
       if (!user) return

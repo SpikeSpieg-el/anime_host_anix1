@@ -60,13 +60,19 @@ export function GachaErrorPopup({
     <AlertDialog open={isOpen} onOpenChange={onClose}>
       <AlertDialogContent className="max-w-md bg-slate-900 border-slate-700 text-white">
         <AlertDialogHeader>
+          <AlertDialogTitle className="sr-only">
+            {title}
+          </AlertDialogTitle>
+          <AlertDialogDescription className="sr-only">
+            {message}
+          </AlertDialogDescription>
           <div className="flex items-center gap-3 mb-2">
             <div className={`p-2 rounded-full border ${getIconBg()}`}>
               {getIcon()}
             </div>
-            <AlertDialogTitle className="text-xl font-bold text-white">
+            <div className="text-xl font-bold text-white">
               {title}
-            </AlertDialogTitle>
+            </div>
           </div>
           <div className="space-y-4">
             <p className="text-slate-300 text-base leading-relaxed">

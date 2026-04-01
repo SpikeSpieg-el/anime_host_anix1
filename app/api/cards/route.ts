@@ -2,62 +2,59 @@ import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import type { Card } from '@/app/gacha/page'
 
+async function getAuthenticatedUser(request: Request) {
+  const authHeader = request.headers.get('authorization')
+  
+  if (!authHeader?.startsWith('Bearer ')) {
+    return null
+  }
+
+  const token = authHeader.substring(7)
+  
+  // Create Supabase clients
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    return null
+  }
+
+  // Client for JWT verification
+  const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey)
+  
+  // Admin client for database operations
+  const supabaseAdmin = createClient(
+    supabaseUrl, 
+    supabaseServiceKey || supabaseAnonKey,
+    {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
+      }
+    }
+  )
+
+  // Verify the JWT token
+  const { data: { user }, error: authError } = await supabaseAuth.auth.getUser(token)
+
+  if (authError || !user) {
+    return null
+  }
+
+  return { user, supabaseAdmin }
+}
+
 // GET /api/cards - Get all user cards
 export async function GET(request: Request) {
   try {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-
-    if (!supabaseUrl || !supabaseAnonKey) {
-      return NextResponse.json(
-        { error: 'Server misconfigured: Supabase env vars missing' },
-        { status: 500 },
-      )
-    }
-
-    const supabaseAdmin = createClient(
-      supabaseUrl,
-      supabaseServiceKey || supabaseAnonKey,
-      {
-        auth: {
-          autoRefreshToken: false,
-          persistSession: false
-        },
-        global: {
-          headers: {
-            'Authorization': `Bearer ${supabaseServiceKey || supabaseAnonKey}`
-          }
-        }
-      }
-    )
-
-    const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey)
-
-    const authHeader = request.headers.get('authorization')
-    if (!authHeader?.startsWith('Bearer ')) {
-      console.error('Missing or invalid authorization header:', authHeader ? 'Invalid format' : 'Missing header')
+    const authData = await getAuthenticatedUser(request)
+    if (!authData) {
       return NextResponse.json({ error: 'Unauthorized: Missing or invalid authorization header' }, { status: 401 })
     }
 
-    const token = authHeader.substring(7)
-    const { data: { user }, error: authError } = await supabaseAuth.auth.getUser(token)
-
-    if (authError || !user) {
-      console.error('Auth error details:', { 
-        error: authError?.message, 
-        code: authError?.code,
-        status: authError?.status,
-        tokenLength: token.length,
-        tokenStart: token.substring(0, 10) + '...'
-      })
-      return NextResponse.json({ 
-        error: 'Unauthorized: Invalid or expired token', 
-        details: authError?.message 
-      }, { status: 401 })
-    }
-
-    console.log('Authenticated user:', user.id)
+    const { user, supabaseAdmin } = authData
+    console.log('Authenticated user for GET:', user.id)
 
     // Get all user cards
     const { data, error } = await supabaseAdmin
@@ -74,6 +71,13 @@ export async function GET(request: Request) {
       }
 
       return NextResponse.json({ error: 'Failed to get cards' }, { status: 500 })
+    }
+
+    console.log('[GET] Retrieved cards for user', user.id, ':', data?.length || 0, 'cards')
+    
+    // Log unique IDs for debugging
+    if (data && data.length > 0) {
+      console.log('[GET] Card unique IDs:', data.map((c: any) => c.unique_id))
     }
 
     // Transform database rows to Card objects
@@ -239,65 +243,25 @@ export async function POST(request: Request) {
 // DELETE /api/cards - Delete a card
 export async function DELETE(request: Request) {
   try {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-
-    if (!supabaseUrl || !supabaseAnonKey) {
-      return NextResponse.json(
-        { error: 'Server misconfigured: Supabase env vars missing' },
-        { status: 500 },
-      )
-    }
-
-    const supabaseAdmin = createClient(
-      supabaseUrl,
-      supabaseServiceKey || supabaseAnonKey,
-      {
-        auth: {
-          autoRefreshToken: false,
-          persistSession: false
-        },
-        global: {
-          headers: {
-            'Authorization': `Bearer ${supabaseServiceKey || supabaseAnonKey}`
-          }
-        }
-      }
-    )
-
-    const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey)
-
-    const authHeader = request.headers.get('authorization')
-    if (!authHeader?.startsWith('Bearer ')) {
-      console.error('Missing or invalid authorization header:', authHeader ? 'Invalid format' : 'Missing header')
+    const authData = await getAuthenticatedUser(request)
+    if (!authData) {
       return NextResponse.json({ error: 'Unauthorized: Missing or invalid authorization header' }, { status: 401 })
     }
 
-    const token = authHeader.substring(7)
-    const { data: { user }, error: authError } = await supabaseAuth.auth.getUser(token)
-
-    if (authError || !user) {
-      console.error('Auth error details:', { 
-        error: authError?.message, 
-        code: authError?.code,
-        status: authError?.status,
-        tokenLength: token.length,
-        tokenStart: token.substring(0, 10) + '...'
-      })
-      return NextResponse.json({ 
-        error: 'Unauthorized: Invalid or expired token', 
-        details: authError?.message 
-      }, { status: 401 })
-    }
-
-    console.log('Authenticated user:', user.id)
+    const { user, supabaseAdmin } = authData
+    console.log('Authenticated user for DELETE:', user.id)
 
     const { uniqueId } = await request.json()
 
     if (!uniqueId) {
       return NextResponse.json({ error: 'Card uniqueId required' }, { status: 400 })
     }
+
+    console.log('[DELETE] Attempting to delete card:', { 
+      userId: user.id, 
+      uniqueId,
+      timestamp: new Date().toISOString()
+    })
 
     const { error: deleteError } = await supabaseAdmin
       .from('user_cards')
@@ -309,6 +273,12 @@ export async function DELETE(request: Request) {
       console.error('Delete card error:', deleteError)
       return NextResponse.json({ error: 'Failed to delete card' }, { status: 500 })
     }
+
+    console.log('[DELETE] Card deleted successfully:', { 
+      userId: user.id, 
+      uniqueId,
+      timestamp: new Date().toISOString()
+    })
 
     return NextResponse.json({ success: true })
 
