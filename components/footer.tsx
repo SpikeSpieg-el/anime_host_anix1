@@ -105,6 +105,7 @@ export function Footer() {
               <li><a className="text-zinc-500 hover:text-orange-500 transition-colors text-sm sm:text-[15px] font-bold" href="/catalog?status=ongoing">Расписание онгоингов</a></li>
               <li><a className="text-zinc-500 hover:text-orange-500 transition-colors text-sm sm:text-[15px] font-bold" href="/catalog?sort=popular">Популярные хиты</a></li>
               <li><a className="text-zinc-500 hover:text-orange-500 transition-colors text-sm sm:text-[15px] font-bold" href="/catalog?kind=movie">Полнометражные фильмы</a></li>
+              <li><a className="text-zinc-500 hover:text-orange-500 transition-colors text-sm sm:text-[15px] font-bold" href="/gacha">WEEB.X Гача</a></li>
             </ul>
           </div>
 

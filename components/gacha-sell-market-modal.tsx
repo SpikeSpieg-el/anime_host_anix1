@@ -118,12 +118,12 @@ export function GachaSellMarketModal({
 
   return (
     <div
-      className="fixed inset-0 z-[60] flex items-center justify-center p-4 sm:p-6 bg-slate-950/85 backdrop-blur-xl pointer-events-none"
+      className="fixed inset-0 z-[130] flex items-center justify-center p-4 sm:p-6 bg-slate-950/85 backdrop-blur-xl pointer-events-none"
       role="dialog"
       aria-modal="true"
       aria-labelledby="sell-market-title"
     >
-      <div className="bg-slate-900 border border-cyan-500/30 rounded-2xl sm:rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl shadow-cyan-500/10 pointer-events-auto">
+      <div className="bg-slate-900 border border-cyan-500/30 rounded-2xl sm:rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl shadow-cyan-500/10 pointer-events-auto z-[110]">
         <h3 id="sell-market-title" className="text-xl font-black text-white mb-2">
           Выставить на маркет
         </h3>

@@ -5,6 +5,7 @@ import { flushSync } from "react-dom"
 import Image from "next/image"
 import { Navbar } from "@/components/navbar"
 import { Sparkles, Star, Heart, Loader2, X, ZoomIn, ExternalLink, RefreshCcw, Trash, Trash2, Crown, Package, Coins, Search, Database, Store } from "lucide-react"
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { rollAnimeCharacter, rollFromAnimePack, searchGachaPacks, createCustomGachaPack, checkPackAvailability, updateUserPityAfterRoll } from "./actions"
 import { saveCardToDatabase, loadUserCards, deleteCardFromDatabase, queueCardForSync, syncQueuedCards } from "./client-actions"
 import { loadUserPity, updateUserPity, type PityData } from "./pity-actions"
@@ -23,6 +24,7 @@ import { BulkDismantleSuccessPopup } from "@/components/bulk-dismantle-success-p
 import { Rarity, rarityConfig, getDismantleValue } from "@/types/gacha"
 import { GachaMarketPanel } from "@/components/gacha-market-panel"
 import { GachaSellMarketModal } from "@/components/gacha-sell-market-modal"
+import { ChangeArtModal } from "@/components/change-art-modal"
 import { useAuth } from "@/components/auth-provider"
 
 export interface CardStats {
@@ -314,11 +316,9 @@ const InteractiveCard = ({ card, forceFlipped = false }: { card: Card, forceFlip
     setIsFlipped(forceFlipped)
   }, [forceFlipped])
 
-  // Handle page visibility change to reset animation state when tab is switched/minimized
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.hidden) {
-        // Tab is hidden - cancel any pending animation frames and reset state
         if (animationFrameRef.current) {
           cancelAnimationFrame(animationFrameRef.current)
           animationFrameRef.current = undefined
@@ -332,9 +332,8 @@ const InteractiveCard = ({ card, forceFlipped = false }: { card: Card, forceFlip
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
-  }, [])
+  },[])
 
-  // Cleanup animation frame on unmount
   useEffect(() => {
     return () => {
       if (animationFrameRef.current) {
@@ -342,7 +341,7 @@ const InteractiveCard = ({ card, forceFlipped = false }: { card: Card, forceFlip
         animationFrameRef.current = undefined
       }
     }
-  }, [])
+  },[])
 
   const handleMouseMove = useCallback((e: MouseEvent<HTMLDivElement>) => {
     if (!cardRef.current) return
@@ -418,7 +417,7 @@ const InteractiveCard = ({ card, forceFlipped = false }: { card: Card, forceFlip
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
       onClick={() => setIsFlipped(!isFlipped)}
-      className="relative w-64 sm:w-72 md:w-80 h-[400px] sm:h-[440px] md:h-[480px] max-w-[calc(100vw-2rem)] transition-transform duration-500 ease-out cursor-pointer"
+      className="relative w-[260px] sm:w-72 md:w-80 h-[380px] sm:h-[440px] md:h-[480px] max-w-[calc(100vw-2rem)] transition-transform duration-500 ease-out cursor-pointer"
       style={{
         transform: `perspective(1000px) rotateX(${rotation.x}deg) rotateY(${rotation.y + (isFlipped ? 180 : 0)}deg)`,
         transformStyle: "preserve-3d",
@@ -445,8 +444,6 @@ const InteractiveCard = ({ card, forceFlipped = false }: { card: Card, forceFlip
         
         <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/20 to-slate-950/20 pointer-events-none" />
         
-        
-        {/* Hover highlight effect */}
         <div 
           className="absolute inset-0 opacity-0 transition-opacity duration-300 pointer-events-none"
           style={{ 
@@ -457,8 +454,8 @@ const InteractiveCard = ({ card, forceFlipped = false }: { card: Card, forceFlip
 
         {/* UI элементов - FRONT */}
         <div className="absolute top-3 sm:top-4 md:top-5 inset-x-3 sm:inset-x-4 md:inset-x-5 flex justify-between items-start pointer-events-none z-10">
-          <div className="flex flex-col gap-2">
-            <div className={`px-2.5 sm:px-3 py-1 rounded-full text-[9px] sm:text-[10px] font-black uppercase tracking-widest backdrop-blur-md bg-black/40 border border-white/20 shadow-xl`}>
+          <div className="flex flex-col gap-1.5 sm:gap-2">
+            <div className={`px-2.5 sm:px-3 py-1 rounded-full text-[9px] sm:text-[10px] font-black uppercase tracking-widest backdrop-blur-md bg-black/40 border border-white/20 shadow-xl w-fit`}>
               <span className={`bg-gradient-to-r ${rarityConfig[card.rarity].color} bg-clip-text text-transparent`}>
                 {rarityConfig[card.rarity].label}
               </span>
@@ -470,7 +467,7 @@ const InteractiveCard = ({ card, forceFlipped = false }: { card: Card, forceFlip
               </div>
             )}
           </div>
-          <div className="flex items-center gap-1 bg-black/50 backdrop-blur-md px-2.5 sm:px-3 py-1 rounded-full border border-white/20 shadow-xl">
+          <div className="flex items-center gap-1 bg-black/50 backdrop-blur-md px-2.5 sm:px-3 py-1 rounded-full border border-white/20 shadow-xl shrink-0">
             <Star className="w-3 h-3 text-yellow-400 fill-yellow-400" />
             <span className="text-[10px] sm:text-[11px] font-black text-white">{card.score.toFixed(1)}</span>
           </div>
@@ -481,23 +478,23 @@ const InteractiveCard = ({ card, forceFlipped = false }: { card: Card, forceFlip
             <div className={`absolute left-0 top-0 bottom-0 w-1.5 bg-gradient-to-b ${rarityConfig[card.rarity].color}`} />
             
             {card.isMainCharacter && card.isArtBlacklisted && (
-              <div className="absolute top-2 right-2 px-2 py-0.5 rounded-full bg-red-500/20 border border-red-500/30 flex items-center gap-1">
+              <div className="absolute top-2 right-2 px-1.5 py-0.5 rounded-full bg-red-500/20 border border-red-500/30 flex items-center gap-1">
                 <RefreshCcw className="w-2.5 h-2.5 text-red-400" />
-                <span className="text-[8px] font-bold text-red-400 uppercase tracking-wider">Арт отклонен</span>
+                <span className="text-[7px] sm:text-[8px] font-bold text-red-400 uppercase tracking-wider">Отклонен</span>
               </div>
             )}
             
-            <h3 className="text-lg sm:text-xl md:text-2xl font-black text-white uppercase leading-none drop-shadow-lg truncate mb-1">
+            <h3 className="text-base sm:text-xl md:text-2xl font-black text-white uppercase leading-none drop-shadow-lg truncate mb-1">
               {card.name}
             </h3>
-            <p className="text-[9px] sm:text-[10px] md:text-xs text-white/70 font-bold uppercase tracking-wider truncate">
+            <p className="text-[8px] sm:text-[10px] md:text-xs text-white/70 font-bold uppercase tracking-wider truncate">
               {card.anime}
             </p>
             
-            <div className="mt-3 flex items-center justify-between border-t border-white/10 pt-2">
-              <span className="text-[8px] sm:text-[9px] font-mono text-white/40 tracking-wider">ID: {card.shikiId}</span>
+            <div className="mt-2.5 sm:mt-3 flex items-center justify-between border-t border-white/10 pt-2">
+              <span className="text-[7px] sm:text-[8px] md:text-[9px] font-mono text-white/40 tracking-wider">ID: {card.shikiId}</span>
               {card.packName && (
-                <span className="text-[8px] sm:text-[9px] font-black text-indigo-300 uppercase tracking-widest">{card.packName}</span>
+                <span className="text-[7px] sm:text-[8px] md:text-[9px] font-black text-indigo-300 uppercase tracking-widest truncate max-w-[60%] text-right">{card.packName}</span>
               )}
             </div>
           </div>
@@ -514,15 +511,15 @@ const InteractiveCard = ({ card, forceFlipped = false }: { card: Card, forceFlip
         }}
       >
                 
-        <div className="relative z-10 space-y-4 sm:space-y-6">
-          <div className="text-center pb-3 sm:pb-4 border-b border-white/10">
-            <p className={`text-[9px] sm:text-[10px] md:text-[11px] font-black uppercase tracking-widest bg-gradient-to-r ${rarityConfig[card.rarity].color} bg-clip-text text-transparent mb-1`}>
+        <div className="relative z-10 space-y-3 sm:space-y-6">
+          <div className="text-center pb-2.5 sm:pb-4 border-b border-white/10">
+            <p className={`text-[8px] sm:text-[10px] md:text-[11px] font-black uppercase tracking-widest bg-gradient-to-r ${rarityConfig[card.rarity].color} bg-clip-text text-transparent mb-1`}>
               Характеристики
             </p>
-            <h4 className="text-xl sm:text-2xl md:text-3xl font-black text-white uppercase truncate">{card.name}</h4>
+            <h4 className="text-lg sm:text-2xl md:text-3xl font-black text-white uppercase truncate">{card.name}</h4>
           </div>
 
-          <div className="space-y-3 sm:space-y-4 pt-2">
+          <div className="space-y-2.5 sm:space-y-4 pt-1 sm:pt-2">
             <StatBar label={statLabels.hp} value={card.stats.hp} color={rarityConfig[card.rarity].color} />
             <StatBar label={statLabels.atk} value={card.stats.atk} color={rarityConfig[card.rarity].color} />
             <StatBar label={statLabels.def} value={card.stats.def} color={rarityConfig[card.rarity].color} />
@@ -531,11 +528,11 @@ const InteractiveCard = ({ card, forceFlipped = false }: { card: Card, forceFlip
           </div>
         </div>
 
-        <div className="relative z-10 text-center space-y-3">
-           <div className="w-12 sm:w-14 h-12 sm:h-14 mx-auto rounded-full border-2 border-white/10 flex items-center justify-center bg-white/5 backdrop-blur-sm shadow-xl">
-              <RefreshCcw className="w-5 sm:w-6 h-5 sm:h-6 text-white/40" />
+        <div className="relative z-10 text-center space-y-2 sm:space-y-3">
+           <div className="w-10 sm:w-14 h-10 sm:h-14 mx-auto rounded-full border-2 border-white/10 flex items-center justify-center bg-white/5 backdrop-blur-sm shadow-xl">
+              <RefreshCcw className="w-4 sm:w-6 h-4 sm:h-6 text-white/40" />
            </div>
-           <p className="text-[8px] sm:text-[9px] font-black text-white/40 uppercase tracking-widest leading-tight">Нажмите чтобы перевернуть</p>
+           <p className="text-[7px] sm:text-[9px] font-black text-white/40 uppercase tracking-widest leading-tight">Нажмите чтобы перевернуть</p>
         </div>
       </div>
     </div>
@@ -641,6 +638,8 @@ export default function GachaPage() {
   const [gachaMainTab, setGachaMainTab] = useState<"gacha" | "market">("gacha")
   const [cardToSell, setCardToSell] = useState<Card | null>(null)
   const [listedCardIds, setListedCardIds] = useState<Set<string>>(new Set())
+  const [cardToChangeArt, setCardToChangeArt] = useState<Card | null>(null)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
   const collectionRating = calculateCollectionRating(collectedCards)
 
@@ -1643,21 +1642,21 @@ export default function GachaPage() {
       {/* Custom Pack Creator Modal */}
       {showCustomPackCreator && (
         <div 
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-slate-950/80 backdrop-blur-xl animate-in fade-in duration-200"
+          className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 md:p-6 bg-slate-950/80 backdrop-blur-xl animate-in fade-in duration-200"
           onClick={() => setShowCustomPackCreator(false)}
         >
           <div 
-            className="bg-slate-900 border border-slate-700/50 rounded-2xl sm:rounded-3xl p-5 sm:p-6 md:p-8 max-w-6xl w-full max-h-[90vh] overflow-y-auto shadow-2xl"
+            className="bg-slate-900 border border-slate-700/50 rounded-2xl sm:rounded-3xl p-4 sm:p-6 md:p-8 max-w-6xl w-full max-h-[95vh] sm:max-h-[90vh] overflow-y-auto shadow-2xl relative"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4 mb-6 sm:mb-8">
-              <div>
-                <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight mb-3">Создать Кастомный Пак</h2>
+            <div className="flex justify-between items-start gap-3 mb-5 sm:mb-8">
+              <div className="pr-8 sm:pr-0">
+                <h2 className="text-xl sm:text-2xl md:text-3xl font-black text-white tracking-tight mb-3">Создать Кастомный Пак</h2>
                 {selectedAnimeIds.size > 0 && (
                   <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-sm">
-                    <div className="flex items-center gap-1.5 bg-yellow-500/10 border border-yellow-500/20 px-3 py-1.5 rounded-full">
-                      <Coins className="w-4 h-4 text-yellow-400" />
-                      <span className="text-yellow-400 font-bold text-sm sm:text-base">
+                    <div className="flex items-center gap-1.5 bg-yellow-500/10 border border-yellow-500/20 px-2.5 sm:px-3 py-1.5 rounded-full">
+                      <Coins className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-yellow-400" />
+                      <span className="text-yellow-400 font-bold text-xs sm:text-sm">
                         {2000 + Math.max(0, Math.min(1000, Math.floor((customPackSearchResults.filter(a => selectedAnimeIds.has(a.id)).reduce((sum, a) => sum + (a.score || 0), 0) / selectedAnimeIds.size) * 100)))} монет
                       </span>
                     </div>
@@ -1669,10 +1668,10 @@ export default function GachaPage() {
                       else if (avgScore >= 6.5) guaranteedRarity = 'Редкая';
 
                       return guaranteedRarity && (
-                        <div className="flex items-center gap-1.5 bg-indigo-500/10 border border-indigo-500/20 px-3 py-1.5 rounded-full">
-                          <Star className="w-4 h-4 text-indigo-400" />
-                          <span className="text-indigo-300 font-bold text-sm sm:text-base">
-                            Гарант: {guaranteedRarity} <span className="text-indigo-400/70 font-normal">(1 из 10)</span>
+                        <div className="flex items-center gap-1.5 bg-indigo-500/10 border border-indigo-500/20 px-2.5 sm:px-3 py-1.5 rounded-full">
+                          <Star className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-indigo-400" />
+                          <span className="text-indigo-300 font-bold text-xs sm:text-sm">
+                            Гарант: {guaranteedRarity} <span className="text-indigo-400/70 font-normal hidden xs:inline">(1 из 10)</span>
                           </span>
                         </div>
                       );
@@ -1688,29 +1687,29 @@ export default function GachaPage() {
                   setCustomPackSearchResults([]);
                   setSelectedAnimeIds(new Set());
                 }}
-                className="p-2 sm:p-2.5 rounded-full bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-colors border border-white/5 self-end sm:self-start shrink-0"
+                className="absolute top-4 right-4 sm:static sm:top-auto sm:right-auto p-2 sm:p-2.5 rounded-full bg-slate-800 sm:bg-white/5 hover:bg-slate-700 sm:hover:bg-white/10 text-slate-400 hover:text-white transition-colors border border-slate-700 sm:border-white/5 z-10"
               >
                 <X className="w-5 h-5 sm:w-6 sm:h-6" />
               </button>
             </div>
 
-            <div className="mb-6 sm:mb-8">
-              <label className="block text-sm font-bold text-slate-300 mb-2">
+            <div className="mb-5 sm:mb-8">
+              <label className="block text-xs sm:text-sm font-bold text-slate-300 mb-2">
                 Введите название аниме (например, "Титан", "Наруто", "Блич")
               </label>
-              <div className="flex flex-col sm:flex-row gap-3">
+              <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
                 <input
                   type="text"
                   placeholder="Например: Атака титанов..."
                   value={customPackQuery}
                   onChange={(e) => setCustomPackQuery(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && handleCreateCustomPack()}
-                  className="flex-1 h-12 sm:h-14 rounded-xl sm:rounded-2xl bg-slate-950/50 border border-slate-700/50 px-4 sm:px-5 text-sm sm:text-base text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all placeholder:text-slate-500"
+                  className="w-full sm:flex-1 h-11 sm:h-14 rounded-xl sm:rounded-2xl bg-slate-950/50 border border-slate-700/50 px-3 sm:px-5 text-sm sm:text-base text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all placeholder:text-slate-500"
                 />
                 <button
                   onClick={handleCreateCustomPack}
                   disabled={isCreatingCustomPack || !customPackQuery.trim()}
-                  className="h-12 sm:h-14 px-6 sm:px-8 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-800 disabled:text-slate-500 disabled:border-slate-700 border border-indigo-500 disabled:cursor-not-allowed text-white font-bold rounded-xl sm:rounded-2xl transition-all shadow-lg shadow-indigo-500/25 flex items-center justify-center min-w-[120px]"
+                  className="w-full sm:w-auto h-11 sm:h-14 px-6 sm:px-8 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-800 disabled:text-slate-500 disabled:border-slate-700 border border-indigo-500 disabled:cursor-not-allowed text-white font-bold rounded-xl sm:rounded-2xl transition-all shadow-lg shadow-indigo-500/25 flex items-center justify-center min-w-[120px]"
                 >
                   {isCreatingCustomPack ? (
                     <GachaLoading message="" />
@@ -1722,28 +1721,28 @@ export default function GachaPage() {
             </div>
 
             {!isCreatingCustomPack && !createdCustomPack && customPackSearchResults.length > 0 && (
-              <div className="space-y-6">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 bg-slate-800/30 rounded-2xl border border-white/5">
-                  <div className="flex items-center gap-3">
-                    <span className="text-sm sm:text-base font-bold text-white">
+              <div className="space-y-4 sm:space-y-6">
+                <div className="flex flex-col xs:flex-row xs:items-center justify-between gap-3 sm:gap-4 p-3 sm:p-4 bg-slate-800/30 rounded-xl sm:rounded-2xl border border-white/5">
+                  <div className="flex items-center gap-2 sm:gap-3">
+                    <span className="text-xs sm:text-base font-bold text-white">
                       Выбрано: <span className="text-indigo-400">{selectedAnimeIds.size}</span> из {customPackSearchResults.length}
                     </span>
                     {selectedAnimeIds.size > 0 && (
-                      <span className="text-xs font-bold bg-green-500/10 border border-green-500/20 text-green-400 px-2 py-1 rounded-md uppercase tracking-wider">
+                      <span className="text-[10px] sm:text-xs font-bold bg-green-500/10 border border-green-500/20 text-green-400 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-md uppercase tracking-wider">
                         Готово
                       </span>
                     )}
                   </div>
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap xs:flex-nowrap gap-2 w-full xs:w-auto">
                     <button
                       onClick={selectAllAnime}
-                      className="px-4 py-2 text-xs sm:text-sm font-bold bg-slate-700 hover:bg-slate-600 text-white rounded-xl transition-colors"
+                      className="flex-1 xs:flex-none px-3 sm:px-4 py-2 text-[10px] sm:text-sm font-bold bg-slate-700 hover:bg-slate-600 text-white rounded-lg sm:rounded-xl transition-colors text-center"
                     >
                       Выбрать все
                     </button>
                     <button
                       onClick={deselectAllAnime}
-                      className="px-4 py-2 text-xs sm:text-sm font-bold bg-slate-700 hover:bg-slate-600 text-white rounded-xl transition-colors"
+                      className="flex-1 xs:flex-none px-3 sm:px-4 py-2 text-[10px] sm:text-sm font-bold bg-slate-700 hover:bg-slate-600 text-white rounded-lg sm:rounded-xl transition-colors text-center"
                     >
                       Снять все
                     </button>
@@ -1751,45 +1750,45 @@ export default function GachaPage() {
                 </div>
 
                 <div>
-                  <h4 className="text-xs sm:text-sm font-black text-slate-400 mb-4 uppercase tracking-widest">
+                  <h4 className="text-[10px] sm:text-xs font-black text-slate-400 mb-3 sm:mb-4 uppercase tracking-widest pl-1">
                     Найденные аниме
                   </h4>
-                  <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-3 sm:gap-4 max-h-[400px] overflow-y-auto p-1 scrollbar-thin scrollbar-thumb-slate-700">
+                  <div className="grid grid-cols-2 xs:grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-2.5 sm:gap-4 max-h-[350px] sm:max-h-[400px] overflow-y-auto p-1 scrollbar-thin scrollbar-thumb-slate-700">
                     {customPackSearchResults.map(anime => (
                       <div 
                         key={anime.id} 
-                        className={`relative rounded-xl overflow-hidden bg-slate-800/30 border transition-all duration-200 cursor-pointer hover:shadow-lg ${
+                        className={`relative rounded-xl overflow-hidden bg-slate-800/30 border transition-all duration-200 cursor-pointer hover:shadow-lg flex flex-col ${
                           selectedAnimeIds.has(anime.id) 
                             ? 'border-indigo-500 ring-2 ring-indigo-500/40 transform scale-[0.98]' 
                             : 'border-white/5 hover:border-white/20 hover:scale-[1.02]'
                         }`}
                         onClick={() => toggleAnimeSelection(anime.id)}
                       >
-                        <div className="relative aspect-[2/3]">
+                        <div className="relative aspect-[2/3] w-full shrink-0">
                           <img 
                             src={getOptimizedThumbSrc(anime.imageUrl, 256, 60)} 
                             alt={anime.russian || anime.name} 
-                            className="w-full h-full object-cover" 
+                            className="absolute inset-0 w-full h-full object-cover" 
                             referrerPolicy="no-referrer" 
                           />
-                          <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent opacity-80" />
-                          <div className="absolute top-2 right-2">
-                            <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${
+                          <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/20 to-transparent opacity-90" />
+                          <div className="absolute top-2 right-2 z-10">
+                            <div className={`w-5 h-5 sm:w-6 sm:h-6 rounded-full border-2 flex items-center justify-center transition-all ${
                               selectedAnimeIds.has(anime.id)
                                 ? 'bg-indigo-500 border-indigo-500 text-white shadow-lg shadow-indigo-500/50'
                                 : 'bg-slate-900/50 border-white/30 text-transparent backdrop-blur-sm'
                             }`}>
-                              <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 20 20">
+                              <svg className="w-3 h-3 sm:w-3.5 sm:h-3.5 fill-current" viewBox="0 0 20 20">
                                 <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                               </svg>
                             </div>
                           </div>
                         </div>
-                        <div className="absolute bottom-0 inset-x-0 p-2 sm:p-2.5">
-                          <p className="text-[10px] sm:text-xs font-bold text-white leading-tight line-clamp-2">{anime.russian || anime.name}</p>
+                        <div className="absolute bottom-0 inset-x-0 p-2 sm:p-2.5 flex flex-col justify-end pointer-events-none">
+                          <p className="text-[9px] sm:text-xs font-bold text-white leading-tight line-clamp-2 drop-shadow-md">{anime.russian || anime.name}</p>
                           <div className="flex items-center gap-1 mt-1">
-                            <Star className="w-3 h-3 text-yellow-400 fill-yellow-400" />
-                            <span className="text-[10px] sm:text-xs font-bold text-white/80">{typeof anime.score === 'number' ? anime.score.toFixed(1) : 'N/A'}</span>
+                            <Star className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-yellow-400 fill-yellow-400 drop-shadow-md" />
+                            <span className="text-[9px] sm:text-xs font-bold text-white/90 drop-shadow-md">{typeof anime.score === 'number' ? anime.score.toFixed(1) : 'N/A'}</span>
                           </div>
                         </div>
                       </div>
@@ -1801,13 +1800,13 @@ export default function GachaPage() {
                   <button
                     onClick={handleCreateCustomPackFromSelected}
                     disabled={isCreatingCustomPack}
-                    className="w-full py-4 sm:py-5 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-800 disabled:text-slate-500 text-white font-black uppercase tracking-wider rounded-xl sm:rounded-2xl transition-all shadow-lg shadow-indigo-500/25 flex items-center justify-center gap-3"
+                    className="w-full py-3.5 sm:py-5 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-800 disabled:text-slate-500 text-white font-black uppercase tracking-wider rounded-xl sm:rounded-2xl transition-all shadow-lg shadow-indigo-500/25 flex items-center justify-center gap-2 sm:gap-3 text-sm sm:text-base mt-2"
                   >
                     {isCreatingCustomPack ? (
                       <GachaLoading message="Открытие набора..." />
                     ) : (
                       <>
-                        <Package className="w-5 h-5" />
+                        <Package className="w-4 h-4 sm:w-5 sm:h-5" />
                         Создать пак ({selectedAnimeIds.size} аниме)
                       </>
                     )}
@@ -1817,27 +1816,28 @@ export default function GachaPage() {
             )}
 
             {isCreatingCustomPack && (
-              <div className="flex items-center justify-center py-16">
+              <div className="flex items-center justify-center py-12 sm:py-16">
                 <GachaLoading message="Поиск и сборка аниме..." />
               </div>
             )}
 
             {createdCustomPack && customPackSearchResults.length > 0 && (
-              <div className="space-y-6">
-                <div className="p-6 sm:p-8 rounded-2xl bg-gradient-to-br from-indigo-900/40 to-slate-900 border border-indigo-500/30 animate-in fade-in slide-in-from-top-4 duration-300 shadow-xl">
-                  <h3 className="text-2xl sm:text-3xl font-black text-white mb-2">{createdCustomPack.name}</h3>
-                  <p className="text-sm sm:text-base text-indigo-200/80 mb-5">{createdCustomPack.description}</p>
+              <div className="space-y-4 sm:space-y-6 mt-4">
+                <div className="p-4 sm:p-6 md:p-8 rounded-xl sm:rounded-2xl bg-gradient-to-br from-indigo-900/40 to-slate-900 border border-indigo-500/30 animate-in fade-in slide-in-from-top-4 duration-300 shadow-xl">
+                  <h3 className="text-xl sm:text-2xl md:text-3xl font-black text-white mb-2 leading-tight">{createdCustomPack.name}</h3>
+                  <p className="text-xs sm:text-sm md:text-base text-indigo-200/80 mb-4 sm:mb-5 line-clamp-3 sm:line-clamp-none">{createdCustomPack.description}</p>
                   
-                  <div className="flex flex-wrap gap-3">
-                    <div className="flex items-center gap-2 bg-slate-950/50 border border-white/10 px-4 py-2 rounded-xl shadow-inner">
-                      <Coins className="w-5 h-5 text-yellow-400" />
-                      <span className="text-sm sm:text-base font-black text-white">{createdCustomPack.price} монет</span>
+                  <div className="flex flex-wrap gap-2 sm:gap-3">
+                    <div className="flex items-center gap-1.5 sm:gap-2 bg-slate-950/50 border border-white/10 px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg sm:rounded-xl shadow-inner">
+                      <Coins className="w-4 h-4 sm:w-5 sm:h-5 text-yellow-400" />
+                      <span className="text-xs sm:text-sm md:text-base font-black text-white">{createdCustomPack.price} монет</span>
                     </div>
                     {createdCustomPack.guaranteedRarity && (
-                      <div className="flex items-center gap-2 bg-indigo-500/20 border border-indigo-500/30 px-4 py-2 rounded-xl">
-                        <Star className="w-5 h-5 text-indigo-400" />
-                        <span className="text-sm sm:text-base font-bold text-indigo-100">
-                          Гарант: {rarityConfig[createdCustomPack.guaranteedRarity as Rarity].label}
+                      <div className="flex items-center gap-1.5 sm:gap-2 bg-indigo-500/20 border border-indigo-500/30 px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg sm:rounded-xl">
+                        <Star className="w-4 h-4 sm:w-5 sm:h-5 text-indigo-400" />
+                        <span className="text-xs sm:text-sm md:text-base font-bold text-indigo-100">
+                          Гарант: <span className="hidden xs:inline">{rarityConfig[createdCustomPack.guaranteedRarity as Rarity].label}</span>
+                          <span className="xs:hidden">{rarityConfig[createdCustomPack.guaranteedRarity as Rarity].label.split(' ')[0]}</span>
                         </span>
                       </div>
                     )}
@@ -1847,7 +1847,7 @@ export default function GachaPage() {
                 <button
                   onClick={() => handleSelectCustomPack(createdCustomPack)}
                   disabled={userCoins < createdCustomPack.price}
-                  className="w-full py-4 sm:py-5 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-800 disabled:text-slate-500 text-white font-black uppercase tracking-wider rounded-xl sm:rounded-2xl transition-all shadow-lg shadow-indigo-500/25 flex items-center justify-center"
+                  className="w-full py-3.5 sm:py-5 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-800 disabled:text-slate-500 text-white font-black uppercase tracking-wider rounded-xl sm:rounded-2xl transition-all shadow-lg shadow-indigo-500/25 flex items-center justify-center text-sm sm:text-base"
                 >
                   {userCoins < createdCustomPack.price ? "Недостаточно монет" : "Выбрать этот пак"}
                 </button>
@@ -2109,33 +2109,34 @@ export default function GachaPage() {
       {/* Viewed Card Modal */}
       {viewedCard && (
         <div 
-          className="fixed inset-0 z-50 flex flex-col items-center justify-center p-4 sm:p-6 bg-slate-950/90 backdrop-blur-xl animate-in fade-in duration-200 overflow-y-auto"
+          className="fixed inset-0 z-[120] flex flex-col items-center justify-center p-4 sm:p-6 bg-slate-950/90 backdrop-blur-xl animate-in fade-in duration-200 overflow-y-auto"
           onClick={() => setViewedCard(null)}
         >
-          <button onClick={() => setViewedCard(null)} className="absolute top-4 sm:top-6 right-4 sm:right-6 p-2.5 sm:p-3 rounded-full bg-white/5 hover:bg-white/10 text-white transition-colors border border-white/10 z-50">
+          <button onClick={() => setViewedCard(null)} className="fixed top-4 right-4 sm:top-6 sm:right-6 p-2.5 sm:p-3 rounded-full bg-white/5 hover:bg-white/10 text-white transition-colors border border-white/10 z-[130] shadow-xl backdrop-blur-md">
             <X className="w-5 h-5 sm:w-6 sm:h-6" />
           </button>
           
           <div 
-            className="flex flex-col items-center justify-center min-h-full py-12"
+            className="flex flex-col items-center justify-center min-h-full py-12 w-full"
             onClick={(e) => e.stopPropagation()}
           >
             <InteractiveCard card={viewedCard} />
             
-            <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-4 mt-8 sm:mt-10 w-full max-w-lg mx-auto">
+            <div className="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center justify-center gap-2.5 sm:gap-4 mt-6 sm:mt-10 w-full max-w-[260px] sm:max-w-3xl mx-auto">
               <button
-                onClick={() => removeCard(viewedCard)}
-                className="px-4 py-2.5 sm:px-5 sm:py-3 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 font-bold text-xs sm:text-sm flex items-center gap-2 transition-colors border border-red-500/20"
+                onClick={() => setShowDeleteConfirm(true)}
+                className="px-4 py-3 sm:px-5 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 font-bold text-xs sm:text-sm flex items-center justify-center sm:justify-start gap-2 transition-colors border border-red-500/20 w-full sm:w-auto"
               >
-                <Trash className="w-4 h-4" /> <span className="hidden sm:inline">Удалить из коллекции</span><span className="sm:hidden">Удалить</span>
+                <Trash className="w-4 h-4 shrink-0" /> 
+                <span className="truncate">Удалить из коллекции</span>
               </button>
               
               <button
                 onClick={() => dismantleCard(viewedCard)}
-                className="px-4 py-2.5 sm:px-5 sm:py-3 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 font-bold text-xs sm:text-sm flex items-center gap-2 transition-colors border border-amber-500/20"
+                className="px-4 py-3 sm:px-5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 font-bold text-xs sm:text-sm flex items-center justify-center sm:justify-start gap-2 transition-colors border border-amber-500/20 w-full sm:w-auto"
               >
-                <RefreshCcw className="w-4 h-4" />
-                <span>Распылить (+{getDismantleValue(viewedCard.rarity)} пыли)</span>
+                <RefreshCcw className="w-4 h-4 shrink-0" />
+                <span className="truncate">Распылить (+{getDismantleValue(viewedCard.rarity)} пыли)</span>
               </button>
 
               {authUser && (
@@ -2144,30 +2145,48 @@ export default function GachaPage() {
                   onClick={() => {
                     setCardToSell(viewedCard)
                   }}
-                  className="px-4 py-2.5 sm:px-5 sm:py-3 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 font-bold text-xs sm:text-sm flex items-center gap-2 transition-colors border border-cyan-500/30"
+                  className="px-4 py-3 sm:px-5 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 font-bold text-xs sm:text-sm flex items-center justify-center sm:justify-start gap-2 transition-colors border border-cyan-500/30 w-full sm:w-auto"
                 >
-                  <Store className="w-4 h-4" />
-                  <span className="hidden sm:inline">Продать на маркете</span>
-                  <span className="sm:hidden">Маркет</span>
+                  <Store className="w-4 h-4 shrink-0" />
+                  <span className="truncate">Продать на маркете</span>
+                </button>
+              )}
+
+              {authUser && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCardToChangeArt(viewedCard)
+                    setViewedCard(null)
+                  }}
+                  className="px-4 py-3 sm:px-5 rounded-xl bg-purple-500/10 hover:bg-purple-500/20 text-purple-300 font-bold text-xs sm:text-sm flex items-center justify-center sm:justify-start gap-2 transition-colors border border-purple-500/30 w-full sm:w-auto"
+                >
+                  <Sparkles className="w-4 h-4 shrink-0" />
+                  <span className="truncate">Сменить арт</span>
                 </button>
               )}
               
               {viewedCard.isMainCharacter && viewedCard.isArtBlacklisted && (
                 <button 
                   onClick={() => unblacklistArt(viewedCard)}
-                  className="px-4 py-2.5 sm:px-5 sm:py-3 rounded-xl bg-green-500/10 hover:bg-green-500/20 text-green-400 font-bold text-xs sm:text-sm flex items-center gap-2 transition-colors border border-green-500/20"
+                  className="px-4 py-3 sm:px-5 rounded-xl bg-green-500/10 hover:bg-green-500/20 text-green-400 font-bold text-xs sm:text-sm flex items-center justify-center sm:justify-start gap-2 transition-colors border border-green-500/20 w-full sm:w-auto"
                 >
-                  <RefreshCcw className="w-4 h-4" /> <span className="hidden sm:inline">Разблокировать арт</span><span className="sm:hidden">Разблокировать</span>
+                  <RefreshCcw className="w-4 h-4 shrink-0" /> 
+                  <span className="truncate">Разблокировать арт</span>
                 </button>
               )}
               
-              <a href={viewedCard.originalUrl} target="_blank" rel="noreferrer" className="px-4 py-2.5 sm:px-5 sm:py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs sm:text-sm flex items-center gap-2 transition-colors border border-slate-700">
-                <ZoomIn className="w-4 h-4" /> <span className="hidden sm:inline">Оригинал</span>
-              </a>
-              
-              <a href={`https://shikimori.one/animes/${viewedCard.shikiId}`} target="_blank" rel="noreferrer" className="px-4 py-2.5 sm:px-5 sm:py-3 rounded-xl bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 font-bold text-xs sm:text-sm flex items-center gap-2 transition-colors border border-blue-500/20">
-                <ExternalLink className="w-4 h-4" /> <span className="hidden sm:inline">Шикимори</span>
-              </a>
+              <div className="grid grid-cols-2 gap-2 w-full sm:w-auto sm:flex sm:gap-4">
+                <a href={viewedCard.originalUrl} target="_blank" rel="noreferrer" className="px-3 py-3 sm:px-5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-colors border border-slate-700 w-full">
+                  <ZoomIn className="w-4 h-4 shrink-0" /> 
+                  <span className="truncate">Оригинал</span>
+                </a>
+                
+                <a href={`https://shikimori.one/animes/${viewedCard.shikiId}`} target="_blank" rel="noreferrer" className="px-3 py-3 sm:px-5 rounded-xl bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-colors border border-blue-500/20 w-full">
+                  <ExternalLink className="w-4 h-4 shrink-0" /> 
+                  <span className="truncate">Шикимори</span>
+                </a>
+              </div>
             </div>
           </div>
         </div>
@@ -2176,28 +2195,28 @@ export default function GachaPage() {
       {/* MAIN CONTENT AREA */}
       <div className="container mx-auto px-4 sm:px-6 py-8 sm:py-12 lg:py-16 max-w-7xl relative z-10">
         
-        {/* Header Section */}
-        <div className="text-center mb-10 sm:mb-16">
-          <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-black tracking-tighter mb-4 text-transparent bg-clip-text bg-gradient-to-br from-white via-slate-200 to-slate-500 uppercase drop-shadow-sm">
+       {/* Header Section */}
+        <div className="text-center mb-8 sm:mb-16">
+          <h1 className="text-3xl sm:text-5xl md:text-6xl lg:text-7xl font-black tracking-tighter mb-3 sm:mb-4 text-transparent bg-clip-text bg-gradient-to-br from-white via-slate-200 to-slate-500 uppercase drop-shadow-sm px-2">
             WEEB.<span className="text-indigo-500">X</span> ГАЧА
           </h1>
-          <p className="text-slate-400 text-sm sm:text-base md:text-lg font-medium max-w-2xl mx-auto">
+          <p className="text-slate-400 text-xs sm:text-base md:text-lg font-medium max-w-2xl mx-auto px-4">
             Призывай любимых персонажей и собирай уникальную коллекцию. Нажми на карту, чтобы увидеть характеристики.
           </p>
           
-          <div className="flex justify-center items-center gap-3 sm:gap-4 mt-8">
-            <div className="flex items-center gap-2.5 px-5 py-2.5 rounded-2xl bg-slate-900/80 backdrop-blur-md border border-slate-800 shadow-xl shadow-yellow-500/5">
-              <Coins className="w-5 h-5 sm:w-6 sm:h-6 text-yellow-400" />
+          <div className="flex flex-wrap justify-center items-center gap-2 sm:gap-4 mt-6 sm:mt-8 px-2 sm:px-0">
+            <div className="flex items-center gap-2 px-3 py-2 sm:px-5 sm:py-2.5 rounded-xl sm:rounded-2xl bg-slate-900/80 backdrop-blur-md border border-slate-800 shadow-xl shadow-yellow-500/5">
+              <Coins className="w-4 h-4 sm:w-6 sm:h-6 text-yellow-400" />
               {coinsLoading ? (
-                <Loader2 className="w-5 h-5 sm:w-6 sm:h-6 text-yellow-400 animate-spin" />
+                <Loader2 className="w-4 h-4 sm:w-6 sm:h-6 text-yellow-400 animate-spin" />
               ) : (
-                <span className="text-xl sm:text-2xl font-black text-yellow-400 tracking-tight">{userCoins.toLocaleString()}</span>
+                <span className="text-lg sm:text-2xl font-black text-yellow-400 tracking-tight">{userCoins.toLocaleString()}</span>
               )}
             </div>
 
-            <div className="flex items-center gap-2.5 px-5 py-2.5 rounded-2xl bg-slate-900/80 backdrop-blur-md border border-slate-800 shadow-xl shadow-amber-500/5">
-              <Sparkles className="w-5 h-5 sm:w-6 sm:h-6 text-amber-400" />
-              <span className="text-xl sm:text-2xl font-black text-amber-400 tracking-tight">{dust.toLocaleString()}</span>
+            <div className="flex items-center gap-2 px-3 py-2 sm:px-5 sm:py-2.5 rounded-xl sm:rounded-2xl bg-slate-900/80 backdrop-blur-md border border-slate-800 shadow-xl shadow-amber-500/5">
+              <Sparkles className="w-4 h-4 sm:w-6 sm:h-6 text-amber-400" />
+              <span className="text-lg sm:text-2xl font-black text-amber-400 tracking-tight">{dust.toLocaleString()}</span>
             </div>
 
             {/* Sync indicator and manual sync button */}
@@ -2212,12 +2231,12 @@ export default function GachaPage() {
                   alert(`Синхронизация завершена: ${result.success} успешно, ${result.failed} ошибок`);
                 }}
                 disabled={isSyncingCards}
-                className="flex items-center gap-2 px-3 py-2 sm:px-4 sm:py-3 rounded-xl bg-green-500/10 hover:bg-green-500/20 disabled:opacity-50 disabled:cursor-not-allowed text-green-400 text-xs sm:text-sm font-bold transition-all border border-green-500/20 relative"
+                className="flex items-center justify-center gap-2 px-3 py-2 sm:px-4 sm:py-2.5 rounded-xl bg-green-500/10 hover:bg-green-500/20 disabled:opacity-50 disabled:cursor-not-allowed text-green-400 text-xs sm:text-sm font-bold transition-all border border-green-500/20 relative w-full sm:w-auto mt-2 sm:mt-0"
                 title={pendingSyncCount > 0 ? `Карт в очереди: ${pendingSyncCount}. Нажмите для синхронизации` : 'Синхронизация...'}
               >
                 <RefreshCcw className={`w-4 h-4 ${isSyncingCards ? 'animate-spin' : ''}`} />
-                <span className="hidden sm:inline">
-                  {isSyncingCards ? 'Синхронизация...' : `Ожидает: ${pendingSyncCount}`}
+                <span>
+                  {isSyncingCards ? 'Синхронизация...' : `Ожидает синхронизации: ${pendingSyncCount}`}
                 </span>
                 {pendingSyncCount > 0 && !isSyncingCards && (
                   <span className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-green-500 text-white text-[10px] font-bold flex items-center justify-center">
@@ -2231,11 +2250,11 @@ export default function GachaPage() {
               <button
                 onClick={handleFixCoins}
                 disabled={isFixingCoins}
-                className="flex items-center gap-2 px-3 py-2 sm:px-4 sm:py-3 rounded-xl bg-red-500/10 hover:bg-red-500/20 disabled:opacity-50 disabled:cursor-not-allowed text-red-400 text-xs sm:text-sm font-bold transition-all border border-red-500/20"
+                className="flex items-center justify-center gap-2 px-3 py-2 sm:px-4 sm:py-2.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 disabled:opacity-50 disabled:cursor-not-allowed text-red-400 text-xs sm:text-sm font-bold transition-all border border-red-500/20 w-full sm:w-auto mt-2 sm:mt-0"
                 title="Исправить монеты"
               >
                 <RefreshCcw className={`w-4 h-4 ${isFixingCoins ? 'animate-spin' : ''}`} />
-                <span className="hidden sm:inline">{isFixingCoins ? 'Исправление...' : 'Испр. монеты'}</span>
+                <span>{isFixingCoins ? 'Исправление...' : 'Испр. монеты'}</span>
               </button>
             )}
           </div>
@@ -2300,22 +2319,22 @@ export default function GachaPage() {
         )}
 
         {/* Action Area */}
-        <div className="flex flex-col items-center justify-center min-h-[400px] sm:min-h-[500px] mb-16 sm:mb-24 relative">
+        <div className="flex flex-col items-center justify-center min-h-[420px] sm:min-h-[500px] mb-12 sm:mb-24 relative px-2">
           
           {/* Initial Loading State */}
           {!isLoaded && (
             <div className="flex flex-col items-center w-full max-w-md mx-auto">
-              <div className="w-64 sm:w-72 md:w-80 h-[380px] sm:h-[420px] md:h-[480px] rounded-[2rem] sm:rounded-[2.5rem] bg-slate-900/40 border border-slate-700/50 animate-pulse flex flex-col items-center justify-center relative overflow-hidden">
+              <div className="w-[260px] sm:w-72 md:w-80 h-[380px] sm:h-[420px] md:h-[480px] rounded-[2rem] sm:rounded-[2.5rem] bg-slate-900/40 border border-slate-700/50 animate-pulse flex flex-col items-center justify-center relative overflow-hidden">
                 <div className="absolute inset-0 bg-gradient-to-br from-slate-800 via-slate-900 to-indigo-950/40 opacity-50" />
                 <div className="relative z-10 flex flex-col items-center gap-4">
-                  <div className="w-16 h-16 border-3 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin" />
-                  <p className="text-slate-400 font-medium text-sm">Загрузка гачи...</p>
+                  <div className="w-12 h-12 sm:w-16 sm:h-16 border-3 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin" />
+                  <p className="text-slate-400 font-medium text-xs sm:text-sm">Загрузка гачи...</p>
                 </div>
               </div>
               
-              <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 mt-6 sm:mt-8 w-full">
-                <div className="flex-1 h-12 bg-slate-800/50 rounded-xl animate-pulse border border-slate-700/50" />
-                <div className="flex-1 h-12 bg-slate-800/50 rounded-xl animate-pulse border border-slate-700/50" />
+              <div className="flex flex-col sm:flex-row gap-2 sm:gap-4 mt-4 sm:mt-8 w-full max-w-[260px] sm:max-w-full">
+                <div className="flex-1 h-12 sm:h-14 bg-slate-800/50 rounded-xl animate-pulse border border-slate-700/50" />
+                <div className="flex-1 h-12 sm:h-14 bg-slate-800/50 rounded-xl animate-pulse border border-slate-700/50" />
               </div>
             </div>
           )}
@@ -2325,47 +2344,47 @@ export default function GachaPage() {
             <div className="flex flex-col items-center w-full max-w-md mx-auto">
               <button 
                 onClick={handleRoll} 
-                className="group relative w-64 sm:w-72 md:w-80 h-[380px] sm:h-[420px] md:h-[480px] rounded-[2rem] sm:rounded-[2.5rem] border-2 border-dashed border-slate-700/50 bg-slate-900/40 hover:bg-slate-800/60 backdrop-blur-md flex flex-col items-center justify-center hover:border-indigo-500/50 transition-all duration-300 overflow-hidden shadow-2xl"
+                className="group relative w-[260px] sm:w-72 md:w-80 h-[380px] sm:h-[420px] md:h-[480px] rounded-[2rem] sm:rounded-[2.5rem] border-2 border-dashed border-slate-700/50 bg-slate-900/40 hover:bg-slate-800/60 backdrop-blur-md flex flex-col items-center justify-center hover:border-indigo-500/50 transition-all duration-300 overflow-hidden shadow-2xl"
               >
                 <div className="absolute inset-0 bg-gradient-to-b from-transparent to-indigo-500/5 group-hover:to-indigo-500/10 transition-colors" />
-                <Sparkles className="w-10 sm:w-12 h-10 sm:h-12 text-indigo-500/70 group-hover:text-indigo-400 mb-5 animate-pulse" />
-                <span className="font-black text-slate-400 group-hover:text-indigo-300 uppercase tracking-widest text-sm sm:text-base text-center px-4 relative z-10">
+                <Sparkles className="w-8 h-8 sm:w-12 sm:h-12 text-indigo-500/70 group-hover:text-indigo-400 mb-4 sm:mb-5 animate-pulse" />
+                <span className="font-black text-slate-400 group-hover:text-indigo-300 uppercase tracking-widest text-xs sm:text-base text-center px-4 relative z-10">
                   {selectedPack ? `Призвать (${selectedPack.price})` : "Призвать (50)"}
                 </span>
               </button>
               
               {/* Pity System Indicator */}
               {pityData && pityData.bad_luck_streak > 0 && (
-                <div className="mt-4 px-4 py-2 bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/20 rounded-xl">
-                  <div className="flex items-center justify-center gap-2">
-                    <Star className="w-4 h-4 text-amber-400" />
-                    <span className="text-amber-300 font-semibold text-sm">
+                <div className="mt-4 px-3 py-1.5 sm:px-4 sm:py-2 bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/20 rounded-xl max-w-[260px] sm:max-w-full text-center">
+                  <div className="flex items-center justify-center gap-1.5 sm:gap-2">
+                    <Star className="w-3 h-3 sm:w-4 sm:h-4 text-amber-400" />
+                    <span className="text-amber-300 font-semibold text-xs sm:text-sm truncate">
                       Серия неудач: {pityData.bad_luck_streak}
                     </span>
-                    <Star className="w-4 h-4 text-amber-400" />
+                    <Star className="w-3 h-3 sm:w-4 sm:h-4 text-amber-400" />
                   </div>
                   {pityData.bad_luck_streak >= 5 && (
-                    <div className="text-center mt-1 text-xs text-amber-200">
+                    <div className="text-center mt-1 text-[10px] sm:text-xs text-amber-200">
                       +{Math.floor(pityData.bad_luck_streak / 5)}% шанс на редкую карту
                     </div>
                   )}
                 </div>
               )}
               
-              <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 mt-6 sm:mt-8 w-full">
+              <div className="flex flex-col sm:flex-row gap-2 sm:gap-4 mt-4 sm:mt-8 w-full max-w-[260px] sm:max-w-full">
                 <button
                   onClick={() => setShowPacks(true)}
-                  className="flex-1 flex items-center justify-center gap-2 px-4 py-3.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white font-bold rounded-xl transition-all shadow-lg text-sm sm:text-base"
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-3 sm:py-3.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white font-bold rounded-xl transition-all shadow-lg text-xs sm:text-base w-full"
                 >
-                  <Package className="w-5 h-5 text-indigo-400" />
+                  <Package className="w-4 h-4 sm:w-5 sm:h-5 text-indigo-400 shrink-0" />
                   Выбрать набор
                 </button>
 
                 <button
                   onClick={() => setShowCustomPackCreator(true)}
-                  className="flex-1 flex items-center justify-center gap-2 px-4 py-3.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white font-bold rounded-xl transition-all shadow-lg text-sm sm:text-base"
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-3 sm:py-3.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white font-bold rounded-xl transition-all shadow-lg text-xs sm:text-base w-full"
                 >
-                  <Search className="w-5 h-5 text-purple-400" />
+                  <Search className="w-4 h-4 sm:w-5 sm:h-5 text-purple-400 shrink-0" />
                   Создать пак
                 </button>
               </div>
@@ -2374,7 +2393,7 @@ export default function GachaPage() {
 
           {/* Rolling State */}
           {isRolling && (
-            <div className="w-64 sm:w-72 md:w-80 h-[380px] sm:h-[420px] md:h-[480px] rounded-[2rem] sm:rounded-[2.5rem] bg-gradient-to-br from-slate-900 to-indigo-950/40 border border-indigo-500/30 flex flex-col items-center justify-center relative overflow-hidden shadow-2xl shadow-indigo-500/20">
+            <div className="w-[260px] sm:w-72 md:w-80 h-[380px] sm:h-[420px] md:h-[480px] rounded-[2rem] sm:rounded-[2.5rem] bg-gradient-to-br from-slate-900 to-indigo-950/40 border border-indigo-500/30 flex flex-col items-center justify-center relative overflow-hidden shadow-2xl shadow-indigo-500/20">
               <div className="absolute inset-0">
                 {[...Array(15)].map((_, i) => (
                   <div
@@ -2390,7 +2409,7 @@ export default function GachaPage() {
                 ))}
               </div>
 
-              <div className="relative z-10 scale-125">
+              <div className="relative z-10 scale-100 sm:scale-125">
                 <GachaLoading message="Загрузка карт..." />
               </div>
             </div>
@@ -2524,22 +2543,22 @@ export default function GachaPage() {
 
               {/* Filter Panel */}
               {isLoaded && showFilters && (
-                <div className="bg-slate-900/60 backdrop-blur-xl border border-slate-700/50 rounded-2xl p-5 sm:p-6 space-y-5 animate-in fade-in slide-in-from-top-2 duration-200 shadow-2xl">
+                <div className="bg-slate-900/60 backdrop-blur-xl border border-slate-700/50 rounded-2xl p-4 sm:p-6 space-y-4 sm:space-y-5 animate-in fade-in slide-in-from-top-2 duration-200 shadow-2xl">
                   
                   {/* Search Input */}
                   <div className="relative group">
-                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-indigo-400 transition-colors" />
+                    <Search className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 w-4 sm:w-5 h-4 sm:h-5 text-slate-400 group-focus-within:text-indigo-400 transition-colors" />
                     <input
                       type="text"
                       placeholder="Поиск по имени или аниме..."
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      className="w-full h-12 rounded-xl bg-slate-950/50 border border-slate-700/50 pl-12 pr-12 text-sm sm:text-base text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all placeholder:text-slate-500"
+                      className="w-full h-11 sm:h-12 rounded-xl bg-slate-950/50 border border-slate-700/50 pl-10 sm:pl-12 pr-10 sm:pr-12 text-sm sm:text-base text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all placeholder:text-slate-500"
                     />
                     {searchQuery && (
                       <button
                         onClick={() => setSearchQuery("")}
-                        className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white transition-colors p-1 rounded-full hover:bg-white/10"
+                        className="absolute right-3 sm:right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white transition-colors p-1 rounded-full hover:bg-white/10"
                       >
                         <X size={16} />
                       </button>
@@ -2547,13 +2566,13 @@ export default function GachaPage() {
                   </div>
 
                   {/* Dropdowns Grid */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-                    <div className="space-y-2">
-                      <label className="text-xs font-black text-slate-500 uppercase tracking-widest pl-1">Редкость</label>
+                  <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
+                    <div className="space-y-1.5 sm:space-y-2">
+                      <label className="text-[10px] sm:text-xs font-black text-slate-500 uppercase tracking-widest pl-1">Редкость</label>
                       <select
                         value={selectedRarity}
                         onChange={(e) => setSelectedRarity(e.target.value as Rarity | "all")}
-                        className="w-full h-11 rounded-xl bg-slate-950/50 border border-slate-700/50 px-4 text-sm font-medium text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all"
+                        className="w-full h-10 sm:h-11 rounded-xl bg-slate-950/50 border border-slate-700/50 px-3 sm:px-4 text-xs sm:text-sm font-medium text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all"
                       >
                         <option value="all">Все редкости</option>
                         {Object.entries(rarityConfig).map(([key, config]) => (
@@ -2562,12 +2581,12 @@ export default function GachaPage() {
                       </select>
                     </div>
 
-                    <div className="space-y-2">
-                      <label className="text-xs font-black text-slate-500 uppercase tracking-widest pl-1">Набор</label>
+                    <div className="space-y-1.5 sm:space-y-2">
+                      <label className="text-[10px] sm:text-xs font-black text-slate-500 uppercase tracking-widest pl-1">Набор</label>
                       <select
                         value={selectedPackFilter}
                         onChange={(e) => setSelectedPackFilter(e.target.value)}
-                        className="w-full h-11 rounded-xl bg-slate-950/50 border border-slate-700/50 px-4 text-sm font-medium text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all"
+                        className="w-full h-10 sm:h-11 rounded-xl bg-slate-950/50 border border-slate-700/50 px-3 sm:px-4 text-xs sm:text-sm font-medium text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all"
                       >
                         <option value="all">Все наборы</option>
                         {getUniquePacks().map(packName => (
@@ -2576,12 +2595,12 @@ export default function GachaPage() {
                       </select>
                     </div>
 
-                    <div className="space-y-2">
-                      <label className="text-xs font-black text-slate-500 uppercase tracking-widest pl-1">Тип героя</label>
+                    <div className="space-y-1.5 sm:space-y-2 col-span-2 lg:col-span-1">
+                      <label className="text-[10px] sm:text-xs font-black text-slate-500 uppercase tracking-widest pl-1">Тип героя</label>
                       <select
                         value={selectedMainCharacterFilter}
                         onChange={(e) => setSelectedMainCharacterFilter(e.target.value as typeof selectedMainCharacterFilter)}
-                        className="w-full h-11 rounded-xl bg-slate-950/50 border border-slate-700/50 px-4 text-sm font-medium text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all"
+                        className="w-full h-10 sm:h-11 rounded-xl bg-slate-950/50 border border-slate-700/50 px-3 sm:px-4 text-xs sm:text-sm font-medium text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all"
                       >
                         <option value="all">Все типы</option>
                         <option value="main">Главные герои</option>
@@ -2589,14 +2608,14 @@ export default function GachaPage() {
                       </select>
                     </div>
 
-                    <div className="space-y-2">
-                      <label className="text-xs font-black text-slate-500 uppercase tracking-widest pl-1">Сортировка</label>
+                    <div className="space-y-1.5 sm:space-y-2">
+                      <label className="text-[10px] sm:text-xs font-black text-slate-500 uppercase tracking-widest pl-1">Сортировка</label>
                       <select
                         value={sortBy}
                         onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
-                        className="w-full h-11 rounded-xl bg-slate-950/50 border border-slate-700/50 px-4 text-sm font-medium text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all"
+                        className="w-full h-10 sm:h-11 rounded-xl bg-slate-950/50 border border-slate-700/50 px-3 sm:px-4 text-xs sm:text-sm font-medium text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all"
                       >
-                        <option value="date">По дате получения</option>
+                        <option value="date">По дате</option>
                         <option value="rarity">По редкости</option>
                         <option value="score">По рейтингу</option>
                         <option value="name">По имени</option>
@@ -2604,12 +2623,12 @@ export default function GachaPage() {
                       </select>
                     </div>
 
-                    <div className="space-y-2">
-                      <label className="text-xs font-black text-slate-500 uppercase tracking-widest pl-1">Порядок</label>
+                    <div className="space-y-1.5 sm:space-y-2">
+                      <label className="text-[10px] sm:text-xs font-black text-slate-500 uppercase tracking-widest pl-1">Порядок</label>
                       <select
                         value={sortOrder}
                         onChange={(e) => setSortOrder(e.target.value as typeof sortOrder)}
-                        className="w-full h-11 rounded-xl bg-slate-950/50 border border-slate-700/50 px-4 text-sm font-medium text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all"
+                        className="w-full h-10 sm:h-11 rounded-xl bg-slate-950/50 border border-slate-700/50 px-3 sm:px-4 text-xs sm:text-sm font-medium text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all"
                       >
                         <option value="desc">По убыванию</option>
                         <option value="asc">По возрастанию</option>
@@ -2618,17 +2637,17 @@ export default function GachaPage() {
                   </div>
 
                   {/* GG Priority Checkbox */}
-                  <div className="flex items-center gap-3 p-4 bg-slate-800/30 rounded-xl border border-slate-700/30">
+                  <div className="flex items-center gap-3 p-3 sm:p-4 bg-slate-800/30 rounded-xl border border-slate-700/30">
                     <input
                       type="checkbox"
                       id="gg-priority"
                       checked={prioritizeMainCharacters}
                       onChange={(e) => setPrioritizeMainCharacters(e.target.checked)}
-                      className="w-5 h-5 rounded border-2 border-slate-600 bg-slate-900 text-indigo-500 focus:ring-2 focus:ring-indigo-500/50 focus:ring-offset-0 focus:ring-offset-slate-900 cursor-pointer"
+                      className="w-4 h-4 sm:w-5 sm:h-5 rounded border-2 border-slate-600 bg-slate-900 text-indigo-500 focus:ring-2 focus:ring-indigo-500/50 focus:ring-offset-0 focus:ring-offset-slate-900 cursor-pointer"
                     />
-                    <label htmlFor="gg-priority" className="flex items-center gap-2 cursor-pointer">
-                      <span className="text-sm font-bold text-white">GG Priority</span>
-                      <span className="text-xs text-slate-400">(главные герои всегда первыми)</span>
+                    <label htmlFor="gg-priority" className="flex items-center gap-2 cursor-pointer flex-wrap">
+                      <span className="text-xs sm:text-sm font-bold text-white">GG Priority</span>
+                      <span className="text-[10px] sm:text-xs text-slate-400">(главные герои всегда первыми)</span>
                     </label>
                   </div>
 
@@ -2636,51 +2655,51 @@ export default function GachaPage() {
                   <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pt-4 border-t border-slate-700/50">
                     <div className="flex flex-wrap items-center gap-2">
                       {(searchQuery || selectedRarity !== "all" || selectedPackFilter !== "all" || selectedMainCharacterFilter !== "all") && (
-                        <span className="text-xs font-bold text-slate-500 uppercase mr-2">Активные:</span>
+                        <span className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase mr-1 sm:mr-2 w-full sm:w-auto mb-1 sm:mb-0">Активные:</span>
                       )}
                       
                       {searchQuery && (
-                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-xs font-bold">
+                        <span className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-[10px] sm:text-xs font-bold">
                           {searchQuery}
                           <button onClick={() => setSearchQuery("")} className="hover:text-white p-0.5"><X size={12} /></button>
                         </span>
                       )}
                       {selectedRarity !== "all" && (
-                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-purple-500/10 border border-purple-500/20 text-purple-300 text-xs font-bold">
+                        <span className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg bg-purple-500/10 border border-purple-500/20 text-purple-300 text-[10px] sm:text-xs font-bold">
                           {rarityConfig[selectedRarity].label}
                           <button onClick={() => setSelectedRarity("all")} className="hover:text-white p-0.5"><X size={12} /></button>
                         </span>
                       )}
                       {selectedPackFilter !== "all" && (
-                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-pink-500/10 border border-pink-500/20 text-pink-300 text-xs font-bold">
+                        <span className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg bg-pink-500/10 border border-pink-500/20 text-pink-300 text-[10px] sm:text-xs font-bold truncate max-w-[120px] sm:max-w-xs">
                           {selectedPackFilter}
                           <button onClick={() => setSelectedPackFilter("all")} className="hover:text-white p-0.5"><X size={12} /></button>
                         </span>
                       )}
                       {selectedMainCharacterFilter !== "all" && (
-                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-yellow-500/10 border border-yellow-500/20 text-yellow-300 text-xs font-bold">
+                        <span className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg bg-yellow-500/10 border border-yellow-500/20 text-yellow-300 text-[10px] sm:text-xs font-bold">
                           {selectedMainCharacterFilter === "main" ? "Главные герои" : "Второстепенные"}
                           <button onClick={() => setSelectedMainCharacterFilter("all")} className="hover:text-white p-0.5"><X size={12} /></button>
                         </span>
                       )}
                     </div>
                     
-                    <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                    <div className="flex flex-col xs:flex-row gap-2 w-full sm:w-auto mt-2 sm:mt-0">
                       <button
                         onClick={openBulkDismantleFilter}
                         disabled={collectedCards.length === 0 || isBulkDismantling}
-                        className="flex items-center gap-2 px-4 py-2 bg-amber-600/10 hover:bg-amber-600/20 disabled:opacity-50 disabled:cursor-not-allowed border border-amber-500/20 text-amber-400 font-bold rounded-xl transition-all text-sm justify-center"
+                        className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-3 sm:px-4 py-2 sm:py-2.5 bg-amber-600/10 hover:bg-amber-600/20 disabled:opacity-50 disabled:cursor-not-allowed border border-amber-500/20 text-amber-400 font-bold rounded-xl transition-all text-xs sm:text-sm"
                         title={collectedCards.length === 0 ? "Нет карт для распыления" : "Массовое распыление карт"}
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                         <span>Масс. распыление</span>
                       </button>
                       
                       <button
                         onClick={resetFilters}
-                        className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white font-bold rounded-xl transition-all text-sm justify-center"
+                        className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-3 sm:px-4 py-2 sm:py-2.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white font-bold rounded-xl transition-all text-xs sm:text-sm"
                       >
-                        <RefreshCcw className="w-4 h-4" />
+                        <RefreshCcw className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                         Сбросить
                       </button>
                     </div>
@@ -2790,6 +2809,20 @@ export default function GachaPage() {
           }}
         />
       )}
+
+      {cardToChangeArt && (
+        <ChangeArtModal
+          card={cardToChangeArt}
+          onClose={() => setCardToChangeArt(null)}
+          onArtChanged={(newImageUrl, newOriginalUrl) => {
+            setCollectedCards(prev => prev.map(card => 
+              card.uniqueId === cardToChangeArt.uniqueId 
+                ? { ...card, imageUrl: newImageUrl, originalUrl: newOriginalUrl }
+                : card
+            ))
+          }}
+        />
+      )}
       
       {/* Error Popup */}
       {errorPopupConfig && (
@@ -2871,6 +2904,33 @@ export default function GachaPage() {
         newDustBalance={dust}
         excludeMainCharacters={excludeMainCharacters}
       />
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Удалить карту из коллекции?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Вы уверены, что хотите удалить карту "{viewedCard?.name}" из вашей коллекции? Это действие нельзя отменить.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Отмена</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={() => {
+                if (viewedCard) {
+                  removeCard(viewedCard);
+                  setShowDeleteConfirm(false);
+                  setShowCard(false);
+                }
+              }}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              Удалить
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

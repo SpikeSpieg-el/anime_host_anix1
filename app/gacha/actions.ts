@@ -395,8 +395,17 @@ export async function createCustomGachaPack(query: string): Promise<CustomPackSe
 // Pity system management functions
 export async function updateUserPityAfterRoll(userId: string, result: GachaResult): Promise<{ newStreak: number; wasReset: boolean }> {
   try {
-    // Import supabase dynamically to avoid circular dependencies
-    const { supabase } = await import('@/lib/supabase');
+    // Import supabase admin client to bypass RLS policies
+    const { createClient } = await import('@supabase/supabase-js');
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+    
+    const supabase = createClient(supabaseUrl, supabaseServiceKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
+      }
+    });
     
     // Get current pity data
     const { data: currentPity, error: fetchError } = await supabase
