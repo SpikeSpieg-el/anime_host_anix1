@@ -5,7 +5,7 @@ import { supabase, syncLocalDataToAccount, forceSyncCoins, fixOverflowCoins } fr
 const COINS_STORAGE_KEY = 'gacha-coins'
 
 export function useCoins() {
-  const { user, loading: authLoading } = useAuth()
+  const { user, loading: authLoading, sessionLoading } = useAuth()
   const [coins, setCoins] = useState<number>(1000)
   const [loading, setLoading] = useState(true)
   const retryCountRef = useRef(0)
@@ -57,7 +57,7 @@ export function useCoins() {
         setLoading(false)
       }
       isLoadingRef.current = false
-    }, 20000) // 20 секунд
+    }, 5000) // 5 секунд
 
     try {
       // Для авторизованных - загружаем из БД (10000 для новых пользователей)
@@ -280,15 +280,20 @@ export function useCoins() {
     }
   }, [])
 
-  // Слушаем изменения авторизации, но ждём пока authLoading !== true
+  // Слушаем изменения авторизации, но ждём пока authLoading !== true И sessionLoading !== true
   useEffect(() => {
     // Не начинаем загрузку, пока авторизация ещё загружается
     if (authLoading) {
       console.log('[useCoins] Auth still loading, waiting...')
       return
     }
+    // Ждём готовности сессии перед загрузкой монет
+    if (sessionLoading) {
+      console.log('[useCoins] Session still loading, waiting...')
+      return
+    }
     loadCoins()
-  }, [user?.id, authLoading])
+  }, [user?.id, authLoading, sessionLoading])
 
   return {
     coins,

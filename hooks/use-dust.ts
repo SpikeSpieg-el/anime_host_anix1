@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabase'
 const DUST_STORAGE_KEY = 'gacha-dust'
 
 export function useDust() {
-  const { user, loading: authLoading } = useAuth()
+  const { user, loading: authLoading, sessionLoading } = useAuth()
   const [dust, setDust] = useState<number>(0)
   const [loading, setLoading] = useState(true)
   const abortControllerRef = useRef<AbortController | null>(null)
@@ -53,7 +53,7 @@ export function useDust() {
         setLoading(false)
       }
       isLoadingRef.current = false
-    }, 20000) // 20 секунд
+    }, 5000) // 5 секунд
 
     try {
       // Для авторизованных - загружаем из API
@@ -76,6 +76,19 @@ export function useDust() {
         },
         signal
       })
+
+      // Handle network errors
+      if (!res.ok) {
+        console.warn('[useDust] API error, using localStorage fallback:', res.status)
+        const saved = localStorage.getItem(DUST_STORAGE_KEY)
+        if (isMountedRef.current) {
+          setDust(saved ? parseInt(saved, 10) || 0 : 0)
+          setLoading(false)
+        }
+        clearTimeout(loadingTimeout)
+        isLoadingRef.current = false
+        return
+      }
 
       const result = await res.json()
 
@@ -243,15 +256,20 @@ export function useDust() {
     }
   }, [])
 
-  // Слушаем изменения авторизации, но ждём пока authLoading !== true
+  // Слушаем изменения авторизации, но ждём пока authLoading !== true И sessionLoading !== true
   useEffect(() => {
     // Не начинаем загрузку, пока авторизация ещё загружается
     if (authLoading) {
       console.log('[useDust] Auth still loading, waiting...')
       return
     }
+    // Ждём готовности сессии перед загрузкой пыли
+    if (sessionLoading) {
+      console.log('[useDust] Session still loading, waiting...')
+      return
+    }
     loadDust()
-  }, [user?.id, authLoading])
+  }, [user?.id, authLoading, sessionLoading])
 
   return {
     dust,

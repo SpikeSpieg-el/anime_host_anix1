@@ -12,6 +12,7 @@ interface AuthContextType {
   session: Session | null
   loading: boolean
   profileLoading: boolean
+  sessionLoading: boolean // Готовность сессии для хуков useCoins/useDust
   signOut: () => Promise<void>
   profile: Profile | null
   refreshProfile: () => Promise<void>
@@ -30,6 +31,7 @@ const AuthContext = createContext<AuthContextType>({
   session: null,
   loading: true,
   profileLoading: false,
+  sessionLoading: true,
   signOut: async () => {},
   profile: null,
   refreshProfile: async () => {},
@@ -40,6 +42,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
+  const [sessionLoading, setSessionLoading] = useState(true) // Отдельное состояние для сессии
   const [profileLoading, setProfileLoading] = useState(false)
   const router = useRouter()
   const { toast } = useToast()
@@ -99,76 +102,100 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const refreshProfile = async () => {
     if (!user) return
     setProfileLoading(true)
-    
-    // Добавим timeout для защиты от бесконечной загрузки
+
+    // Увеличенный timeout для продакшена (холодные подключения, задержки сети)
     const timeoutId = setTimeout(() => {
       console.warn('[Auth] Profile loading timeout, forcing loading to false')
       setProfileLoading(false)
-    }, 10000) // 10 секунд
-    
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', user.id)
-        .single()
+    }, 25000) // 25 секунд для продакшена
 
-      clearTimeout(timeoutId)
+    // Retry logic с экспоненциальной задержкой
+    const maxRetries = 3
+    const baseDelay = 1000 // 1 секунда
 
-      if (error) {
-        if (error.code === 'PGRST116') {
-           const { data: newProfile, error: createError } = await supabase
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', user.id)
+          .single()
+
+        clearTimeout(timeoutId)
+
+        if (error) {
+          if (error.code === 'PGRST116') {
+            const { data: newProfile, error: createError } = await supabase
               .from('profiles')
               .insert({ id: user.id, username: user.email })
               .select()
               .single()
 
-          clearTimeout(timeoutId)
+            clearTimeout(timeoutId)
 
-          if (!createError) {
+            if (!createError) {
               setProfile(newProfile)
               setProfileLoading(false)
               return
             } else if (createError.code === '23505' || createError.code === '409') {
-             const { data: retryData, error: retryError } = await supabase
+              const { data: retryData, error: retryError } = await supabase
                 .from('profiles')
                 .select('*')
                 .eq('id', user.id)
                 .single()
 
-             clearTimeout(timeoutId)
+              clearTimeout(timeoutId)
 
-             if (!retryError && retryData) {
-               setProfile(retryData)
-               setProfileLoading(false)
-               return
-             }
-           }
+              if (!retryError && retryData) {
+                setProfile(retryData)
+                setProfileLoading(false)
+                return
+              }
+            }
+          }
+
+          if (error.message?.includes('406') || error.details?.includes('Not Acceptable')) {
+            loggers.auth.warn('User may be deleted or invalid, signing out')
+            setProfileLoading(false)
+            await hardSignOut()
+            return
+          }
+
+          throw error
         }
 
-        if (error.message?.includes('406') || error.details?.includes('Not Acceptable')) {
-          loggers.auth.warn('User may be deleted or invalid, signing out')
+        setProfile(data)
+        setProfileLoading(false)
+        return // Успех, выходим из цикла
+      } catch (error: any) {
+        loggers.auth.error(`Error fetching profile (attempt ${attempt}/${maxRetries}):`, error)
+        
+        // Если последняя попытка - выходим с ошибкой
+        if (attempt === maxRetries) {
+          clearTimeout(timeoutId)
           setProfileLoading(false)
-          await hardSignOut()
+          
+          if (error.message?.includes('406') || error.details?.includes('Not Acceptable') || error.code === 'PGRST116') {
+            toast({
+              title: "Ошибка авторизации",
+              description: "Пользователь не найден. Пожалуйста, войдите снова.",
+              variant: "destructive"
+            })
+            await hardSignOut()
+          } else {
+            toast({
+              title: "Ошибка загрузки профиля",
+              description: "Не удалось загрузить профиль. Попробуйте обновить страницу.",
+              variant: "destructive"
+            })
+          }
           return
         }
 
-        throw error
-      }
-
-      setProfile(data)
-      setProfileLoading(false)
-    } catch (error: any) {
-      clearTimeout(timeoutId)
-      loggers.auth.error('Error fetching profile:', error)
-      setProfileLoading(false)
-      if (error.message?.includes('406') || error.details?.includes('Not Acceptable') || error.code === 'PGRST116') {
-        toast({
-          title: "Ошибка авторизации",
-          description: "Пользователь не найден. Пожалуйста, войдите снова.",
-          variant: "destructive"
-        })
-        await hardSignOut()
+        // Экспоненциальная задержка перед следующей попыткой
+        const delay = baseDelay * Math.pow(2, attempt - 1)
+        loggers.auth.info(`Retrying in ${delay}ms... (attempt ${attempt + 1}/${maxRetries})`)
+        await new Promise(resolve => setTimeout(resolve, delay))
       }
     }
   }
@@ -190,12 +217,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setSession(session)
       setUser(session?.user ?? null)
       setLoading(false)
+      setSessionLoading(false) // Сессия загружена
     })
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event: any, session: any) => {
       setSession(session)
       setUser(session?.user ?? null)
       setLoading(false)
+      setSessionLoading(false) // Сессия обновлена
 
       if (_event === 'SIGNED_IN' && session?.user) {
         try {
@@ -254,7 +283,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, session, loading, profileLoading, signOut, profile, refreshProfile }}>
+    <AuthContext.Provider value={{ user, session, loading, sessionLoading, profileLoading, signOut, profile, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   )
