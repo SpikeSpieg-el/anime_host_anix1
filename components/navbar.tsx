@@ -304,12 +304,13 @@ export function Navbar() {
 
       {/* 
         === MODERN MOBILE FLOATING DOCK === 
-        Скрыт на md+, виден на мобильных. Скрывается при скролле вниз.
+        Скрыт на md+, виден на мобильных. Скрываем при скролле вниз и на странице гачи.
       */}
-      <div className={cn(
-        "fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-[90%] max-w-[400px] md:hidden transition-all duration-500 ease-in-out",
-        showBottomNav ? "translate-y-0 opacity-100" : "translate-y-24 opacity-0"
-      )}>
+      {!pathname.includes("/gacha") && (
+        <div className={cn(
+          "fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-[90%] max-w-[400px] md:hidden transition-all duration-500 ease-in-out",
+          showBottomNav ? "translate-y-0 opacity-100" : "translate-y-24 opacity-0"
+        )}>
         <div className="bg-background/80 backdrop-blur-xl border border-white/10 dark:border-white/5 rounded-2xl shadow-2xl shadow-black/20 flex items-center justify-between px-2 py-2 h-[68px]">
           
           {/* 1. Главная */}
@@ -367,5 +368,6 @@ export function Navbar() {
 
         </div>
       </div>
+      )}
     </>
   )}

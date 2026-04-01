@@ -2260,32 +2260,6 @@ export default function GachaPage() {
           </div>
         </div>
 
-        <div className="flex flex-wrap justify-center gap-2 sm:gap-3 mb-8 sm:mb-10">
-          <button
-            type="button"
-            onClick={() => setGachaMainTab("gacha")}
-            className={`flex items-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl text-sm font-black uppercase tracking-wide border transition-all ${
-              gachaMainTab === "gacha"
-                ? "bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-500/25"
-                : "bg-slate-800/80 border-slate-700 text-slate-300 hover:bg-slate-800"
-            }`}
-          >
-            <Sparkles className="w-4 h-4" />
-            Призыв и коллекция
-          </button>
-          <button
-            type="button"
-            onClick={() => setGachaMainTab("market")}
-            className={`flex items-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl text-sm font-black uppercase tracking-wide border transition-all ${
-              gachaMainTab === "market"
-                ? "bg-cyan-600 border-cyan-500 text-white shadow-lg shadow-cyan-500/25"
-                : "bg-slate-800/80 border-slate-700 text-slate-300 hover:bg-slate-800"
-            }`}
-          >
-            <Store className="w-4 h-4" />
-            Маркет
-          </button>
-        </div>
 
         {gachaMainTab === "market" ? (
           <GachaMarketPanel
@@ -2904,18 +2878,19 @@ export default function GachaPage() {
         newDustBalance={dust}
         excludeMainCharacters={excludeMainCharacters}
       />
-
-      {/* Delete Confirmation Dialog */}
+{/* Delete Confirmation Dialog */}
       <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Удалить карту из коллекции?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Вы уверены, что хотите удалить карту "{viewedCard?.name}" из вашей коллекции? Это действие нельзя отменить.
+        <AlertDialogContent className="bg-slate-900 border-slate-700/50 w-[95vw] max-w-md rounded-2xl sm:rounded-3xl p-5 sm:p-6 shadow-2xl">
+          <AlertDialogHeader className="space-y-3">
+            <AlertDialogTitle className="text-xl sm:text-2xl font-black text-white">Удалить карту?</AlertDialogTitle>
+            <AlertDialogDescription className="text-slate-400 text-sm sm:text-base leading-relaxed">
+              Вы уверены, что хотите удалить карту <span className="font-bold text-white">"{viewedCard?.name}"</span> из вашей коллекции? Это действие нельзя отменить.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Отмена</AlertDialogCancel>
+          <AlertDialogFooter className="flex flex-col-reverse sm:flex-row gap-2 sm:gap-3 mt-6 sm:mt-8">
+            <AlertDialogCancel className="mt-0 sm:mt-0 w-full sm:w-auto h-12 sm:h-11 rounded-xl bg-slate-800 border-slate-700 text-white hover:bg-slate-700 hover:text-white font-bold transition-colors">
+              Отмена
+            </AlertDialogCancel>
             <AlertDialogAction 
               onClick={() => {
                 if (viewedCard) {
@@ -2924,13 +2899,73 @@ export default function GachaPage() {
                   setShowCard(false);
                 }
               }}
-              className="bg-red-600 hover:bg-red-700"
+              className="w-full sm:w-auto h-12 sm:h-11 rounded-xl bg-red-500/20 hover:bg-red-500/30 text-red-400 border border-red-500/30 font-bold transition-colors"
             >
-              Удалить
+              Удалить навсегда
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      
+      {/* Bottom Navigation for Gacha (Mobile Only) */}
+      <div className="fixed bottom-4 sm:bottom-6 left-1/2 -translate-x-1/2 z-40 w-[92%] max-w-[400px] md:hidden pb-[env(safe-area-inset-bottom)]">
+        <div className="bg-slate-900/90 backdrop-blur-xl border border-slate-700/50 rounded-2xl shadow-2xl shadow-black/40 flex items-center justify-between p-1.5 h-[64px] sm:h-[72px]">
+          <button
+            type="button"
+            onClick={() => setGachaMainTab("gacha")}
+            className={`flex flex-col items-center justify-center gap-1 w-1/2 h-full rounded-xl transition-all duration-300 ${
+              gachaMainTab === "gacha"
+                ? "bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 shadow-inner"
+                : "text-slate-400 hover:text-slate-300 hover:bg-white/5 active:scale-95"
+            }`}
+          >
+            <Sparkles className="w-5 h-5 sm:w-6 sm:h-6" />
+            <span className="text-[10px] sm:text-xs font-bold tracking-wide">Призыв</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setGachaMainTab("market")}
+            className={`flex flex-col items-center justify-center gap-1 w-1/2 h-full rounded-xl transition-all duration-300 ${
+              gachaMainTab === "market"
+                ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 shadow-inner"
+                : "text-slate-400 hover:text-slate-300 hover:bg-white/5 active:scale-95"
+            }`}
+          >
+            <Store className="w-5 h-5 sm:w-6 sm:h-6" />
+            <span className="text-[10px] sm:text-xs font-bold tracking-wide">Маркет</span>
+          </button>
+        </div>
+      </div>
+      
+      {/* Desktop Tab Buttons (Fixed at bottom) */}
+      <div className="hidden md:flex fixed bottom-6 lg:bottom-8 left-1/2 -translate-x-1/2 z-40">
+        <div className="bg-slate-900/90 backdrop-blur-xl border border-slate-700/50 rounded-2xl shadow-2xl shadow-black/40 flex items-center justify-center p-1.5 gap-2">
+          <button
+            type="button"
+            onClick={() => setGachaMainTab("gacha")}
+            className={`flex items-center gap-2.5 px-8 py-3 rounded-xl text-sm font-black uppercase tracking-wider transition-all duration-300 ${
+              gachaMainTab === "gacha"
+                ? "bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 shadow-lg shadow-indigo-500/10"
+                : "text-slate-400 hover:text-slate-200 hover:bg-white/5 border border-transparent"
+            }`}
+          >
+            <Sparkles className="w-5 h-5" />
+            Призыв и коллекция
+          </button>
+          <button
+            type="button"
+            onClick={() => setGachaMainTab("market")}
+            className={`flex items-center gap-2.5 px-8 py-3 rounded-xl text-sm font-black uppercase tracking-wider transition-all duration-300 ${
+              gachaMainTab === "market"
+                ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 shadow-lg shadow-cyan-500/10"
+                : "text-slate-400 hover:text-slate-200 hover:bg-white/5 border border-transparent"
+            }`}
+          >
+            <Store className="w-5 h-5" />
+            Маркет
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
