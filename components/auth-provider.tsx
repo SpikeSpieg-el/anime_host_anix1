@@ -141,12 +141,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           throw new Error(`Profile API error: ${res.status}`)
         }
         
-        const { data, error: apiError } = await res.json()
+        const result = await res.json()
         
-        if (apiError || !data) {
-          throw new Error(apiError?.message || 'No profile data')
+        // API возвращает { success: true, profile: data }
+        if (!result.success || !result.profile) {
+          throw new Error(result.message || 'No profile data')
         }
         
+        const data = result.profile
         console.log('[Auth] Profile fetched successfully:', data?.id)
 
         clearTimeout(timeoutId)
