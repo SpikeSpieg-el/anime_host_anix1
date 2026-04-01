@@ -262,4 +262,16 @@ export async function syncLocalDataToAccount(userId: string) {
       console.error('Coins sync exception:', error)
     }
   }
+
+  // 4. Очищаем гача-данные, чтобы избежать переноса между пользователями
+  try {
+    localStorage.removeItem("gacha-collection")
+    localStorage.removeItem("gacha-sync-queue")
+    localStorage.removeItem("gacha-prioritize-main-characters")
+    localStorage.removeItem("gacha-coins")
+    localStorage.removeItem("gacha-dust")
+    console.log('Gacha local data cleared to prevent cross-user contamination')
+  } catch (error) {
+    console.error('Error clearing gacha local data:', error)
+  }
 }

@@ -274,7 +274,8 @@ export async function getAnimeByYearRange(startYear: number, endYear: number, li
       year: yearRange,
       limit: limit,
       order: 'ranked',
-      score: '7' // Только аниме с рейтингом 7+
+      score: '7', // Только аниме с рейтингом 7+
+      disableExternalAPIs: true // Отключаем внешние API для гача
     });
     
     // Возвращаем только ID аниме

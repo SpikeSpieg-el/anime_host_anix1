@@ -8,7 +8,7 @@ import { Anime, CatalogFilters, FranchiseItem, NewsItem, RecommendationReason, S
 // --- Catalog & Search ---
 
 export async function getAnimeCatalog(filters: CatalogFilters): Promise<Anime[]> {
-  const { page = 1, limit = 24, order = 'popularity', genre, status, kind, year, score, search, allowNsfw = false } = filters;
+  const { page = 1, limit = 24, order = 'popularity', genre, status, kind, year, score, search, allowNsfw = false, enableGenreFallback = false, disableExternalAPIs = false } = filters;
   const params = new URLSearchParams();
   
   params.append('page', String(page));
@@ -84,7 +84,7 @@ export async function getAnimeCatalog(filters: CatalogFilters): Promise<Anime[]>
 
       // Сортировка по релевантности
       const normalize = (s: string) => s.toLowerCase().trim();
-      const transformed = await Promise.all(Array.from(unique.values()).map(item => transformAnime(item, filters.enableGenreFallback)));
+      const transformed = await Promise.all(Array.from(unique.values()).map(item => transformAnime(item, filters.enableGenreFallback, filters.disableExternalAPIs)));
       const queries = searchVariants.map(normalize);
 
       return transformed.sort((a, b) => {
@@ -110,7 +110,7 @@ export async function getAnimeCatalog(filters: CatalogFilters): Promise<Anime[]>
   if (!Array.isArray(data)) return [];
 
   const safeData = allowNsfw ? data : data.filter(isAnimeSafe);
-  return await Promise.all(safeData.map(item => transformAnime(item, filters.enableGenreFallback)));
+  return await Promise.all(safeData.map(item => transformAnime(item, filters.enableGenreFallback, filters.disableExternalAPIs)));
 }
 
 export async function searchAnime(query: string, allowNsfw: boolean = false, enableGenreFallback: boolean = false) {

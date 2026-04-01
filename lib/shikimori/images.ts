@@ -2,6 +2,18 @@ import { upgradeShikimoriUrl, generateArtPoster, normalizeShikimoriUrl } from ".
 import { shikimoriFetch, shikimoriJson } from "./client";
 import { BASE_URL } from "./config";
 
+// Кэш для постеров и фонов
+const posterCache = new Map<string, string>();
+const backdropCache = new Map<string, string | null>();
+// Очередь для запросов с задержкой
+let requestQueue = Promise.resolve();
+const REQUEST_DELAY = 200; // 200ms между запросами
+
+function delayRequest(): Promise<void> {
+  requestQueue = requestQueue.then(() => new Promise(resolve => setTimeout(resolve, REQUEST_DELAY)));
+  return requestQueue;
+}
+
 function isHighQualityImage(url: string, isPoster: boolean = true): boolean {
   if (!url) return false;
   const lowerUrl = url.toLowerCase();
@@ -14,26 +26,59 @@ function isHighQualityImage(url: string, isPoster: boolean = true): boolean {
   return true;
 }
 
-export async function resolveBestPoster(shikimoriUrl: string, romajiName: string, russianName: string, shikimoriId: string): Promise<string> {
+export async function resolveBestPoster(shikimoriUrl: string, romajiName: string, russianName: string, shikimoriId: string, disableExternalAPIs: boolean = false): Promise<string> {
+  const cacheKey = `${shikimoriId}-${romajiName}-${russianName}-${disableExternalAPIs}`;
+  
+  // Проверяем кэш
+  if (posterCache.has(cacheKey)) {
+    return posterCache.get(cacheKey)!;
+  }
+  
   const targetName = russianName || romajiName || "Anime";
   
   const upgradedUrl = upgradeShikimoriUrl(shikimoriUrl);
-  if (isHighQualityImage(upgradedUrl, true)) return upgradedUrl;
-
-  // Попробуем другие источники (Kodik, Anilist, MAL)
-  const namesToTry = [romajiName, russianName].filter(Boolean);
-  
-  const kodik = await getKodikPoster(shikimoriId);
-  if (kodik) return kodik;
-
-  for (const name of namesToTry) {
-    const anilist = await getAnilistPoster(name);
-    if (anilist) return anilist;
-    const mal = await getMyAnimeListPoster(name);
-    if (mal) return mal;
+  if (isHighQualityImage(upgradedUrl, true)) {
+    posterCache.set(cacheKey, upgradedUrl);
+    return upgradedUrl;
   }
 
-  return generateArtPoster(targetName);
+  // Если внешние API отключены (для гача), используем только фоллбэк
+  if (disableExternalAPIs) {
+    console.log(`[resolveBestPoster] Using fallback for ${targetName} (external APIs disabled)`);
+    const fallback = generateArtPoster(targetName);
+    posterCache.set(cacheKey, fallback);
+    return fallback;
+  }
+
+  // Попробуем другие источники (Kodik, Anilist, MAL) с задержкой
+  const namesToTry = [romajiName, russianName].filter(Boolean);
+  
+  await delayRequest();
+  const kodik = await getKodikPoster(shikimoriId);
+  if (kodik) {
+    posterCache.set(cacheKey, kodik);
+    return kodik;
+  }
+
+  for (const name of namesToTry) {
+    await delayRequest();
+    const anilist = await getAnilistPoster(name);
+    if (anilist) {
+      posterCache.set(cacheKey, anilist);
+      return anilist;
+    }
+    
+    await delayRequest();
+    const mal = await getMyAnimeListPoster(name);
+    if (mal) {
+      posterCache.set(cacheKey, mal);
+      return mal;
+    }
+  }
+
+  const fallback = generateArtPoster(targetName);
+  posterCache.set(cacheKey, fallback);
+  return fallback;
 }
 
 async function getKodikPoster(shikimoriId: string): Promise<string | null> {
@@ -72,24 +117,48 @@ async function getMyAnimeListPoster(searchTitle: string): Promise<string | null>
   } catch { return null; }
 }
 
-export async function getAnimeBackdrop(shikimoriId: string): Promise<string | null> {
+export async function getAnimeBackdrop(shikimoriId: string, disableExternalAPIs: boolean = false): Promise<string | null> {
+  const cacheKey = `backdrop-${shikimoriId}-${disableExternalAPIs}`;
+  
+  // Проверяем кэш
+  if (backdropCache.has(cacheKey)) {
+    return backdropCache.get(cacheKey)!;
+  }
+  
   try {
     // 1. Screenshots
     const res = await shikimoriFetch(`${BASE_URL}/animes/${shikimoriId}/screenshots`);
     if (res.ok) {
       const data: any[] = await res.json();
       const best = data?.find(s => isHighQualityImage(normalizeShikimoriUrl(s.original), false));
-      if (best) return normalizeShikimoriUrl(best.original);
+      if (best) {
+        const result = normalizeShikimoriUrl(best.original);
+        backdropCache.set(cacheKey, result);
+        return result;
+      }
     }
-    // 2. Anilist Banner
-    const animeRes = await shikimoriFetch(`${BASE_URL}/animes/${shikimoriId}`);
-    if (animeRes.ok) {
-      const data = await animeRes.json();
-      const anilistBanner = await getAnilistBackdrop(data.name);
-      if (anilistBanner) return anilistBanner;
+    
+    // 2. Anilist Banner (если не отключен)
+    if (!disableExternalAPIs) {
+      const animeRes = await shikimoriFetch(`${BASE_URL}/animes/${shikimoriId}`);
+      if (animeRes.ok) {
+        const data = await animeRes.json();
+        const anilistBanner = await getAnilistBackdrop(data.name);
+        if (anilistBanner) {
+          backdropCache.set(cacheKey, anilistBanner);
+          return anilistBanner;
+        }
+      }
+    } else {
+      console.log(`[getAnimeBackdrop] AniList disabled for ${shikimoriId}`);
     }
+    
+    backdropCache.set(cacheKey, null);
     return null;
-  } catch { return null; }
+  } catch { 
+    backdropCache.set(cacheKey, null);
+    return null; 
+  }
 }
 
 async function getAnilistBackdrop(searchTitle: string): Promise<string | null> {

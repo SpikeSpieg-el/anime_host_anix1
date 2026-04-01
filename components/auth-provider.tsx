@@ -81,6 +81,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const hardSignOut = async () => {
     try {
+      // Отправляем событие начала выхода для оверлея
+      window.dispatchEvent(new Event("logout-start"))
+      
       await safeSupabaseSignOutLocal()
     } finally {
       forceClearSupabaseAuthStorage()
@@ -213,6 +216,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       window.localStorage.removeItem("watch-history")
       window.localStorage.removeItem("bookmarks_v1")
+      window.localStorage.removeItem("gacha-collection")
+      window.localStorage.removeItem("gacha-sync-queue")
+      window.localStorage.removeItem("gacha-prioritize-main-characters")
+      window.localStorage.removeItem("gacha-coins")
+      window.localStorage.removeItem("gacha-dust")
       document.cookie = `bookmark_ids=; path=/; max-age=0; SameSite=Lax`
     } catch {
       // ignore
@@ -221,6 +229,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = async () => {
     try {
+      // Отправляем событие начала выхода для оверлея
+      window.dispatchEvent(new Event("logout-start"))
+      
       setLoading(true)
       await safeSupabaseSignOutLocal()
       forceClearSupabaseAuthStorage()

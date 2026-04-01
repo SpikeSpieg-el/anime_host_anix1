@@ -56,6 +56,7 @@ export interface CatalogFilters {
   search?: string;
   allowNsfw?: boolean;
   enableGenreFallback?: boolean;
+  disableExternalAPIs?: boolean;
 }
 
 export interface NewsItem {

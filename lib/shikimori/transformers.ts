@@ -4,12 +4,13 @@ import { SITE_URL } from "./config";
 import { normalizeShikimoriUrl } from "./utils";
 import { GenreFallbackService } from "../genre-fallback";
 
-export async function transformAnime(item: ShikimoriAnime, enableGenreFallback: boolean = false): Promise<Anime> {
+export async function transformAnime(item: ShikimoriAnime, enableGenreFallback: boolean = false, disableExternalAPIs: boolean = false): Promise<Anime> {
   const posterUrl = await resolveBestPoster(
     item.image?.original,
     item.name,
     item.russian,
-    String(item.id)
+    String(item.id),
+    disableExternalAPIs
   );
 
   // Get genres from Shikimori or use fallback

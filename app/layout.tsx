@@ -11,6 +11,7 @@ import "./globals.css"
 import { WelcomeModal } from "@/components/welcome-modal"
 import { AuthProvider } from "@/components/auth-provider"
 import { UserDataLoadingBar } from "@/components/user-data-loading-bar"
+import { LogoutLoadingScreen } from "@/components/logout-loading-screen"
 import { CookieConsent } from "@/components/cookie-consent"
 import { ThemeProvider } from "@/components/theme-provider"
 import { Toaster } from "sonner"
@@ -67,6 +68,7 @@ export default function RootLayout({
           <CookieConsent />
           <AuthProvider>
             <UserDataLoadingBar />
+            <LogoutLoadingScreen />
             <HistoryProvider>
               <BookmarksProvider>
                 <ErrorBoundary name="Main App">{children}</ErrorBoundary>
