@@ -869,22 +869,24 @@ useEffect(() => {
     let isMounted = true;
 
     const loadSavedCards = async () => {
-
-
+      // КРИТИЧНО: Здесь НЕ ДОЛЖНО БЫТЬ "if (isLoaded) return;"
+      
       try {
         let finalCollection: Card[] =[];
 
+        // 1. Загружаем из localStorage (всегда, как буфер)
         try {
           const localData = localStorage.getItem('gacha-collection');
           if (localData) {
             finalCollection = JSON.parse(localData);
-            finalCollection = finalCollection.map((card, index) => ({
+            finalCollection = finalCollection.map((card: Card, index: number) => ({
               ...card,
               orderIndex: finalCollection.length - 1 - index
             }));
           }
         } catch (e) { console.error(e); }
 
+        // 2. Настройки приоритета
         try {
           const savedPriority = localStorage.getItem('gacha-prioritize-main-characters');
           if (savedPriority) {
@@ -892,20 +894,30 @@ useEffect(() => {
           }
         } catch (e) { console.error(e); }
 
+        // 3. Загрузка из базы данных
         if (authUser) {
           try {
             const dbCards = await loadUserCards();
-            const dbCardsWithOrder = dbCards.map((card, index) => ({
+
+            const dbCardsWithOrder = dbCards.map((card: Card, index: number) => ({
               ...card,
               orderIndex: finalCollection.length + index
             }));
 
+            // Объединяем без дубликатов
             const dbIds = new Set(dbCardsWithOrder.map(c => c.uniqueId));
             finalCollection =[
               ...dbCardsWithOrder,
               ...finalCollection.filter(c => !dbIds.has(c.uniqueId))
             ];
 
+
+            if (isMounted) {
+              setCollectedCards(finalCollection);
+              await loadListedCards(); // Подтягиваем рынок
+            }
+
+            // Фоновая досинхронизация зависших карт (если она упадет, карты все равно уже на экране)
             const queue = JSON.parse(localStorage.getItem('gacha-sync-queue') || '[]');
             if (queue.length > 0) {
               if (isMounted) setIsSyncingCards(true);
@@ -917,22 +929,19 @@ useEffect(() => {
               console.error('[loadSavedCards] DB error:', dbError);
             }
           }
-        }
-
-        if (isMounted) {
-          setCollectedCards(finalCollection);
-          // Переместили setIsLoaded(true) в блок finally, чтобы UI всегда разблокировался
-          if (authUser) {
-            await loadListedCards();
+        } else {
+          // Если юзер пока гость (или сессия еще грузится) - показываем локальные данные
+          if (isMounted) {
+            setCollectedCards(finalCollection);
           }
         }
+
       } catch (error: any) {
         if (error.name === 'AbortError') return;
-        console.error('[loadSavedCards] Error:', error);
+        console.error('[loadSavedCards] Critical Error:', error);
       } finally {
-        // ГАРАНТИРОВАННО СНИМАЕМ БЛОКИРОВКУ UI
         if (isMounted) {
-          setIsLoaded(true);
+          setIsLoaded(true); // Разблокируем UI гачи
         }
       }
     }
@@ -942,7 +951,7 @@ useEffect(() => {
     return () => {
       isMounted = false;
     };
-  }, [authUser?.id]);
+  }, [authUser?.id]); // Хук перезапустится сам, когда Гость превратится в Авторизованного
 
   useEffect(() => {
     const loadPacks = async () => {
