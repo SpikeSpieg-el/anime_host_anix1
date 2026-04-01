@@ -101,6 +101,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const refreshProfile = async () => {
     if (!user) return
+    console.log('[Auth] refreshProfile started for user:', user.id, 'session:', !!session)
     setProfileLoading(true)
 
     // Увеличенный timeout для продакшена (холодные подключения, задержки сети)
@@ -115,67 +116,52 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', user.id)
-          .single()
+        console.log(`[Auth] Profile fetch attempt ${attempt}/${maxRetries}...`)
+        const fetchStart = Date.now()
+        
+        // Используем API вместо прямого запроса к Supabase
+        const accessToken = session?.access_token
+        if (!accessToken) {
+          console.warn('[Auth] No access token, skipping profile fetch')
+          clearTimeout(timeoutId)
+          setProfileLoading(false)
+          return
+        }
+        
+        const res = await fetch('/api/profile', {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`
+          }
+        })
+        
+        const fetchTime = Date.now() - fetchStart
+        console.log(`[Auth] Profile API response in ${fetchTime}ms, status: ${res.status}`)
+        
+        if (!res.ok) {
+          throw new Error(`Profile API error: ${res.status}`)
+        }
+        
+        const { data, error: apiError } = await res.json()
+        
+        if (apiError || !data) {
+          throw new Error(apiError?.message || 'No profile data')
+        }
+        
+        console.log('[Auth] Profile fetched successfully:', data?.id)
 
         clearTimeout(timeoutId)
-
-        if (error) {
-          if (error.code === 'PGRST116') {
-            const { data: newProfile, error: createError } = await supabase
-              .from('profiles')
-              .insert({ id: user.id, username: user.email })
-              .select()
-              .single()
-
-            clearTimeout(timeoutId)
-
-            if (!createError) {
-              setProfile(newProfile)
-              setProfileLoading(false)
-              return
-            } else if (createError.code === '23505' || createError.code === '409') {
-              const { data: retryData, error: retryError } = await supabase
-                .from('profiles')
-                .select('*')
-                .eq('id', user.id)
-                .single()
-
-              clearTimeout(timeoutId)
-
-              if (!retryError && retryData) {
-                setProfile(retryData)
-                setProfileLoading(false)
-                return
-              }
-            }
-          }
-
-          if (error.message?.includes('406') || error.details?.includes('Not Acceptable')) {
-            loggers.auth.warn('User may be deleted or invalid, signing out')
-            setProfileLoading(false)
-            await hardSignOut()
-            return
-          }
-
-          throw error
-        }
-
         setProfile(data)
         setProfileLoading(false)
         return // Успех, выходим из цикла
       } catch (error: any) {
         loggers.auth.error(`Error fetching profile (attempt ${attempt}/${maxRetries}):`, error)
-        
+
         // Если последняя попытка - выходим с ошибкой
         if (attempt === maxRetries) {
           clearTimeout(timeoutId)
           setProfileLoading(false)
-          
-          if (error.message?.includes('406') || error.details?.includes('Not Acceptable') || error.code === 'PGRST116') {
+
+          if (error.message?.includes('406') || error.message?.includes('Not Acceptable') || error.message?.includes('PGRST116')) {
             toast({
               title: "Ошибка авторизации",
               description: "Пользователь не найден. Пожалуйста, войдите снова.",
