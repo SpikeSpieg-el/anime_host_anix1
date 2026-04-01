@@ -268,24 +268,24 @@ export function useDust() {
       console.log('[useDust] Auth still loading (authLoading=true), waiting...')
       return
     }
-    
+
     // Если сессия уже есть - начинаем загрузку, даже если sessionLoading ещё true
     // Это нужно для случаев, когда сессия восстановлена из localStorage
-    if (user) {
+    if (user?.id) {
       console.log('[useDust] User exists, starting load. sessionLoading:', sessionLoading)
       loadDust()
       return
     }
-    
+
     // Для неавторизованных - ждём пока sessionLoading не станет false
     if (sessionLoading) {
       console.log('[useDust] No user, session still loading, waiting...')
       return
     }
-    
+
     console.log('[useDust] No user, session not loading, starting load for guest')
     loadDust()
-  }, [user?.id, user, authLoading, sessionLoading])
+  }, [user?.id, authLoading, sessionLoading])
 
   return {
     dust,

@@ -278,29 +278,31 @@ export function useCoins() {
 
   // Слушаем изменения авторизации, но ждём пока authLoading !== true И sessionLoading !== true
   useEffect(() => {
+    const userId = user?.id
+    
     // Не начинаем загрузку, пока авторизация ещё загружается
     if (authLoading) {
       console.log('[useCoins] Auth still loading (authLoading=true), waiting...')
       return
     }
-    
+
     // Если сессия уже есть - начинаем загрузку, даже если sessionLoading ещё true
     // Это нужно для случаев, когда сессия восстановлена из localStorage
-    if (user) {
+    if (userId) {
       console.log('[useCoins] User exists, starting load. sessionLoading:', sessionLoading)
       loadCoins()
       return
     }
-    
+
     // Для неавторизованных - ждём пока sessionLoading не станет false
     if (sessionLoading) {
       console.log('[useCoins] No user, session still loading, waiting...')
       return
     }
-    
+
     console.log('[useCoins] No user, session not loading, starting load for guest')
     loadCoins()
-  }, [user?.id, user, authLoading, sessionLoading])
+  }, [user?.id, authLoading, sessionLoading]) // Используем user?.id вместо user
 
   return {
     coins,

@@ -847,14 +847,11 @@ export default function GachaPage() {
 
   useEffect(() => {
     let isMounted = true;
-    
+
     const loadSavedCards = async () => {
       if (isLoaded) return;
 
       try {
-        const { supabase } = await import('@/lib/supabase');
-        const { data: { session } } = await supabase.auth.getSession();
-
         let finalCollection: Card[] = [];
 
         // 1. Загружаем из localStorage (всегда, как буфер)
@@ -879,7 +876,7 @@ export default function GachaPage() {
         } catch (e) { console.error(e); }
 
         // 3. Если залогинен, загружаем из БД и объединяем
-        if (session) {
+        if (authUser) {
           try {
             const dbCards = await loadUserCards();
 
@@ -920,8 +917,10 @@ export default function GachaPage() {
           setUsedCharacterIds(new Set(finalCollection.map(c => c.characterId)));
           setIsLoaded(true);
 
-          // Загружаем список выставленных на рынок карт
-          await loadListedCards();
+          // Загружаем список выставленных на рынок карт (только если пользователь есть)
+          if (authUser) {
+            await loadListedCards();
+          }
         }
       } catch (error: any) {
         // Игнорируем AbortError - это нормальная ситуация при размонтировании
@@ -934,11 +933,11 @@ export default function GachaPage() {
     }
 
     loadSavedCards();
-    
+
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [authUser?.id]); // Перезапускаем при изменении пользователя
 
   useEffect(() => {
     const loadPacks = async () => {
