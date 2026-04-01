@@ -162,7 +162,7 @@ export function useCoins() {
       clearTimeout(loadingTimeout)
       isLoadingRef.current = false
     }
-  }, [user])
+  }, [user?.id, session?.access_token])
 
   // SECURE: Потратить монеты через безопасный API
   const spendCoins = useCallback(async (amount: number): Promise<boolean> => {
@@ -302,7 +302,7 @@ export function useCoins() {
 
     console.log('[useCoins] No user, session not loading, starting load for guest')
     loadCoins()
-  }, [user?.id, authLoading, sessionLoading]) // Используем user?.id вместо user
+  }, [user?.id, authLoading, sessionLoading, loadCoins]) // Используем user?.id вместо user
 
   return {
     coins,

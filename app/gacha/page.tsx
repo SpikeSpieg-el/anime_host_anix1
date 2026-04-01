@@ -649,7 +649,9 @@ export default function GachaPage() {
   const[collectedCards, setCollectedCards] = useState<Card[]>([])
   const[showCard, setShowCard] = useState(false)
   const[viewedCard, setViewedCard] = useState<Card | null>(null)
-  const[usedCharacterIds, setUsedCharacterIds] = useState<Set<number>>(new Set())
+
+  const usedCharacterIds = useMemo(() => new Set(collectedCards.map(c => c.characterId)), [collectedCards])
+  
   const { user: authUser } = useAuth()
   const { coins: userCoins, loading: coinsLoading, spendCoins, addCoins, forceSync, fixOverflow, refresh: refreshCoins } = useCoins()
   const { dust, loading: dustLoading, addDust } = useDust()
@@ -804,7 +806,6 @@ export default function GachaPage() {
       ]
 
       setCollectedCards(merged)
-      setUsedCharacterIds(new Set(merged.map((c) => c.characterId)))
     } catch (error: any) {
       // Игнорируем AbortError
       if (error.name === 'AbortError') {
@@ -845,21 +846,19 @@ export default function GachaPage() {
   return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
 }, [isRolling, isSavingCard]);
 
-  useEffect(() => {
+useEffect(() => {
     let isMounted = true;
 
     const loadSavedCards = async () => {
-      if (isLoaded) return;
+
 
       try {
-        let finalCollection: Card[] = [];
+        let finalCollection: Card[] =[];
 
-        // 1. Загружаем из localStorage (всегда, как буфер)
         try {
           const localData = localStorage.getItem('gacha-collection');
           if (localData) {
             finalCollection = JSON.parse(localData);
-            // Присваиваем orderIndex на основе порядка в localStorage (0 = самый новый)
             finalCollection = finalCollection.map((card, index) => ({
               ...card,
               orderIndex: finalCollection.length - 1 - index
@@ -867,7 +866,6 @@ export default function GachaPage() {
           }
         } catch (e) { console.error(e); }
 
-        // 2. Загружаем настройку приоритета главных героев
         try {
           const savedPriority = localStorage.getItem('gacha-prioritize-main-characters');
           if (savedPriority) {
@@ -875,37 +873,27 @@ export default function GachaPage() {
           }
         } catch (e) { console.error(e); }
 
-        // 3. Если залогинен, загружаем из БД и объединяем
         if (authUser) {
           try {
             const dbCards = await loadUserCards();
-
-            // Присваиваем orderIndex для карт из БД (они будут в конце)
             const dbCardsWithOrder = dbCards.map((card, index) => ({
               ...card,
               orderIndex: finalCollection.length + index
             }));
 
-            // Объединяем без дубликатов (приоритет картам из БД)
             const dbIds = new Set(dbCardsWithOrder.map(c => c.uniqueId));
-            finalCollection = [
+            finalCollection =[
               ...dbCardsWithOrder,
               ...finalCollection.filter(c => !dbIds.has(c.uniqueId))
             ];
 
-            // Пробуем досинхронизировать то, что застряло в очереди
             const queue = JSON.parse(localStorage.getItem('gacha-sync-queue') || '[]');
             if (queue.length > 0) {
-              if (isMounted) {
-                setIsSyncingCards(true);
-              }
+              if (isMounted) setIsSyncingCards(true);
               await syncQueuedCards();
-              if (isMounted) {
-                setIsSyncingCards(false);
-              }
+              if (isMounted) setIsSyncingCards(false);
             }
           } catch (dbError: any) {
-            // Игнорируем AbortError для БД запросов
             if (dbError.name !== 'AbortError') {
               console.error('[loadSavedCards] DB error:', dbError);
             }
@@ -914,21 +902,19 @@ export default function GachaPage() {
 
         if (isMounted) {
           setCollectedCards(finalCollection);
-          setUsedCharacterIds(new Set(finalCollection.map(c => c.characterId)));
-          setIsLoaded(true);
-
-          // Загружаем список выставленных на рынок карт (только если пользователь есть)
+          // Переместили setIsLoaded(true) в блок finally, чтобы UI всегда разблокировался
           if (authUser) {
             await loadListedCards();
           }
         }
       } catch (error: any) {
-        // Игнорируем AbortError - это нормальная ситуация при размонтировании
-        if (error.name === 'AbortError') {
-          console.log('[loadSavedCards] Request aborted (expected behavior)');
-          return;
-        }
+        if (error.name === 'AbortError') return;
         console.error('[loadSavedCards] Error:', error);
+      } finally {
+        // ГАРАНТИРОВАННО СНИМАЕМ БЛОКИРОВКУ UI
+        if (isMounted) {
+          setIsLoaded(true);
+        }
       }
     }
 
@@ -937,7 +923,7 @@ export default function GachaPage() {
     return () => {
       isMounted = false;
     };
-  }, [authUser?.id]); // Перезапускаем при изменении пользователя
+  }, [authUser?.id]);
 
   useEffect(() => {
     const loadPacks = async () => {
@@ -954,10 +940,7 @@ export default function GachaPage() {
     loadPacks()
   },[])
 
-  useEffect(() => {
-    const ids = new Set(collectedCards.map(card => card.characterId));
-    setUsedCharacterIds(ids);
-  }, [collectedCards]);
+
 
   useEffect(() => {
     try {
@@ -1176,7 +1159,6 @@ export default function GachaPage() {
     // Добавляем orderIndex - текущая длина массива (новые карты получают меньший индекс)
     cardWithOrder = { ...card, orderIndex: collectedCards.length };
     setCollectedCards(prev => [cardWithOrder, ...prev]);
-    setUsedCharacterIds(prev => new Set(prev).add(card.characterId));
 
     // 2. СТРАХОВКА: Сохраняем в localStorage ПРЯМО СЕЙЧАС, даже если юзер залогинен.
     // Это гарантирует, что при обновлении страницы карта не исчезнет, 
@@ -1374,12 +1356,7 @@ export default function GachaPage() {
         setViewedCard(null)
       }
       
-      // Обновляем список использованных ID персонажей
-      setUsedCharacterIds(prev => {
-        const newIds = new Set(prev)
-        newIds.delete(cardToRemove.characterId)
-        return newIds
-      })
+      // usedCharacterIds автоматически обновится через useMemo
       
       console.log('[removeCard] Card removal completed')
     } catch (error) {
@@ -1629,10 +1606,10 @@ export default function GachaPage() {
     return Array.from(packs).sort()
   }
 
-  const filteredAndSortedCards = (() => {
+
+  const filteredAndSortedCards = useMemo(() => {
     let result = [...collectedCards]
 
-    // Исключаем карты, выставленные на рынке
     result = result.filter(card => !listedCardIds.has(card.uniqueId))
 
     if (searchQuery.trim()) {
@@ -1661,17 +1638,13 @@ export default function GachaPage() {
 
     result.sort((a, b) => {
       if (sortBy === "date") {
-        // Если включен приоритет главных героев (GG), они всегда первые
         if (prioritizeMainCharacters) {
           const aIsMain = a.isMainCharacter ? 1 : 0;
           const bIsMain = b.isMainCharacter ? 1 : 0;
           if (aIsMain !== bIsMain) return bIsMain - aIsMain;
         }
-        
-        // Затем сортируем по orderIndex (чем меньше, тем новее карта)
         const aOrder = a.orderIndex ?? Infinity;
         const bOrder = b.orderIndex ?? Infinity;
-        
         return sortOrder === "desc" ? aOrder - bOrder : bOrder - aOrder;
       } else {
         let comparison = 0
@@ -1694,19 +1667,17 @@ export default function GachaPage() {
             break
         }
         
-        // Если включен приоритет главных героев (GG) и сравнение равно, главные герои идут первыми
         if (prioritizeMainCharacters && comparison === 0) {
           const aIsMain = a.isMainCharacter ? 1 : 0;
           const bIsMain = b.isMainCharacter ? 1 : 0;
           if (aIsMain !== bIsMain) return bIsMain - aIsMain;
         }
-        
         return sortOrder === "desc" ? -comparison : comparison
       }
     })
 
     return result
-  })()
+  },[collectedCards, listedCardIds, searchQuery, selectedRarity, selectedPackFilter, selectedMainCharacterFilter, sortBy, sortOrder, prioritizeMainCharacters])
 
   return (
     <div className="min-h-screen bg-[#020617] relative text-slate-100 selection:bg-indigo-500/30 font-sans pb-24 overflow-x-hidden">

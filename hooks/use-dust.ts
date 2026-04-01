@@ -134,7 +134,7 @@ export function useDust() {
       clearTimeout(loadingTimeout)
       isLoadingRef.current = false
     }
-  }, [user])
+  }, [user?.id, session?.access_token])
 
   // SECURE: Добавить пыль через безопасный API
   const addDust = useCallback(async (amount: number): Promise<boolean> => {
@@ -285,7 +285,7 @@ export function useDust() {
 
     console.log('[useDust] No user, session not loading, starting load for guest')
     loadDust()
-  }, [user?.id, authLoading, sessionLoading])
+  }, [user?.id, authLoading, sessionLoading, loadDust])
 
   return {
     dust,

@@ -1,6 +1,6 @@
 "use client"
 
-import { createContext, useContext, useEffect, useState } from "react"
+import { createContext, useContext, useEffect, useState, useCallback, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { User, Session } from "@supabase/supabase-js"
 import { supabase, syncLocalDataToAccount } from "@/lib/supabase"
@@ -82,7 +82,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  const hardSignOut = async () => {
+  const hardSignOut = useCallback(async () => {
     try {
       // Отправляем событие начала выхода для оверлея
       window.dispatchEvent(new Event("logout-start"))
@@ -97,9 +97,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       router.push("/")
       router.refresh()
     }
-  }
+  }, [router]);
 
-  const refreshProfile = async () => {
+  const refreshProfile = useCallback(async () => {
     if (!user) return
     console.log('[Auth] refreshProfile started for user:', user.id, 'session:', !!session)
     setProfileLoading(true)
@@ -186,7 +186,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         await new Promise(resolve => setTimeout(resolve, delay))
       }
     }
-  }
+  }, [user?.id, session?.access_token, toast]);
 
   useEffect(() => {
     if (user) {
@@ -250,7 +250,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  const signOut = async () => {
+  const signOut = useCallback(async () => {
     try {
       // Отправляем событие начала выхода для оверлея
       window.dispatchEvent(new Event("logout-start"))
@@ -274,10 +274,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       router.push("/")
       router.refresh()
     }
-  }
+  }, [router, toast]);
+
+  // Мемоизация значения контекста
+  const contextValue = useMemo(() => ({
+    user, 
+    session, 
+    loading, 
+    sessionLoading, 
+    profileLoading, 
+    signOut, 
+    profile, 
+    refreshProfile
+  }), [user, session, loading, sessionLoading, profileLoading, profile, signOut, refreshProfile]);
 
   return (
-    <AuthContext.Provider value={{ user, session, loading, sessionLoading, profileLoading, signOut, profile, refreshProfile }}>
+    <AuthContext.Provider value={contextValue}>
       {children}
     </AuthContext.Provider>
   )
