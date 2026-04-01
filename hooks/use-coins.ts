@@ -11,12 +11,21 @@ export function useCoins() {
   const retryCountRef = useRef(0)
   const abortControllerRef = useRef<AbortController | null>(null)
   const isMountedRef = useRef(true)
+  const isLoadingRef = useRef(false) // Защита от повторных вызовов
 
   const MAX_RETRIES = 3
   const RETRY_DELAY_BASE = 2000 // Increased base delay to 2 seconds
 
   // Загрузка монет
   const loadCoins = useCallback(async () => {
+    // Защита от повторных вызовов
+    if (isLoadingRef.current) {
+      console.log('[useCoins] Already loading, skipping...')
+      return
+    }
+    
+    isLoadingRef.current = true
+    
     // Отменяем предыдущий запрос если есть
     if (abortControllerRef.current) {
       abortControllerRef.current.abort()
@@ -28,14 +37,6 @@ export function useCoins() {
     
     console.log('[useCoins] loadCoins called, user:', user?.id || 'null', 'retry:', retryCountRef.current)
 
-    // Добавим timeout для защиты от бесконечной загрузки
-    const loadingTimeout = setTimeout(() => {
-      console.warn('[useCoins] Loading timeout, forcing loading to false')
-      if (isMountedRef.current) {
-        setLoading(false)
-      }
-    }, 15000) // 15 секунд
-
     if (!user) {
       // Для неавторизованных - загружаем из localStorage (гостевой баланс 1000)
       const saved = localStorage.getItem(COINS_STORAGE_KEY)
@@ -45,9 +46,18 @@ export function useCoins() {
         setCoins(savedCoins)
         setLoading(false)
       }
-      clearTimeout(loadingTimeout)
+      isLoadingRef.current = false
       return
     }
+
+    // Запускаем таймаут ТОЛЬКО когда начинаем реальную загрузку
+    const loadingTimeout = setTimeout(() => {
+      console.warn('[useCoins] Loading timeout, forcing loading to false')
+      if (isMountedRef.current) {
+        setLoading(false)
+      }
+      isLoadingRef.current = false
+    }, 20000) // 20 секунд
 
     try {
       // Для авторизованных - загружаем из БД (10000 для новых пользователей)
@@ -65,6 +75,7 @@ export function useCoins() {
           setLoading(false)
         }
         clearTimeout(loadingTimeout)
+        isLoadingRef.current = false
         return
       }
 
@@ -91,6 +102,8 @@ export function useCoins() {
           retryCountRef.current = 0
           setLoading(false)
         }
+        clearTimeout(loadingTimeout)
+        isLoadingRef.current = false
       } else {
         const errorData = await res.json().catch(() => ({}))
         console.warn('[useCoins] Coins API error:', res.status, errorData)
@@ -118,6 +131,7 @@ export function useCoins() {
             }
             retryCountRef.current = 0
             clearTimeout(loadingTimeout)
+            isLoadingRef.current = false
             return
           }
         }
@@ -132,15 +146,18 @@ export function useCoins() {
           setCoins(saved ? parseInt(saved, 10) || 1000 : 1000)
           setLoading(false)
         }
+        clearTimeout(loadingTimeout)
+        isLoadingRef.current = false
       }
     } catch (error: any) {
       // Игнорируем AbortError - это нормальная ситуация при размонтировании или отмене запроса
       if (error.name === 'AbortError') {
         console.log('[useCoins] Request aborted (expected behavior)')
         clearTimeout(loadingTimeout)
+        isLoadingRef.current = false
         return
       }
-      
+
       console.error('[useCoins] Error loading coins:', error)
       // Фолбэк на localStorage
       const saved = localStorage.getItem(COINS_STORAGE_KEY)
@@ -148,11 +165,8 @@ export function useCoins() {
         setCoins(saved ? parseInt(saved, 10) || 1000 : 1000)
         setLoading(false)
       }
-    } finally {
       clearTimeout(loadingTimeout)
-      if (isMountedRef.current) {
-        console.log('[useCoins] Loading complete, final coins:', coins)
-      }
+      isLoadingRef.current = false
     }
   }, [user])
 

@@ -10,9 +10,18 @@ export function useDust() {
   const [loading, setLoading] = useState(true)
   const abortControllerRef = useRef<AbortController | null>(null)
   const isMountedRef = useRef(true)
+  const isLoadingRef = useRef(false) // Защита от повторных вызовов
 
   // Загрузка пыли
   const loadDust = useCallback(async () => {
+    // Защита от повторных вызовов
+    if (isLoadingRef.current) {
+      console.log('[useDust] Already loading, skipping...')
+      return
+    }
+    
+    isLoadingRef.current = true
+    
     // Отменяем предыдущий запрос если есть
     if (abortControllerRef.current) {
       abortControllerRef.current.abort()
@@ -33,8 +42,18 @@ export function useDust() {
         setDust(savedDust)
         setLoading(false)
       }
+      isLoadingRef.current = false
       return
     }
+
+    // Запускаем таймаут ТОЛЬКО когда начинаем реальную загрузку
+    const loadingTimeout = setTimeout(() => {
+      console.warn('[useDust] Loading timeout, forcing loading to false')
+      if (isMountedRef.current) {
+        setLoading(false)
+      }
+      isLoadingRef.current = false
+    }, 20000) // 20 секунд
 
     try {
       // Для авторизованных - загружаем из API
@@ -46,6 +65,8 @@ export function useDust() {
           setDust(saved ? parseInt(saved, 10) || 0 : 0)
           setLoading(false)
         }
+        clearTimeout(loadingTimeout)
+        isLoadingRef.current = false
         return
       }
 
@@ -66,6 +87,8 @@ export function useDust() {
           localStorage.setItem(DUST_STORAGE_KEY, (result.dust || 0).toString())
           setLoading(false)
         }
+        clearTimeout(loadingTimeout)
+        isLoadingRef.current = false
       } else {
         console.warn('[useDust] Server error, using localStorage fallback:', result.message)
         const saved = localStorage.getItem(DUST_STORAGE_KEY)
@@ -73,14 +96,18 @@ export function useDust() {
           setDust(saved ? parseInt(saved, 10) || 0 : 0)
           setLoading(false)
         }
+        clearTimeout(loadingTimeout)
+        isLoadingRef.current = false
       }
     } catch (error: any) {
       // Игнорируем AbortError - это нормальная ситуация при размонтировании или отмене запроса
       if (error.name === 'AbortError') {
         console.log('[useDust] Request aborted (expected behavior)')
+        clearTimeout(loadingTimeout)
+        isLoadingRef.current = false
         return
       }
-      
+
       console.error('[useDust] Error loading dust:', error)
       // Фолбэк на localStorage
       const saved = localStorage.getItem(DUST_STORAGE_KEY)
@@ -88,6 +115,8 @@ export function useDust() {
         setDust(saved ? parseInt(saved, 10) || 0 : 0)
         setLoading(false)
       }
+      clearTimeout(loadingTimeout)
+      isLoadingRef.current = false
     }
   }, [user])
 
