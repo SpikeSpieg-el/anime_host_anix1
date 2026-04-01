@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabase'
 const DUST_STORAGE_KEY = 'gacha-dust'
 
 export function useDust() {
-  const { user, loading: authLoading, sessionLoading } = useAuth()
+  const { user, loading: authLoading, sessionLoading, session } = useAuth()
   const [dust, setDust] = useState<number>(0)
   const [loading, setLoading] = useState(true)
   const abortControllerRef = useRef<AbortController | null>(null)
@@ -53,13 +53,14 @@ export function useDust() {
         setLoading(false)
       }
       isLoadingRef.current = false
-    }, 5000) // 5 секунд
+    }, 15000) // 15 секунд для продакшена
 
     try {
-      // Для авторизованных - загружаем из API
-      const { data: sessionData } = await supabase.auth.getSession()
-      if (!sessionData?.session?.access_token) {
-        console.warn('[useDust] No session token available')
+      // Используем сессию напрямую из useAuth вместо дублирующего getSession()
+      const accessToken = session?.access_token
+      
+      if (!accessToken) {
+        console.warn('[useDust] No access token in session, using localStorage fallback')
         const saved = localStorage.getItem(DUST_STORAGE_KEY)
         if (isMountedRef.current) {
           setDust(saved ? parseInt(saved, 10) || 0 : 0)
@@ -70,9 +71,11 @@ export function useDust() {
         return
       }
 
+      console.log('[useDust] Fetching dust from API with token...')
+
       const res = await fetch('/api/dust', {
         headers: {
-          'Authorization': `Bearer ${sessionData.session.access_token}`
+          'Authorization': `Bearer ${accessToken}`
         },
         signal
       })
@@ -146,18 +149,19 @@ export function useDust() {
       return true
     }
 
-    try {
-      const { data: sessionData } = await supabase.auth.getSession()
-      if (!sessionData?.session?.access_token) {
-        console.warn('[useDust] No session token available')
-        return false
-      }
+    // Используем сессию напрямую из useAuth
+    const accessToken = session?.access_token
+    if (!accessToken) {
+      console.warn('[useDust] No session token available')
+      return false
+    }
 
+    try {
       const res = await fetch('/api/dust', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${sessionData.session.access_token}`
+          'Authorization': `Bearer ${accessToken}`
         },
         body: JSON.stringify({ operation: 'add', amount })
       })
@@ -185,7 +189,7 @@ export function useDust() {
       console.error('[useDust] Error adding dust:', error)
       return false
     }
-  }, [user, dust])
+  }, [user, dust, session])
 
   // SECURE: Потратить пыль через безопасный API
   const spendDust = useCallback(async (amount: number): Promise<boolean> => {
@@ -201,18 +205,19 @@ export function useDust() {
       return true
     }
 
-    try {
-      const { data: sessionData } = await supabase.auth.getSession()
-      if (!sessionData?.session?.access_token) {
-        console.warn('[useDust] No session token available')
-        return false
-      }
+    // Используем сессию напрямую из useAuth
+    const accessToken = session?.access_token
+    if (!accessToken) {
+      console.warn('[useDust] No session token available')
+      return false
+    }
 
+    try {
       const res = await fetch('/api/dust', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${sessionData.session.access_token}`
+          'Authorization': `Bearer ${accessToken}`
         },
         body: JSON.stringify({ operation: 'spend', amount })
       })
@@ -240,7 +245,7 @@ export function useDust() {
       console.error('[useDust] Error spending dust:', error)
       return false
     }
-  }, [user, dust])
+  }, [user, dust, session])
 
   // Отслеживаем монтирование/размонтирование компонента
   useEffect(() => {
@@ -260,16 +265,27 @@ export function useDust() {
   useEffect(() => {
     // Не начинаем загрузку, пока авторизация ещё загружается
     if (authLoading) {
-      console.log('[useDust] Auth still loading, waiting...')
+      console.log('[useDust] Auth still loading (authLoading=true), waiting...')
       return
     }
-    // Ждём готовности сессии перед загрузкой пыли
+    
+    // Если сессия уже есть - начинаем загрузку, даже если sessionLoading ещё true
+    // Это нужно для случаев, когда сессия восстановлена из localStorage
+    if (user) {
+      console.log('[useDust] User exists, starting load. sessionLoading:', sessionLoading)
+      loadDust()
+      return
+    }
+    
+    // Для неавторизованных - ждём пока sessionLoading не станет false
     if (sessionLoading) {
-      console.log('[useDust] Session still loading, waiting...')
+      console.log('[useDust] No user, session still loading, waiting...')
       return
     }
+    
+    console.log('[useDust] No user, session not loading, starting load for guest')
     loadDust()
-  }, [user?.id, authLoading, sessionLoading])
+  }, [user?.id, user, authLoading, sessionLoading])
 
   return {
     dust,

@@ -5,7 +5,7 @@ import { supabase, syncLocalDataToAccount, forceSyncCoins, fixOverflowCoins } fr
 const COINS_STORAGE_KEY = 'gacha-coins'
 
 export function useCoins() {
-  const { user, loading: authLoading, sessionLoading } = useAuth()
+  const { user, loading: authLoading, sessionLoading, session } = useAuth()
   const [coins, setCoins] = useState<number>(1000)
   const [loading, setLoading] = useState(true)
   const retryCountRef = useRef(0)
@@ -23,19 +23,19 @@ export function useCoins() {
       console.log('[useCoins] Already loading, skipping...')
       return
     }
-    
+
     isLoadingRef.current = true
-    
+
     // Отменяем предыдущий запрос если есть
     if (abortControllerRef.current) {
       abortControllerRef.current.abort()
     }
-    
+
     // Создаем новый AbortController для этого запроса
     abortControllerRef.current = new AbortController()
     const { signal } = abortControllerRef.current
-    
-    console.log('[useCoins] loadCoins called, user:', user?.id || 'null', 'retry:', retryCountRef.current)
+
+    console.log('[useCoins] loadCoins called, user:', user?.id || 'null', 'session:', !!session, 'retry:', retryCountRef.current)
 
     if (!user) {
       // Для неавторизованных - загружаем из localStorage (гостевой баланс 1000)
@@ -50,6 +50,20 @@ export function useCoins() {
       return
     }
 
+    // Используем сессию напрямую из useAuth вместо дублирующего getSession()
+    const accessToken = session?.access_token
+    
+    if (!accessToken) {
+      console.warn('[useCoins] No access token in session, using localStorage fallback')
+      const saved = localStorage.getItem(COINS_STORAGE_KEY)
+      if (isMountedRef.current) {
+        setCoins(saved ? parseInt(saved, 10) || 1000 : 1000)
+        setLoading(false)
+      }
+      isLoadingRef.current = false
+      return
+    }
+
     // Запускаем таймаут ТОЛЬКО когда начинаем реальную загрузку
     const loadingTimeout = setTimeout(() => {
       console.warn('[useCoins] Loading timeout, forcing loading to false')
@@ -57,34 +71,14 @@ export function useCoins() {
         setLoading(false)
       }
       isLoadingRef.current = false
-    }, 5000) // 5 секунд
+    }, 15000) // 15 секунд для продакшена
 
     try {
-      // Для авторизованных - загружаем из БД (10000 для новых пользователей)
-      const { data: sessionData, error: sessionError } = await supabase.auth.getSession()
-
-      if (sessionError) {
-        console.error('[useCoins] Session error:', sessionError)
-      }
-
-      if (sessionError || !sessionData?.session) {
-        console.warn('[useCoins] No valid session found, using localStorage fallback')
-        const saved = localStorage.getItem(COINS_STORAGE_KEY)
-        if (isMountedRef.current) {
-          setCoins(saved ? parseInt(saved, 10) || 1000 : 1000)
-          setLoading(false)
-        }
-        clearTimeout(loadingTimeout)
-        isLoadingRef.current = false
-        return
-      }
-
-      const token = sessionData.session.access_token
-      console.log('[useCoins] Fetching coins from API...')
+      console.log('[useCoins] Fetching coins from API with token...')
 
       const res = await fetch('/api/coins', {
         headers: {
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${accessToken}`
         },
         signal
       })
@@ -177,18 +171,19 @@ export function useCoins() {
       return false
     }
 
-    try {
-      const { data: sessionData } = await supabase.auth.getSession()
-      if (!sessionData?.session?.access_token) {
-        console.warn('[useCoins] No session token available')
-        return false
-      }
+    // Используем сессию напрямую из useAuth
+    const accessToken = session?.access_token
+    if (!accessToken) {
+      console.warn('[useCoins] No session token available')
+      return false
+    }
 
+    try {
       const res = await fetch('/api/coins', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${sessionData.session.access_token}`
+          'Authorization': `Bearer ${accessToken}`
         },
         body: JSON.stringify({ operation: 'spend', amount })
       })
@@ -216,7 +211,7 @@ export function useCoins() {
       console.error('[useCoins] Error spending coins:', error)
       return false
     }
-  }, [user, coins])
+  }, [user, coins, session])
 
   // SECURE: Добавить монеты через безопасный API
   const addCoins = useCallback(async (amount: number): Promise<boolean> => {
@@ -225,18 +220,19 @@ export function useCoins() {
       return false
     }
 
-    try {
-      const { data: sessionData } = await supabase.auth.getSession()
-      if (!sessionData?.session?.access_token) {
-        console.warn('[useCoins] No session token available')
-        return false
-      }
+    // Используем сессию напрямую из useAuth
+    const accessToken = session?.access_token
+    if (!accessToken) {
+      console.warn('[useCoins] No session token available')
+      return false
+    }
 
+    try {
       const res = await fetch('/api/coins', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${sessionData.session.access_token}`
+          'Authorization': `Bearer ${accessToken}`
         },
         body: JSON.stringify({ operation: 'add', amount })
       })
@@ -284,16 +280,27 @@ export function useCoins() {
   useEffect(() => {
     // Не начинаем загрузку, пока авторизация ещё загружается
     if (authLoading) {
-      console.log('[useCoins] Auth still loading, waiting...')
+      console.log('[useCoins] Auth still loading (authLoading=true), waiting...')
       return
     }
-    // Ждём готовности сессии перед загрузкой монет
+    
+    // Если сессия уже есть - начинаем загрузку, даже если sessionLoading ещё true
+    // Это нужно для случаев, когда сессия восстановлена из localStorage
+    if (user) {
+      console.log('[useCoins] User exists, starting load. sessionLoading:', sessionLoading)
+      loadCoins()
+      return
+    }
+    
+    // Для неавторизованных - ждём пока sessionLoading не станет false
     if (sessionLoading) {
-      console.log('[useCoins] Session still loading, waiting...')
+      console.log('[useCoins] No user, session still loading, waiting...')
       return
     }
+    
+    console.log('[useCoins] No user, session not loading, starting load for guest')
     loadCoins()
-  }, [user?.id, authLoading, sessionLoading])
+  }, [user?.id, user, authLoading, sessionLoading])
 
   return {
     coins,

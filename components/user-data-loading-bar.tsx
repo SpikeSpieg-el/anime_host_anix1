@@ -12,13 +12,13 @@ export function UserDataLoadingBar() {
   // или при загрузке профиля (когда profileLoading=true)
   const isLoading = loading || profileLoading
 
-  // Автоматически скрываем через 15 секунд для защиты от зависания
+  // Автоматически скрываем через 25 секунд для защиты от зависания
   useEffect(() => {
     if (isLoading) {
       const timeout = setTimeout(() => {
         console.warn('[UserDataLoadingBar] Force hiding after timeout')
         setForceHide(true)
-      }, 15000)
+      }, 25000) // 25 секунд для продакшена
 
       return () => clearTimeout(timeout)
     } else {
