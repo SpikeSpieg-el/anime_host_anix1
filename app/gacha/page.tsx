@@ -760,7 +760,12 @@ export default function GachaPage() {
 
       if (error) throw error
       setListedCardIds(new Set(data?.map((item: { unique_id: string }) => item.unique_id) || []))
-    } catch (error) {
+    } catch (error: any) {
+      // Игнорируем AbortError
+      if (error.name === 'AbortError') {
+        console.log('[loadListedCards] Request aborted (expected behavior)');
+        return;
+      }
       console.error("Error loading listed cards:", error)
     }
   }, [])
@@ -772,33 +777,42 @@ export default function GachaPage() {
     } = await supabase.auth.getSession()
     if (!session) return
 
-    const dbCards = await loadUserCards()
-    let localCollection: Card[] = []
     try {
-      const raw = localStorage.getItem("gacha-collection")
-      if (raw) localCollection = JSON.parse(raw)
-    } catch {
-      /* ignore */
+      const dbCards = await loadUserCards()
+      let localCollection: Card[] = []
+      try {
+        const raw = localStorage.getItem("gacha-collection")
+        if (raw) localCollection = JSON.parse(raw)
+      } catch {
+        /* ignore */
+      }
+
+      const dbIds = new Set(dbCards.map((c) => c.uniqueId))
+      const dbCardsWithOrder = dbCards.map((card, idx) => ({
+        ...card,
+        orderIndex: localCollection.length + idx,
+      }))
+
+      const merged: Card[] = [
+        ...dbCardsWithOrder,
+        ...localCollection
+          .filter((c) => !dbIds.has(c.uniqueId))
+          .map((card, i) => ({
+            ...card,
+            orderIndex: i,
+          })),
+      ]
+
+      setCollectedCards(merged)
+      setUsedCharacterIds(new Set(merged.map((c) => c.characterId)))
+    } catch (error: any) {
+      // Игнорируем AbortError
+      if (error.name === 'AbortError') {
+        console.log('[refreshCollectionMerge] Request aborted (expected behavior)');
+        return;
+      }
+      console.error("Error refreshing collection:", error)
     }
-
-    const dbIds = new Set(dbCards.map((c) => c.uniqueId))
-    const dbCardsWithOrder = dbCards.map((card, idx) => ({
-      ...card,
-      orderIndex: localCollection.length + idx,
-    }))
-
-    const merged: Card[] = [
-      ...dbCardsWithOrder,
-      ...localCollection
-        .filter((c) => !dbIds.has(c.uniqueId))
-        .map((card, i) => ({
-          ...card,
-          orderIndex: i,
-        })),
-    ]
-
-    setCollectedCards(merged)
-    setUsedCharacterIds(new Set(merged.map((c) => c.characterId)))
   }, [])
 
   const handleListedOnMarket = useCallback(async () => {
@@ -832,70 +846,98 @@ export default function GachaPage() {
 }, [isRolling, isSavingCard]);
 
   useEffect(() => {
+    let isMounted = true;
+    
     const loadSavedCards = async () => {
       if (isLoaded) return;
 
-      const { supabase } = await import('@/lib/supabase');
-      const { data: { session } } = await supabase.auth.getSession();
-
-      let finalCollection: Card[] = [];
-
-      // 1. Загружаем из localStorage (всегда, как буфер)
       try {
-        const localData = localStorage.getItem('gacha-collection');
-        if (localData) {
-          finalCollection = JSON.parse(localData);
-          // Присваиваем orderIndex на основе порядка в localStorage (0 = самый новый)
-          finalCollection = finalCollection.map((card, index) => ({
-            ...card,
-            orderIndex: finalCollection.length - 1 - index
-          }));
-        }
-      } catch (e) { console.error(e); }
+        const { supabase } = await import('@/lib/supabase');
+        const { data: { session } } = await supabase.auth.getSession();
 
-      // 2. Загружаем настройку приоритета главных героев
-      try {
-        const savedPriority = localStorage.getItem('gacha-prioritize-main-characters');
-        if (savedPriority) {
-          setPrioritizeMainCharacters(JSON.parse(savedPriority));
-        }
-      } catch (e) { console.error(e); }
+        let finalCollection: Card[] = [];
 
-      // 3. Если залогинен, загружаем из БД и объединяем
-      if (session) {
-        const dbCards = await loadUserCards();
-        
-        // Присваиваем orderIndex для карт из БД (они будут в конце)
-        const dbCardsWithOrder = dbCards.map((card, index) => ({
-          ...card,
-          orderIndex: finalCollection.length + index
-        }));
-        
-        // Объединяем без дубликатов (приоритет картам из БД)
-        const dbIds = new Set(dbCardsWithOrder.map(c => c.uniqueId));
-        finalCollection = [
-          ...dbCardsWithOrder,
-          ...finalCollection.filter(c => !dbIds.has(c.uniqueId))
-        ];
-        
-        // Пробуем досинхронизировать то, что застряло в очереди
-        const queue = JSON.parse(localStorage.getItem('gacha-sync-queue') || '[]');
-        if (queue.length > 0) {
-          setIsSyncingCards(true);
-          await syncQueuedCards();
-          setIsSyncingCards(false);
+        // 1. Загружаем из localStorage (всегда, как буфер)
+        try {
+          const localData = localStorage.getItem('gacha-collection');
+          if (localData) {
+            finalCollection = JSON.parse(localData);
+            // Присваиваем orderIndex на основе порядка в localStorage (0 = самый новый)
+            finalCollection = finalCollection.map((card, index) => ({
+              ...card,
+              orderIndex: finalCollection.length - 1 - index
+            }));
+          }
+        } catch (e) { console.error(e); }
+
+        // 2. Загружаем настройку приоритета главных героев
+        try {
+          const savedPriority = localStorage.getItem('gacha-prioritize-main-characters');
+          if (savedPriority) {
+            setPrioritizeMainCharacters(JSON.parse(savedPriority));
+          }
+        } catch (e) { console.error(e); }
+
+        // 3. Если залогинен, загружаем из БД и объединяем
+        if (session) {
+          try {
+            const dbCards = await loadUserCards();
+
+            // Присваиваем orderIndex для карт из БД (они будут в конце)
+            const dbCardsWithOrder = dbCards.map((card, index) => ({
+              ...card,
+              orderIndex: finalCollection.length + index
+            }));
+
+            // Объединяем без дубликатов (приоритет картам из БД)
+            const dbIds = new Set(dbCardsWithOrder.map(c => c.uniqueId));
+            finalCollection = [
+              ...dbCardsWithOrder,
+              ...finalCollection.filter(c => !dbIds.has(c.uniqueId))
+            ];
+
+            // Пробуем досинхронизировать то, что застряло в очереди
+            const queue = JSON.parse(localStorage.getItem('gacha-sync-queue') || '[]');
+            if (queue.length > 0) {
+              if (isMounted) {
+                setIsSyncingCards(true);
+              }
+              await syncQueuedCards();
+              if (isMounted) {
+                setIsSyncingCards(false);
+              }
+            }
+          } catch (dbError: any) {
+            // Игнорируем AbortError для БД запросов
+            if (dbError.name !== 'AbortError') {
+              console.error('[loadSavedCards] DB error:', dbError);
+            }
+          }
         }
+
+        if (isMounted) {
+          setCollectedCards(finalCollection);
+          setUsedCharacterIds(new Set(finalCollection.map(c => c.characterId)));
+          setIsLoaded(true);
+
+          // Загружаем список выставленных на рынок карт
+          await loadListedCards();
+        }
+      } catch (error: any) {
+        // Игнорируем AbortError - это нормальная ситуация при размонтировании
+        if (error.name === 'AbortError') {
+          console.log('[loadSavedCards] Request aborted (expected behavior)');
+          return;
+        }
+        console.error('[loadSavedCards] Error:', error);
       }
-
-      setCollectedCards(finalCollection);
-      setUsedCharacterIds(new Set(finalCollection.map(c => c.characterId)));
-      setIsLoaded(true);
-      
-      // Загружаем список выставленных на рынок карт
-      await loadListedCards();
     }
 
     loadSavedCards();
+    
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   useEffect(() => {

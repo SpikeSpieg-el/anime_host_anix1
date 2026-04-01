@@ -1,25 +1,38 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useAuth } from '@/components/auth-provider'
 import { supabase } from '@/lib/supabase'
 
 const DUST_STORAGE_KEY = 'gacha-dust'
 
 export function useDust() {
-  const { user } = useAuth()
+  const { user, loading: authLoading } = useAuth()
   const [dust, setDust] = useState<number>(0)
   const [loading, setLoading] = useState(true)
+  const abortControllerRef = useRef<AbortController | null>(null)
+  const isMountedRef = useRef(true)
 
   // Загрузка пыли
   const loadDust = useCallback(async () => {
-    console.log('[useDust] loadDust called, user:', user?.id || 'null')
+    // Отменяем предыдущий запрос если есть
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
+    }
     
+    // Создаем новый AbortController для этого запроса
+    abortControllerRef.current = new AbortController()
+    const { signal } = abortControllerRef.current
+    
+    console.log('[useDust] loadDust called, user:', user?.id || 'null')
+
     if (!user) {
       // Для неавторизованных - загружаем из localStorage
       const saved = localStorage.getItem(DUST_STORAGE_KEY)
       const savedDust = saved ? parseInt(saved, 10) || 0 : 0
       console.log('[useDust] No user, using localStorage:', savedDust)
-      setDust(savedDust)
-      setLoading(false)
+      if (isMountedRef.current) {
+        setDust(savedDust)
+        setLoading(false)
+      }
       return
     }
 
@@ -29,36 +42,52 @@ export function useDust() {
       if (!sessionData?.session?.access_token) {
         console.warn('[useDust] No session token available')
         const saved = localStorage.getItem(DUST_STORAGE_KEY)
-        setDust(saved ? parseInt(saved, 10) || 0 : 0)
-        setLoading(false)
+        if (isMountedRef.current) {
+          setDust(saved ? parseInt(saved, 10) || 0 : 0)
+          setLoading(false)
+        }
         return
       }
 
       const res = await fetch('/api/dust', {
         headers: {
           'Authorization': `Bearer ${sessionData.session.access_token}`
-        }
+        },
+        signal
       })
-      
+
       const result = await res.json()
-      
+
       if (result.success) {
         console.log('[useDust] Dust loaded from server:', result.dust)
-        setDust(result.dust || 0)
-        // Сохраняем в localStorage как кэш
-        localStorage.setItem(DUST_STORAGE_KEY, (result.dust || 0).toString())
+        if (isMountedRef.current) {
+          setDust(result.dust || 0)
+          // Сохраняем в localStorage как кэш
+          localStorage.setItem(DUST_STORAGE_KEY, (result.dust || 0).toString())
+          setLoading(false)
+        }
       } else {
         console.warn('[useDust] Server error, using localStorage fallback:', result.message)
         const saved = localStorage.getItem(DUST_STORAGE_KEY)
-        setDust(saved ? parseInt(saved, 10) || 0 : 0)
+        if (isMountedRef.current) {
+          setDust(saved ? parseInt(saved, 10) || 0 : 0)
+          setLoading(false)
+        }
       }
-    } catch (error) {
+    } catch (error: any) {
+      // Игнорируем AbortError - это нормальная ситуация при размонтировании или отмене запроса
+      if (error.name === 'AbortError') {
+        console.log('[useDust] Request aborted (expected behavior)')
+        return
+      }
+      
       console.error('[useDust] Error loading dust:', error)
       // Фолбэк на localStorage
       const saved = localStorage.getItem(DUST_STORAGE_KEY)
-      setDust(saved ? parseInt(saved, 10) || 0 : 0)
-    } finally {
-      setLoading(false)
+      if (isMountedRef.current) {
+        setDust(saved ? parseInt(saved, 10) || 0 : 0)
+        setLoading(false)
+      }
     }
   }, [user])
 
@@ -68,8 +97,10 @@ export function useDust() {
       console.warn('[useDust] Cannot add dust: user not authenticated')
       // Для неавторизованных обновляем только локальное состояние
       const newDust = dust + amount
-      setDust(newDust)
-      localStorage.setItem(DUST_STORAGE_KEY, newDust.toString())
+      if (isMountedRef.current) {
+        setDust(newDust)
+        localStorage.setItem(DUST_STORAGE_KEY, newDust.toString())
+      }
       return true
     }
 
@@ -90,18 +121,25 @@ export function useDust() {
       })
 
       const result = await res.json()
-      
+
       if (result.success) {
         // Обновляем локальное состояние после успешной операции
-        setDust(result.newBalance || dust)
-        localStorage.setItem(DUST_STORAGE_KEY, (result.newBalance || dust).toString())
+        if (isMountedRef.current) {
+          setDust(result.newBalance || dust)
+          localStorage.setItem(DUST_STORAGE_KEY, (result.newBalance || dust).toString())
+        }
         console.log(`[useDust] Successfully added ${amount} dust`)
         return true
       } else {
         console.error('[useDust] Failed to add dust:', result.message)
         return false
       }
-    } catch (error) {
+    } catch (error: any) {
+      // Игнорируем AbortError
+      if (error.name === 'AbortError') {
+        console.log('[useDust] Add dust request aborted')
+        return false
+      }
       console.error('[useDust] Error adding dust:', error)
       return false
     }
@@ -114,8 +152,10 @@ export function useDust() {
       // Для неавторизованных проверяем локальный баланс
       if (dust < amount) return false
       const newDust = dust - amount
-      setDust(newDust)
-      localStorage.setItem(DUST_STORAGE_KEY, newDust.toString())
+      if (isMountedRef.current) {
+        setDust(newDust)
+        localStorage.setItem(DUST_STORAGE_KEY, newDust.toString())
+      }
       return true
     }
 
@@ -136,27 +176,53 @@ export function useDust() {
       })
 
       const result = await res.json()
-      
+
       if (result.success) {
         // Обновляем локальное состояние после успешной операции
-        setDust(result.newBalance || dust)
-        localStorage.setItem(DUST_STORAGE_KEY, (result.newBalance || dust).toString())
+        if (isMountedRef.current) {
+          setDust(result.newBalance || dust)
+          localStorage.setItem(DUST_STORAGE_KEY, (result.newBalance || dust).toString())
+        }
         console.log(`[useDust] Successfully spent ${amount} dust`)
         return true
       } else {
         console.error('[useDust] Failed to spend dust:', result.message)
         return false
       }
-    } catch (error) {
+    } catch (error: any) {
+      // Игнорируем AbortError
+      if (error.name === 'AbortError') {
+        console.log('[useDust] Spend dust request aborted')
+        return false
+      }
       console.error('[useDust] Error spending dust:', error)
       return false
     }
   }, [user, dust])
 
-  // Слушаем изменения авторизации
+  // Отслеживаем монтирование/размонтирование компонента
   useEffect(() => {
+    isMountedRef.current = true
+    
+    return () => {
+      isMountedRef.current = false
+      // Отменяем все pending запросы при размонтировании
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort()
+        abortControllerRef.current = null
+      }
+    }
+  }, [])
+
+  // Слушаем изменения авторизации, но ждём пока authLoading !== true
+  useEffect(() => {
+    // Не начинаем загрузку, пока авторизация ещё загружается
+    if (authLoading) {
+      console.log('[useDust] Auth still loading, waiting...')
+      return
+    }
     loadDust()
-  }, [user?.id])
+  }, [user?.id, authLoading])
 
   return {
     dust,
