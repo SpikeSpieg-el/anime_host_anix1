@@ -8,7 +8,7 @@ import type { Card } from './page'
  */
 
 // Helper function to fetch with timeout
-async function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutMs: number = 10000) {
+async function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutMs: number = 15000) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
   
@@ -137,7 +137,7 @@ export async function loadUserCards(): Promise<Card[]> {
       headers: {
         'Authorization': `Bearer ${token}`
       }
-    }, 8000)
+    }, 15000) // Увеличили таймаут до 15 секунд для продакшена
     console.log('[loadUserCards] API response status:', res.status);
 
     if (!res.ok) {
@@ -161,7 +161,7 @@ export async function loadUserCards(): Promise<Card[]> {
           headers: {
             'Authorization': `Bearer ${newSession.access_token}`
           }
-        }, 8000)
+        }, 15000) // Увеличили таймаут для повторной попытки
 
         if (!retryRes.ok) {
           console.error('[loadUserCards] API error after retry:', retryRes.status)
@@ -180,6 +180,11 @@ export async function loadUserCards(): Promise<Card[]> {
     const data = await res.json()
     console.log('[loadUserCards] Loaded', data.cards?.length || 0, 'cards')
     
+    // Дополнительная проверка для продакшена
+    if (!data.cards || !Array.isArray(data.cards)) {
+      console.warn('[loadUserCards] Invalid response data:', data)
+      return []
+    }
     
     return data.cards || []
   } catch (error) {

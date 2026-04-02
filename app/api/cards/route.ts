@@ -48,6 +48,30 @@ async function getAuthenticatedUser(request: Request) {
 // GET /api/cards - Get all user cards
 export async function GET(request: Request) {
   try {
+    // Добавляем таймаут на сервере
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Server timeout')), 25000)
+    );
+
+    const result = await Promise.race([
+      getCardsData(request),
+      timeoutPromise
+    ]);
+
+    return result;
+  } catch (error: any) {
+    console.error('[GET] Cards API error:', error);
+    
+    if (error.message === 'Server timeout') {
+      return NextResponse.json({ error: 'Database timeout' }, { status: 504 });
+    }
+    
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
+async function getCardsData(request: Request) {
+  try {
     const authData = await getAuthenticatedUser(request)
     if (!authData) {
       return NextResponse.json({ error: 'Unauthorized: Missing or invalid authorization header' }, { status: 401 })
@@ -106,13 +130,37 @@ export async function GET(request: Request) {
     return NextResponse.json({ cards })
 
   } catch (error) {
-    console.error('API GET cards error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    console.error('[getCardsData] Error:', error)
+    return NextResponse.json({ error: 'Failed to load cards' }, { status: 500 })
   }
 }
 
 // POST /api/cards - Save a new card
 export async function POST(request: Request) {
+  try {
+    // Добавляем таймаут на сервере
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Server timeout')), 15000)
+    );
+
+    const result = await Promise.race([
+      saveCardData(request),
+      timeoutPromise
+    ]);
+
+    return result;
+  } catch (error: any) {
+    console.error('[POST] Cards API error:', error);
+    
+    if (error.message === 'Server timeout') {
+      return NextResponse.json({ error: 'Database timeout' }, { status: 504 });
+    }
+    
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
+async function saveCardData(request: Request) {
   try {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
     const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -231,13 +279,37 @@ export async function POST(request: Request) {
     return NextResponse.json({ card, saved: true })
 
   } catch (error) {
-    console.error('API POST cards error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    console.error('[saveCardData] Error:', error)
+    return NextResponse.json({ error: 'Failed to save card' }, { status: 500 })
   }
 }
 
 // DELETE /api/cards - Delete a card
 export async function DELETE(request: Request) {
+  try {
+    // Добавляем таймаут на сервере
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Server timeout')), 10000)
+    );
+
+    const result = await Promise.race([
+      deleteCardData(request),
+      timeoutPromise
+    ]);
+
+    return result;
+  } catch (error: any) {
+    console.error('[DELETE] Cards API error:', error);
+    
+    if (error.message === 'Server timeout') {
+      return NextResponse.json({ error: 'Database timeout' }, { status: 504 });
+    }
+    
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
+async function deleteCardData(request: Request) {
   try {
     const authData = await getAuthenticatedUser(request)
     if (!authData) {
@@ -279,7 +351,7 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ success: true })
 
   } catch (error) {
-    console.error('API DELETE cards error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    console.error('[deleteCardData] Error:', error)
+    return NextResponse.json({ error: 'Failed to delete card' }, { status: 500 })
   }
 }

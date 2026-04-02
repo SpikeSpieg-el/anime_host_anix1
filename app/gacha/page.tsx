@@ -910,8 +910,26 @@ useEffect(() => {
         if (authUser) {
           try {
             console.log('[loadSavedCards] Calling loadUserCards...');
-            const dbCards = await loadUserCards();
+            
+            // Добавляем таймаут для всего процесса загрузки БД
+            const dbCards = await Promise.race([
+              loadUserCards(),
+              new Promise<Card[]>((_, reject) => 
+                setTimeout(() => reject(new Error('DB load timeout')), 20000)
+              )
+            ]);
+            
             console.log('[loadSavedCards] DB cards loaded:', dbCards.length);
+
+            // Проверка на пустой ответ от БД
+            if (!Array.isArray(dbCards)) {
+              console.error('[loadSavedCards] Invalid DB response, using local data');
+              if (isMounted) {
+                setCollectedCards(localCards);
+                setIsLoaded(true);
+              }
+              return;
+            }
 
             const dbCardsWithOrder = dbCards.map((card: Card, index: number) => ({
               ...card,
