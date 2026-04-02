@@ -652,7 +652,7 @@ export default function GachaPage() {
 
   const usedCharacterIds = useMemo(() => new Set(collectedCards.map(c => c.characterId)), [collectedCards])
   
-  const { user: authUser, sessionLoading } = useAuth()
+  const { user: authUser, session, sessionLoading } = useAuth()
   const { coins: userCoins, loading: coinsLoading, spendCoins, addCoins, forceSync, fixOverflow, refresh: refreshCoins } = useCoins()
   const { dust, loading: dustLoading, addDust } = useDust()
   const[selectedPack, setSelectedPack] = useState<AnimePack | CustomAnimePack | null>(null)
@@ -913,7 +913,7 @@ useEffect(() => {
             
             // Добавляем таймаут для всего процесса загрузки БД
             const dbCards = await Promise.race([
-              loadUserCards(),
+              loadUserCards({ user: authUser, session }), // Передаем объект с данными
               new Promise<Card[]>((_, reject) => 
                 setTimeout(() => reject(new Error('DB load timeout')), 20000)
               )

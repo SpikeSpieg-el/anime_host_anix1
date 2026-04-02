@@ -118,19 +118,23 @@ export async function saveCardToDatabase(card: Card): Promise<{ success: boolean
   }
 }
 
-export async function loadUserCards(): Promise<Card[]> {
+export async function loadUserCards(authData?: { user?: any; session?: any }): Promise<Card[]> {
   try {
     console.log('[loadUserCards] Starting load...');
-    const { supabase } = await import('@/lib/supabase')
-
-    const { data: { session } } = await supabase.auth.getSession()
-    console.log('[loadUserCards] Session result:', !!session, 'user:', session?.user?.id);
-    if (!session) {
-      console.log('[loadUserCards] No session found')
+    
+    // Если данных нет, возвращаем пустой массив
+    if (!authData?.user || !authData?.session) {
+      console.log('[loadUserCards] No authUser or session provided')
       return []
     }
 
-    const token = session.access_token
+    // Используем переданную сессию, НЕ вызываем getSession() чтобы избежать deadlock
+    const token = authData.session.access_token
+    
+    if (!token) {
+      console.log('[loadUserCards] No token in session')
+      return []
+    }
     console.log('[loadUserCards] Token length:', token?.length, 'first 20 chars:', token?.substring(0, 20));
 
     const res = await fetchWithTimeout('/api/cards', {
@@ -144,6 +148,7 @@ export async function loadUserCards(): Promise<Card[]> {
       if (res.status === 401) {
         console.warn('[loadUserCards] Token expired or invalid, user may need to re-authenticate')
         // Try to refresh the session
+        const { supabase } = await import('@/lib/supabase')
         const { error } = await supabase.auth.refreshSession()
         if (error) {
           console.error('[loadUserCards] Failed to refresh session:', error)
