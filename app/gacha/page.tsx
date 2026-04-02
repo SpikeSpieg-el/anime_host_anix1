@@ -1128,11 +1128,9 @@ useEffect(() => {
       if (result) {
         // Update pity system after roll
         try {
-          const { supabase } = await import('@/lib/supabase');
-          const { data: { session } } = await supabase.auth.getSession();
-          
-          if (session) {
-            const pityUpdate = await updateUserPityAfterRoll(session.user.id, result);
+          // УБРАЛИ вызов getSession()
+          if (authUser) {
+            const pityUpdate = await updateUserPityAfterRoll(authUser.id, result); // ИСПОЛЬЗУЕМ authUser.id
             
             // Update local pity state
             setPityData(prev => prev ? {
@@ -1275,21 +1273,17 @@ useEffect(() => {
     operationStartTime.current = Date.now();
 
     try {
-      const { supabase } = await import('@/lib/supabase');
-      const { data: { session } } = await supabase.auth.getSession();
-
-      if (session) {
+      // УБРАЛИ вызов getSession()
+      if (authUser) { // ИСПОЛЬЗУЕМ authUser
         const result = await saveCardToDatabase(card);
         if (!result.success) {
           // Если база недоступна, кладем в очередь на синхронизацию
           queueCardForSync(card);
         } else {
-          // Если сохранение в БД прошло успешно, можно (опционально) удалить из локалки, 
-          // но лучше оставить — при загрузке мы просто объединим массивы без дублей.
           console.log("Card persisted to DB");
         }
       }
-      // Если сессии нет, карта уже лежит в localStorage благодаря шагу 2.
+      // Если сессии нет (authUser = null), карта уже лежит в localStorage благодаря шагу 2.
     } catch (e) {
       console.error("Critical save error:", e);
       queueCardForSync(card);
@@ -1415,10 +1409,8 @@ useEffect(() => {
     try {
       console.log('[removeCard] Starting removal for card:', cardToRemove.uniqueId)
       
-      const { supabase } = await import('@/lib/supabase')
-      const { data: { session } } = await supabase.auth.getSession()
-      
-      if (session) {
+      // УБРАЛИ вызов getSession()
+      if (authUser) { // ИСПОЛЬЗУЕМ authUser
         console.log('[removeCard] User authenticated, attempting database delete')
         const result = await deleteCardFromDatabase(cardToRemove.uniqueId)
         if (!result.success) {

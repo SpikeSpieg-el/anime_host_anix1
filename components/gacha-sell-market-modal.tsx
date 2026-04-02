@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { Loader2, Store } from "lucide-react"
 import type { Card } from "@/app/gacha/page"
 import { computeMaxListingPrice, computeMinListingPrice } from "@/lib/market-floor"
+import { useAuth } from "@/components/auth-provider" // Импортируем хук авторизации
 
 export function GachaSellMarketModal({
   card,
@@ -20,6 +21,9 @@ export function GachaSellMarketModal({
 }) {
   const [priceInput, setPriceInput] = useState("")
   const [submitting, setSubmitting] = useState(false)
+  
+  // Получаем сессию напрямую из провайдера, не дергая базу лишний раз
+  const { session } = useAuth()
 
   // Форматирование числа с разделением тысяч
   const formatPrice = (value: string): string => {
@@ -77,11 +81,7 @@ export function GachaSellMarketModal({
 
     setSubmitting(true)
     try {
-      const { supabase } = await import("@/lib/supabase")
-      const {
-        data: { session },
-      } = await supabase.auth.getSession()
-
+      // КРИТИЧНО: Убрали await supabase.auth.getSession(), теперь берем токен из провайдера
       if (!session?.access_token) {
         onNotify("Маркет", "Войдите в аккаунт, чтобы продавать карты.", "warning")
         return
@@ -91,7 +91,7 @@ export function GachaSellMarketModal({
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${session.access_token}`,
+          "Authorization": `Bearer ${session.access_token}`, // Используем токен из хука
         },
         body: JSON.stringify({
           uniqueId: card.uniqueId,
@@ -112,7 +112,7 @@ export function GachaSellMarketModal({
     } finally {
       setSubmitting(false)
     }
-  }, [card, maxSellPrice, minSellPrice, onClose, onListed, onNotify, priceInput])
+  }, [card, maxSellPrice, minSellPrice, onClose, onListed, onNotify, cleanPriceInput, session]) // Добавили session в зависимости
 
   if (!card) return null
 
