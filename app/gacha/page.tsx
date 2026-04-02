@@ -652,7 +652,7 @@ export default function GachaPage() {
 
   const usedCharacterIds = useMemo(() => new Set(collectedCards.map(c => c.characterId)), [collectedCards])
   
-  const { user: authUser } = useAuth()
+  const { user: authUser, sessionLoading } = useAuth()
   const { coins: userCoins, loading: coinsLoading, spendCoins, addCoins, forceSync, fixOverflow, refresh: refreshCoins } = useCoins()
   const { dust, loading: dustLoading, addDust } = useDust()
   const[selectedPack, setSelectedPack] = useState<AnimePack | CustomAnimePack | null>(null)
@@ -868,7 +868,7 @@ export default function GachaPage() {
 useEffect(() => {
     let isMounted = true;
 
-    console.log('[loadSavedCards useEffect] authUser:', authUser?.id, 'isLoaded:', isLoaded);
+    console.log('[loadSavedCards useEffect] authUser:', authUser?.id, 'sessionLoading:', sessionLoading, 'isLoaded:', isLoaded);
 
     const loadSavedCards = async () => {
       // КРИТИЧНО: Здесь НЕ ДОЛЖНО БЫТЬ "if (isLoaded) return;"
@@ -876,21 +876,9 @@ useEffect(() => {
 
       try {
         let finalCollection: Card[] =[];
+        let localCards: Card[] = [];
 
-        // 1. Загружаем из localStorage (всегда, как буфер)
-        try {
-          const localData = localStorage.getItem('gacha-collection');
-          console.log('[loadSavedCards] LocalStorage cards:', localData ? JSON.parse(localData).length : 0);
-          if (localData) {
-            finalCollection = JSON.parse(localData);
-            finalCollection = finalCollection.map((card: Card, index: number) => ({
-              ...card,
-              orderIndex: finalCollection.length - 1 - index
-            }));
-          }
-        } catch (e) { console.error(e); }
-
-        // 2. Настройки приоритета
+        // 1. Сначала загружаем настройки из localStorage
         try {
           const savedPriority = localStorage.getItem('gacha-prioritize-main-characters');
           if (savedPriority) {
@@ -898,7 +886,26 @@ useEffect(() => {
           }
         } catch (e) { console.error(e); }
 
-        // 3. Загрузка из базы данных
+        // 2. Загружаем локальные карты для поиска потерянных
+        try {
+          const localData = localStorage.getItem('gacha-collection');
+          console.log('[loadSavedCards] LocalStorage cards:', localData ? JSON.parse(localData).length : 0);
+          if (localData) {
+            localCards = JSON.parse(localData);
+            localCards = localCards.map((card: Card, index: number) => ({
+              ...card,
+              orderIndex: localCards.length - 1 - index
+            }));
+          }
+        } catch (e) { console.error(e); }
+
+        // 3. Загрузка из базы данных (ПРИОРИТЕТ)
+        // Ждём пока сессия загрузится перед тем как продолжать
+        if (sessionLoading) {
+          console.log('[loadSavedCards] Session still loading, waiting...');
+          return;
+        }
+
         console.log('[loadSavedCards] authUser check:', !!authUser);
         if (authUser) {
           try {
@@ -908,14 +915,38 @@ useEffect(() => {
 
             const dbCardsWithOrder = dbCards.map((card: Card, index: number) => ({
               ...card,
-              orderIndex: finalCollection.length + index
+              orderIndex: index
             }));
 
-            // Объединяем без дубликатов
+            // 4. Ищем потерянные карты в localStorage, которых нет в БД
             const dbIds = new Set(dbCardsWithOrder.map(c => c.uniqueId));
-            finalCollection =[
+            const lostCards = localCards.filter(c => !dbIds.has(c.uniqueId));
+            
+            console.log('[loadSavedCards] Found lost cards:', lostCards.length);
+
+            // 5. Синхронизируем потерянные карты в БД
+            if (lostCards.length > 0) {
+              console.log('[loadSavedCards] Syncing lost cards to DB...');
+              for (const card of lostCards) {
+                try {
+                  const result = await saveCardToDatabase(card);
+                  if (!result.success && !result.isAbort) {
+                    queueCardForSync(card);
+                  }
+                } catch (error) {
+                  console.error('[loadSavedCards] Failed to sync lost card:', card.uniqueId, error);
+                  queueCardForSync(card);
+                }
+              }
+            }
+
+            // 6. Объединяем: БД карты + потерянные локальные карты
+            finalCollection = [
               ...dbCardsWithOrder,
-              ...finalCollection.filter(c => !dbIds.has(c.uniqueId))
+              ...lostCards.map((card, index) => ({
+                ...card,
+                orderIndex: dbCardsWithOrder.length + index
+              }))
             ];
 
             console.log('[loadSavedCards] Final collection size:', finalCollection.length);
@@ -926,24 +957,37 @@ useEffect(() => {
               await loadListedCards(); // Подтягиваем рынок
             }
 
-            // Фоновая досинхронизация зависших карт (если она упадет, карты все равно уже на экране)
+            // 7. Фоновая досинхронизация очереди (если она упадет, карты все равно уже на экране)
             const queue = JSON.parse(localStorage.getItem('gacha-sync-queue') || '[]');
             if (queue.length > 0) {
               if (isMounted) setIsSyncingCards(true);
-              await syncQueuedCards();
-              if (isMounted) setIsSyncingCards(false);
+              const syncResult = await syncQueuedCards();
+              if (isMounted) {
+                setIsSyncingCards(false);
+                setPendingSyncCount(syncResult.remaining);
+              }
             }
           } catch (dbError: any) {
             if (dbError.name !== 'AbortError') {
               console.error('[loadSavedCards] DB error:', dbError);
+              
+              // Если БД недоступна, используем локальные данные
+              console.log('[loadSavedCards] DB unavailable, using local data');
+              if (isMounted) {
+                setCollectedCards(localCards);
+              }
             }
           }
         } else {
           // Если юзер пока гость (или сессия еще грузится) - показываем локальные данные
+          // НО НЕ разблокируем UI, если сессия ещё загружается
           console.log('[loadSavedCards] No authUser, using local data only');
           if (isMounted) {
-            setCollectedCards(finalCollection);
+            setCollectedCards(localCards);
           }
+          // НЕ устанавливаем isLoaded здесь, если authUser ещё не загружен
+          // Это предотвратит преждевременную разблокировку UI
+          return;
         }
 
       } catch (error: any) {
@@ -962,7 +1006,7 @@ useEffect(() => {
     return () => {
       isMounted = false;
     };
-  }, [authUser?.id]); // Хук перезапустится сам, когда Гость превратится в Авторизованного
+  }, [authUser?.id, sessionLoading]); // Добавили sessionLoading в зависимости
 
   useEffect(() => {
     const loadPacks = async () => {
@@ -2378,8 +2422,7 @@ useEffect(() => {
                   setIsSyncingCards(true);
                   const result = await syncQueuedCards();
                   setIsSyncingCards(false);
-                  const remainingQueue = JSON.parse(localStorage.getItem('gacha-sync-queue') || '[]');
-                  setPendingSyncCount(remainingQueue.length);
+                  setPendingSyncCount(result.remaining);
                   alert(`Синхронизация завершена: ${result.success} успешно, ${result.failed} ошибок`);
                 }}
                 disabled={isSyncingCards}

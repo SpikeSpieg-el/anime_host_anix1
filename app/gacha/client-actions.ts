@@ -281,31 +281,33 @@ export function queueCardForSync(card: Card) {
  * Sync queued cards from localStorage to DB
  * Called on page load to recover from failed saves
  */
-export async function syncQueuedCards(): Promise<{ success: number; failed: number }> {
+export async function syncQueuedCards(): Promise<{ success: number; failed: number; remaining: number }> {
   try {
     const { supabase } = await import('@/lib/supabase');
     const { data: { session } } = await supabase.auth.getSession();
     
     if (!session) {
       console.log('[syncQueuedCards] No session, skipping sync');
-      return { success: 0, failed: 0 };
+      return { success: 0, failed: 0, remaining: 0 };
     }
 
     const queue = JSON.parse(localStorage.getItem('gacha-sync-queue') || '[]');
     if (queue.length === 0) {
-      return { success: 0, failed: 0 };
+      return { success: 0, failed: 0, remaining: 0 };
     }
 
     console.log('[syncQueuedCards] Syncing', queue.length, 'cards');
     
     let success = 0;
     let failed = 0;
+    const successfullySyncedIds: string[] = [];
 
     for (const card of queue) {
       try {
         const result = await saveCardToDatabase(card);
         if (result.success) {
           success++;
+          successfullySyncedIds.push(card.uniqueId);
         } else {
           failed++;
         }
@@ -315,17 +317,14 @@ export async function syncQueuedCards(): Promise<{ success: number; failed: numb
       }
     }
 
-    // Clear synced cards from queue
-    const remainingQueue = queue.filter((card: Card, index: number) => {
-      // Assume first N cards were synced (simplified logic)
-      return index >= success;
-    });
+    // Remove only successfully synced cards from queue
+    const remainingQueue = queue.filter((card: Card) => !successfullySyncedIds.includes(card.uniqueId));
     localStorage.setItem('gacha-sync-queue', JSON.stringify(remainingQueue));
     
     console.log('[syncQueuedCards] Sync complete:', { success, failed, remaining: remainingQueue.length });
-    return { success, failed };
+    return { success, failed, remaining: remainingQueue.length };
   } catch (error) {
     console.error('[syncQueuedCards] Error:', error);
-    return { success: 0, failed: 0 };
+    return { success: 0, failed: 0, remaining: 0 };
   }
 }
