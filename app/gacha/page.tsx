@@ -1121,10 +1121,6 @@ useEffect(() => {
         new Promise((_, reject) => setTimeout(() => reject(new Error("TIMEOUT")), 15000))
       ]) as any;
 
-      // СРАЗУ ВЫКЛЮЧАЕМ КРУТИЛКУ
-      setIsRolling(false); 
-      operationStartTime.current = null;
-
       if (result) {
         // Update pity system after roll
         try {

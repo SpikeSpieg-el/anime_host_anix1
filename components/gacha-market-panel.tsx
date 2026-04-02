@@ -307,7 +307,7 @@ export function GachaMarketPanel({
   onTradeComplete: () => Promise<void>
   onNotify: (title: string, message: string, type?: "error" | "info" | "warning") => void
 }) {
-  const { user } = useAuth()
+  const { user, session } = useAuth()
   const [tab, setTab] = useState<"vitrine" | "mine">("vitrine")
   const [listings, setListings] = useState<MarketListingApi[]>([])
   const [loading, setLoading] = useState(true)
@@ -315,16 +315,15 @@ export function GachaMarketPanel({
   const [viewedCard, setViewedCard] = useState<MarketListingApi | null>(null)
   const [buyPreview, setBuyPreview] = useState<{ listing: MarketListingApi } | null>(null)
 
-  const authHeader = useCallback(async () => {
-    const { data: { session } } = await supabase.auth.getSession()
+  const authHeader = useCallback(() => {
     if (!session?.access_token) return null
     return { Authorization: `Bearer ${session.access_token}` }
-  }, [])
+  }, [session])
 
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const headers = await authHeader()
+      const headers = authHeader()
       const mine = tab === "mine"
       const url = `/api/market/listings?mine=${mine ? "1" : "0"}&limit=80`
       const res = await fetch(url, {
@@ -356,7 +355,7 @@ export function GachaMarketPanel({
 
     setActionId(listingId)
     try {
-      const headers = await authHeader()
+      const headers = authHeader()
       if (!headers) {
         onNotify("Маркет", "Сессия недоступна", "error")
         return
@@ -402,7 +401,7 @@ export function GachaMarketPanel({
     if (!confirm(`Снять с продажи «${name}»? Карта вернётся в коллекцию.`)) return
     setActionId(listingId)
     try {
-      const headers = await authHeader()
+      const headers = authHeader()
       if (!headers) {
         onNotify("Маркет", "Сессия недоступна", "error")
         return
