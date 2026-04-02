@@ -29,17 +29,24 @@ export interface PityData {
   last_rare_roll?: string;
 }
 
-export async function loadUserPity(): Promise<PityData | null> {
+export async function loadUserPity(session?: any): Promise<PityData | null> {
   try {
     const { supabase } = await import('@/lib/supabase');
-    const { data: { session } } = await supabase.auth.getSession();
     
-    if (!session) {
+    // Используем переданную сессию или получаем новую только при необходимости
+    let currentSession = session
+    if (!currentSession) {
+      console.log('[loadUserPity] No session provided, getting fresh session')
+      const { data: { session: freshSession } } = await supabase.auth.getSession()
+      currentSession = freshSession
+    }
+    
+    if (!currentSession) {
       console.log('[loadUserPity] No session found');
       return null;
     }
 
-    const token = session.access_token;
+    const token = currentSession.access_token;
 
     const res = await fetchWithTimeout('/api/pity', {
       headers: {
@@ -66,16 +73,23 @@ export async function loadUserPity(): Promise<PityData | null> {
   }
 }
 
-export async function updateUserPity(bad_luck_streak: number, last_rare_roll?: string): Promise<{ success: boolean; pity?: PityData; error?: string }> {
+export async function updateUserPity(bad_luck_streak: number, last_rare_roll?: string, session?: any): Promise<{ success: boolean; pity?: PityData; error?: string }> {
   try {
     const { supabase } = await import('@/lib/supabase');
-    const { data: { session } } = await supabase.auth.getSession();
     
-    if (!session) {
+    // Используем переданную сессию или получаем новую только при необходимости
+    let currentSession = session
+    if (!currentSession) {
+      console.log('[updateUserPity] No session provided, getting fresh session')
+      const { data: { session: freshSession } } = await supabase.auth.getSession()
+      currentSession = freshSession
+    }
+    
+    if (!currentSession) {
       return { success: false, error: 'Not authenticated' };
     }
 
-    const token = session.access_token;
+    const token = currentSession.access_token;
 
     const res = await fetchWithTimeout('/api/pity', {
       method: 'POST',
@@ -95,8 +109,9 @@ export async function updateUserPity(bad_luck_streak: number, last_rare_roll?: s
           return { success: false, error: 'Authentication failed' };
         }
 
-        const { data: { session: newSession } } = await supabase.auth.getSession();
-        if (!newSession) {
+        // Используем refreshSession и получаем новую сессию
+        const { data: { session: refreshedSession } } = await supabase.auth.refreshSession();
+        if (!refreshedSession) {
           console.log('[updateUserPity] No session after refresh');
           return { success: false, error: 'Not authenticated' };
         }
@@ -105,7 +120,7 @@ export async function updateUserPity(bad_luck_streak: number, last_rare_roll?: s
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${newSession.access_token}`
+            'Authorization': `Bearer ${refreshedSession.access_token}`
           },
           body: JSON.stringify({ bad_luck_streak, last_rare_roll })
         }, 8000);

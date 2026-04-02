@@ -29,17 +29,24 @@ async function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutM
   }
 }
 
-export async function saveCardToDatabase(card: Card): Promise<{ success: boolean; error?: string; exists?: boolean; isAbort?: boolean }> {
+export async function saveCardToDatabase(card: Card, session?: any): Promise<{ success: boolean; error?: string; exists?: boolean; isAbort?: boolean }> {
   try {
     const { supabase } = await import('@/lib/supabase')
 
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) {
+    // Используем переданную сессию или получаем новую только при необходимости
+    let currentSession = session
+    if (!currentSession) {
+      console.log('[saveCardToDatabase] No session provided, getting fresh session')
+      const { data: { session: freshSession } } = await supabase.auth.getSession()
+      currentSession = freshSession
+    }
+    
+    if (!currentSession) {
       console.log('[saveCardToDatabase] No session found, card not saved to DB')
       return { success: false, error: 'Not authenticated' }
     }
 
-    const token = session.access_token
+    const token = currentSession.access_token
 
     const res = await fetchWithTimeout('/api/cards', {
       method: 'POST',
@@ -198,16 +205,23 @@ export async function loadUserCards(authData?: { user?: any; session?: any }): P
   }
 }
 
-export async function deleteCardFromDatabase(uniqueId: string): Promise<{ success: boolean; error?: string }> {
+export async function deleteCardFromDatabase(uniqueId: string, session?: any): Promise<{ success: boolean; error?: string }> {
   try {
     const { supabase } = await import('@/lib/supabase')
 
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) {
+    // Используем переданную сессию или получаем новую только при необходимости
+    let currentSession = session
+    if (!currentSession) {
+      console.log('[deleteCardFromDatabase] No session provided, getting fresh session')
+      const { data: { session: freshSession } } = await supabase.auth.getSession()
+      currentSession = freshSession
+    }
+    
+    if (!currentSession) {
       return { success: false, error: 'Not authenticated' }
     }
 
-    const token = session.access_token
+    const token = currentSession.access_token
 
     const res = await fetchWithTimeout('/api/cards', {
       method: 'DELETE',
@@ -291,12 +305,19 @@ export function queueCardForSync(card: Card) {
  * Sync queued cards from localStorage to DB
  * Called on page load to recover from failed saves
  */
-export async function syncQueuedCards(): Promise<{ success: number; failed: number; remaining: number }> {
+export async function syncQueuedCards(session?: any): Promise<{ success: number; failed: number; remaining: number }> {
   try {
     const { supabase } = await import('@/lib/supabase');
-    const { data: { session } } = await supabase.auth.getSession();
     
-    if (!session) {
+    // Используем переданную сессию или получаем новую только при необходимости
+    let currentSession = session
+    if (!currentSession) {
+      console.log('[syncQueuedCards] No session provided, getting fresh session')
+      const { data: { session: freshSession } } = await supabase.auth.getSession()
+      currentSession = freshSession
+    }
+    
+    if (!currentSession) {
       console.log('[syncQueuedCards] No session, skipping sync');
       return { success: 0, failed: 0, remaining: 0 };
     }

@@ -16,7 +16,7 @@ import Link from "next/link"
 import { ScrollToTop } from "@/components/scroll-to-top"
 
 export default function SettingsPage() {
-  const { user, profile, refreshProfile } = useAuth()
+  const { user, profile, refreshProfile, session } = useAuth()
   const [username, setUsername] = useState(profile?.username || "")
   const [allowNsfwSearch, setAllowNsfwSearch] = useState(profile?.allow_nsfw_search || false)
   const [loading, setLoading] = useState(false)
@@ -29,8 +29,6 @@ export default function SettingsPage() {
 
     setLoading(true)
     try {
-      const { data: { session } } = await supabase.auth.getSession()
-      
       if (!session) {
         throw new Error('Not authenticated')
       }
@@ -78,8 +76,6 @@ export default function SettingsPage() {
 
     setLoadingNsfw(true)
     try {
-      const { data: { session } } = await supabase.auth.getSession()
-      
       if (!session) {
         throw new Error('Not authenticated')
       }

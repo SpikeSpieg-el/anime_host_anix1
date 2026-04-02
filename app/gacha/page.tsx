@@ -775,7 +775,7 @@ export default function GachaPage() {
     if (!authUser?.id) return;
 
     try {
-      const dbCards = await loadUserCards()
+      const dbCards = await loadUserCards({ user: authUser, session })
       let localCollection: Card[] = []
       try {
         const raw = localStorage.getItem("gacha-collection")
@@ -785,18 +785,22 @@ export default function GachaPage() {
       }
 
       const dbIds = new Set(dbCards.map((c) => c.uniqueId))
+      
+      // Находим потерянные локальные карты (которых нет в БД)
+      const lostLocalCards = localCollection.filter((c) => !dbIds.has(c.uniqueId))
+      
+      // Приоритет: БД карты + потерянные локальные карты
       const dbCardsWithOrder = dbCards.map((card, idx) => ({
         ...card,
-        orderIndex: localCollection.length + idx,
+        orderIndex: idx,
       }))
 
       const merged: Card[] = [
         ...dbCardsWithOrder,
-        ...localCollection
-          .filter((c) => !dbIds.has(c.uniqueId))
+        ...lostLocalCards
           .map((card, i) => ({
             ...card,
-            orderIndex: i,
+            orderIndex: dbCards.length + i,
           })),
       ]
 
@@ -808,7 +812,7 @@ export default function GachaPage() {
       }
       console.error("Error refreshing collection:", error)
     }
-  }, [authUser?.id]) // 2. И здесь добавляем authUser?.id
+  }, [authUser?.id, session]) // 2. Добавляем session в зависимости
 
   const handleListedOnMarket = useCallback(async () => {
     setViewedCard(null)
@@ -941,7 +945,7 @@ useEffect(() => {
               console.log('[loadSavedCards] Syncing lost cards to DB...');
               for (const card of lostCards) {
                 try {
-                  const result = await saveCardToDatabase(card);
+                  const result = await saveCardToDatabase(card, session);
                   if (!result.success && !result.isAbort) {
                     queueCardForSync(card);
                   }
@@ -979,7 +983,7 @@ useEffect(() => {
             const queue = JSON.parse(localStorage.getItem('gacha-sync-queue') || '[]');
             if (queue.length > 0) {
               if (isMounted) setIsSyncingCards(true);
-              const syncResult = await syncQueuedCards();
+              const syncResult = await syncQueuedCards(session);
               if (isMounted) {
                 setIsSyncingCards(false);
                 setPendingSyncCount(syncResult.remaining);
@@ -1072,7 +1076,7 @@ useEffect(() => {
   useEffect(() => {
     const loadPityData = async () => {
       try {
-        const data = await loadUserPity();
+        const data = await loadUserPity(session);
         setPityData(data);
       } catch (error) {
         console.error('[loadPityData] Error:', error);
@@ -1271,7 +1275,7 @@ useEffect(() => {
     try {
       // УБРАЛИ вызов getSession()
       if (authUser) { // ИСПОЛЬЗУЕМ authUser
-        const result = await saveCardToDatabase(card);
+        const result = await saveCardToDatabase(card, session);
         if (!result.success) {
           // Если база недоступна, кладем в очередь на синхронизацию
           queueCardForSync(card);
@@ -1408,7 +1412,7 @@ useEffect(() => {
       // УБРАЛИ вызов getSession()
       if (authUser) { // ИСПОЛЬЗУЕМ authUser
         console.log('[removeCard] User authenticated, attempting database delete')
-        const result = await deleteCardFromDatabase(cardToRemove.uniqueId)
+        const result = await deleteCardFromDatabase(cardToRemove.uniqueId, session)
         if (!result.success) {
           console.error('[removeCard] Database delete failed:', result.error)
         } else {
@@ -2423,7 +2427,7 @@ useEffect(() => {
               <button
                 onClick={async () => {
                   setIsSyncingCards(true);
-                  const result = await syncQueuedCards();
+                  const result = await syncQueuedCards(session);
                   setIsSyncingCards(false);
                   setPendingSyncCount(result.remaining);
                   alert(`Синхронизация завершена: ${result.success} успешно, ${result.failed} ошибок`);

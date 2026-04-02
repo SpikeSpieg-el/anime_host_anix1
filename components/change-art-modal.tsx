@@ -17,7 +17,7 @@ interface ChangeArtModalProps {
 }
 
 export function ChangeArtModal({ card, onClose, onArtChanged }: ChangeArtModalProps) {
-  const { user } = useAuth()
+  const { user, session } = useAuth()
   const { dust, spendDust, refresh: refreshDust } = useDust()
   const [isSpinning, setIsSpinning] = useState(false)
   const [previewArt, setPreviewArt] = useState<string | null>(null)
@@ -42,7 +42,6 @@ export function ChangeArtModal({ card, onClose, onArtChanged }: ChangeArtModalPr
     setSpinAttempts(prev => prev + 1)
 
     try {
-      const { data: { session } } = await supabase.auth.getSession()
       if (!session?.access_token) {
         setError("Сессия недоступна")
         setIsSpinning(false)
@@ -128,7 +127,6 @@ export function ChangeArtModal({ card, onClose, onArtChanged }: ChangeArtModalPr
     setError(null)
 
     try {
-      const { data: { session } } = await supabase.auth.getSession()
       if (!session?.access_token) {
         setError("Сессия недоступна")
         setIsSpinning(false)
@@ -181,7 +179,6 @@ export function ChangeArtModal({ card, onClose, onArtChanged }: ChangeArtModalPr
     setError(null)
 
     try {
-      const { data: { session } } = await supabase.auth.getSession()
       if (!session?.access_token) {
         setError("Сессия недоступна")
         setIsChanging(false)
