@@ -1000,13 +1000,11 @@ useEffect(() => {
           }
         } else {
           // Если юзер пока гость (или сессия еще грузится) - показываем локальные данные
-          // НО НЕ разблокируем UI, если сессия ещё загружается
-          console.log('[loadSavedCards] No authUser, using local data only');
+          console.log('[loadSavedCards] No authUser (guest user), using local data only');
           if (isMounted) {
             setCollectedCards(localCards);
+            setIsLoaded(true); // <-- ОБЯЗАТЕЛЬНО! Иначе гости будут смотреть на бесконечную загрузку
           }
-          // НЕ устанавливаем isLoaded здесь, если authUser ещё не загружен
-          // Это предотвратит преждевременную разблокировку UI
           return;
         }
 
