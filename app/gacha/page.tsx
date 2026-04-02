@@ -903,7 +903,7 @@ useEffect(() => {
         // Ждём пока сессия загрузится перед тем как продолжать
         if (sessionLoading) {
           console.log('[loadSavedCards] Session still loading, waiting...');
-          return;
+          return; // Просто выходим, НЕ устанавливая isLoaded
         }
 
         console.log('[loadSavedCards] authUser check:', !!authUser);
@@ -973,6 +973,7 @@ useEffect(() => {
               setCollectedCards(finalCollection);
               console.log('[loadSavedCards] Collection set, calling loadListedCards...');
               await loadListedCards(); // Подтягиваем рынок
+              setIsLoaded(true); // Разблокируем UI после успешной загрузки
             }
 
             // 7. Фоновая досинхронизация очереди (если она упадет, карты все равно уже на экране)
@@ -993,6 +994,7 @@ useEffect(() => {
               console.log('[loadSavedCards] DB unavailable, using local data');
               if (isMounted) {
                 setCollectedCards(localCards);
+                setIsLoaded(true);
               }
             }
           }
@@ -1012,10 +1014,8 @@ useEffect(() => {
         if (error.name === 'AbortError') return;
         console.error('[loadSavedCards] Critical Error:', error);
       } finally {
-        if (isMounted) {
-          console.log('[loadSavedCards] Setting isLoaded = true');
-          setIsLoaded(true); // Разблокируем UI гачи
-        }
+        // УБРАЛИ установку isLoaded из finally блока!
+        // Теперь isLoaded устанавливается только при успешной загрузке
       }
     }
 
