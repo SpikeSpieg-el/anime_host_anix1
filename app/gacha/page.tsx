@@ -965,9 +965,14 @@ useEffect(() => {
 
             if (isMounted) {
               setCollectedCards(finalCollection);
-              console.log('[loadSavedCards] Collection set, calling loadListedCards...');
-              await loadListedCards(); // Подтягиваем рынок
-              setIsLoaded(true); // Разблокируем UI после успешной загрузки
+              console.log('[loadSavedCards] Collection set. Unblocking UI...');
+              
+              // 1. СРАЗУ ЖЕ разблокируем UI, потому что карты уже готовы!
+              setIsLoaded(true); 
+              
+              // 2. Запускаем загрузку рынка В ФОНЕ (без await)
+              console.log('[loadSavedCards] Calling loadListedCards in background...');
+              loadListedCards().catch(e => console.error('[loadListedCards] Background error:', e));
             }
 
             // 7. Фоновая досинхронизация очереди (если она упадет, карты все равно уже на экране)
