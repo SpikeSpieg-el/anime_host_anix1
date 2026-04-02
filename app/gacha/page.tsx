@@ -748,36 +748,31 @@ export default function GachaPage() {
   const collectionRating = calculateCollectionRating(collectedCards)
 
   const loadListedCards = useCallback(async () => {
+    // 1. Вместо supabase.auth.getSession() просто проверяем наличие authUser
+    if (!authUser?.id) return;
+
     const { supabase } = await import("@/lib/supabase")
-    const {
-      data: { session },
-    } = await supabase.auth.getSession()
-    if (!session) return
 
     try {
       const { data, error } = await supabase
         .from("market_listings")
         .select("unique_id")
-        .eq("seller_id", session.user.id)
+        .eq("seller_id", authUser.id) // 2. Используем authUser.id
 
       if (error) throw error
       setListedCardIds(new Set(data?.map((item: { unique_id: string }) => item.unique_id) || []))
     } catch (error: any) {
-      // Игнорируем AbortError
       if (error.name === 'AbortError') {
         console.log('[loadListedCards] Request aborted (expected behavior)');
         return;
       }
       console.error("Error loading listed cards:", error)
     }
-  }, [])
+  }, [authUser?.id]) // 3. Обязательно добавляем authUser?.id в зависимости useCallback
 
   const refreshCollectionMerge = useCallback(async () => {
-    const { supabase } = await import("@/lib/supabase")
-    const {
-      data: { session },
-    } = await supabase.auth.getSession()
-    if (!session) return
+    // 1. Убираем supabase.auth.getSession() и здесь тоже
+    if (!authUser?.id) return;
 
     try {
       const dbCards = await loadUserCards()
@@ -807,14 +802,13 @@ export default function GachaPage() {
 
       setCollectedCards(merged)
     } catch (error: any) {
-      // Игнорируем AbortError
       if (error.name === 'AbortError') {
         console.log('[refreshCollectionMerge] Request aborted (expected behavior)');
         return;
       }
       console.error("Error refreshing collection:", error)
     }
-  }, [])
+  }, [authUser?.id]) // 2. И здесь добавляем authUser?.id
 
   const handleListedOnMarket = useCallback(async () => {
     setViewedCard(null)
