@@ -46,10 +46,10 @@ async function getAuthenticatedUser(request: Request) {
 }
 
 // GET /api/cards - Get all user cards
-export async function GET(request: Request) {
+export async function GET(request: Request): Promise<NextResponse> {
   try {
     // Добавляем таймаут на сервере
-    const timeoutPromise = new Promise((_, reject) => 
+    const timeoutPromise = new Promise<NextResponse>((_, reject) => 
       setTimeout(() => reject(new Error('Server timeout')), 25000)
     );
 
@@ -70,7 +70,7 @@ export async function GET(request: Request) {
   }
 }
 
-async function getCardsData(request: Request) {
+async function getCardsData(request: Request): Promise<NextResponse> {
   try {
     const authData = await getAuthenticatedUser(request)
     if (!authData) {
@@ -136,10 +136,10 @@ async function getCardsData(request: Request) {
 }
 
 // POST /api/cards - Save a new card
-export async function POST(request: Request) {
+export async function POST(request: Request): Promise<NextResponse> {
   try {
     // Добавляем таймаут на сервере
-    const timeoutPromise = new Promise((_, reject) => 
+    const timeoutPromise = new Promise<NextResponse>((_, reject) => 
       setTimeout(() => reject(new Error('Server timeout')), 15000)
     );
 
@@ -160,7 +160,7 @@ export async function POST(request: Request) {
   }
 }
 
-async function saveCardData(request: Request) {
+async function saveCardData(request: Request): Promise<NextResponse> {
   try {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
     const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -285,10 +285,10 @@ async function saveCardData(request: Request) {
 }
 
 // DELETE /api/cards - Delete a card
-export async function DELETE(request: Request) {
+export async function DELETE(request: Request): Promise<NextResponse> {
   try {
     // Добавляем таймаут на сервере
-    const timeoutPromise = new Promise((_, reject) => 
+    const timeoutPromise = new Promise<NextResponse>((_, reject) => 
       setTimeout(() => reject(new Error('Server timeout')), 10000)
     );
 
@@ -309,7 +309,7 @@ export async function DELETE(request: Request) {
   }
 }
 
-async function deleteCardData(request: Request) {
+async function deleteCardData(request: Request): Promise<NextResponse> {
   try {
     const authData = await getAuthenticatedUser(request)
     if (!authData) {
