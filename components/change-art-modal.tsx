@@ -14,11 +14,16 @@ interface ChangeArtModalProps {
   card: Card | null
   onClose: () => void
   onArtChanged: (newImageUrl: string, newOriginalUrl: string) => void
+  dust: number
+  refreshDust?: () => Promise<void>
 }
 
-export function ChangeArtModal({ card, onClose, onArtChanged }: ChangeArtModalProps) {
+export function ChangeArtModal({ card, onClose, onArtChanged, dust, refreshDust: propsRefreshDust }: ChangeArtModalProps) {
   const { user, session } = useAuth()
-  const { dust, spendDust, refresh: refreshDust } = useDust()
+  const { spendDust } = useDust() // Только для операции траты
+  
+  // Используем refreshDust из пропсов если передан
+  const refreshDust = propsRefreshDust
   const [isSpinning, setIsSpinning] = useState(false)
   const [previewArt, setPreviewArt] = useState<string | null>(null)
   const [isChanging, setIsChanging] = useState(false)
@@ -31,8 +36,32 @@ export function ChangeArtModal({ card, onClose, onArtChanged }: ChangeArtModalPr
   useEffect(() => {
     if (card) {
       setPreviewArt(card.imageUrl)
+      // Обновляем баланс пыли при открытии модального окна
+      console.log('[ChangeArt] Modal opened, current dust:', dust, 'refreshing...')
+      console.log('[ChangeArt] User:', user ? `ID: ${user.id}` : 'null')
+      console.log('[ChangeArt] Session:', session ? 'exists' : 'null')
+      
+      // Проверяем localStorage
+      const savedDust = localStorage.getItem('gacha-dust')
+      console.log('[ChangeArt] localStorage dust:', savedDust)
+      
+      // Временное решение: если dust === 0 но в localStorage есть значение, используем его
+      if (dust === 0 && savedDust && parseInt(savedDust, 10) > 0) {
+        console.log('[ChangeArt] Using localStorage dust as fallback:', savedDust)
+        // Обновляем состояние через useDust если возможно
+        setTimeout(() => {
+          refreshDust?.()
+        }, 100)
+      }
+      
+      refreshDust?.()
     }
-  }, [card])
+  }, [card, refreshDust, user, session])
+
+  // Отслеживаем изменения dust для отладки
+  useEffect(() => {
+    console.log('[ChangeArt] Dust updated:', dust, 'ART_CHANGE_COST:', ART_CHANGE_COST, 'can afford:', dust >= ART_CHANGE_COST)
+  }, [dust])
 
   const spinArt = async () => {
     if (!card) return
@@ -169,6 +198,7 @@ export function ChangeArtModal({ card, onClose, onArtChanged }: ChangeArtModalPr
   }
 
   const confirmChange = async () => {
+    console.log('[ChangeArt] confirmChange called - dust:', dust, 'ART_CHANGE_COST:', ART_CHANGE_COST, 'dust < cost:', dust < ART_CHANGE_COST)
     if (!card || !previewArt || previewArt === card.imageUrl) return
     if (dust < ART_CHANGE_COST) {
       setError(`Недостаточно пыли. Нужно ${ART_CHANGE_COST}`)
@@ -213,6 +243,8 @@ export function ChangeArtModal({ card, onClose, onArtChanged }: ChangeArtModalPr
       setSuccess(true)
       setTimeout(() => {
         onArtChanged(previewArt, previewArt)
+        // Обновляем баланс пыли после успешной операции
+        refreshDust?.()
         onClose()
       }, 1500)
     } catch (err) {
@@ -313,6 +345,7 @@ export function ChangeArtModal({ card, onClose, onArtChanged }: ChangeArtModalPr
         <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-500/10 border border-amber-500/30 mb-6">
           <Sparkles className="w-5 h-5 text-amber-400" />
           <span className="text-amber-300 font-bold">Стоимость: {ART_CHANGE_COST} пыли</span>
+          <span className="text-amber-200 text-sm">(Ваш баланс: {dust})</span>
         </div>
 
         {/* Error Message */}

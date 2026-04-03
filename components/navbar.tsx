@@ -6,7 +6,7 @@ import { useState, useEffect, useMemo, useRef } from "react"
 import {
   Flame, Tv, Compass, Home, BookMarked, History, Calendar,
   Settings, GraduationCap, LogOut, Search, MoreHorizontal, X, ArrowUp,
-  Sparkles, Coins
+  Sparkles, Coins, Swords
 } from "lucide-react"
 import { SearchSuggestions } from "@/components/search-suggestions"
 import { EpisodeUpdateBadge } from "@/components/episode-update-badge"
@@ -206,6 +206,7 @@ export function Navbar() {
                   <Link href="/bookmarks" className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-accent transition text-sm font-medium text-muted-foreground hover:text-foreground"><BookMarked size={14} /> Закладки</Link>
                   <Link href="/schedule" className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-accent transition text-sm font-medium text-muted-foreground hover:text-foreground"><Calendar size={14} /> Расписание</Link>
                   <Link href="/history" className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-accent transition text-sm font-medium text-muted-foreground hover:text-foreground"><History size={14} /> История</Link>
+                  <Link href="/battle" className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-accent transition text-sm font-medium text-red-500 hover:text-red-600"><Swords size={14} /> PVE Бои</Link>
                 </div>
               </div>
             </div>
@@ -280,6 +281,11 @@ export function Navbar() {
                   <DropdownMenuItem asChild>
                     <Link href="/gacha" className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-accent transition text-sm font-medium text-purple-500 hover:text-purple-600">
                       <Sparkles size={14} /> Гача
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link href="/battle" className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-accent transition text-sm font-medium text-red-500 hover:text-red-600">
+                      <Swords size={14} /> PVE Бои
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
@@ -362,6 +368,9 @@ export function Navbar() {
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
                 <Link href="/catalog?sort=popular" className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-accent transition text-sm font-medium text-blue-500 hover:text-blue-600"><Flame size={14} /> Популярное</Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/battle" className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-accent transition text-sm font-medium text-red-500 hover:text-red-600"><Swords size={14} /> PVE Бои</Link>
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

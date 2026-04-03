@@ -654,7 +654,7 @@ export default function GachaPage() {
   
   const { user: authUser, session, sessionLoading } = useAuth()
   const { coins: userCoins, loading: coinsLoading, spendCoins, addCoins, forceSync, fixOverflow, refresh: refreshCoins } = useCoins()
-  const { dust, loading: dustLoading, addDust } = useDust()
+  const { dust, loading: dustLoading, addDust, refresh: refreshDust } = useDust()
   const[selectedPack, setSelectedPack] = useState<AnimePack | CustomAnimePack | null>(null)
   const[showPacks, setShowPacks] = useState(false)
   const[packSearchQuery, setPackSearchQuery] = useState("")
@@ -1480,6 +1480,11 @@ useEffect(() => {
       const reward = getDismantleValue(dismantleCardData.rarity);
       const success = await addDust(reward);
       
+      // Обновляем баланс пыли после начисления
+      if (success) {
+        await refreshDust();
+      }
+      
       if (!success) {
         setErrorPopupConfig({
           title: 'Ошибка распыления',
@@ -1594,6 +1599,11 @@ useEffect(() => {
       // Add dust to user balance (один раз для всех карт)
       const success = await addDust(totalDust);
       console.log('[confirmBulkDismantle] Dust addition success:', success);
+      
+      // Обновляем баланс пыли после начисления
+      if (success) {
+        await refreshDust();
+      }
       
       if (!success) {
         throw new Error("Не удалось начислить пыль");
@@ -2949,6 +2959,8 @@ useEffect(() => {
           card={cardToChangeArt}
           onClose={() => setCardToChangeArt(null)}
           onArtChanged={handleArtChanged}
+          dust={dust}
+          refreshDust={refreshDust}
         />
       )}
       
