@@ -21,6 +21,10 @@ export function GachaSellMarketModal({
 }) {
   const [priceInput, setPriceInput] = useState("")
   const [submitting, setSubmitting] = useState(false)
+  const [suggestedPrice, setSuggestedPrice] = useState<number | null>(null)
+  const [priceExplanation, setPriceExplanation] = useState<any>(null)
+  const [marketData, setMarketData] = useState<any>(null)
+  const [loadingSuggestedPrice, setLoadingSuggestedPrice] = useState(false)
   
   // Получаем сессию напрямую из провайдера, не дергая базу лишний раз
   const { session } = useAuth()
@@ -56,7 +60,41 @@ export function GachaSellMarketModal({
   useEffect(() => {
     if (!card) return
     setPriceInput(minSellPrice.toLocaleString('ru-RU'))
-  }, [card, minSellPrice])
+    
+    // Загружаем рекомендуемую цену
+    const loadSuggestedPrice = async () => {
+      setLoadingSuggestedPrice(true)
+      try {
+        const response = await fetch('/api/market/suggested-price', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(session?.access_token && { 'Authorization': `Bearer ${session.access_token}` })
+          },
+          body: JSON.stringify({
+            card: {
+              rarity: card.rarity,
+              stats: card.stats,
+              isMainCharacter: card.isMainCharacter
+            }
+          })
+        })
+        
+        if (response.ok) {
+          const data = await response.json()
+          setSuggestedPrice(data.suggestedPrice)
+          setPriceExplanation(data.priceExplanation)
+          setMarketData(data.marketData)
+        }
+      } catch (error) {
+        console.warn('Failed to load suggested price:', error)
+      } finally {
+        setLoadingSuggestedPrice(false)
+      }
+    }
+    
+    loadSuggestedPrice()
+  }, [card, minSellPrice, session])
 
   const submit = useCallback(async () => {
     if (!card) return
@@ -133,8 +171,49 @@ export function GachaSellMarketModal({
           <span className="text-cyan-300 font-black">{minSellPrice.toLocaleString()}</span>
           {" — "}
           <span className="text-amber-300 font-black">{maxSellPrice.toLocaleString()}</span> монет.
-          Минимум завязан на ценность карты и коллекцию; максимум — не больше от минимума (не выше 15 млн).
+          {loadingSuggestedPrice ? (
+            <span className="text-blue-300 font-black ml-2 flex items-center gap-1">
+              <Loader2 className="w-3 h-3 animate-spin" />
+              Расчёт рекомендуемой цены...
+            </span>
+          ) : suggestedPrice ? (
+            <span className="text-green-300 font-black">
+              Рекомендуется: {suggestedPrice.toLocaleString()}
+            </span>
+          ) : null}
         </p>
+        
+        {!loadingSuggestedPrice && marketData && marketData.totalListings > 0 && (
+          <p className="text-xs text-slate-400 mb-2">
+            На рынке: {marketData.totalListings} карт этой редкости, 
+            средняя цена: {marketData.averagePrice?.toLocaleString() || "—"} монет
+            {suggestedPrice && marketData.averagePrice && (
+              <span className="ml-2">
+                (рекомендуется: {Math.round((suggestedPrice / marketData.averagePrice) * 100)}% от средней)
+              </span>
+            )}
+          </p>
+        )}
+        
+        {!loadingSuggestedPrice && priceExplanation && (
+          <div className="mb-3 p-2 bg-slate-800/50 rounded-lg">
+            <p className="text-xs text-slate-400 mb-1 font-bold">Как формируется цена:</p>
+            <div className="space-y-1">
+              {priceExplanation.base && (
+                <p className="text-xs text-slate-300">{priceExplanation.base}</p>
+              )}
+              {priceExplanation.stats && (
+                <p className="text-xs text-slate-300">{priceExplanation.stats}</p>
+              )}
+              {priceExplanation.rarity && (
+                <p className="text-xs text-slate-300">{priceExplanation.rarity}</p>
+              )}
+              {priceExplanation.mainChar && (
+                <p className="text-xs text-slate-300">{priceExplanation.mainChar}</p>
+              )}
+            </div>
+          </div>
+        )}
         <label className="block text-xs font-black text-slate-500 uppercase tracking-wider mb-2">
           Цена (монеты)
         </label>
@@ -152,8 +231,24 @@ export function GachaSellMarketModal({
             }
           }}
           placeholder={minSellPrice.toLocaleString('ru-RU')}
-          className="w-full h-12 rounded-xl bg-slate-950 border border-slate-700 px-4 text-white font-bold focus:outline-none focus:ring-2 focus:ring-cyan-500/50 mb-6"
+          className="w-full h-12 rounded-xl bg-slate-950 border border-slate-700 px-4 text-white font-bold focus:outline-none focus:ring-2 focus:ring-cyan-500/50 mb-2"
         />
+        
+        {suggestedPrice && !loadingSuggestedPrice && (
+          <button
+            type="button"
+            onClick={() => setPriceInput(suggestedPrice.toLocaleString('ru-RU'))}
+            className="w-full py-2 rounded-xl bg-green-600/20 hover:bg-green-600/30 text-green-300 text-xs font-bold border border-green-500/30 mb-4"
+          >
+            Установить рекомендуемую цену ({suggestedPrice.toLocaleString()})
+          </button>
+        )}
+        {loadingSuggestedPrice && (
+          <div className="w-full py-2 rounded-xl bg-blue-600/20 text-blue-300 text-xs font-bold border border-blue-500/30 mb-4 flex items-center justify-center gap-2">
+            <Loader2 className="w-4 h-4 animate-spin" />
+            Расчёт рекомендуемой цены...
+          </div>
+        )}
         <div className="flex flex-col sm:flex-row gap-3">
           <button
             type="button"

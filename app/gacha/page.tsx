@@ -1102,6 +1102,18 @@ useEffect(() => {
   const handleRoll = async () => {
     if (isRolling) return;
 
+    // Check if user has enough coins before attempting roll
+    const rollCost = selectedPack ? selectedPack.price : 50;
+    if (userCoins < rollCost) {
+      setErrorPopupConfig({
+        title: "Недостаточно монет",
+        message: `Нужно ${rollCost} монет, у вас есть ${userCoins}. Пополните баланс и попробуйте снова!`,
+        type: "error"
+      });
+      setShowErrorPopup(true);
+      return;
+    }
+
     try {
       setIsRolling(true);
       operationStartTime.current = Date.now();
@@ -1149,9 +1161,6 @@ useEffect(() => {
           console.error('[handleRoll] Pity update error:', error);
         }
 
-        // Запускаем списание монет "вдогонку", не дожидаясь ответа (без await)
-        spendCoins(selectedPack ? selectedPack.price : 50).catch(console.error);
-
         if (result.allFanArtBanned) {
           // Если все арты забанены, просто сбрасываем и просим нажать еще раз
           setErrorPopupConfig({
@@ -1174,6 +1183,19 @@ useEffect(() => {
           setShowErrorPopup(true);
           return;
         }
+
+        // Только при успешном результате списываем монеты
+        const rollCost = selectedPack ? selectedPack.price : 50;
+        spendCoins(rollCost).catch(error => {
+          console.error('[handleRoll] Failed to spend coins:', error);
+          // Показываем ошибку, но не прерываем процесс, так как карта уже получена
+          setErrorPopupConfig({
+            title: "Ошибка списания монет",
+            message: "Карта получена, но произошла ошибка при списании монет. Обратитесь к администратору.",
+            type: "warning"
+          });
+          setShowErrorPopup(true);
+        });
 
         // Создаем карту
         const newCard: Card = {
@@ -2523,12 +2545,28 @@ useEffect(() => {
             <div className="flex flex-col items-center w-full max-w-md mx-auto">
               <button 
                 onClick={handleRoll} 
-                className="group relative w-[260px] sm:w-72 md:w-80 h-[380px] sm:h-[420px] md:h-[480px] rounded-[2rem] sm:rounded-[2.5rem] border-2 border-dashed border-slate-700/50 bg-slate-900/40 hover:bg-slate-800/60 backdrop-blur-md flex flex-col items-center justify-center hover:border-indigo-500/50 transition-all duration-300 overflow-hidden shadow-2xl"
+                disabled={userCoins < (selectedPack ? selectedPack.price : 50)}
+                className={`group relative w-[260px] sm:w-72 md:w-80 h-[380px] sm:h-[420px] md:h-[480px] rounded-[2rem] sm:rounded-[2.5rem] border-2 border-dashed backdrop-blur-md flex flex-col items-center justify-center transition-all duration-300 overflow-hidden shadow-2xl ${
+                  userCoins < (selectedPack ? selectedPack.price : 50)
+                    ? 'border-red-500/50 bg-red-900/40 cursor-not-allowed opacity-60'
+                    : 'border-slate-700/50 bg-slate-900/40 hover:bg-slate-800/60 hover:border-indigo-500/50'
+                }`}
               >
                 <div className="absolute inset-0 bg-gradient-to-b from-transparent to-indigo-500/5 group-hover:to-indigo-500/10 transition-colors" />
-                <Sparkles className="w-8 h-8 sm:w-12 sm:h-12 text-indigo-500/70 group-hover:text-indigo-400 mb-4 sm:mb-5 animate-pulse" />
-                <span className="font-black text-slate-400 group-hover:text-indigo-300 uppercase tracking-widest text-xs sm:text-base text-center px-4 relative z-10">
-                  {selectedPack ? `Призвать (${selectedPack.price})` : "Призвать (50)"}
+                {userCoins < (selectedPack ? selectedPack.price : 50) ? (
+                  <Coins className="w-8 h-8 sm:w-12 sm:h-12 text-red-400 mb-4 sm:mb-5" />
+                ) : (
+                  <Sparkles className="w-8 h-8 sm:w-12 sm:h-12 text-indigo-500/70 group-hover:text-indigo-400 mb-4 sm:mb-5 animate-pulse" />
+                )}
+                <span className={`font-black uppercase tracking-widest text-xs sm:text-base text-center px-4 relative z-10 ${
+                  userCoins < (selectedPack ? selectedPack.price : 50)
+                    ? 'text-red-400'
+                    : 'text-slate-400 group-hover:text-indigo-300'
+                }`}>
+                  {userCoins < (selectedPack ? selectedPack.price : 50)
+                    ? `Недостаточно монет (нужно ${selectedPack ? selectedPack.price : 50})`
+                    : (selectedPack ? `Призвать (${selectedPack.price})` : "Призвать (50)")
+                  }
                 </span>
               </button>
               

@@ -1,10 +1,10 @@
 "use client"
 
-import { useCallback, useEffect, useState, useRef } from "react"
+import { useCallback, useEffect, useState, useRef, useMemo } from "react"
 import Image from "next/image"
-import { Loader2, ShoppingCart, XCircle, Store, RefreshCcw, ZoomIn, ExternalLink, X, Trash, Crown, Star } from "lucide-react"
+import { Loader2, ShoppingCart, XCircle, Store, RefreshCcw, ZoomIn, ExternalLink, X, Trash, Crown, Star, Filter, ChevronDown, Search } from "lucide-react"
 import type { Card } from "@/app/gacha/page"
-import { rarityConfig } from "@/types/gacha"
+import { rarityConfig, type Rarity } from "@/types/gacha"
 import { useAuth } from "@/components/auth-provider"
 import { supabase } from "@/lib/supabase"
 
@@ -14,6 +14,16 @@ type MarketListingApi = {
   minPriceAtList: number
   isMine: boolean
   card: Omit<Card, "id" | "orderIndex"> & { uniqueId: string }
+}
+
+type MarketFilters = {
+  search: string
+  rarity: Rarity[]
+  minPrice: number
+  maxPrice: number
+  minScore: number
+  anime: string
+  isMainCharacter: boolean | null
 }
 
 function getTopStat(stats: { hp: number; atk: number; def: number; spd: number; luck: number }): {
@@ -314,11 +324,67 @@ export function GachaMarketPanel({
   const [actionId, setActionId] = useState<string | null>(null)
   const [viewedCard, setViewedCard] = useState<MarketListingApi | null>(null)
   const [buyPreview, setBuyPreview] = useState<{ listing: MarketListingApi } | null>(null)
+  const [showFilters, setShowFilters] = useState(false)
+  const [filters, setFilters] = useState<MarketFilters>({
+    search: "",
+    rarity: [],
+    minPrice: 0,
+    maxPrice: 10000000,
+    minScore: 0,
+    anime: "",
+    isMainCharacter: null
+  })
+  const [animeList, setAnimeList] = useState<string[]>([])
 
   const authHeader = useCallback(() => {
     if (!session?.access_token) return null
     return { Authorization: `Bearer ${session.access_token}` }
   }, [session])
+
+  const filteredListings = useMemo(() => {
+    return listings.filter(listing => {
+      const card = listing.card
+      
+      // Search filter
+      if (filters.search && !card.name.toLowerCase().includes(filters.search.toLowerCase()) && 
+          !card.anime.toLowerCase().includes(filters.search.toLowerCase())) {
+        return false
+      }
+      
+      // Rarity filter
+      if (filters.rarity.length > 0 && !filters.rarity.includes(card.rarity)) {
+        return false
+      }
+      
+      // Price filter
+      if (listing.price < filters.minPrice || listing.price > filters.maxPrice) {
+        return false
+      }
+      
+      // Score filter
+      if (card.score < filters.minScore) {
+        return false
+      }
+      
+      // Anime filter
+      if (filters.anime && card.anime !== filters.anime) {
+        return false
+      }
+      
+      // Main character filter
+      if (filters.isMainCharacter !== null && card.isMainCharacter !== filters.isMainCharacter) {
+        return false
+      }
+      
+      return true
+    })
+  }, [listings, filters])
+
+  // Extract unique anime list from listings
+  useEffect(() => {
+    const uniqueAnime = Array.from(new Set(listings.map(l => l.card.anime))).sort()
+    setAnimeList(uniqueAnime)
+  }, [listings])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -346,6 +412,35 @@ export function GachaMarketPanel({
   useEffect(() => {
     void load()
   }, [load])
+
+  const resetFilters = () => {
+    setFilters({
+      search: "",
+      rarity: [],
+      minPrice: 0,
+      maxPrice: 10000000,
+      minScore: 0,
+      anime: "",
+      isMainCharacter: null
+    })
+  }
+
+  const toggleRarity = (rarity: Rarity) => {
+    setFilters(prev => ({
+      ...prev,
+      rarity: prev.rarity.includes(rarity) 
+        ? prev.rarity.filter(r => r !== rarity)
+        : [...prev.rarity, rarity]
+    }))
+  }
+
+  const hasActiveFilters = filters.search || 
+    filters.rarity.length > 0 || 
+    filters.minPrice > 0 || 
+    filters.maxPrice < 10000000 || 
+    filters.minScore > 0 || 
+    filters.anime || 
+    filters.isMainCharacter !== null
 
   const buy = async (listingId: string, price: number, name: string) => {
     if (!user) {
@@ -459,6 +554,21 @@ export function GachaMarketPanel({
           </button>
           <button
             type="button"
+            onClick={() => setShowFilters(!showFilters)}
+            className={`px-4 py-2 rounded-xl text-sm font-bold border transition-all flex items-center gap-2 ${
+              showFilters || hasActiveFilters
+                ? "bg-amber-600 border-amber-500 text-white shadow-lg shadow-amber-500/20"
+                : "bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700"
+            }`}
+          >
+            <Filter className="w-4 h-4" />
+            Фильтры
+            {hasActiveFilters && (
+              <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
+            )}
+          </button>
+          <button
+            type="button"
             onClick={() => void load()}
             disabled={loading}
             className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold bg-slate-800 border border-slate-700 text-slate-200 hover:bg-slate-700 disabled:opacity-50"
@@ -468,6 +578,129 @@ export function GachaMarketPanel({
           </button>
         </div>
       </div>
+
+      {/* Filters Panel */}
+      {showFilters && (
+        <div className="bg-slate-900/50 border border-slate-700 rounded-2xl p-6 space-y-6 animate-in slide-in-from-top duration-200">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-black text-white uppercase">Фильтры</h3>
+            {hasActiveFilters && (
+              <button
+                onClick={resetFilters}
+                className="text-xs font-bold text-amber-400 hover:text-amber-300 transition-colors"
+              >
+                Сбросить все
+              </button>
+            )}
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {/* Search */}
+            <div className="space-y-2">
+              <label className="text-xs font-black text-slate-500 uppercase tracking-wider">Поиск</label>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Название карты или аниме..."
+                  value={filters.search}
+                  onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))}
+                  className="w-full pl-10 pr-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
+                />
+              </div>
+            </div>
+
+            {/* Price Range */}
+            <div className="space-y-2">
+              <label className="text-xs font-black text-slate-500 uppercase tracking-wider">Диапазон цен</label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  placeholder="Мин"
+                  value={filters.minPrice || ""}
+                  onChange={(e) => setFilters(prev => ({ ...prev, minPrice: parseInt(e.target.value) || 0 }))}
+                  className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
+                />
+                <span className="text-slate-400">—</span>
+                <input
+                  type="number"
+                  placeholder="Макс"
+                  value={filters.maxPrice < 10000000 ? filters.maxPrice : ""}
+                  onChange={(e) => setFilters(prev => ({ ...prev, maxPrice: parseInt(e.target.value) || 10000000 }))}
+                  className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
+                />
+              </div>
+            </div>
+
+            {/* Min Score */}
+            <div className="space-y-2">
+              <label className="text-xs font-black text-slate-500 uppercase tracking-wider">Мин. рейтинг ★</label>
+              <input
+                type="number"
+                placeholder="0"
+                min="0"
+                max="10"
+                step="0.1"
+                value={filters.minScore || ""}
+                onChange={(e) => setFilters(prev => ({ ...prev, minScore: parseFloat(e.target.value) || 0 }))}
+                className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
+              />
+            </div>
+
+            {/* Anime Filter */}
+            <div className="space-y-2">
+              <label className="text-xs font-black text-slate-500 uppercase tracking-wider">Аниме</label>
+              <select
+                value={filters.anime}
+                onChange={(e) => setFilters(prev => ({ ...prev, anime: e.target.value }))}
+                className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
+              >
+                <option value="">Все аниме</option>
+                {animeList.map(anime => (
+                  <option key={anime} value={anime}>{anime}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Main Character Filter */}
+            <div className="space-y-2">
+              <label className="text-xs font-black text-slate-500 uppercase tracking-wider">Главный герой</label>
+              <select
+                value={filters.isMainCharacter === null ? "" : filters.isMainCharacter.toString()}
+                onChange={(e) => setFilters(prev => ({ 
+                  ...prev, 
+                  isMainCharacter: e.target.value === "" ? null : e.target.value === "true"
+                }))}
+                className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
+              >
+                <option value="">Все карты</option>
+                <option value="true">Только главные герои</option>
+                <option value="false">Без главных героев</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Rarity Filter */}
+          <div className="space-y-3">
+            <label className="text-xs font-black text-slate-500 uppercase tracking-wider">Редкость</label>
+            <div className="flex flex-wrap gap-2">
+              {(Object.keys(rarityConfig) as Rarity[]).map(rarity => (
+                <button
+                  key={rarity}
+                  onClick={() => toggleRarity(rarity)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-black border transition-all ${
+                    filters.rarity.includes(rarity)
+                      ? `bg-gradient-to-r ${rarityConfig[rarity].color} text-white border-transparent`
+                      : "bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700"
+                  }`}
+                >
+                  {rarityConfig[rarity].label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {!user && tab === "vitrine" && (
         <p className="text-sm text-slate-400">
@@ -482,16 +715,37 @@ export function GachaMarketPanel({
         <div className="flex justify-center py-20">
           <Loader2 className="w-10 h-10 text-cyan-400 animate-spin" />
         </div>
-      ) : listings.length === 0 ? (
+      ) : filteredListings.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 border border-dashed border-slate-800 rounded-3xl bg-slate-900/30">
           <ShoppingCart className="w-10 h-10 text-slate-600 mb-3" />
-          <p className="text-slate-400 font-bold">
-            {tab === "mine" ? "Нет активных лотов" : "Пока никто ничего не продаёт"}
+          <p className="text-slate-400 font-bold mb-2">
+            {hasActiveFilters ? "Ничего не найдено по выбранным фильтрам" : 
+             (tab === "mine" ? "Нет активных лотов" : "Пока никто ничего не продаёт")}
           </p>
+          {hasActiveFilters && (
+            <button
+              onClick={resetFilters}
+              className="text-sm text-amber-400 hover:text-amber-300 font-bold transition-colors"
+            >
+              Сбросить фильтры
+            </button>
+          )}
         </div>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4">
-          {listings.map((L) => {
+        <>
+          {hasActiveFilters && (
+            <div className="flex items-center justify-between text-sm text-slate-400 mb-4">
+              <span>Найдено: {filteredListings.length} из {listings.length} лотов</span>
+              <button
+                onClick={resetFilters}
+                className="text-amber-400 hover:text-amber-300 font-bold transition-colors"
+              >
+                Сбросить фильтры
+              </button>
+            </div>
+          )}
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4">
+            {filteredListings.map((L) => {
             const c = L.card
             const busy = actionId === L.listingId
             const topStat = getTopStat(c.stats)
@@ -592,6 +846,7 @@ export function GachaMarketPanel({
             )
           })}
         </div>
+        </>
       )}
 
       {/* Viewed Card Modal */}

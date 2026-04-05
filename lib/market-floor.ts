@@ -98,34 +98,35 @@ function computeRarityMultiplier(cards: CardForMarketFloor[]): number {
 const SPIN_COST = 50
 
 /**
- * Минимальная цена выставления: разборка × мультипликатор + статы + рейтинг коллекции продавца + тиер редкости.
- * sellerCollectionOther = коллекция продавца без карты, которую выставляют.
+ * УПРОЩЕННАЯ формула минимальной цены:
+ * - Базовая цена от dismantle value
+ * - Умеренный бонус за статы  
+ * - Бонус за редкость
+ * - Бонус за главного персонажа
+ * - УБРАЛИ коллекционный бонус для равных условий
  */
 export function computeMinListingPrice(card: CardForMarketFloor, sellerCollectionOther: CardForMarketFloor[]): number {
   const dismantle = getDismantleValue(card.rarity)
   const statSum =
     card.stats.hp + card.stats.atk + card.stats.def + card.stats.spd + card.stats.luck
-  const collScore = collectionOverallScore(sellerCollectionOther)
-  const collCount = sellerCollectionOther.length
   const rarityIdx = RARITY_ORDER.indexOf(card.rarity as (typeof RARITY_ORDER)[number])
   const safeIdx = rarityIdx < 0 ? 0 : rarityIdx
-  const rarityMultiplier = computeRarityMultiplier(sellerCollectionOther)
 
-  const base = dismantle * 5
-  const statsBonus = Math.floor(statSum * 0.65)
-  const collectionBonus = Math.floor((collScore * 11 + collCount * 5) * rarityMultiplier)
-  const tierBonus = safeIdx * 35
-  const mainCharBonus = card.isMainCharacter ? Math.floor(dismantle * 0.5) : 0
+  // Упрощенная формула - убрали коллекционный бонус
+  const base = dismantle * 8  // Увеличили базу для стабильности
+  const statsBonus = Math.floor(statSum * 0.3)  // Сократили с 0.65 до 0.3
+  const rarityBonus = safeIdx * 25  // Уменьшили с 35 до 25
+  const mainCharBonus = card.isMainCharacter ? dismantle : 0  // Упростили
 
-  return Math.max(SPIN_COST, base + statsBonus + collectionBonus + tierBonus + mainCharBonus)
+  return Math.max(SPIN_COST, base + statsBonus + rarityBonus + mainCharBonus)
 }
 
-/** Верхняя граница относительно минимума (якорь ценности карты) + жёсткий потолок экономики. */
-const MAX_PRICE_MULTIPLIER = 97
-const ABSOLUTE_LISTING_PRICE_CAP = 15_000_000
+/** Уменьшенные множители для более разумных потолков цен */
+const MAX_PRICE_MULTIPLIER = 50
+const ABSOLUTE_LISTING_PRICE_CAP = 5_000_000
 
 /**
- * Максимальная цена лота: не больше множителя от минимума и не больше абсолютного потолка (защита от «лунных» цен).
+ * Максимальная цена лота: уменьшили множитель и абсолютный потолок
  */
 export function computeMaxListingPrice(card: CardForMarketFloor, sellerCollectionOther: CardForMarketFloor[]): number {
   const min = computeMinListingPrice(card, sellerCollectionOther)
