@@ -56,11 +56,15 @@ export interface Card {
   orderIndex?: number // Индекс порядка добавления в коллекцию
 }
 
+// Counter to ensure uniqueness even when multiple cards are generated in the same millisecond
+let uniqueIdCounter = 0;
+
 function generateCardUniqueId(characterId: number, packId?: string): string {
   const timestamp = Date.now().toString(36);
+  uniqueIdCounter++;
   const random = Math.random().toString(36).substring(2, 8);
   const packPrefix = packId ? `pack-${packId}` : 'random';
-  return `${packPrefix}-${characterId}-${timestamp}-${random}`;
+  return `${packPrefix}-${characterId}-${timestamp}-${uniqueIdCounter}-${random}`;
 }
 
 const RARITY_ORDER =["trash", "common", "uncommon", "rare", "super_rare", "epic", "mythic", "legendary", "ancient", "divine", "transcendent", "omnipotent"] as const
@@ -785,10 +789,18 @@ export default function GachaPage() {
       }
 
       const dbIds = new Set(dbCards.map((c) => c.uniqueId))
-      
+
       // Находим потерянные локальные карты (которых нет в БД)
-      const lostLocalCards = localCollection.filter((c) => !dbIds.has(c.uniqueId))
-      
+      // Also deduplicate within lostLocalCards themselves
+      const seenLocalIds = new Set<string>();
+      const lostLocalCards = localCollection.filter((c) => {
+        if (dbIds.has(c.uniqueId) || seenLocalIds.has(c.uniqueId)) {
+          return false; // Skip if already in DB or already seen in local
+        }
+        seenLocalIds.add(c.uniqueId);
+        return true;
+      })
+
       // Приоритет: БД карты + потерянные локальные карты
       const dbCardsWithOrder = dbCards.map((card, idx) => ({
         ...card,
@@ -935,9 +947,17 @@ useEffect(() => {
             }));
 
             // 4. Ищем потерянные карты в localStorage, которых нет в БД
+            // Also deduplicate within lostCards themselves
             const dbIds = new Set(dbCardsWithOrder.map(c => c.uniqueId));
-            const lostCards = localCards.filter(c => !dbIds.has(c.uniqueId));
-            
+            const seenLostIds = new Set<string>();
+            const lostCards = localCards.filter(c => {
+              if (dbIds.has(c.uniqueId) || seenLostIds.has(c.uniqueId)) {
+                return false; // Skip if already in DB or already seen
+              }
+              seenLostIds.add(c.uniqueId);
+              return true;
+            });
+
             console.log('[loadSavedCards] Found lost cards:', lostCards.length);
 
             // 5. Синхронизируем потерянные карты в БД
