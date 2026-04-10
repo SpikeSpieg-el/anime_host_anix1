@@ -193,9 +193,10 @@ export default function BattlePage() {
     if (!user) return
     try {
       const { supabase } = await import("@/lib/supabase")
-      const { data, error } = await supabase
-        .from('user_cards')
-        .select('unique_id, name, anime, rarity, image_url, stats_hp, stats_atk, stats_def, stats_spd, stats_luck, is_main_character, score')
+      // Use RPC to exclude cards that are listed on market
+      const { data, error } = await supabase.rpc('get_battle_available_cards', {
+        p_user_id: user.id
+      })
 
       if (!error && data) {
         setCollectedCards(data.map((c: any) => ({
@@ -203,6 +204,19 @@ export default function BattlePage() {
           stats: { hp: c.stats_hp, atk: c.stats_atk, def: c.stats_def, spd: c.stats_spd, luck: c.stats_luck },
           isMainCharacter: c.is_main_character || false, score: c.score,
         })))
+      } else {
+        // Fallback to regular query if RPC doesn't exist
+        const { data: fallbackData, error: fallbackError } = await supabase
+          .from('user_cards')
+          .select('unique_id, name, anime, rarity, image_url, stats_hp, stats_atk, stats_def, stats_spd, stats_luck, is_main_character, score')
+
+        if (!fallbackError && fallbackData) {
+          setCollectedCards(fallbackData.map((c: any) => ({
+            uniqueId: c.unique_id, name: c.name, anime: c.anime, rarity: c.rarity, imageUrl: c.image_url,
+            stats: { hp: c.stats_hp, atk: c.stats_atk, def: c.stats_def, spd: c.stats_spd, luck: c.stats_luck },
+            isMainCharacter: c.is_main_character || false, score: c.score,
+          })))
+        }
       }
     } catch (err) {
       console.error('[BattlePage] Error loading cards:', err)
@@ -212,7 +226,12 @@ export default function BattlePage() {
   useEffect(() => {
     if (user && !sessionLoading) { 
       loadBattleData(); 
-      loadUserCards() 
+      loadUserCards()
+      // Reset battle state on page load to prevent showing old results
+      setBattleState("idle")
+      setBattleResult(null)
+      setBattleActionIndex(0)
+      setIsAutoPlaying(false)
     }
   }, [user, sessionLoading])
 
@@ -285,7 +304,7 @@ export default function BattlePage() {
 
   const startBattle = async () => {
     if (selectedCards.length === 0 || !selectedDungeon) return setError("Выберите карты и подземелье!")
-    setError(null); setBattleState("loading"); setBattleActionIndex(0); setIsAutoPlaying(false)
+    setError(null); setBattleState("loading"); setBattleActionIndex(0); setIsAutoPlaying(false); setBattleResult(null)
 
     try {
       const token = session?.access_token
@@ -306,20 +325,20 @@ export default function BattlePage() {
       })
 
       const data = await res.json()
-      if (!res.ok) { setError(data.message || "Ошибка боя"); setBattleState("idle"); return }
+      if (!res.ok) { setError(data.message || "Ошибка боя"); setBattleState("idle"); setBattleResult(null); setBattleActionIndex(0); setIsAutoPlaying(false); return }
       if (data.success) {
         setBattleResult(data.battle)
         setBattleState("battle")
         setTimeout(() => setIsAutoPlaying(true), 1500)
       }
     } catch (err) {
-      setError("Ошибка соединения"); setBattleState("idle")
+      setError("Ошибка соединения"); setBattleState("idle"); setBattleResult(null); setBattleActionIndex(0); setIsAutoPlaying(false)
     }
   }
 
   const finishBattle = async () => {
     if (battleResult?.victory) { await refreshCoins(); await loadBattleData() }
-    setBattleState("idle"); setBattleResult(null); setBattleActionIndex(0)
+    setBattleState("idle"); setBattleResult(null); setBattleActionIndex(0); setIsAutoPlaying(false)
   }
 
   const currentAction = battleResult?.actions[battleActionIndex]
@@ -640,7 +659,7 @@ export default function BattlePage() {
         {/* ==========================================
             ЭКРАН РЕЗУЛЬТАТОВ БОЯ
         ========================================== */}
-        {battleState === "result" && battleResult && (
+        {battleState === "result" && battleResult && battleResult.actions && battleResult.actions.length > 0 && (
           <div className="max-w-3xl mx-auto relative animate-in fade-in zoom-in-95 duration-700">
             {/* Декоративное свечение позади */}
             <div className={`absolute -inset-4 rounded-3xl blur-2xl opacity-50 ${battleResult.victory ? "bg-emerald-500/20" : "bg-rose-500/20"}`} />
