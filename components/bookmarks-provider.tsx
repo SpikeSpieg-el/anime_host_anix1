@@ -6,7 +6,9 @@ import { supabase } from "@/lib/supabase"
 import { useAuth } from "@/components/auth-provider"
 import { loggers } from "@/lib/logger"
 
-type BookmarkAnime = Anime
+type BookmarkAnime = Anime & {
+  is_completed?: boolean
+}
 
 type BookmarksContextValue = {
   items: BookmarkAnime[]
@@ -15,6 +17,7 @@ type BookmarksContextValue = {
   add: (anime: BookmarkAnime) => void
   remove: (id: string) => void
   toggle: (anime: BookmarkAnime) => void
+  toggleCompleted: (id: string) => void
 }
 
 const BookmarksContext = createContext<BookmarksContextValue | null>(null)
@@ -50,11 +53,14 @@ export function BookmarksProvider({ children }: { children: React.ReactNode }) {
           // Если залогинен - берем из Supabase
           const { data } = await supabase
             .from('bookmarks')
-            .select('anime_data')
+            .select('anime_data, is_completed')
             .eq('user_id', user.id)
           
           if (data && isMounted) {
-            const remoteItems = data.map((row: any) => row.anime_data)
+            const remoteItems = data.map((row: any) => ({
+              ...row.anime_data,
+              is_completed: row.is_completed || false
+            }))
             setItems(remoteItems)
           }
         } else {
@@ -161,7 +167,39 @@ export function BookmarksProvider({ children }: { children: React.ReactNode }) {
     }
   }, [user])
 
-  const value = useMemo<BookmarksContextValue>(() => ({ items, isLoading, isSaved, add, remove, toggle }), [items, isLoading, isSaved, add, remove, toggle])
+  const toggleCompleted = useCallback(async (id: string) => {
+    setItems((prev) => 
+      prev.map((anime) => 
+        anime.id === id 
+          ? { ...anime, is_completed: !anime.is_completed }
+          : anime
+      )
+    )
+
+    if (user) {
+      const anime = items.find(a => a.id === id)
+      if (anime) {
+        try {
+          await supabase
+            .from('bookmarks')
+            .update({ is_completed: !anime.is_completed })
+            .match({ user_id: user.id, anime_id: id })
+        } catch (error) {
+          loggers.bookmarks.error('Failed to toggle bookmark completion', error)
+          // Revert on error
+          setItems((prev) => 
+            prev.map((a) => 
+              a.id === id 
+                ? { ...a, is_completed: anime.is_completed }
+                : a
+            )
+          )
+        }
+      }
+    }
+  }, [user, items])
+
+  const value = useMemo<BookmarksContextValue>(() => ({ items, isLoading, isSaved, add, remove, toggle, toggleCompleted }), [items, isLoading, isSaved, add, remove, toggle, toggleCompleted])
 
   return <BookmarksContext.Provider value={value}>{children}</BookmarksContext.Provider>
 }

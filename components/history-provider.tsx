@@ -11,6 +11,7 @@ type WatchHistoryItem = {
   timestamp: number
   episode?: number
   episodesTotal?: number
+  is_archived?: boolean
 }
 
 type HistoryContextValue = {
@@ -18,6 +19,8 @@ type HistoryContextValue = {
   isLoading: boolean
   add: (anime: WatchHistoryItem) => void
   clear: () => void
+  toggleArchived: (id: string) => void
+  moveToArchive: (id: string) => void
 }
 
 const HistoryContext = createContext<HistoryContextValue | null>(null)
@@ -50,6 +53,9 @@ export function HistoryProvider({ children }: { children: React.ReactNode }) {
     // 2. Если пользователь авторизован, сохраняем в БД
     if (user) {
       try {
+        // Проверяем, завершено ли аниме (досмотрен до последней серии)
+        const isCompleted = anime.episodesTotal && anime.episode && anime.episode >= anime.episodesTotal
+        
         // ИСПОЛЬЗУЕМ UPSERT ВМЕСТО DELETE + INSERT
         // Это гарантирует обновление записи, если она есть, или создание новой
         const { error } = await supabase.from('watch_history').upsert({
@@ -59,7 +65,8 @@ export function HistoryProvider({ children }: { children: React.ReactNode }) {
           poster: anime.poster,
           timestamp: anime.timestamp,
           episode: anime.episode,
-          episodes_total: anime.episodesTotal
+          episodes_total: anime.episodesTotal,
+          is_archived: isCompleted // Автоматически перемещаем в архив если завершено
         }, { 
           onConflict: 'user_id, anime_id' 
         })
@@ -112,7 +119,8 @@ export function HistoryProvider({ children }: { children: React.ReactNode }) {
               poster: row.poster,
               timestamp: row.timestamp,
               episode: row.episode,
-              episodesTotal: row.episodes_total
+              episodesTotal: row.episodes_total,
+              is_archived: row.is_archived || false
             }))
             setItems(remoteItems)
           }
@@ -161,7 +169,60 @@ export function HistoryProvider({ children }: { children: React.ReactNode }) {
     document.cookie = `watched_history=${JSON.stringify(ids)}; path=/; max-age=31536000; SameSite=Lax`
   }, [items])
 
-  const value = useMemo<HistoryContextValue>(() => ({ items, isLoading, add, clear }), [items, isLoading, add, clear])
+  const toggleArchived = useCallback(async (id: string) => {
+    const currentItem = items.find(item => item.id === id)
+    if (!currentItem) return
+
+    setItems((prev) => 
+      prev.map((item) => 
+        item.id === id 
+          ? { ...item, is_archived: !item.is_archived }
+          : item
+      )
+    )
+
+    if (user) {
+      try {
+        await supabase
+          .from('watch_history')
+          .update({ is_archived: !currentItem.is_archived })
+          .match({ user_id: user.id, anime_id: id })
+      } catch (error) {
+        console.error('Failed to toggle archive status:', error)
+        // Revert on error
+        setItems((prev) => 
+          prev.map((item) => 
+            item.id === id 
+              ? { ...item, is_archived: currentItem.is_archived }
+              : item
+          )
+        )
+      }
+    }
+  }, [user, items])
+
+  const moveToArchive = useCallback(async (id: string) => {
+    setItems((prev) => 
+      prev.map((item) => 
+        item.id === id 
+          ? { ...item, is_archived: true }
+          : item
+      )
+    )
+
+    if (user) {
+      try {
+        await supabase
+          .from('watch_history')
+          .update({ is_archived: true })
+          .match({ user_id: user.id, anime_id: id })
+      } catch (error) {
+        console.error('Failed to move to archive:', error)
+      }
+    }
+  }, [user])
+
+  const value = useMemo<HistoryContextValue>(() => ({ items, isLoading, add, clear, toggleArchived, moveToArchive }), [items, isLoading, add, clear, toggleArchived, moveToArchive])
 
   return <HistoryContext.Provider value={value}>{children}</HistoryContext.Provider>
 }

@@ -59,16 +59,21 @@ useEffect(() => {
 // Используем данные из HistoryProvider или fallback
 const sourceHistory = historyItems && historyItems.length > 0 ? historyItems : fallbackHistory
 
-// Нормализуем данные истории
-const history = sourceHistory.map((item: any) => ({ 
-  ...item, 
-  poster: normalizePosterUrl(item?.poster) 
-})).slice(0, 6)
+// Нормализуем данные истории и исключаем архивные
+const history = sourceHistory
+  .filter((item: any) => !item.is_archived)
+  .map((item: any) => ({ 
+    ...item, 
+    poster: normalizePosterUrl(item?.poster) 
+  }))
+  .slice(0, 6)
 
-const fullHistory = sourceHistory.map((item: any) => ({ 
-  ...item, 
-  poster: normalizePosterUrl(item?.poster) 
-}))
+const fullHistory = sourceHistory
+  .filter((item: any) => !item.is_archived)
+  .map((item: any) => ({ 
+    ...item, 
+    poster: normalizePosterUrl(item?.poster) 
+  }))
 
 useEffect(() => {
 setMounted(true)
@@ -173,7 +178,7 @@ return (
             href="/history"
             className="text-orange-500 text-sm font-medium hover:text-orange-400 transition flex items-center gap-1 whitespace-nowrap"
           >
-            Все {fullHistory.length} <ChevronRight className="w-4 h-4" />
+            Все {sourceHistory.filter((item: any) => !item.is_archived).length} <ChevronRight className="w-4 h-4" />
           </Link>
         )}
       </div>
