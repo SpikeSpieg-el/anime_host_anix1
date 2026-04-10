@@ -226,12 +226,7 @@ export default function BattlePage() {
   useEffect(() => {
     if (user && !sessionLoading) { 
       loadBattleData(); 
-      loadUserCards()
-      // Reset battle state on page load to prevent showing old results
-      setBattleState("idle")
-      setBattleResult(null)
-      setBattleActionIndex(0)
-      setIsAutoPlaying(false)
+      loadUserCards() 
     }
   }, [user, sessionLoading])
 
@@ -304,7 +299,7 @@ export default function BattlePage() {
 
   const startBattle = async () => {
     if (selectedCards.length === 0 || !selectedDungeon) return setError("Выберите карты и подземелье!")
-    setError(null); setBattleState("loading"); setBattleActionIndex(0); setIsAutoPlaying(false); setBattleResult(null)
+    setError(null); setBattleState("loading"); setBattleActionIndex(0); setIsAutoPlaying(false)
 
     try {
       const token = session?.access_token
@@ -325,20 +320,20 @@ export default function BattlePage() {
       })
 
       const data = await res.json()
-      if (!res.ok) { setError(data.message || "Ошибка боя"); setBattleState("idle"); setBattleResult(null); setBattleActionIndex(0); setIsAutoPlaying(false); return }
+      if (!res.ok) { setError(data.message || "Ошибка боя"); setBattleState("idle"); return }
       if (data.success) {
         setBattleResult(data.battle)
         setBattleState("battle")
         setTimeout(() => setIsAutoPlaying(true), 1500)
       }
     } catch (err) {
-      setError("Ошибка соединения"); setBattleState("idle"); setBattleResult(null); setBattleActionIndex(0); setIsAutoPlaying(false)
+      setError("Ошибка соединения"); setBattleState("idle")
     }
   }
 
   const finishBattle = async () => {
     if (battleResult?.victory) { await refreshCoins(); await loadBattleData() }
-    setBattleState("idle"); setBattleResult(null); setBattleActionIndex(0); setIsAutoPlaying(false)
+    setBattleState("idle"); setBattleResult(null); setBattleActionIndex(0)
   }
 
   const currentAction = battleResult?.actions[battleActionIndex]
@@ -659,7 +654,7 @@ export default function BattlePage() {
         {/* ==========================================
             ЭКРАН РЕЗУЛЬТАТОВ БОЯ
         ========================================== */}
-        {battleState === "result" && battleResult && battleResult.actions && battleResult.actions.length > 0 && (
+        {battleState === "result" && battleResult && (
           <div className="max-w-3xl mx-auto relative animate-in fade-in zoom-in-95 duration-700">
             {/* Декоративное свечение позади */}
             <div className={`absolute -inset-4 rounded-3xl blur-2xl opacity-50 ${battleResult.victory ? "bg-emerald-500/20" : "bg-rose-500/20"}`} />

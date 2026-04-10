@@ -56,15 +56,11 @@ export interface Card {
   orderIndex?: number // Индекс порядка добавления в коллекцию
 }
 
-// Counter to ensure uniqueness even when multiple cards are generated in the same millisecond
-let uniqueIdCounter = 0;
-
 function generateCardUniqueId(characterId: number, packId?: string): string {
-  const timestamp = Date.now().toString(36);
-  uniqueIdCounter++;
-  const random = Math.random().toString(36).substring(2, 8);
+  // Use crypto.randomUUID() for guaranteed uniqueness
+  const uuid = crypto.randomUUID();
   const packPrefix = packId ? `pack-${packId}` : 'random';
-  return `${packPrefix}-${characterId}-${timestamp}-${uniqueIdCounter}-${random}`;
+  return `${packPrefix}-${characterId}-${uuid}`;
 }
 
 const RARITY_ORDER =["trash", "common", "uncommon", "rare", "super_rare", "epic", "mythic", "legendary", "ancient", "divine", "transcendent", "omnipotent"] as const
@@ -788,7 +784,18 @@ export default function GachaPage() {
         /* ignore */
       }
 
-      const dbIds = new Set(dbCards.map((c) => c.uniqueId))
+      // Deduplicate database cards first
+      const seenDbIds = new Set<string>();
+      const deduplicatedDbCards = dbCards.filter((card) => {
+        if (seenDbIds.has(card.uniqueId)) {
+          console.log('[refreshCollectionMerge] Skipping duplicate DB card:', card.uniqueId);
+          return false;
+        }
+        seenDbIds.add(card.uniqueId);
+        return true;
+      });
+
+      const dbIds = new Set(deduplicatedDbCards.map((c) => c.uniqueId))
 
       // Находим потерянные локальные карты (которых нет в БД)
       // Also deduplicate within lostLocalCards themselves
@@ -802,19 +809,30 @@ export default function GachaPage() {
       })
 
       // Приоритет: БД карты + потерянные локальные карты
-      const dbCardsWithOrder = dbCards.map((card, idx) => ({
+      const dbCardsWithOrder = deduplicatedDbCards.map((card, idx) => ({
         ...card,
         orderIndex: idx,
       }))
 
-      const merged: Card[] = [
+      const mergedCollection = [
         ...dbCardsWithOrder,
         ...lostLocalCards
           .map((card, i) => ({
             ...card,
-            orderIndex: dbCards.length + i,
+            orderIndex: deduplicatedDbCards.length + i,
           })),
       ]
+
+      // Final deduplication to ensure no duplicates in merged collection
+      const seenFinalIds = new Set<string>();
+      const merged = mergedCollection.filter(card => {
+        if (seenFinalIds.has(card.uniqueId)) {
+          console.log('[refreshCollectionMerge] Skipping duplicate in merged collection:', card.uniqueId);
+          return false;
+        }
+        seenFinalIds.add(card.uniqueId);
+        return true;
+      });
 
       setCollectedCards(merged)
     } catch (error: any) {
@@ -941,7 +959,18 @@ useEffect(() => {
               return;
             }
 
-            const dbCardsWithOrder = dbCards.map((card: Card, index: number) => ({
+            // Deduplicate database cards first
+            const seenDbIds = new Set<string>();
+            const deduplicatedDbCards = dbCards.filter((card: Card) => {
+              if (seenDbIds.has(card.uniqueId)) {
+                console.log('[loadSavedCards] Skipping duplicate DB card:', card.uniqueId);
+                return false;
+              }
+              seenDbIds.add(card.uniqueId);
+              return true;
+            });
+
+            const dbCardsWithOrder = deduplicatedDbCards.map((card: Card, index: number) => ({
               ...card,
               orderIndex: index
             }));
@@ -977,13 +1006,24 @@ useEffect(() => {
             }
 
             // 6. Объединяем: БД карты + потерянные локальные карты
-            finalCollection = [
+            const mergedCollection = [
               ...dbCardsWithOrder,
               ...lostCards.map((card, index) => ({
                 ...card,
                 orderIndex: dbCardsWithOrder.length + index
               }))
             ];
+
+            // 7. Final deduplication to ensure no duplicates in final collection
+            const seenFinalIds = new Set<string>();
+            finalCollection = mergedCollection.filter(card => {
+              if (seenFinalIds.has(card.uniqueId)) {
+                console.log('[loadSavedCards] Skipping duplicate in final collection:', card.uniqueId);
+                return false;
+              }
+              seenFinalIds.add(card.uniqueId);
+              return true;
+            });
 
             console.log('[loadSavedCards] Final collection size:', finalCollection.length);
 
