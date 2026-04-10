@@ -70,11 +70,12 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime, recommendationRea
   const router = useRouter()
 
   // 3D tilt effect refs and state
-  const posterRef = useRef<HTMLButtonElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
   const [rotation, setRotation] = useState({ x: 0, y: 0 })
   const [isHovering, setIsHovering] = useState(false)
   const [isLoaded, setIsLoaded] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
+  const [dvdOpen, setDvdOpen] = useState(false)
 
   useEffect(() => {
     // Trigger entrance animation after mount
@@ -131,25 +132,30 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime, recommendationRea
   };
 
   // Handle 3D tilt effect on mouse move
-  const handleMouseMove = (e: React.MouseEvent<HTMLButtonElement>) => {
-    if (!posterRef.current) return;
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!containerRef.current) return;
     
-    const rect = posterRef.current.getBoundingClientRect();
+    // Считываем координаты со СТАТИЧНОГО контейнера, чтобы избежать тряски
+    const rect = containerRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
     const centerX = rect.width / 2;
     const centerY = rect.height / 2;
     
-    // Инвертированные наклоны (уменьшенный коэффициент для меньшего наклона)
-    const rotateX = (centerY - y) / 20;
-    const rotateY = (x - centerX) / 20;
+    // Уменьшил делитель для более плавного и глубокого эффекта (25 вместо 15)
+    const rotateX = (centerY - y) / 25;
+    const rotateY = (x - centerX) / 25;
     
     setRotation({ x: rotateX, y: rotateY });
   };
 
-  const handleMouseEnter = () => setIsHovering(true);
+  const handleMouseEnter = () => {
+    setIsHovering(true);
+    setDvdOpen(true);
+  };
   const handleMouseLeave = () => {
     setIsHovering(false);
+    setDvdOpen(false);
     setRotation({ x: 0, y: 0 });
   };
 
@@ -184,68 +190,148 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime, recommendationRea
       <div className="relative h-full container mx-auto px-4 sm:px-6 z-10 flex flex-col justify-center py-6 lg:py-0">
         <div className="flex flex-col lg:flex-row h-full items-center">
           
-          {/* --- ПРАВАЯ ЧАСТЬ: ПОСТЕР --- */}
-          <div className="order-first lg:order-last lg:absolute lg:right-4 lg:top-1/2 lg:-translate-y-1/2 lg:w-5/12 flex justify-center mb-4 lg:mb-0 perspective-1000 z-20 w-full">
-             <button
-               ref={posterRef}
-               type="button"
-               onClick={() => setIsDialogOpen(true)}
-               onMouseMove={!isMobile ? handleMouseMove : undefined}
-               onMouseEnter={!isMobile ? handleMouseEnter : undefined}
-               onMouseLeave={!isMobile ? handleMouseLeave : undefined}
-               className="relative w-[160px] aspect-[2/3] sm:w-[240px] lg:w-[340px] group/poster"
+          {/* --- ПРАВАЯ ЧАСТЬ: DVD-КЕЙС --- */}
+          <div 
+            ref={containerRef}
+            className="order-first lg:order-last lg:absolute lg:right-4 lg:top-1/2 lg:-translate-y-1/2 lg:w-5/12 flex justify-center mb-4 lg:mb-0 perspective-2000 z-20 w-full"
+            onMouseMove={!isMobile ? handleMouseMove : undefined}
+            onMouseEnter={!isMobile ? handleMouseEnter : undefined}
+            onMouseLeave={!isMobile ? handleMouseLeave : undefined}
+          >
+             <div
+               className="relative w-[160px] aspect-[2/3] sm:w-[240px] lg:w-[340px] group/dvd"
                style={{
-                 perspective: '1000px',
-                 transform: isLoaded
-                   ? (isMobile
-                      ? `rotateX(${rotation.x}deg) rotateY(${rotation.y}deg) scale3d(1, 1, 1)`
-                      : (isHovering 
-                         ? `rotateX(${rotation.x}deg) rotateY(${rotation.y}deg) scale3d(1.05, 1.05, 1.05)` 
-                         : 'rotateX(0deg) rotateY(0deg) scale3d(1, 1, 1)'))
-                   : 'rotateX(10deg) rotateY(-10deg) scale3d(0.9, 0.9, 0.9) translateY(30px)',
+                 perspective: '2000px',
                  transformStyle: 'preserve-3d',
+                 opacity: isLoaded ? 1 : 0,
+                 transform: isLoaded
+                   ? `rotateX(${rotation.x}deg) rotateY(${rotation.y}deg)` 
+                   : 'rotateX(10deg) rotateY(-15deg) translateY(30px)',
+                 // Важно: очень быстрая анимация при движении мыши (убирает лаг) и плавная при возврате
                  transition: isMobile 
                    ? 'none' 
-                   : (isHovering ? 'transform 0.1s ease-out' : 'transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1)'),
-                 opacity: isLoaded ? 1 : 0,
+                   : (isHovering ? 'transform 0.05s linear' : 'transform 0.6s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.6s ease-out 0.2s'),
                }}
-               aria-label="Подробнее об аниме"
              >
-                {/* Glow effect behind poster */}
-                <div
-                  className="absolute inset-0 bg-gradient-to-br from-orange-600 to-orange-700 rounded-xl lg:rounded-2xl blur-xl -z-10"
-                  style={{
-                    transform: 'rotate(6deg) translateX(8px) translateY(8px)',
-                    opacity: isLoaded ? (isMobile ? 0.5 : (isHovering ? 0.8 : 0.4)) : 0,
-                    transition: isMobile 
-                      ? 'opacity 0.6s ease-out 0.2s' 
-                      : (isHovering ? 'opacity 0.3s ease-out' : 'opacity 0.6s ease-out 0.2s'),
-                  }}
-                />
+               {/* Эффект свечения позади всего кейса */}
+               <div
+                 className="absolute inset-0 bg-gradient-to-br from-orange-600 to-orange-700 rounded-xl lg:rounded-2xl blur-2xl -z-10"
+                 style={{
+                   transform: 'translateZ(-30px)',
+                   opacity: isLoaded ? (dvdOpen ? 0.6 : 0.2) : 0,
+                   transition: 'opacity 0.6s ease-out',
+                 }}
+               />
 
-                <div className="relative w-full h-full rounded-xl lg:rounded-2xl overflow-hidden shadow-2xl border border-border bg-secondary dark:border-white/10 dark:bg-zinc-900">
-                    <Image
-                       src={posterImage}
-                       alt={anime.title}
-                       fill
-                       className="object-cover"
-                       sizes="(max-width: 768px) 160px, 350px"
-                       quality={90}
-                       onError={() => setPosterImageError(true)}
-                       unoptimized={posterImageError}
-                    />
-                    <div className="absolute bottom-0 left-0 right-0 p-2 lg:p-4 bg-gradient-to-t from-black/90 via-black/60 to-transparent backdrop-blur-[1px]">
-                       <div className="flex justify-between items-end">
-                          <div className="flex flex-col">
-                             <span className="text-[8px] lg:text-[10px] text-muted-foreground font-mono uppercase dark:text-zinc-400">ID</span>
-                             <span className="text-foreground text-[10px] lg:text-sm font-mono font-bold flex items-center gap-1 dark:text-white">
-                               <Hash size={10} className="text-orange-500"/> {anime.id}
-                             </span>
-                          </div>
+               {/* Задняя часть DVD Case */}
+               <div
+                 className="absolute inset-0 rounded-xl lg:rounded-2xl overflow-hidden shadow-2xl border border-border bg-secondary dark:border-white/10 dark:bg-zinc-900"
+                 style={{
+                   transform: 'translateZ(-24px)', // Увеличил отступ для надежности
+                   transformStyle: 'preserve-3d',
+                   backfaceVisibility: 'hidden',
+                 }}
+               >
+                 <div className="absolute inset-0 bg-gradient-to-br from-slate-800 to-slate-900 dark:from-slate-900 dark:to-black">
+                   <div className="absolute inset-2 border-2 border-orange-500/30 rounded-lg">
+                     <div className="p-3 text-center">
+                       <div className="text-orange-500 text-xs font-bold mb-2">ANIME COLLECTION</div>
+                       <div className="text-white text-xs font-mono opacity-70">DISC 1</div>
+                       <div className="text-white text-xs font-mono opacity-50 mt-1">DIGITAL VIDEO</div>
+                     </div>
+                   </div>
+                 </div>
+               </div>
+
+               {/* Корешок (Spine) DVD кейса */}
+               <div 
+                 className="absolute left-0 top-0 bottom-0 w-[16px] bg-secondary dark:bg-zinc-900 border-y border-l border-border dark:border-white/10"
+                 style={{
+                   transformOrigin: 'left center',
+                   transform: 'rotateY(-90deg)',
+                 }}
+               />
+
+               {/* DVD Диск */}
+               <div
+                 className="absolute inset-0 flex items-center justify-center pointer-events-none"
+                 style={{
+                   transform: dvdOpen 
+                     // ИСПРАВЛЕНО: 360deg вместо 180deg (полный оборот, диск не перевернут)
+                     ? 'translateX(45%) rotateY(20deg) rotateZ(360deg) translateZ(0px)' 
+                     : 'translateX(0%) rotateY(0deg) rotateZ(0deg) translateZ(-28px)', // Спрятан еще глубже
+                   transition: 'transform 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) 0.1s',
+                   transformStyle: 'preserve-3d',
+                 }}
+               >
+                 <div className="w-[120px] h-[120px] sm:w-[160px] sm:h-[160px] lg:w-[200px] lg:h-[200px] rounded-full bg-gradient-to-br from-slate-700 via-slate-800 to-slate-900 shadow-2xl border-4 border-slate-600 relative overflow-hidden">
+                   <div className="absolute inset-4 rounded-full bg-gradient-to-br from-slate-800 to-slate-900 border-2 border-slate-700">
+                     <div className="absolute inset-2 rounded-full bg-gradient-to-br from-slate-900 to-black">
+                       <div className="absolute inset-4 rounded-full bg-gradient-to-br from-orange-600/20 to-orange-700/10 border border-orange-500/30">
+                         <div className="absolute inset-2 rounded-full bg-gradient-to-br from-slate-900 to-black">
+                           <div className="absolute inset-0 rounded-full bg-black/50"></div>
+                         </div>
                        </div>
-                    </div>
-                </div>
-             </button>
+                     </div>
+                   </div>
+                   <div className="absolute inset-0 rounded-full bg-gradient-to-tr from-white/10 via-transparent to-transparent"></div>
+                   <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-3 h-3 sm:w-4 sm:h-4 lg:w-5 lg:h-5 rounded-full bg-black"></div>
+                   <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-white text-[8px] sm:text-[10px] lg:text-[12px] font-mono opacity-70 text-center w-full px-4">
+                     <div className="truncate">{anime.title || 'ANIME'}</div>
+                     <div className="text-orange-500 font-bold">DVD</div>
+                   </div>
+                 </div>
+               </div>
+
+               {/* Передняя обложка (Front Cover) */}
+               <button
+                 type="button"
+                 onClick={() => setIsDialogOpen(true)}
+                 className="absolute inset-0 w-full h-full rounded-xl lg:rounded-2xl shadow-2xl border-2 border-border bg-secondary dark:border-white/10 dark:bg-zinc-900 origin-left"
+                 style={{
+                   transformStyle: 'preserve-3d',
+                   backfaceVisibility: 'hidden', // Предотвращаем прохождение сквозь заднюю часть
+                   transform: dvdOpen ? 'rotateY(-45deg)' : 'rotateY(0deg)',
+                   transition: 'transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                 }}
+                 aria-label="Подробнее об аниме"
+               >
+                  <div className="relative w-full h-full rounded-xl lg:rounded-2xl overflow-hidden">
+                      <Image
+                         src={posterImage}
+                         alt={anime.title}
+                         fill
+                         className="object-cover"
+                         sizes="(max-width: 768px) 160px, 350px"
+                         quality={90}
+                         onError={() => setPosterImageError(true)}
+                         unoptimized={posterImageError}
+                      />
+                      <div className="absolute bottom-0 left-0 right-0 p-2 lg:p-4 bg-gradient-to-t from-black/90 via-black/60 to-transparent backdrop-blur-[1px]">
+                         <div className="flex justify-between items-end">
+                            <div className="flex flex-col">
+                               <span className="text-[8px] lg:text-[10px] text-muted-foreground font-mono uppercase dark:text-zinc-400">ID</span>
+                               <span className="text-foreground text-[10px] lg:text-sm font-mono font-bold flex items-center gap-1 dark:text-white">
+                                 <Hash size={10} className="text-orange-500"/> {anime.id}
+                               </span>
+                            </div>
+                         </div>
+                      </div>
+                  </div>
+               </button>
+
+               {/* Значок Info */}
+               <div
+                 className="absolute top-2 right-2 w-8 h-8 sm:w-10 sm:h-10 lg:w-12 lg:h-12 bg-gradient-to-br from-orange-600 to-orange-700 rounded-full flex items-center justify-center shadow-lg border-2 border-orange-500/30"
+                 style={{
+                   opacity: dvdOpen ? 1 : 0,
+                   transform: dvdOpen ? 'scale(1) rotate(360deg) translateZ(10px)' : 'scale(0) translateZ(10px)',
+                   transition: 'all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) 0.3s',
+                 }}
+               >
+                 <Sparkles className="w-3 h-3 sm:w-4 sm:h-4 lg:w-5 lg:h-5 text-white" />
+               </div>
+             </div>
           </div>
 
           {/* --- ЛЕВАЯ ЧАСТЬ: ИНФОРМАЦИЯ --- */}
