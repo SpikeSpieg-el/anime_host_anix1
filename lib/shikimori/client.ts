@@ -16,19 +16,22 @@ function shikimoriCacheKey(input: string, init?: RequestInit): string {
 
 export async function shikimoriFetch(input: string, init?: RequestInit & { next?: any }, retries = 1) {
   const controller = new AbortController();
-  const timeoutMs = 8_000;
+  const timeoutMs = 15_000;
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
+    console.log(`[Shikimori] Fetching: ${input}`);
     const res = await fetch(input, {
       ...init,
       headers: { ...HEADERS, ...(init?.headers ?? {}) },
       signal: controller.signal
     });
 
+    console.log(`[Shikimori] Response status: ${res.status} for ${input}`);
     if (res.status === 429) return res; // Rate limit
     return res;
   } catch (error) {
+    console.error(`[Shikimori] Fetch error for ${input}:`, error);
     if (retries > 0) return shikimoriFetch(input, init, retries - 1);
     throw error;
   } finally {
