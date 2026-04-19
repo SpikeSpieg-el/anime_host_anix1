@@ -1,7 +1,7 @@
 -- Обновление функций рынка для отслеживания модификаторов в истории продаж
 
 -- Удаляем старые функции
-DROP FUNCTION IF EXISTS public.market_put_listing(uuid, text, integer, integer);
+DROP FUNCTION IF EXISTS public.market_put_listing(uuid, text, integer, integer, integer);
 DROP FUNCTION IF EXISTS public.market_execute_purchase(uuid, uuid);
 DROP FUNCTION IF EXISTS public.market_cancel_listing(uuid, uuid);
 
@@ -10,7 +10,8 @@ CREATE FUNCTION public.market_put_listing(
   p_seller_id uuid,
   p_unique_id text,
   p_price integer,
-  p_min_price integer
+  p_min_price integer,
+  p_max_price integer
 )
 RETURNS jsonb
 LANGUAGE plpgsql
@@ -18,8 +19,16 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 BEGIN
+  IF p_max_price < p_min_price THEN
+    RETURN jsonb_build_object('ok', false, 'error', 'invalid_price_bounds');
+  END IF;
+
   IF p_price < 50 OR p_price < p_min_price THEN
     RETURN jsonb_build_object('ok', false, 'error', 'price_below_min', 'min_price', p_min_price);
+  END IF;
+
+  IF p_price > p_max_price THEN
+    RETURN jsonb_build_object('ok', false, 'error', 'price_above_max', 'max_price', p_max_price);
   END IF;
 
   IF NOT EXISTS (SELECT 1 FROM public.user_cards WHERE user_id = p_seller_id AND unique_id = p_unique_id) THEN
@@ -141,13 +150,10 @@ BEGIN
     RETURN jsonb_build_object('ok', false, 'error', 'listing_not_found');
   END IF;
 
-  IF EXISTS (
-    SELECT 1 FROM public.user_cards uc
-    JOIN public.market_listings ml ON uc.unique_id = ml.unique_id
-    WHERE uc.user_id = p_seller_id AND ml.id = p_listing_id
-  ) THEN
-    RETURN jsonb_build_object('ok', false, 'error', 'duplicate_card');
-  END IF;
+  -- Удаляем дубликат карты если есть (на случай race condition)
+  DELETE FROM public.user_cards
+  WHERE user_id = p_seller_id
+  AND unique_id = (SELECT unique_id FROM public.market_listings WHERE id = p_listing_id);
 
   INSERT INTO public.user_cards (
     user_id, unique_id, serial_id, name, anime, rarity, image_url, original_url, fallback_urls,

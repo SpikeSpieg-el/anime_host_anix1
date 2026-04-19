@@ -4,10 +4,10 @@
  */
 
 // Helper function to fetch with timeout
-async function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutMs: number = 10000) {
+async function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutMs: number = 15000) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-  
+
   try {
     const response = await fetch(url, {
       ...options,
@@ -16,7 +16,7 @@ async function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutM
     return response;
   } catch (error: any) {
     if (error.name === 'AbortError') {
-      console.warn(`[Fetch] Request to ${url} was aborted.`);
+      console.warn(`[Fetch] Request to ${url} was aborted (timeout: ${timeoutMs}ms).`);
     }
     throw error;
   } finally {
@@ -52,7 +52,7 @@ export async function loadUserPity(session?: any): Promise<PityData | null> {
       headers: {
         'Authorization': `Bearer ${token}`
       }
-    }, 8000);
+    }, 15000);
 
     if (!res.ok) {
       if (res.status === 401) {
@@ -98,7 +98,7 @@ export async function updateUserPity(bad_luck_streak: number, last_rare_roll?: s
         'Authorization': `Bearer ${token}`
       },
       body: JSON.stringify({ bad_luck_streak, last_rare_roll })
-    }, 8000);
+    }, 15000);
 
     if (!res.ok) {
       if (res.status === 401) {
@@ -123,7 +123,7 @@ export async function updateUserPity(bad_luck_streak: number, last_rare_roll?: s
             'Authorization': `Bearer ${refreshedSession.access_token}`
           },
           body: JSON.stringify({ bad_luck_streak, last_rare_roll })
-        }, 8000);
+        }, 15000);
 
         if (!retryRes.ok) {
           const errorData = await retryRes.json();

@@ -14,32 +14,32 @@ export interface ModifierConfig {
 
 // --- НАЗВАНИЯ МОДИФИКАТОРОВ ---
 export const frameNames: Record<string, string> = {
-  gold: "Золотая рамка",
-  neon: "Неоновая рамка",
-  crystal: "Кристальная рамка",
-  dark: "Тёмная аура",
-  blood: "Кровавая рамка",
-  inferno: "Адское пламя",
-  lightning: "Штормовой разряд",
-  divine: "Божественный свет",
-  cyber_glitch: "Кибер-глич",
-  abyss: "Пульс бездны"
+  gold: "Королевское золото",
+  neon: "Неоновый драйв",
+  crystal: "Ледяной кристалл",
+  dark: "Оболочка тени",
+  blood: "Кровавая жатва",
+  inferno: "Ярость преисподней",
+  lightning: "Гнев шторма",
+  divine: "Святой нимб",
+  cyber_glitch: "Системный сбой",
+  abyss: "Зов бездны"
 };
 
 export const coatingNames: Record<string, string> = {
-  holo: "Голографический узор",
-  prismatic: "Призматическая сетка",
-  gold_leaf: "Золотая инкрустация",
-  blood_stain: "Кровавые брызги",
-  void: "Сумрачная вуаль",
-  matrix_foil: "Матричная фольга",
-  crt_scanlines: "Ретро-помехи",
-  falling_ash: "Пепельный ветер",
-  heartbeat: "Багровая пульсация",
-  ethereal_mist: "Эфирная дымка"
+  holo: "Голографическая фольга",
+  prismatic: "Призматический спектр",
+  gold_leaf: "Сусальное золото",
+  blood_stain: "Следы битвы",
+  void: "Частицы пустоты",
+  matrix_foil: "Цифровой код",
+  crt_scanlines: "Сигнал из прошлого",
+  falling_ash: "Пепел империи",
+  heartbeat: "Пульс жизни",
+  ethereal_mist: "Мистический туман"
 };
 
-// --- КОНФИГУРАЦИЯ МОДИФИКАТОРОВ (СТОИМОСТЬ И БОНУСЫ) ---
+// --- КОНФИГУРАЦИЯ ---
 export const frameConfigs: Record<string, ModifierConfig> = {
   gold: { cost: 50, stats: { stat: "atk", bonus: 10 } },
   neon: { cost: 60, stats: { stat: "spd", bonus: 12 } },
@@ -66,287 +66,231 @@ export const coatingConfigs: Record<string, ModifierConfig> = {
   ethereal_mist: { cost: 95, stats: { stat: "luck", bonus: 20 } }
 };
 
-// --- ФУНКЦИИ ДЛЯ РАСЧЕТА СТОИМОСТИ И БОНУСОВ ---
-
-/**
- * Рассчитывает общую стоимость модификаторов карты
- */
+// --- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ---
 export const getModifiersCost = (frame?: string, coating?: string): number => {
   let totalCost = 0;
-  
-  if (frame && frameConfigs[frame]) {
-    totalCost += frameConfigs[frame].cost;
-  }
-  
-  if (coating && coatingConfigs[coating]) {
-    totalCost += coatingConfigs[coating].cost;
-  }
-  
+  if (frame && frameConfigs[frame]) totalCost += frameConfigs[frame].cost;
+  if (coating && coatingConfigs[coating]) totalCost += coatingConfigs[coating].cost;
   return totalCost;
 };
 
-/**
- * Применяет бонусы модификаторов к статистике карты
- * Статы могут превышать 100
- */
 export const applyModifierStats = (
   baseStats: { hp: number; atk: number; def: number; spd: number; luck: number },
   frame?: string,
   coating?: string
-): { hp: number; atk: number; def: number; spd: number; luck: number } => {
+) => {
   const modifiedStats = { ...baseStats };
-  
-  // Применяем бонус от рамки
   if (frame && frameConfigs[frame]) {
     const { stat, bonus } = frameConfigs[frame].stats;
     modifiedStats[stat] += bonus;
   }
-  
-  // Применяем бонус от покрытия
   if (coating && coatingConfigs[coating]) {
     const { stat, bonus } = coatingConfigs[coating].stats;
     modifiedStats[stat] += bonus;
   }
-  
   return modifiedStats;
 };
 
-/**
- * Получает информацию о бонусах модификаторов для отображения
- */
-export const getModifierBonuses = (frame?: string, coating?: string) => {
-  const bonuses: Array<{ modifier: string; type: "frame" | "coating"; stat: StatType; bonus: number }> = [];
-  
-  if (frame && frameConfigs[frame]) {
-    const { stat, bonus } = frameConfigs[frame].stats;
-    bonuses.push({ modifier: frameNames[frame] || frame, type: "frame", stat, bonus });
-  }
-  
-  if (coating && coatingConfigs[coating]) {
-    const { stat, bonus } = coatingConfigs[coating].stats;
-    bonuses.push({ modifier: coatingNames[coating] || coating, type: "coating", stat, bonus });
-  }
-  
-  return bonuses;
-};
-
-/**
- * Получает название стата на русском языке
- */
 export const getStatName = (stat: StatType): string => {
-  const names: Record<StatType, string> = {
-    hp: "HP",
-    atk: "Атака",
-    def: "Защита",
-    spd: "Скорость",
-    luck: "Удача"
-  };
+  const names: Record<StatType, string> = { hp: "HP", atk: "Атака", def: "Защита", spd: "Скорость", luck: "Удача" };
   return names[stat];
 };
 
 // --- CSS АНИМАЦИИ ---
 const animationStyles = `
-  @keyframes pulseInferno {
-    0%, 100% { box-shadow: inset 0 -10px 20px -10px rgba(255,69,0,0.5); }
-    50% { box-shadow: inset 0 -15px 30px -5px rgba(255,140,0,0.8); }
+  @keyframes goldShimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
   }
-  @keyframes flickerLightning {
-    0%, 100% { box-shadow: inset 0 0 2px rgba(200,230,255,0.2); }
-    5% { box-shadow: inset 0 0 10px 2px rgba(200,255,255,0.7); }
-    10% { box-shadow: inset 0 0 2px rgba(200,230,255,0.2); }
-    15% { box-shadow: inset 0 0 8px 1px rgba(200,255,255,0.6); }
-    20% { box-shadow: inset 0 0 2px rgba(200,230,255,0.2); }
+  @keyframes firePulse {
+    0%, 100% { box-shadow: inset 0 0 20px #ff4500, 0 0 10px #ff8c00; opacity: 0.8; }
+    50% { box-shadow: inset 0 0 40px #ff0000, 0 0 20px #ff4500; opacity: 1; }
   }
-  @keyframes breatheDivine {
-    0%, 100% { box-shadow: inset 0 10px 20px -10px rgba(255,215,0,0.4); }
-    50% { box-shadow: inset 0 15px 30px -5px rgba(255,255,255,0.7); }
+  @keyframes electric {
+    0%, 100% { filter: drop-shadow(0 0 2px #00ffff); }
+    10% { filter: drop-shadow(0 0 8px #fff) brightness(1.5); }
+    15% { filter: drop-shadow(0 0 2px #00ffff); }
   }
-  @keyframes cyberGlitch {
-    0%, 100% { box-shadow: inset 1px 0 0 rgba(255,0,85,0.3), inset -1px 0 0 rgba(0,255,255,0.3); }
-    1% { box-shadow: inset -2px 0 0 rgba(255,0,85,0.6), inset 2px 0 0 rgba(0,255,255,0.6); }
-    2% { box-shadow: inset 1px 1px 0 rgba(255,0,85,0.3), inset -1px -1px 0 rgba(0,255,255,0.3); }
-    3% { box-shadow: inset 0 0 0 transparent; }
+  @keyframes abyssBreath {
+    0%, 100% { transform: scale(1); opacity: 0.7; }
+    50% { transform: scale(1.02); opacity: 1; }
   }
-  @keyframes pulseAbyss {
-    0%, 100% { box-shadow: inset 0 0 20px 5px rgba(20,0,30,0.8); }
-    50% { box-shadow: inset 0 0 35px 10px rgba(10,0,15,0.95); }
-  }
-
-  @keyframes foilShimmer {
-    0% { background-position: 0% 0%; }
-    100% { background-position: 200% 200%; }
-  }
-  @keyframes scanlinesMove {
+  @keyframes matrixMove {
     0% { background-position: 0 0; }
-    100% { background-position: 0 40px; }
+    100% { background-position: 0 100%; }
   }
-  @keyframes ashDrift {
-    0% { background-position: 0px 0px, 0px 0px; }
-    100% { background-position: 60px 120px, -30px 90px; }
+  @keyframes glitchStep {
+    0% { clip-path: inset(10% 0 30% 0); transform: translateX(-2px); }
+    20% { clip-path: inset(40% 0 10% 0); transform: translateX(2px); }
+    40% { clip-path: inset(70% 0 5% 0); transform: translateX(-1px); }
+    100% { clip-path: inset(0% 0 0% 0); transform: translateX(0); }
   }
-  @keyframes subtlePulse {
-    0%, 100% { opacity: 0.3; }
-    50% { opacity: 0.6; }
-  }
-  @keyframes shiftMist {
-    0% { background-position: 0% 0%; }
-    50% { background-position: 100% 100%; }
-    100% { background-position: 0% 0%; }
+  @keyframes rainbowFlow {
+    0% { filter: hue-rotate(0deg); }
+    100% { filter: hue-rotate(360deg); }
   }
 `;
 
 // --- КОМПОНЕНТ РАМКИ ---
 export const FrameOverlay = ({ frame, className = "" }: { frame?: string, className?: string }) => {
   if (!frame) return null;
-  
-  // Рамки теперь очень тонкие и деликатные, акцент только на самый край (inset)
-  const frameStyles: Record<string, React.CSSProperties> = {
-    gold: { boxShadow: "inset 0 0 0 1px rgba(250,204,21,0.6), inset 0 0 15px rgba(250,204,21,0.2)" },
-    neon: { boxShadow: "inset 0 0 0 1px rgba(34,211,238,0.7), inset 0 0 12px rgba(34,211,238,0.3)" },
-    crystal: { boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.6), inset 0 0 10px rgba(186,230,253,0.3)" },
-    dark: { boxShadow: "inset 0 0 20px 4px rgba(0,0,0,0.85)" },
-    blood: { boxShadow: "inset 0 0 15px 2px rgba(185,28,28,0.5)" },
-    
-    inferno: { animation: "pulseInferno 3s infinite ease-in-out" },
-    lightning: { animation: "flickerLightning 5s infinite linear" },
-    divine: { animation: "breatheDivine 4s infinite ease-in-out" },
-    cyber_glitch: { animation: "cyberGlitch 4s infinite linear" },
-    abyss: { animation: "pulseAbyss 5s infinite ease-in-out" }
+
+  const getFrameStyle = (): React.CSSProperties => {
+    switch (frame) {
+      case "gold": return {
+        border: "3px solid transparent",
+        borderImage: "linear-gradient(to right, #bf953f, #fcf6ba, #b38728, #fcf6ba, #bf953f) 1",
+        boxShadow: "0 0 15px rgba(191, 149, 63, 0.5)",
+        background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent)",
+        backgroundSize: "200% 100%",
+        animation: "goldShimmer 3s infinite linear"
+      };
+      case "neon": return {
+        outline: "2px solid #22d3ee",
+        boxShadow: "inset 0 0 15px #22d3ee, 0 0 15px #22d3ee",
+        filter: "contrast(1.2) brightness(1.1)"
+      };
+      case "crystal": return {
+        border: "2px solid rgba(255, 255, 255, 0.8)",
+        boxShadow: "inset 0 0 20px rgba(186, 230, 253, 0.6)",
+        backdropFilter: "blur(1px)"
+      };
+      case "dark": return {
+        boxShadow: "inset 0 0 40px 10px #000, 0 0 20px #000",
+        border: "1px solid rgba(255,255,255,0.1)"
+      };
+      case "blood": return {
+        border: "2px solid #7f1d1d",
+        boxShadow: "inset 0 0 25px #450a0a",
+        background: "radial-gradient(circle at center, transparent 60%, rgba(127, 29, 29, 0.4) 100%)"
+      };
+      case "inferno": return {
+        border: "2px solid #ea580c",
+        animation: "firePulse 2s infinite ease-in-out"
+      };
+      case "lightning": return {
+        border: "1px solid #bae6fd",
+        animation: "electric 4s infinite",
+        boxShadow: "inset 0 0 15px rgba(186, 230, 253, 0.5)"
+      };
+      case "divine": return {
+        border: "2px solid #fef08a",
+        boxShadow: "0 0 30px #fef08a, inset 0 0 20px #fff",
+        background: "linear-gradient(45deg, transparent, rgba(255,255,255,0.3), transparent)"
+      };
+      case "cyber_glitch": return {
+        border: "2px solid #ff0055",
+        boxShadow: "2px 0 #00ffff, -2px 0 #ff0055",
+        animation: "glitchStep 0.2s infinite alternate-reverse"
+      };
+      case "abyss": return {
+        border: "2px solid #4c1d95",
+        boxShadow: "inset 0 0 30px #000, 0 0 20px #4c1d95",
+        animation: "abyssBreath 4s infinite ease-in-out"
+      };
+      default: return {};
+    }
   };
-  
+
   return (
     <>
       <style dangerouslySetInnerHTML={{ __html: animationStyles }} />
       <div 
         className={`absolute inset-0 pointer-events-none rounded-[inherit] z-[25] ${className}`} 
-        style={frameStyles[frame]} 
+        style={getFrameStyle()} 
       />
     </>
   );
 };
 
-// --- КОМПОНЕНТ ПОКРЫТИЯ (ПАТТЕРНЫ И ФОЛЬГА) ---
+// --- КОМПОНЕНТ ПОКРЫТИЯ ---
 export const CoatingOverlay = ({ coating, className = "" }: { coating?: string, className?: string }) => {
   if (!coating) return null;
-  
-  // КЛЮЧЕВАЯ ФИШКА: Эта маска делает так, чтобы в центре (на лице персонажа)
-  // покрытие было прозрачным на 90%, а по краям карты — на 100% плотным.
-  // Это сохраняет идеальную видимость арта.
+
+  // Центр карты остается чистым для арта, края заполнены эффектом
   const artFocusMask = {
-    WebkitMaskImage: "radial-gradient(ellipse at center, rgba(0,0,0,0.1) 20%, rgba(0,0,0,0.5) 50%, rgba(0,0,0,1) 90%)",
-    maskImage: "radial-gradient(ellipse at center, rgba(0,0,0,0.1) 20%, rgba(0,0,0,0.5) 50%, rgba(0,0,0,1) 90%)"
+    WebkitMaskImage: "radial-gradient(circle, transparent 10%, rgba(0,0,0,0.5) 40%, black 100%)",
+    maskImage: "radial-gradient(circle, transparent 10%, rgba(0,0,0,0.5) 40%, black 100%)"
   };
 
   let style: React.CSSProperties = { ...artFocusMask };
-  
-  // --- СТАТИЧНЫЕ ПАТТЕРНЫ ---
-  if (coating === "holo") {
-    // Диагональные линии (эффект фольги) + легкий радужный отблеск
-    style = { 
-      ...style,
-      background: `
-        repeating-linear-gradient(45deg, transparent, transparent 2px, rgba(255,255,255,0.1) 3px, rgba(255,255,255,0.1) 4px),
-        linear-gradient(105deg, rgba(255,0,0,0.05), rgba(0,255,0,0.05), rgba(0,0,255,0.05))
-      `,
-      mixBlendMode: "color-dodge" 
-    };
-  } else if (coating === "prismatic") {
-    // Узор в ромбик (пересекающиеся диагонали)
-    style = { 
-      ...style,
-      background: `
-        repeating-linear-gradient(45deg, rgba(255,255,255,0.05) 0, rgba(255,255,255,0.05) 1px, transparent 1px, transparent 10px),
-        repeating-linear-gradient(-45deg, rgba(255,255,255,0.05) 0, rgba(255,255,255,0.05) 1px, transparent 1px, transparent 10px),
-        linear-gradient(to bottom right, rgba(255,100,200,0.1), rgba(100,200,255,0.1))
-      `,
-      mixBlendMode: "overlay" 
-    };
-  } else if (coating === "gold_leaf") {
-    // Редкая россыпь золотых точек
-    style = { 
-      ...style,
-      backgroundImage: "radial-gradient(circle, rgba(255,215,0,0.6) 1px, transparent 1px)", 
-      backgroundSize: "16px 16px", 
-      backgroundPosition: "0 0, 8px 8px",
-      mixBlendMode: "overlay" 
-    };
-  } else if (coating === "blood_stain") {
-    // Запекшиеся пятна строго по углам (чтобы не пачкать лицо)
-    style = {
-      background: `
-        radial-gradient(circle at 10% 10%, rgba(139,0,0,0.6) 0%, transparent 15%),
-        radial-gradient(ellipse at 90% 90%, rgba(100,0,0,0.5) 0%, transparent 25%)
-      `,
-      mixBlendMode: "multiply"
-    };
-  } else if (coating === "void") {
-    // Очень тонкая темная сетка (миллиметровка) + легкое затемнение
-    style = { 
-      ...style,
-      background: `
-        linear-gradient(rgba(0,0,0,0.2) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(0,0,0,0.2) 1px, transparent 1px)
-      `,
-      backgroundSize: "6px 6px",
-      backgroundColor: "rgba(0,0,0,0.15)",
-      mixBlendMode: "multiply" 
-    };
-  } 
-  
-  // --- АНИМИРОВАННЫЕ ПАТТЕРНЫ ---
-  else if (coating === "matrix_foil") {
-    // Переливающаяся техническая сетка, плавно плывущая по диагонали
-    style = { 
-      ...style,
-      background: `
-        linear-gradient(rgba(0,255,255,0.1) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(255,0,255,0.1) 1px, transparent 1px),
-        linear-gradient(115deg, transparent 20%, rgba(255,255,255,0.1) 45%, transparent 60%)
-      `,
-      backgroundSize: "8px 8px, 8px 8px, 200% 200%",
-      animation: "foilShimmer 5s infinite linear",
-      mixBlendMode: "overlay"
-    };
-  } else if (coating === "crt_scanlines") {
-    // Тончайшие горизонтальные полосы, медленно ползущие вниз
-    style = { 
-      ...style,
-      background: "repeating-linear-gradient(to bottom, transparent, transparent 2px, rgba(0,0,0,0.15) 3px, rgba(0,0,0,0.15) 4px)",
-      backgroundSize: "100% 40px",
-      animation: "scanlinesMove 6s infinite linear",
-      mixBlendMode: "overlay"
-    };
-  } else if (coating === "falling_ash") {
-    // Мягкие, редкие белые пылинки (снег/пепел)
-    style = {
-      ...style,
-      backgroundImage: `
-        radial-gradient(circle, rgba(255,255,255,0.5) 1px, transparent 1px), 
-        radial-gradient(circle, rgba(255,255,255,0.3) 1px, transparent 1px)
-      `,
-      backgroundSize: "50px 50px, 30px 30px",
-      animation: "ashDrift 8s infinite linear",
-      mixBlendMode: "overlay"
-    };
-  } else if (coating === "heartbeat") {
-    // Мягкий геометрический ромб, тихо пульсирующий на фоне
-    style = {
-      ...style,
-      background: "repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(220,38,38,0.05) 10px, rgba(220,38,38,0.05) 20px)",
-      animation: "subtlePulse 2s infinite ease-in-out",
-      mixBlendMode: "multiply"
-    };
-  } else if (coating === "ethereal_mist") {
-    // Размытые пятна света, плавно перетекающие по карте
-    style = {
-      ...style,
-      background: "radial-gradient(circle at 30% 30%, rgba(138,43,226,0.15) 0%, transparent 40%), radial-gradient(circle at 70% 70%, rgba(0,255,255,0.15) 0%, transparent 40%)",
-      backgroundSize: "200% 200%",
-      animation: "shiftMist 8s infinite ease-in-out",
-      mixBlendMode: "screen"
-    };
+
+  switch (coating) {
+    case "holo":
+      style = { ...style,
+        background: "linear-gradient(135deg, #ff000022 0%, #00ff0022 25%, #0000ff22 50%, #ff00ff22 75%, #ff000022 100%)",
+        backgroundSize: "400% 400%",
+        animation: "goldShimmer 5s infinite linear",
+        mixBlendMode: "color-dodge"
+      };
+      break;
+    case "prismatic":
+      style = { ...style,
+        backgroundImage: "repeating-conic-gradient(from 0deg, #ffffff11 0deg 30deg, transparent 30deg 60deg)",
+        animation: "rainbowFlow 10s infinite linear",
+        mixBlendMode: "overlay"
+      };
+      break;
+    case "gold_leaf":
+      style = { ...style,
+        backgroundImage: "url('https://www.transparenttextures.com/patterns/gold-dust.png')",
+        backgroundColor: "rgba(255, 215, 0, 0.15)",
+        mixBlendMode: "color-dodge"
+      };
+      break;
+    case "blood_stain":
+      style = { ...style,
+        background: "radial-gradient(circle at 20% 20%, #7f1d1d99 0%, transparent 40%), radial-gradient(circle at 80% 80%, #450a0a99 0%, transparent 40%)",
+        mixBlendMode: "multiply"
+      };
+      break;
+    case "matrix_foil":
+      style = { ...style,
+        background: "linear-gradient(transparent 0%, #00ff4133 50%, transparent 100%)",
+        backgroundSize: "100% 20px",
+        animation: "matrixMove 2s infinite linear",
+        mixBlendMode: "screen"
+      };
+      break;
+    case "crt_scanlines":
+      style = { ...style,
+        background: "repeating-linear-gradient(0deg, #000 0px, #000 1px, transparent 1px, transparent 3px)",
+        opacity: 0.3,
+        mixBlendMode: "overlay"
+      };
+      break;
+    case "void":
+      style = { ...style,
+        backgroundColor: "#00000066",
+        backgroundImage: "radial-gradient(#ffffff22 1px, transparent 1px)",
+        backgroundSize: "10px 10px",
+        mixBlendMode: "darken"
+      };
+      break;
+    case "falling_ash":
+      style = { ...style,
+        backgroundImage: "radial-gradient(circle, #fff 1px, transparent 1px)",
+        backgroundSize: "40px 40px",
+        animation: "matrixMove 10s infinite linear reverse",
+        opacity: 0.4
+      };
+      break;
+    case "heartbeat":
+      style = { ...style,
+        boxShadow: "inset 0 0 50px #ef444466",
+        animation: "abyssBreath 2s infinite ease-in-out",
+        mixBlendMode: "soft-light"
+      };
+      break;
+    case "ethereal_mist":
+      style = { ...style,
+        background: "linear-gradient(45deg, #8b5cf633, #06b6d433)",
+        filter: "blur(10px)",
+        animation: "goldShimmer 8s infinite alternate"
+      };
+      break;
   }
-  
+
   return (
     <div 
       className={`absolute inset-0 pointer-events-none rounded-[inherit] z-[22] ${className}`} 

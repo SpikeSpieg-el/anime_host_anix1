@@ -708,6 +708,9 @@ export default function GachaPage() {
   // Ref for tracking operation start time
   const operationStartTime = useRef<number | null>(null);
 
+  // Ref for tracking if component is mounted
+  const isMounted = useRef(true);
+
   const ART_BAN_LIMIT = 10
 
   const bannedArtsByCharacter = useMemo(() => {
@@ -1153,16 +1156,26 @@ useEffect(() => {
   }, [packSearchQuery]);
 
   useEffect(() => {
+    isMounted.current = true;
+
     const loadPityData = async () => {
       try {
         const data = await loadUserPity(session);
-        setPityData(data);
+        if (isMounted.current) {
+          setPityData(data);
+        }
       } catch (error) {
-        console.error('[loadPityData] Error:', error);
+        if (isMounted.current) {
+          console.error('[loadPityData] Error:', error);
+        }
       }
     };
 
     loadPityData();
+
+    return () => {
+      isMounted.current = false;
+    };
   }, []);
 
   useEffect(() => {

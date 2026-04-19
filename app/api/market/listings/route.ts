@@ -71,6 +71,8 @@ export async function GET(request: Request) {
       packId: row.pack_id || undefined,
       packName: row.pack_name || undefined,
       isArtBlacklisted: row.is_art_blacklisted || false,
+      frameModifier: row.frame_modifier || undefined,
+      coatingModifier: row.coating_modifier || undefined,
     },
   }))
 

@@ -7,6 +7,7 @@ import type { Card } from "@/app/gacha/page"
 import { rarityConfig, type Rarity } from "@/types/gacha"
 import { useAuth } from "@/components/auth-provider"
 import { supabase } from "@/lib/supabase"
+import { frameNames, coatingNames, FrameOverlay, CoatingOverlay } from "@/components/card-modifiers"
 
 type MarketListingApi = {
   listingId: string
@@ -220,9 +221,13 @@ const InteractiveCard = ({ card, forceFlipped = false }: { card: MarketListingAp
           referrerPolicy="no-referrer"
           onError={(e) => handleListingImageError(e, card)}
         />
-        
+
         <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/20 to-slate-950/20 pointer-events-none" />
-        
+
+        {/* Modifier Overlays */}
+        <CoatingOverlay coating={card.coatingModifier} />
+        <FrameOverlay frame={card.frameModifier} />
+
         {/* Hover highlight effect */}
         <div 
           className="absolute inset-0 opacity-0 transition-opacity duration-300 pointer-events-none"
@@ -234,7 +239,7 @@ const InteractiveCard = ({ card, forceFlipped = false }: { card: MarketListingAp
         
         {/* UI элементов - FRONT */}
         <div className="absolute top-3 sm:top-4 md:top-5 inset-x-3 sm:inset-x-4 md:inset-x-5 flex justify-between items-start pointer-events-none z-10">
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-1.5 sm:gap-2">
             <div className={`px-2.5 sm:px-3 py-1 rounded-full text-[9px] sm:text-[10px] font-black uppercase tracking-widest backdrop-blur-md bg-black/40 border border-white/20 shadow-xl`}>
               <span className={`bg-gradient-to-r ${rarityConfig[card.rarity].color} bg-clip-text text-transparent`}>
                 {rarityConfig[card.rarity].label}
@@ -244,6 +249,18 @@ const InteractiveCard = ({ card, forceFlipped = false }: { card: MarketListingAp
               <div className="w-fit flex items-center gap-1 sm:gap-1.5 px-2 py-1 rounded-full text-[8px] sm:text-[9px] font-black uppercase tracking-wider bg-gradient-to-r from-yellow-400 to-amber-500 text-amber-950 shadow-lg border border-yellow-300">
                 <Crown className="w-2.5 sm:w-3 h-2.5 sm:h-3" />
                 Главный герой
+              </div>
+            )}
+            {card.frameModifier && (
+              <div className="w-fit flex items-center gap-1 sm:gap-1.5 px-2 py-1 rounded-full text-[8px] sm:text-[9px] font-black uppercase tracking-wider bg-gradient-to-r from-yellow-600 to-yellow-400 text-yellow-950 shadow-lg border border-yellow-300">
+                <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-yellow-200"></span>
+                {frameNames[card.frameModifier]}
+              </div>
+            )}
+            {card.coatingModifier && (
+              <div className="w-fit flex items-center gap-1 sm:gap-1.5 px-2 py-1 rounded-full text-[8px] sm:text-[9px] font-black uppercase tracking-wider bg-gradient-to-r from-cyan-600 to-cyan-400 text-cyan-950 shadow-lg border border-cyan-300">
+                <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-cyan-200"></span>
+                {coatingNames[card.coatingModifier]}
               </div>
             )}
           </div>
@@ -782,6 +799,20 @@ export function GachaMarketPanel({
                   >
                     {rarityConfig[c.rarity].label}
                   </div>
+                  {(c.frameModifier || c.coatingModifier) && (
+                    <div className="absolute bottom-2 left-2 flex flex-col gap-1">
+                      {c.frameModifier && (
+                        <div className="px-1.5 py-0.5 rounded text-[8px] font-black uppercase bg-yellow-600/90 text-yellow-950 border border-yellow-400">
+                          🖼️ {frameNames[c.frameModifier]}
+                        </div>
+                      )}
+                      {c.coatingModifier && (
+                        <div className="px-1.5 py-0.5 rounded text-[8px] font-black uppercase bg-cyan-600/90 text-cyan-950 border border-cyan-400">
+                          ✨ {coatingNames[c.coatingModifier]}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
                 <div className="p-3 flex-1 flex flex-col gap-2">
                   <p className="text-[10px] sm:text-xs font-bold text-slate-300 uppercase truncate mb-0.5">★{c.score.toFixed(1)} {c.anime}</p>

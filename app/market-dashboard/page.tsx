@@ -35,6 +35,8 @@ interface MarketListing {
     packId?: string
     packName?: string
     isArtBlacklisted: boolean
+    frameModifier?: string
+    coatingModifier?: string
   }
 }
 
@@ -329,6 +331,12 @@ export default function MarketDashboardPage() {
                           <div className="text-xs text-slate-500 mt-1">
                             #{listing.card.serialId} • {listing.card.isMainCharacter && "★ Главный персонаж"}
                           </div>
+                          {(listing.card.frameModifier || listing.card.coatingModifier) && (
+                            <div className="text-xs text-purple-400 mt-1">
+                              {listing.card.frameModifier && `🖼️ ${listing.card.frameModifier} `}
+                              {listing.card.coatingModifier && `✨ ${listing.card.coatingModifier}`}
+                            </div>
+                          )}
                         </div>
                         <div className="text-right">
                           <p className="text-2xl font-black text-yellow-400">{listing.price.toLocaleString()}</p>

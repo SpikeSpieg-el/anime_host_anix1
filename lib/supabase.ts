@@ -38,9 +38,45 @@ const createMockClient = () => {
   return mockClient as any
 }
 
-export const supabase = isValidConfig
-  ? createClient(supabaseUrl, supabaseKey)
-  : createMockClient()
+let supabaseInstance: any = null
+
+try {
+  if (isValidConfig) {
+    supabaseInstance = createClient(supabaseUrl, supabaseKey, {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
+        flowType: 'pkce',
+      },
+      db: {
+        schema: 'public',
+      },
+      global: {
+        headers: {
+          'X-Client-Info': 'anime-host-anix1',
+        },
+      },
+    })
+  } else {
+    supabaseInstance = createMockClient()
+  }
+} catch (error) {
+  console.error('[Supabase] Client initialization error:', error)
+  supabaseInstance = createMockClient()
+}
+
+export const supabase = supabaseInstance
+
+// Handle Navigator Lock abort errors that occur asynchronously
+if (typeof window !== 'undefined') {
+  window.addEventListener('unhandledrejection', (event) => {
+    if (event.reason?.name === 'AbortError' && event.reason?.message?.includes('signal is aborted')) {
+      console.warn('[Supabase] Navigator Lock abort error caught and ignored')
+      event.preventDefault()
+    }
+  })
+}
 
 // --- ФУНКЦИЯ ИСПРАВЛЕНИЯ ПЕРЕПОЛНЕНИЯ МОНЕТ ---
 // Используется для исправления багов с огромными значениями монет
