@@ -116,7 +116,16 @@ export default async function HomePage() {
       ? topOfWeekList[Math.floor(Math.random() * topOfWeekList.length)]
       : heroFallback[0] ?? null
 
-  const topOfWeekHeroFull = topOfWeekHero ? await getAnimeById(topOfWeekHero.id, false) : null
+  // 2.2. Параллельно загружаем детали для Hero и рекомендации
+  const [topOfWeekHeroFull, recommendedHero] = await Promise.all([
+    topOfWeekHero ? getAnimeById(topOfWeekHero.id, false) : Promise.resolve(null),
+    getHeroRecommendation(
+      watchedIds.filter((id: string) => id !== String(topOfWeekHero?.id)).map(String),
+      bookmarkIds,
+      heroFallback,
+    ),
+  ])
+
   const topOfWeekHeroWithDetails = topOfWeekHero
     ? topOfWeekHeroFull
       ? {
@@ -126,12 +135,6 @@ export default async function HomePage() {
         }
       : topOfWeekHero
     : null
-
-  const recommendedHero = await getHeroRecommendation(
-    watchedIds.filter((id: string) => id !== String(topOfWeekHero?.id)).map(String),
-    bookmarkIds,
-    heroFallback,
-  )
 
   const recommendedAnime = recommendedHero.anime
 

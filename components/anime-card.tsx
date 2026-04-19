@@ -58,9 +58,10 @@ interface AnimeCardProps {
     totalEpisodes?: number
   }
   showPreviousEpisode?: boolean
+  priority?: boolean
 }
 
-export function AnimeCard({ anime, className, variant = 'default', showUpdateBadge, updateInfo, showPreviousEpisode }: AnimeCardProps) {
+export function AnimeCard({ anime, className, variant = 'default', showUpdateBadge, updateInfo, showPreviousEpisode, priority }: AnimeCardProps) {
   const { isSaved, toggle } = useBookmarks()
   const saved = isSaved(anime.id)
   const [imageError, setImageError] = useState(false)
@@ -82,6 +83,9 @@ export function AnimeCard({ anime, className, variant = 'default', showUpdateBad
               fill
               className="object-cover transition-transform duration-300 group-hover:scale-105"
               sizes="80px"
+              priority={priority}
+              placeholder="blur"
+              blurDataURL="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjMjIyIi8+PC9zdmc+"
               onError={() => setImageError(true)}
               unoptimized={imageError}
             />
@@ -167,6 +171,9 @@ export function AnimeCard({ anime, className, variant = 'default', showUpdateBad
           fill
           className="object-cover transition-transform duration-300 group-hover:scale-105"
           sizes="(max-width: 640px) 33vw, (max-width: 1024px) 20vw, 16vw"
+          priority={priority}
+          placeholder="blur"
+          blurDataURL="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjMjIyIi8+PC9zdmc+"
           onError={() => setImageError(true)}
           unoptimized={imageError}
         />

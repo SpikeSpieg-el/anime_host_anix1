@@ -7,7 +7,7 @@ const posterCache = new Map<string, string>();
 const backdropCache = new Map<string, string | null>();
 // Очередь для запросов с задержкой
 let requestQueue = Promise.resolve();
-const REQUEST_DELAY = 200; // 200ms между запросами
+const REQUEST_DELAY = 50; // 50ms между запросами (ускорено для быстрой загрузки)
 
 function delayRequest(): Promise<void> {
   requestQueue = requestQueue.then(() => new Promise(resolve => setTimeout(resolve, REQUEST_DELAY)));

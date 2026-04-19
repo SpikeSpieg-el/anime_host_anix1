@@ -289,7 +289,7 @@ export async function getForumNews(limit = 4): Promise<NewsItem[]> {
 
 export async function getAnimeCalendar(): Promise<WeeklySchedule> {
   console.log('[getAnimeCalendar] Starting fetch from Shikimori calendar API');
-  const data = await shikimoriJson<any[]>(`${BASE_URL}/calendar`, { next: { revalidate: 0 } }, { fallback: [] });
+  const data = await shikimoriJson<any[]>(`${BASE_URL}/calendar`, { next: { revalidate: 3600 } }, { fallback: [] });
   console.log('[getAnimeCalendar] Received data:', data.length, 'items');
   
   const schedule: WeeklySchedule = { 0: [], 1: [], 2: [], 3: [], 4: [], 5: [], 6: [] };
@@ -297,7 +297,7 @@ export async function getAnimeCalendar(): Promise<WeeklySchedule> {
   await Promise.all(data.map(async (item) => {
     const day = (new Date(item.next_episode_at).getDay() + 6) % 7; // Сдвиг Вс(0)->6, Пн(1)->0
     const anime = await transformAnime(item.anime);
-    anime.episodesCurrent = item.next_episode;
+    anime.episodesCurrent = item.anime.episodes_aired;
     schedule[day].push(anime);
   }));
   
@@ -412,26 +412,22 @@ export async function getHeroRecommendation(
       // Берем случайный ID из последних взаимодействий для разнообразия при каждом рефреше
       const randomSourceId = sourceIds[Math.floor(Math.random() * sourceIds.length)];
       
-      // Запрашиваем похожие (это быстро, 1 запрос)
-      const similarRaw = await shikimoriJson<ShikimoriAnime[]>(
-        `${BASE_URL}/animes/${randomSourceId}/similar`, 
-        { next: { revalidate: 3600 } }, // Кешируем на час
-        { fallback: [] }
-      );
+      // Параллельно запрашиваем похожие и название исходного аниме
+      const [similarRaw, sourceAnime] = await Promise.all([
+        shikimoriJson<ShikimoriAnime[]>(
+          `${BASE_URL}/animes/${randomSourceId}/similar`, 
+          { next: { revalidate: 3600 } }, // Кешируем на час
+          { fallback: [] }
+        ),
+        getAnimeById(randomSourceId).catch(() => null), // Не блокируем если ошибка
+      ]);
 
       // Трансформируем и фильтруем
       if (similarRaw.length > 0) {
         const safeSimilar = similarRaw.filter(isAnimeSafe);
         candidates = await Promise.all(safeSimilar.map(item => transformAnime(item, false)));
         usedStrategy = 'similar';
-        
-        // Получаем название исходного аниме для причины
-        try {
-          const sourceAnime = await getAnimeById(randomSourceId);
-          sourceAnimeTitle = sourceAnime?.title;
-        } catch (e) {
-          // Игнорируем ошибку, если не удалось получить название
-        }
+        sourceAnimeTitle = sourceAnime?.title;
       }
     } catch (e) {
       console.error("Error fetching similar anime for recommendation:", e);
@@ -466,27 +462,36 @@ export async function getHeroRecommendation(
   // Сортируем по нашей формуле "Hero Score"
   validCandidates.sort((a, b) => calculateHeroScore(b) - calculateHeroScore(a));
 
-  // 4.5. Фильтрация сиквелов (асинхронная)
+  // 4.5. Фильтрация сиквелов (асинхронная, параллельная)
   // Проверяем топ-10 кандидатов на наличие сиквелов без просмотренных предыдущих частей
   const candidatesToCheck = validCandidates.slice(0, 10);
-  const sequelFilteredCandidates: Anime[] = [];
-
-  for (const candidate of candidatesToCheck) {
-    const isSequel = await isSequelWithoutPreviousParts(candidate, excludeSet);
-    if (!isSequel) {
-      sequelFilteredCandidates.push(candidate);
-    }
-  }
+  
+  // Параллельно проверяем все кандидаты на сиквелы
+  const sequelCheckResults = await Promise.all(
+    candidatesToCheck.map(candidate => 
+      isSequelWithoutPreviousParts(candidate, excludeSet).then(isSequel => ({ candidate, isSequel }))
+    )
+  );
+  
+  const sequelFilteredCandidates = sequelCheckResults
+    .filter(({ isSequel }) => !isSequel)
+    .map(({ candidate }) => candidate);
 
   // Если после фильтрации сиквелов осталось мало кандидатов, берем больше
   let finalCandidates = sequelFilteredCandidates;
   if (finalCandidates.length < 3) {
     // Берем еще кандидатов из списка, но пропуская те, что уже проверены
-    for (let i = 10; i < validCandidates.length && finalCandidates.length < 5; i++) {
-      const candidate = validCandidates[i];
-      const isSequel = await isSequelWithoutPreviousParts(candidate, excludeSet);
+    const additionalCandidates = validCandidates.slice(10);
+    const additionalCheckResults = await Promise.all(
+      additionalCandidates.slice(0, 10).map(candidate => 
+        isSequelWithoutPreviousParts(candidate, excludeSet).then(isSequel => ({ candidate, isSequel }))
+      )
+    );
+    
+    for (const { candidate, isSequel } of additionalCheckResults) {
       if (!isSequel) {
         finalCandidates.push(candidate);
+        if (finalCandidates.length >= 5) break;
       }
     }
   }

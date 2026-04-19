@@ -127,10 +127,7 @@ export function ScheduleClient({ schedule }: ScheduleClientProps) {
             {showBookmarksOnly ? 'Всё' : 'Только в закладках'}
           </button>
           
-          <div className="flex items-center gap-2 text-sm font-medium px-4 py-2 bg-card rounded-full border border-border text-muted-foreground">
-             <Clock className="w-4 h-4 text-orange-500" />
-             <span>{currentDayInfo.dayName}, {currentDayInfo.date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })}</span>
-          </div>
+
         </div>
       </div>
 
@@ -138,7 +135,7 @@ export function ScheduleClient({ schedule }: ScheduleClientProps) {
       <div className="sticky top-16 z-30 bg-background/95 backdrop-blur-sm pb-4 pt-2">
         <div 
           ref={scrollRef}
-          className="flex gap-2 overflow-x-auto pb-2 no-scrollbar px-1"
+          className="flex gap-2 overflow-x-auto pb-3 pt-3 no-scrollbar px-1"
           style={{ scrollSnapType: 'x mandatory' }}
         >
           {rollingDays.map((day) => {
@@ -185,17 +182,18 @@ export function ScheduleClient({ schedule }: ScheduleClientProps) {
       <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
         {filteredAnimes.length > 0 ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-x-4 gap-y-6 sm:gap-y-8">
-            {filteredAnimes.map((anime) => {
+            {filteredAnimes.map((anime, index) => {
               // ИСПРАВЛЕНИЕ:
               // Теперь номер серии зависит только от смещения недели относительно текущей даты.
               // Текущая неделя (0) = episodesCurrent
               // Следующая неделя (+1) = episodesCurrent + 1
               // Прошлая неделя (-1) = episodesCurrent - 1
               const displayEpisode = anime.episodesCurrent + currentDayInfo.weekOffset
+              const isPriority = index < 6 // Priority for first 6 images (above the fold)
               
               return (
                 <div key={anime.id} className="relative group">
-                  <AnimeCard anime={anime} showPreviousEpisode={true} />
+                  <AnimeCard anime={anime} showPreviousEpisode={true} priority={isPriority} />
                   
                   <div className="absolute top-2 right-[7px] z-20">
                     <div className={cn(
