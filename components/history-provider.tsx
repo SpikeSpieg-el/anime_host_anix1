@@ -19,6 +19,7 @@ type HistoryContextValue = {
   isLoading: boolean
   add: (anime: WatchHistoryItem) => void
   clear: () => void
+  remove: (ids: string[]) => void
   toggleArchived: (id: string) => void
   moveToArchive: (id: string) => void
 }
@@ -222,7 +223,66 @@ export function HistoryProvider({ children }: { children: React.ReactNode }) {
     }
   }, [user])
 
-  const value = useMemo<HistoryContextValue>(() => ({ items, isLoading, add, clear, toggleArchived, moveToArchive }), [items, isLoading, add, clear, toggleArchived, moveToArchive])
+  const remove = useCallback(async (ids: string[]) => {
+    console.log('[remove] Starting removal of ids:', ids)
+    console.log('[remove] User:', user?.id)
+    setItems((prev) => prev.filter(item => !ids.includes(item.id)))
+
+    if (user) {
+      try {
+        // Delete each item individually using match like toggleArchived
+        for (const id of ids) {
+          console.log(`[remove] Deleting anime_id: ${id}, user_id: ${user.id}`)
+          const { error } = await supabase
+            .from('watch_history')
+            .delete()
+            .match({ user_id: user.id, anime_id: id })
+          
+          if (error) {
+            console.error(`[remove] Failed to remove item ${id}:`, error)
+          } else {
+            console.log(`[remove] Successfully removed item ${id}`)
+          }
+        }
+        
+        // Force reload from database to ensure sync
+        console.log('[remove] Reloading data from database...')
+        const { data, error } = await supabase
+          .from('watch_history')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('timestamp', { ascending: false })
+        
+        if (data) {
+          const remoteItems = data.map((row: any) => ({
+            id: String(row.anime_id),
+            title: row.title,
+            poster: row.poster,
+            timestamp: row.timestamp,
+            episode: row.episode,
+            episodesTotal: row.episodes_total,
+            is_archived: row.is_archived || false
+          }))
+          console.log('[remove] Reloaded items count:', remoteItems.length)
+          setItems(remoteItems)
+        }
+        if (error) {
+          console.error('[remove] Error reloading:', error)
+        }
+      } catch (error) {
+        console.error('[remove] Exception:', error)
+      }
+    } else {
+      console.log('[remove] Guest mode - updating localStorage')
+      // Handle localStorage for guests
+      const existing = safeParseHistory(window.localStorage.getItem(STORAGE_KEY))
+      const filtered = existing.filter(item => !ids.includes(item.id))
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(filtered))
+      console.log('[remove] localStorage updated')
+    }
+  }, [user])
+
+  const value = useMemo<HistoryContextValue>(() => ({ items, isLoading, add, clear, remove, toggleArchived, moveToArchive }), [items, isLoading, add, clear, remove, toggleArchived, moveToArchive])
 
   return <HistoryContext.Provider value={value}>{children}</HistoryContext.Provider>
 }
