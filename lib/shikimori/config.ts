@@ -2,7 +2,7 @@ export const BASE_URL = "https://shikimori.one/api";
 export const SITE_URL = "https://shikimori.one";
 
 export const HEADERS = {
-  "User-Agent": "AnimePlatform/2.0 (Client-ID: AnixStream)",
+  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
   "Accept": "application/json"
 };
 
