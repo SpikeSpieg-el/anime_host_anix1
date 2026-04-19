@@ -126,13 +126,12 @@ export async function getAnimeBackdrop(shikimoriId: string, disableExternalAPIs:
   }
   
   try {
-    // 1. Screenshots
+    // 1. Screenshots - use only the first one
     const res = await shikimoriFetch(`${BASE_URL}/animes/${shikimoriId}/screenshots`);
     if (res.ok) {
       const data: any[] = await res.json();
-      const best = data?.find(s => isHighQualityImage(normalizeShikimoriUrl(s.original), false));
-      if (best) {
-        const result = normalizeShikimoriUrl(best.original);
+      if (data && data.length > 0) {
+        const result = normalizeShikimoriUrl(data[0].original);
         backdropCache.set(cacheKey, result);
         return result;
       }

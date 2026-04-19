@@ -137,11 +137,6 @@ export async function getOngoingList(limit = 12): Promise<Anime[]> {
 
 export async function getTopOfWeek(limit = 30): Promise<Anime[]> {
   const list = await getPopularNow(limit);
-  // Подгружаем фоны для первых 5
-  for (let i = 0; i < Math.min(list.length, 5); i++) {
-    const backdrop = await getAnimeBackdrop(list[i].shikimoriId);
-    if (backdrop) list[i].backdrop = backdrop;
-  }
   return list;
 }
 
@@ -311,6 +306,68 @@ export async function getAnimeCalendar(): Promise<WeeklySchedule> {
 }
 
 /**
+ * Проверяет, является ли аниме сиквелом без просмотренных предыдущих частей
+ * Использует франшизу для определения порядка частей
+ */
+async function isSequelWithoutPreviousParts(anime: Anime, watchedIds: Set<string>): Promise<boolean> {
+  try {
+    console.log(`[SequelCheck] Checking ${anime.title} (ID: ${anime.shikimoriId})`);
+    const franchise = await getAnimeFranchise(anime.shikimoriId);
+    console.log(`[SequelCheck] Franchise for ${anime.title}:`, franchise.map(f => `${f.title} (${f.kind}, weight: ${f.weight})`));
+    
+    if (franchise.length === 0) {
+      console.log(`[SequelCheck] No franchise data found for ${anime.title}`);
+      return false;
+    }
+
+    // Находим текущее аниме во франшизе
+    const currentInFranchise = franchise.find(item => item.id === anime.shikimoriId);
+    if (!currentInFranchise) {
+      console.log(`[SequelCheck] Current anime not found in franchise`);
+      return false;
+    }
+
+    // Сортируем франшизу по весу (порядку) и году
+    const sortedFranchise = franchise
+      .filter(item => item.kind === 'TV' || item.kind === 'Movie') // Только основные части
+      .sort((a, b) => {
+        // Сначала по весу, если есть
+        if (a.weight !== b.weight) return (a.weight || 0) - (b.weight || 0);
+        // Затем по году
+        return (a.year || 0) - (b.year || 0);
+      });
+
+    console.log(`[SequelCheck] Sorted franchise (TV/Movie only):`, sortedFranchise.map(f => `${f.title} (weight: ${f.weight}, year: ${f.year})`));
+
+    // Находим индекс текущего аниме
+    const currentIndex = sortedFranchise.findIndex(item => item.id === anime.shikimoriId);
+    console.log(`[SequelCheck] Current index: ${currentIndex}`);
+    
+    if (currentIndex <= 0) {
+      console.log(`[SequelCheck] Not a sequel (index <= 0)`);
+      return false; // Это первая часть или не найдена
+    }
+
+    // Проверяем, просмотрены ли все предыдущие части
+    const previousParts = sortedFranchise.slice(0, currentIndex);
+    console.log(`[SequelCheck] Previous parts:`, previousParts.map(p => `${p.title} (ID: ${p.id}, watched: ${watchedIds.has(p.id) || watchedIds.has(String(p.id))})`));
+    
+    const allPreviousWatched = previousParts.every(part =>
+      watchedIds.has(part.id) || watchedIds.has(String(part.id))
+    );
+
+    console.log(`[SequelCheck] All previous watched: ${allPreviousWatched}`);
+
+    // Если не все предыдущие части просмотрены - это сиквел без предыдущих
+    return !allPreviousWatched;
+  } catch (error) {
+    console.error('[SequelCheck] Error checking sequel status:', error);
+    // При ошибке блокируем рекомендацию для безопасности - лучше не рекомендовать, чем предложить сиквел без предыдущих частей
+    return true;
+  }
+}
+
+/**
  * Рассчитывает "вес" аниме для Hero-баннера.
  * Приоритет: Новые (текущий год/прошлый), Высокий рейтинг, Онгоинги.
  */
@@ -402,33 +459,33 @@ return true;
 // Сортируем по нашей формуле "Hero Score"
 validCandidates.sort((a, b) => calculateHeroScore(b) - calculateHeroScore(a));
 
-// 5. Поиск Backdrop (Самая дорогая операция)
-// Мы берем топ-3 кандидата и ищем фон для них.
-// Возвращаем первого, у кого есть качественный фон.
-const topCandidates = validCandidates.slice(0, 3);
-  
-for (const candidate of topCandidates) {
-// Сначала проверяем, может backdrop уже есть в объекте
-if (candidate.backdrop) {
-return {
-anime: candidate,
-reason: generateRecommendationReason(candidate, usedStrategy, sourceAnimeTitle)
-};
+// 4.5. Фильтрация сиквелов (асинхронная)
+// Проверяем топ-10 кандидатов на наличие сиквелов без просмотренных предыдущих частей
+const candidatesToCheck = validCandidates.slice(0, 10);
+const sequelFilteredCandidates: Anime[] = [];
+
+for (const candidate of candidatesToCheck) {
+  const isSequel = await isSequelWithoutPreviousParts(candidate, excludeSet);
+  if (!isSequel) {
+    sequelFilteredCandidates.push(candidate);
+  }
 }
 
-// Если нет, пробуем найти
-const backdrop = await getAnimeBackdrop(candidate.shikimoriId);
-if (backdrop) {
-return {
-anime: { ...candidate, backdrop },
-reason: generateRecommendationReason(candidate, usedStrategy, sourceAnimeTitle)
-};
-}
+// Если после фильтрации сиквелов осталось мало кандидатов, берем больше
+let finalCandidates = sequelFilteredCandidates;
+if (finalCandidates.length < 3) {
+  // Берем еще кандидатов из списка, но пропуская те, что уже проверены
+  for (let i = 10; i < validCandidates.length && finalCandidates.length < 5; i++) {
+    const candidate = validCandidates[i];
+    const isSequel = await isSequelWithoutPreviousParts(candidate, excludeSet);
+    if (!isSequel) {
+      finalCandidates.push(candidate);
+    }
+  }
 }
 
-// 6. Крайний случай: если ни у кого из топ-3 нет фона,
-// возвращаем просто лучший вариант (баннер будет использовать постер как фоллбек)
-const bestCandidate = validCandidates[0];
+// 5. Возвращаем лучший вариант (баннер будет использовать постер как фон)
+const bestCandidate = finalCandidates[0];
 if (bestCandidate) {
 return {
 anime: bestCandidate,

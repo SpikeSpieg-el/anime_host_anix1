@@ -168,20 +168,8 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime, recommendationRea
       </div>
 
       <div className="absolute inset-0 z-0">
-        <Image
-          src={bgImage}
-          alt={anime.title}
-          fill
-          priority
-          className={`
-            object-cover object-center transition-transform duration-700
-            ${hasHighQualityBackdrop ? 'scale-105' : 'scale-110 blur-xl opacity-50'}
-          `}
-          sizes="100vw"
-          onError={() => setBgImageError(true)}
-          unoptimized={bgImageError}
-        />
-        {/* Градиенты */}
+        {/* Градиенты без картинки фона */}
+        <div className="absolute inset-0 bg-gradient-to-br from-background to-secondary dark:from-zinc-950 dark:to-zinc-900" />
         <div className="absolute inset-0 bg-gradient-to-t from-background via-background/90 to-background/30 lg:via-background/60 lg:to-transparent dark:from-zinc-950 dark:via-zinc-950/90 dark:to-zinc-950/30 lg:dark:via-zinc-950/60 lg:dark:to-transparent" />
         <div className="absolute inset-0 bg-gradient-to-r from-background/90 via-background/70 to-transparent dark:from-zinc-950/90 dark:via-zinc-950/70" />
       </div>
