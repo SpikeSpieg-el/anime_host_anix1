@@ -25,6 +25,7 @@ export function GachaSellMarketModal({
   const [priceExplanation, setPriceExplanation] = useState<any>(null)
   const [marketData, setMarketData] = useState<any>(null)
   const [loadingSuggestedPrice, setLoadingSuggestedPrice] = useState(false)
+  const [analyticsData, setAnalyticsData] = useState<any>(null)
   
   // Получаем сессию напрямую из провайдера, не дергая базу лишний раз
   const { session } = useAuth()
@@ -94,8 +95,28 @@ export function GachaSellMarketModal({
         setLoadingSuggestedPrice(false)
       }
     }
+
+    // Загружаем аналитику рынка (спрос/предложение)
+    const loadAnalytics = async () => {
+      try {
+        const params = new URLSearchParams()
+        params.append('rarity', card.rarity)
+        if (card.frameModifier) params.append('frameModifier', card.frameModifier)
+        if (card.coatingModifier) params.append('coatingModifier', card.coatingModifier)
+        params.append('days', '7')
+
+        const response = await fetch(`/api/market/analytics?${params}`)
+        if (response.ok) {
+          const data = await response.json()
+          setAnalyticsData(data)
+        }
+      } catch (error) {
+        console.warn('Failed to load analytics:', error)
+      }
+    }
     
     loadSuggestedPrice()
+    loadAnalytics()
   }, [card, minSellPrice, session])
 
   const submit = useCallback(async () => {
@@ -187,16 +208,56 @@ export function GachaSellMarketModal({
         
         {!loadingSuggestedPrice && marketData && marketData.totalListings > 0 && (
           <p className="text-xs text-slate-400 mb-2">
-            На рынке: {marketData.totalListings} карт этой редкости, 
-            средняя цена: {marketData.averagePrice?.toLocaleString() || "—"} монет
-            {suggestedPrice && marketData.averagePrice && (
+            На рынке: {marketData.totalListings} карт этой редкости
+            {marketData.minListedPrice && marketData.maxListedPrice && (
               <span className="ml-2">
-                (рекомендуется: {Math.round((suggestedPrice / marketData.averagePrice) * 100)}% от средней)
+                (цены: {marketData.minListedPrice.toLocaleString()} — {marketData.maxListedPrice.toLocaleString()})
               </span>
             )}
           </p>
         )}
-        
+
+        {!loadingSuggestedPrice && analyticsData && (
+          <div className="mb-2 p-2 bg-slate-800/50 rounded-lg">
+            <p className="text-xs text-slate-400 mb-1 font-bold">Спрос и предложение (7 дней):</p>
+            <div className="space-y-1">
+              <div className="flex justify-between text-xs">
+                <span className="text-slate-300">Предложение:</span>
+                <span className="text-cyan-300 font-black">{analyticsData.supply.total} лотов</span>
+              </div>
+              <div className="flex justify-between text-xs">
+                <span className="text-slate-300">Спрос (продажи):</span>
+                <span className="text-green-300 font-black">{analyticsData.demand.total} шт.</span>
+              </div>
+              {analyticsData.ratios.byRarity[card?.rarity || ''] !== undefined && (
+                <div className="flex justify-between text-xs">
+                  <span className="text-slate-300">Индекс редкости:</span>
+                  <span className={`font-black ${analyticsData.ratios.byRarity[card?.rarity || ''] > 1 ? 'text-green-400' : analyticsData.ratios.byRarity[card?.rarity || ''] < 0.5 ? 'text-red-400' : 'text-yellow-400'}`}>
+                    {analyticsData.ratios.byRarity[card?.rarity || ''].toFixed(2)}
+                  </span>
+                </div>
+              )}
+              {card?.frameModifier && analyticsData.ratios.byFrameModifier[card.frameModifier] !== undefined && (
+                <div className="flex justify-between text-xs">
+                  <span className="text-slate-300">Индекс рамки:</span>
+                  <span className={`font-black ${analyticsData.ratios.byFrameModifier[card.frameModifier] > 1 ? 'text-green-400' : analyticsData.ratios.byFrameModifier[card.frameModifier] < 0.5 ? 'text-red-400' : 'text-yellow-400'}`}>
+                    {analyticsData.ratios.byFrameModifier[card.frameModifier].toFixed(2)}
+                  </span>
+                </div>
+              )}
+              {card?.coatingModifier && analyticsData.ratios.byCoatingModifier[card.coatingModifier] !== undefined && (
+                <div className="flex justify-between text-xs">
+                  <span className="text-slate-300">Индекс покрытия:</span>
+                  <span className={`font-black ${analyticsData.ratios.byCoatingModifier[card.coatingModifier] > 1 ? 'text-green-400' : analyticsData.ratios.byCoatingModifier[card.coatingModifier] < 0.5 ? 'text-red-400' : 'text-yellow-400'}`}>
+                    {analyticsData.ratios.byCoatingModifier[card.coatingModifier].toFixed(2)}
+                  </span>
+                </div>
+              )}
+            </div>
+            <p className="text-[10px] text-slate-500 mt-1">{">"}1 высокий спрос, {"<"}0.5 избыток предложения</p>
+          </div>
+        )}
+
         {!loadingSuggestedPrice && priceExplanation && (
           <div className="mb-3 p-2 bg-slate-800/50 rounded-lg">
             <p className="text-xs text-slate-400 mb-1 font-bold">Как формируется цена:</p>

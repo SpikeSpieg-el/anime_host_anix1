@@ -46,59 +46,17 @@ export async function POST(request: Request) {
     const minPrice = computeMinListingPrice(cardWithModifiers, [])
     const maxPrice = computeMaxListingPrice(cardWithModifiers, [])
 
-    // Получаем рыночные данные для рекомендованной цены
-    let suggestedPrice = minPrice
+    // Получаем рыночные данные для информации (не для расчёта цены)
     let marketData = null
 
     try {
       const marketResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:80'}/api/market/price-stats`)
       if (marketResponse.ok) {
         marketData = await marketResponse.json()
-        
-        if (marketData.priceByRarity && marketData.priceByRarity[card.rarity]) {
-          const rarityStats = marketData.priceByRarity[card.rarity]
-          
-          if (rarityStats.count > 0) {
-            // Рекомендуемая цена на основе рыночной средней с учетом минимального порога
-            const marketAvg = rarityStats.avgPrice
-            
-            // Для низких редкостей учитываем рыночную цену больше
-            const rarityWeight = card.rarity === 'common' || card.rarity === 'uncommon' ? 0.8 : 0.6
-            
-            // Рекомендуемая цена ближе к рыночной для низких редкостей
-            suggestedPrice = Math.max(minPrice, Math.floor(marketAvg * rarityWeight))
-            
-            // Добавляем бонус за хорошие статы (с учетом модификаторов)
-            const statSum = modifiedStats.hp + modifiedStats.atk + modifiedStats.def + modifiedStats.spd + modifiedStats.luck
-            const statBonus = Math.floor(statSum * 0.1)
-            suggestedPrice += statBonus
-          }
-        }
       }
     } catch (error) {
       console.warn('Failed to fetch market data:', error)
-      // Используем улучшенный fallback на основе редкости
-      const rarityMultipliers: Record<Rarity, number> = {
-        trash: 1.5,
-        common: 2.0, 
-        uncommon: 2.0,
-        rare: 1.8,
-        super_rare: 1.6,
-        epic: 1.4,
-        mythic: 1.3,
-        legendary: 1.2,
-        ancient: 1.2,
-        divine: 1.1,
-        transcendent: 1.1,
-        omnipotent: 1.0
-      }
-      
-      const multiplier = rarityMultipliers[card.rarity as Rarity] || 1.5
-      suggestedPrice = Math.floor(minPrice * multiplier)
     }
-
-    // Добавляем стоимость модификаторов к рекомендованной цене
-    suggestedPrice += modifierCost
 
     const rarityArray = ["trash","common","uncommon","rare","super_rare","epic","mythic","legendary","ancient","divine","transcendent","omnipotent"]
     const statSum = modifiedStats.hp + modifiedStats.atk + modifiedStats.def + modifiedStats.spd + modifiedStats.luck
@@ -106,9 +64,11 @@ export async function POST(request: Request) {
     return NextResponse.json({
       minPrice,
       maxPrice,
-      suggestedPrice,
+      suggestedPrice: minPrice, // Рекомендуем минимальную цену как стартовую точку
       marketData: {
         averagePrice: marketData?.priceByRarity?.[card.rarity]?.avgPrice,
+        minListedPrice: marketData?.priceByRarity?.[card.rarity]?.minPrice,
+        maxListedPrice: marketData?.priceByRarity?.[card.rarity]?.maxPrice,
         totalListings: marketData?.priceByRarity?.[card.rarity]?.count || 0
       },
       priceExplanation: {
