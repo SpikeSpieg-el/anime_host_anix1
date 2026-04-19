@@ -75,7 +75,9 @@ export function GachaSellMarketModal({
             card: {
               rarity: card.rarity,
               stats: card.stats,
-              isMainCharacter: card.isMainCharacter
+              isMainCharacter: card.isMainCharacter,
+              frameModifier: card.frameModifier,
+              coatingModifier: card.coatingModifier
             }
           })
         })
@@ -210,6 +212,9 @@ export function GachaSellMarketModal({
               )}
               {priceExplanation.mainChar && (
                 <p className="text-xs text-slate-300">{priceExplanation.mainChar}</p>
+              )}
+              {priceExplanation.modifiers && (
+                <p className="text-xs text-slate-300">{priceExplanation.modifiers}</p>
               )}
             </div>
           </div>

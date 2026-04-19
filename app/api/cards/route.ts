@@ -124,6 +124,8 @@ async function getCardsData(request: Request): Promise<NextResponse> {
       isMainCharacter: row.is_main_character || false,
       packId: row.pack_id || undefined,
       packName: row.pack_name || undefined,
+      frameModifier: row.frame_modifier || undefined,
+      coatingModifier: row.coating_modifier || undefined,
       isArtBlacklisted: row.is_art_blacklisted || false
     }))
 
@@ -218,6 +220,13 @@ async function saveCardData(request: Request): Promise<NextResponse> {
 
     const card: Card = await request.json()
 
+    console.log('[saveCardData] Received card data:', {
+      uniqueId: card.uniqueId,
+      name: card.name,
+      frameModifier: card.frameModifier,
+      coatingModifier: card.coatingModifier
+    })
+
     // Validate required fields
     if (!card.uniqueId || !card.characterId || !card.name) {
       return NextResponse.json({ error: 'Invalid card data' }, { status: 400 })
@@ -266,6 +275,8 @@ async function saveCardData(request: Request): Promise<NextResponse> {
         is_main_character: card.isMainCharacter || false,
         pack_id: card.packId || null,
         pack_name: card.packName || null,
+        frame_modifier: card.frameModifier || null,
+        coating_modifier: card.coatingModifier || null,
         is_art_blacklisted: card.isArtBlacklisted || false
       })
       .select()

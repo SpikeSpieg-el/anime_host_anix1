@@ -4,7 +4,7 @@ import { useState, useRef, MouseEvent, useCallback, useEffect, useMemo } from "r
 import { flushSync } from "react-dom"
 import Image from "next/image"
 import { Navbar } from "@/components/navbar"
-import { Sparkles, Star, Heart, Loader2, X, ZoomIn, ExternalLink, RefreshCcw, Trash, Trash2, Crown, Package, Coins, Search, Database, Store } from "lucide-react"
+import { Sparkles, Star, Heart, Loader2, X, ZoomIn, ExternalLink, RefreshCcw, Trash, Trash2, Crown, Package, Coins, Search, Database, Store, Share } from "lucide-react"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { rollAnimeCharacter, rollFromAnimePack, searchGachaPacks, createCustomGachaPack, checkPackAvailability, updateUserPityAfterRoll } from "./actions"
 import { saveCardToDatabase, loadUserCards, deleteCardFromDatabase, queueCardForSync, syncQueuedCards } from "./client-actions"
@@ -26,6 +26,7 @@ import { GachaMarketPanel } from "@/components/gacha-market-panel"
 import { GachaSellMarketModal } from "@/components/gacha-sell-market-modal"
 import { ChangeArtModal } from "@/components/change-art-modal"
 import { useAuth } from "@/components/auth-provider"
+import { frameNames, coatingNames, FrameOverlay, CoatingOverlay } from "@/components/card-modifiers"
 
 export interface CardStats {
   hp: number
@@ -52,6 +53,8 @@ export interface Card {
   isMainCharacter?: boolean
   packId?: string
   packName?: string
+  frameModifier?: string;
+  coatingModifier?: string;
   isArtBlacklisted?: boolean
   orderIndex?: number // Индекс порядка добавления в коллекцию
 }
@@ -546,6 +549,10 @@ const InteractiveCard = ({ card, forceFlipped = false }: { card: Card, forceFlip
         
         <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/20 to-slate-950/20 pointer-events-none" />
         
+        {/* Modifier Overlays */}
+        <CoatingOverlay coating={card.coatingModifier} />
+        <FrameOverlay frame={card.frameModifier} />
+        
         <div 
           className="absolute inset-0 opacity-0 transition-opacity duration-300 pointer-events-none"
           style={{ 
@@ -566,6 +573,18 @@ const InteractiveCard = ({ card, forceFlipped = false }: { card: Card, forceFlip
               <div className="w-fit flex items-center gap-1 sm:gap-1.5 px-2 py-1 rounded-full text-[8px] sm:text-[9px] font-black uppercase tracking-wider bg-gradient-to-r from-yellow-400 to-amber-500 text-amber-950 shadow-lg border border-yellow-300">
                 <Crown className="w-2.5 sm:w-3 h-2.5 sm:h-3" />
                 Главный герой
+              </div>
+            )}
+            {card.frameModifier && (
+              <div className="w-fit flex items-center gap-1 sm:gap-1.5 px-2 py-1 rounded-full text-[8px] sm:text-[9px] font-black uppercase tracking-wider bg-gradient-to-r from-yellow-600 to-yellow-400 text-yellow-950 shadow-lg border border-yellow-300">
+                <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-yellow-200"></span>
+                {frameNames[card.frameModifier]}
+              </div>
+            )}
+            {card.coatingModifier && (
+              <div className="w-fit flex items-center gap-1 sm:gap-1.5 px-2 py-1 rounded-full text-[8px] sm:text-[9px] font-black uppercase tracking-wider bg-gradient-to-r from-cyan-600 to-cyan-400 text-cyan-950 shadow-lg border border-cyan-300">
+                <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-cyan-200"></span>
+                {coatingNames[card.coatingModifier]}
               </div>
             )}
           </div>
@@ -1244,24 +1263,11 @@ useEffect(() => {
           return;
         }
 
-        // Только при успешном результате списываем монеты
-        const rollCost = selectedPack ? selectedPack.price : 50;
-        spendCoins(rollCost).catch(error => {
-          console.error('[handleRoll] Failed to spend coins:', error);
-          // Показываем ошибку, но не прерываем процесс, так как карта уже получена
-          setErrorPopupConfig({
-            title: "Ошибка списания монет",
-            message: "Карта получена, но произошла ошибка при списании монет. Обратитесь к администратору.",
-            type: "warning"
-          });
-          setShowErrorPopup(true);
-        });
-
-        // Создаем карту
+        // Создаём объект Card из GachaResult
         const newCard: Card = {
           id: Date.now(),
           uniqueId: generateCardUniqueId(result.characterId, result.packId),
-          serialId: result.shikiId.toString(),
+          serialId: result.characterId.toString(),
           name: result.characterName,
           anime: result.animeName,
           rarity: result.rarity as Rarity,
@@ -1274,11 +1280,26 @@ useEffect(() => {
           isMainCharacter: result.isMainCharacter || false,
           packId: result.packId,
           packName: result.packName,
+          frameModifier: result.frameModifier,
+          coatingModifier: result.coatingModifier,
           isArtBlacklisted: result.isMainCharacter && blacklistedUrls.includes(result.imageUrl || '')
         };
-        
+
         // Показываем карту пользователю
         setRevealedCard(newCard);
+        
+        // Только при успешном результате списываем монеты
+        const rollCost = selectedPack ? selectedPack.price : 50;
+        spendCoins(rollCost).catch(error => {
+          console.error('[handleRoll] Failed to spend coins:', error);
+          // Показываем ошибку, но не прерываем процесс, так как карта уже получена
+          setErrorPopupConfig({
+            title: "Ошибка списания монет",
+            message: "Карта получена, но произошла ошибка при списании монет. Обратитесь к администратору.",
+            type: "warning"
+          });
+          setShowErrorPopup(true);
+        });
         setShowCard(true);
         console.log('[handleRoll] Card revealed successfully:', newCard.name);
       } else {
@@ -1333,9 +1354,13 @@ useEffect(() => {
     }
     
     let cardWithOrder = card;
-    
-    // Добавляем orderIndex - текущая длина массива (новые карты получают меньший индекс)
-    cardWithOrder = { ...card, orderIndex: collectedCards.length };
+
+    // Добавляем orderIndex - находим минимальный индекс и делаем еще меньше
+    // чтобы новые карты всегда были первыми при сортировке по дате (desc)
+    const minOrderIndex = collectedCards.length > 0
+      ? Math.min(...collectedCards.map(c => c.orderIndex ?? 0))
+      : 0;
+    cardWithOrder = { ...card, orderIndex: minOrderIndex - 1 };
     setCollectedCards(prev => [cardWithOrder, ...prev]);
 
     // 2. СТРАХОВКА: Сохраняем в localStorage ПРЯМО СЕЙЧАС, даже если юзер залогинен.
@@ -1485,6 +1510,35 @@ useEffect(() => {
     setCollectedCards(prev => prev.map(c => 
       c.uniqueId === card.uniqueId ? { ...c, isArtBlacklisted: false } : c
     ));
+  }
+
+
+  const handleSharePage = async () => {
+    const shareText = gachaMainTab === "market"
+      ? `🎲 WEEB.X ГАЧА - Крути гачу, продавай и покупай карты на маркете! Собери коллекцию любимых героев аниме!`
+      : `🎲 WEEB.X ГАЧА - Призывай любимых персонажей, крути гачу и находи любых героев аниме! Зарегистрируй аккаунт и начни коллекцию! За первую решестрацию получи 10,000 монет бесплатно.`;
+    const shareUrl = typeof window !== 'undefined' ? window.location.href : '';
+
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'WEEB.X ГАЧА',
+          text: shareText,
+          url: shareUrl
+        });
+      } catch (error) {
+        console.error('[Share] Error sharing:', error);
+      }
+    } else {
+      // Fallback: копировать в буфер обмена
+      try {
+        await navigator.clipboard.writeText(`${shareText}\n${shareUrl}`);
+        alert('Ссылка скопирована в буфер обмена!');
+      } catch (error) {
+        console.error('[Share] Error copying to clipboard:', error);
+        alert('Не удалось скопировать ссылку');
+      }
+    }
   }
 
   const removeCard = async (cardToRemove: Card, clearViewedCard: boolean = true) => {
@@ -2413,6 +2467,20 @@ useEffect(() => {
           >
             <InteractiveCard card={viewedCard} />
             
+            {/* Modifier Badges */}
+            <div className="flex flex-wrap items-center justify-center gap-2 mt-4 sm:mt-6">
+              {viewedCard.frameModifier && (
+                <div className="px-3 py-1.5 rounded-full bg-yellow-500/20 border border-yellow-500/30 flex items-center gap-2">
+                  <span className="text-xs sm:text-sm font-bold text-yellow-300">{frameNames[viewedCard.frameModifier]}</span>
+                </div>
+              )}
+              {viewedCard.coatingModifier && (
+                <div className="px-3 py-1.5 rounded-full bg-cyan-500/20 border border-cyan-500/30 flex items-center gap-2">
+                  <span className="text-xs sm:text-sm font-bold text-cyan-300">{coatingNames[viewedCard.coatingModifier]}</span>
+                </div>
+              )}
+            </div>
+            
             <div className="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center justify-center gap-2.5 sm:gap-4 mt-6 sm:mt-10 w-full max-w-[260px] sm:max-w-3xl mx-auto">
               <button
                 onClick={() => setShowDeleteConfirm(true)}
@@ -2488,9 +2556,18 @@ useEffect(() => {
         
        {/* Header Section */}
         <div className="text-center mb-8 sm:mb-16">
-          <h1 className="text-3xl sm:text-5xl md:text-6xl lg:text-7xl font-black tracking-tighter mb-3 sm:mb-4 text-transparent bg-clip-text bg-gradient-to-br from-white via-slate-200 to-slate-500 uppercase drop-shadow-sm px-2">
-            WEEB.<span className="text-indigo-500">X</span> ГАЧА
-          </h1>
+          <div className="flex items-center justify-center gap-3 mb-3 sm:mb-4">
+            <h1 className="text-3xl sm:text-5xl md:text-6xl lg:text-7xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-br from-white via-slate-200 to-slate-500 uppercase drop-shadow-sm px-2">
+              WEEB.<span className="text-indigo-500">X</span> ГАЧА
+            </h1>
+            <button
+              onClick={handleSharePage}
+              className="p-2 sm:p-2.5 rounded-full bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 hover:text-indigo-300 transition-colors border border-indigo-500/30"
+              title="Поделиться страницей"
+            >
+              <Share className="w-5 h-5 sm:w-6 sm:h-6" />
+            </button>
+          </div>
           <p className="text-slate-400 text-xs sm:text-base md:text-lg font-medium max-w-2xl mx-auto px-4">
             Призывай любимых персонажей и собирай уникальную коллекцию. Нажми на карту, чтобы увидеть характеристики.
           </p>

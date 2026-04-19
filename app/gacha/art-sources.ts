@@ -1,11 +1,34 @@
 /**
- * INFINITE ART ENGINE V5.4 - INFINITE EXPLORER MODE
+ * INFINITE ART ENGINE V5.4 - INFINITE EXPLORER MODE (FIXED & OPTIMIZED)
  */
 
 export interface ArtResult {
   url: string;
   source: string;
   tag: string;
+}
+
+function extractPinterestUrls(html: string): string[] {
+  if (!html) return[];
+
+  // Pinterest pages commonly embed image URLs as i.pinimg.com/{width}x/... or i.pinimg.com/originals/...
+  const matches = html.match(/https:\/\/i\.pinimg\.com\/(?:originals|\d+x)\/[^"'\\\s)]+\.(?:jpg|jpeg|png|webp)/gi) ||[];
+  const unique = Array.from(new Set(matches));
+
+  // Prefer originals first, then larger widths
+  unique.sort((a, b) => {
+    const aIsOriginal = a.includes('/originals/');
+    const bIsOriginal = b.includes('/originals/');
+    if (aIsOriginal !== bIsOriginal) return aIsOriginal ? -1 : 1;
+
+    const aSize = a.match(/\/([0-9]+)x\//i);
+    const bSize = b.match(/\/([0-9]+)x\//i);
+    const aNum = aSize ? parseInt(aSize[1], 10) : 0;
+    const bNum = bSize ? parseInt(bSize[1], 10) : 0;
+    return bNum - aNum;
+  });
+
+  return unique;
 }
 
 interface CacheEntry {
@@ -21,7 +44,7 @@ function getCharacterTags(name: string, animeName?: string): { booru: string[], 
   const cleanName = engName.replace(/\([^)]*\)/g, '').trim();
   const parts = cleanName.toLowerCase().split(/\s+/);
   
-  const booru: string[] = [];
+  const booru: string[] =[];
   if (parts.length >= 2) {
     const lastName = parts[parts.length - 1];
     const firstName = parts[0];
@@ -31,34 +54,31 @@ function getCharacterTags(name: string, animeName?: string): { booru: string[], 
     booru.push(parts[0]);
   }
 
-  // Если есть название аниме, добавляем его как префикс для уточнения (например jujutsu_kaisen)
   if (animeName) {
-    // Очищаем и форматируем название аниме для тегов (например "Jujutsu Kaisen" -> "jujutsu_kaisen")
     let cleanAnime = animeName.replace(/\([^)]*\)/g, '').trim();
     
-    // Специальная обработка для разных форматов аниме
     cleanAnime = cleanAnime
-      .replace(/\s+(Movie|Film|movie|film)/gi, '') // Удаляем слова Movie/Film
-      .replace(/\s+(Part|Season|S)\s*\d+/gi, '') // Удаляем Part/Season номера
-      .replace(/\s+\d+/g, '') // Удаляем просто цифры в конце
+      .replace(/\s+(Movie|Film|movie|film)/gi, '')
+      .replace(/\s+(Part|Season|S)\s*\d+/gi, '')
+      .replace(/\s+\d+/g, '')
       .trim();
     
     const baseAnimeTag = cleanAnime.toLowerCase().replace(/\s+/g, '_');
-    const enrichedBooru: string[] = [];
+    const enrichedBooru: string[] =[];
     
+    // Сначала добавляем специфичные теги (персонаж + аниме)
     booru.forEach(tag => {
-      // Добавляем комбинацию с аниме В ПЕРВУЮ ОЧЕРЕДЬ (наиболее специфично)
       enrichedBooru.push(`${tag}+${baseAnimeTag}`); 
     });
     
-    // Добавляем оригинальные теги во вторую очередь (как fallback)
+    // Добавляем обычные теги как fallback
     booru.forEach(tag => {
       enrichedBooru.push(tag);
     });
     
     return { 
-      booru: [...new Set(enrichedBooru)], 
-      zerochan: [`${cleanName} (${animeName})`, cleanName] 
+      booru:[...new Set(enrichedBooru)], 
+      zerochan:[`${cleanName} (${animeName})`, cleanName] 
     };
   }
 
@@ -74,61 +94,70 @@ async function fetchFromSource(
 ): Promise<ArtResult[]> {
   const limit = 50; 
   const controller = new AbortController();
-  // Reduce timeout to make failures faster
   const timeoutMs = source === 'safebooru' ? 10000 : 8000;
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    let results: ArtResult[] = [];
+    let results: ArtResult[] =[];
     const headers = { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' };
 
     let url = '';
-    // Пагинация везде разная: pid для Safebooru, page для остальных
     const encodedTag = tag.split('+').map(t => encodeURIComponent(t)).join('+');
     
     if (source === 'safebooru') {
       url = `https://safebooru.org/index.php?page=dapi&s=post&q=index&json=1&tags=${encodedTag}&limit=${limit}&pid=${page - 1}`;
     } else if (source === 'danbooru') {
-      url = `https://danbooru.donmai.us/posts.json?tags=${encodedTag}+rating:g&limit=${limit}&page=${page}`;
+      // ИСПРАВЛЕНИЕ: Danbooru позволяет максимум 2 тега анонимам.
+      // Если тегов уже 2 (например персонаж + аниме), мы не можем добавить +rating:g
+      let danbooruTags = encodedTag;
+      if (danbooruTags.split('+').length < 2) {
+        danbooruTags += '+rating:g';
+      }
+      url = `https://danbooru.donmai.us/posts.json?tags=${danbooruTags}&limit=${limit}&page=${page}`;
     } else if (source === 'konachan') {
       url = `https://konachan.net/post.json?tags=${encodedTag}+rating:s&limit=${limit}&page=${page}`;
     } else if (source === 'zerochan') {
       url = `https://www.zerochan.net/${encodeURIComponent(tag)}?json&l=${limit}&p=${page}`;
+    } else if (source === 'pinterest') {
+      const query = tag.replace(/[_+]/g, ' ').trim();
+      url = `https://www.pinterest.com/search/pins/?q=${encodeURIComponent(query)}&rs=typed&term_meta[]=${encodeURIComponent(query)}|typed`;
     }
     
     console.log(`[Art Engine] Requesting ${source}: ${url}`);
     
-    const res = await fetch(url, { 
-      signal: controller.signal,
-      headers 
-    });
-    
-    clearTimeout(timeoutId);
+    const res = await fetch(url, { signal: controller.signal, headers });
     
     if (!res.ok) {
       console.warn(`[Art Engine] ${source} returned ${res.status}`);
-      return [];
+      return[];
     }
-    
+
+    if (source === 'pinterest') {
+      const html = await res.text();
+      const urls = extractPinterestUrls(html);
+      urls.forEach(u => {
+        if (!ignoredUrls.includes(u)) results.push({ url: u, source, tag });
+      });
+      return results;
+    }
+
     let data;
     try {
       const text = await res.text();
-      if (!text.trim()) return [];
+      if (!text.trim()) return[];
       data = JSON.parse(text);
     } catch (e) {
       console.warn(`[Art Engine] JSON parse error from ${source}:`, e);
-      return [];
+      return[];
     }
-    const items = source === 'zerochan' ? (data?.items || []) : (Array.isArray(data) ? data : []);
+    const items = source === 'zerochan' ? (data?.items || []) : (Array.isArray(data) ? data :[]);
 
-    if (items.length === 0) return [];
+    if (items.length === 0) return[];
 
     items.forEach((p: any) => {
       const h = parseInt(p.height || 0);
-      const w = parseInt(p.width || 0);
       
-      // Фильтр: Портрет (высота > ширины) и качество (высота >= 700)
-      // if (h > w && h >= 700) {
+      // Фильтр качества (высота >= 700)
       if (h >= 700) {
         let finalUrl = p.file_url || p.large_file_url || p.sample_url || p.full || p.large;
         
@@ -136,7 +165,6 @@ async function fetchFromSource(
           finalUrl = `https://safebooru.org/images/${p.directory}/${p.image}`;
         }
         
-        // Zerochan fallback для качества
         if (source === 'zerochan' && !finalUrl && p.thumbnail) {
           finalUrl = p.thumbnail.replace(/\/240\//, '/600/').replace(/\.avif$/, '.jpg');
         }
@@ -150,7 +178,7 @@ async function fetchFromSource(
     return results;
   } catch (e) {
     console.warn(`[Art Engine] Timeout or error fetching from ${source} with tag "${tag}":`, e);
-    return [];
+    return[];
   } finally {
     clearTimeout(timeoutId);
   }
@@ -163,7 +191,7 @@ export async function fetchHighQualityArt(
   customTags?: { booru?: string[], zerochan?: string[] },
   animeName?: string
 ): Promise<ArtResult | null> {
-  // Use a unique cache key if custom tags are provided to avoid cache collisions
+  
   const cacheKey = customTags ? `custom:${characterName}:${JSON.stringify(customTags)}` : 
                    (animeName ? `${characterName}:${animeName}` : characterName);
   
@@ -173,8 +201,10 @@ export async function fetchHighQualityArt(
   const zerochan = customTags?.zerochan || defaultZerochan;
 
   // 1. Инициализация кэша персонажа
-  if (!characterArtCache.has(cacheKey)) {
-    characterArtCache.set(cacheKey, { pool: [], pages: {}, returnedUrls: new Set() });
+  if (!characterArtCache.has(cacheKey) || forceNew) {
+    if (!characterArtCache.has(cacheKey)) {
+      characterArtCache.set(cacheKey, { pool:[], pages: {}, returnedUrls: new Set() });
+    }
   }
   
   const entry = characterArtCache.get(cacheKey)!;
@@ -189,17 +219,18 @@ export async function fetchHighQualityArt(
     console.log(`[Art Engine] Infinite Scour: Searching deeper for ${characterName}...`);
     
     const sourceBuckets = new Map<string, ArtResult[]>();
-    const sources = ['zerochan', 'konachan', 'danbooru', 'safebooru'];
+    const sources =['zerochan', 'konachan', 'danbooru', 'safebooru', 'pinterest'];
 
-    // Запускаем запросы ко всем источникам
-    const tasks: Promise<{src: string, results: ArtResult[]}>[] = [];
+    const tasks: Promise<{src: string, results: ArtResult[]}>[] =[];
 
     sources.forEach(src => {
       const tags = src === 'zerochan' ? zerochan : booru;
-      console.log(`[Art Engine] Using tags for ${src}:`, tags);
-      tags.forEach(tag => {
+      // Оптимизация: берем первые 2 тега, чтобы не спамить API кучей однотипных запросов одновременно
+      const tagsToUse = tags.slice(0, 2); 
+      
+      console.log(`[Art Engine] Using tags for ${src}:`, tagsToUse);
+      tagsToUse.forEach(tag => {
         const key = `${src}:${tag}`;
-        // Увеличиваем номер страницы для этого тега
         const lastPage = entry.pages[key] || 0;
         const nextPage = lastPage + 1;
         entry.pages[key] = nextPage;
@@ -213,13 +244,12 @@ export async function fetchHighQualityArt(
 
     const allResults = await Promise.allSettled(tasks);
     
-    // Log source results for debugging
     const sourceResults: Record<string, number> = {};
     allResults.forEach(r => {
       if (r.status === 'fulfilled') {
         const { src, results } = r.value;
         sourceResults[src] = (sourceResults[src] || 0) + results.length;
-        const list = sourceBuckets.get(src) || [];
+        const list = sourceBuckets.get(src) ||[];
         results.forEach(item => {
           if (!list.some(x => x.url === item.url)) list.push(item);
         });
@@ -229,10 +259,9 @@ export async function fetchHighQualityArt(
     console.log(`[Art Engine] Source results:`, sourceResults);
 
     // Честное чередование (Round-Robin)
-    const interleaved: ArtResult[] = [];
+    const interleaved: ArtResult[] =[];
     const activeSources = Array.from(sourceBuckets.keys());
     
-    // Перемешиваем список источников для случайного порядка при каждом наполнении пула
     for (let i = activeSources.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [activeSources[i], activeSources[j]] = [activeSources[j], activeSources[i]];
@@ -240,7 +269,6 @@ export async function fetchHighQualityArt(
     
     let maxItems = 0;
     sourceBuckets.forEach(list => {
-      // Перемешиваем арты внутри каждого источника
       for (let i = list.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [list[i], list[j]] = [list[j], list[i]];
@@ -255,46 +283,51 @@ export async function fetchHighQualityArt(
       }
     }
 
-    // Добавляем новые арты в конец текущего пула
-    entry.pool = [...entry.pool, ...interleaved];
+    entry.pool =[...entry.pool, ...interleaved];
     console.log(`[Art Engine] Infinite Pool: +${interleaved.length} new images. Next pages tracked.`);
     
-    // Если всё еще пусто (дошли до конца всех страниц), сбрасываем страницы и пробуем рандом
+    // ИСПРАВЛЕНИЕ: Автоматический ретрай, если ничего не найдено (сброс и попытка с 1-й страницы)
     if (entry.pool.length === 0) {
       console.warn(`[Art Engine] Exhausted all pages for ${characterName}. Resetting pages.`);
       entry.pages = {}; 
+      // Предотвращаем бесконечный цикл: ретрай только если это не forceNew запрос
+      if (!forceNew) {
+         console.log(`[Art Engine] Retrying search from page 1...`);
+         return fetchHighQualityArt(characterName, ignoredUrls, true, customTags, animeName);
+      }
     }
   }
 
   // 4. Выбор арта с ротацией источников
   let selected = entry.pool.shift() || null;
   
-  // Если один источник доминирует, принудительно ротируем
   if (selected && entry.pool.length > 0) {
     const sourceCount: Record<string, number> = {};
     entry.pool.forEach(item => {
       sourceCount[item.source] = (sourceCount[item.source] || 0) + 1;
     });
     
-    // Если один источник составляет >70% пула, ищем арт из другого источника
     const dominantSource = Object.entries(sourceCount).find(([_, count]) => count > entry.pool.length * 0.7);
     const selectedSource = selected.source;
+    
     if (dominantSource && dominantSource[0] === selectedSource) {
       console.log(`[Art Engine] Source rotation: ${selectedSource} dominates (${dominantSource[1]}/${entry.pool.length}), seeking alternative`);
-      const alternativeArt = entry.pool.find(item => item.source !== selectedSource);
-      if (alternativeArt) {
-        // Возвращаем выбранный арт в пул и берем альтернативный
-        entry.pool.unshift(selected);
-        selected = alternativeArt;
+      
+      // ИСПРАВЛЕНИЕ: Корректно находим и ВЫРЕЗАЕМ альтернативный арт из массива
+      const altIndex = entry.pool.findIndex(item => item.source !== selectedSource);
+      if (altIndex !== -1) {
+        const alternativeArt = entry.pool.splice(altIndex, 1)[0]; // Вырезаем из пула
+        entry.pool.unshift(selected); // Возвращаем текущий "доминирующий" арт обратно в пул
+        selected = alternativeArt; // Берем альтернативный
         console.log(`[Art Engine] Rotated to alternative source: ${selected.source}`);
       } else {
-        console.log(`[Art Engine] No alternative sources available - all other sources returned 0 results`);
+        console.log(`[Art Engine] No alternative sources available`);
       }
     }
   }
 
   if (selected) {
-    entry.returnedUrls.add(selected.url); // Track as returned to avoid reselection
+    entry.returnedUrls.add(selected.url);
     console.log(`[Art Engine] Selected: ${selected.source.toUpperCase()} | Page: ${entry.pages[`${selected.source}:${selected.tag}`]} | ${characterName}`);
     return selected;
   }

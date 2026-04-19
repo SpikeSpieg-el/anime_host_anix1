@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { getMarketAuth } from "@/app/api/market/_auth"
 import { computeMinListingPrice, computeMaxListingPrice } from "@/lib/market-floor"
 import type { Rarity } from "@/types/gacha"
+import { getModifiersCost, applyModifierStats } from "@/components/card-modifiers"
 
 export async function POST(request: Request) {
   const auth = await getMarketAuth(request)
@@ -17,9 +18,33 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Invalid card data" }, { status: 400 })
     }
 
+    // Применяем бонусы модификаторов к статам
+    const modifiedStats = applyModifierStats(
+      card.stats,
+      card.frameModifier,
+      card.coatingModifier
+    )
+
+    // Вычисляем стоимость модификаторов
+    const baseModifierCost = getModifiersCost(card.frameModifier, card.coatingModifier)
+    let modifierCost = baseModifierCost
+    let modifierBonus = 0
+    
+    // Бонус за наличие обоих модификаторов (+30% к стоимости модификаторов)
+    if (card.frameModifier && card.coatingModifier) {
+      modifierBonus = Math.floor(baseModifierCost * 0.3)
+      modifierCost = baseModifierCost + modifierBonus
+    }
+
+    // Создаем объект карты с модифицированными статами для расчета цен
+    const cardWithModifiers = {
+      ...card,
+      stats: modifiedStats
+    }
+
     // Вычисляем базовые цены
-    const minPrice = computeMinListingPrice(card, [])
-    const maxPrice = computeMaxListingPrice(card, [])
+    const minPrice = computeMinListingPrice(cardWithModifiers, [])
+    const maxPrice = computeMaxListingPrice(cardWithModifiers, [])
 
     // Получаем рыночные данные для рекомендованной цены
     let suggestedPrice = minPrice
@@ -43,8 +68,8 @@ export async function POST(request: Request) {
             // Рекомендуемая цена ближе к рыночной для низких редкостей
             suggestedPrice = Math.max(minPrice, Math.floor(marketAvg * rarityWeight))
             
-            // Добавляем бонус за хорошие статы
-            const statSum = card.stats.hp + card.stats.atk + card.stats.def + card.stats.spd + card.stats.luck
+            // Добавляем бонус за хорошие статы (с учетом модификаторов)
+            const statSum = modifiedStats.hp + modifiedStats.atk + modifiedStats.def + modifiedStats.spd + modifiedStats.luck
             const statBonus = Math.floor(statSum * 0.1)
             suggestedPrice += statBonus
           }
@@ -72,8 +97,11 @@ export async function POST(request: Request) {
       suggestedPrice = Math.floor(minPrice * multiplier)
     }
 
+    // Добавляем стоимость модификаторов к рекомендованной цене
+    suggestedPrice += modifierCost
+
     const rarityArray = ["trash","common","uncommon","rare","super_rare","epic","mythic","legendary","ancient","divine","transcendent","omnipotent"]
-    const statSum = card.stats.hp + card.stats.atk + card.stats.def + card.stats.spd + card.stats.luck
+    const statSum = modifiedStats.hp + modifiedStats.atk + modifiedStats.def + modifiedStats.spd + modifiedStats.luck
 
     return NextResponse.json({
       minPrice,
@@ -85,9 +113,10 @@ export async function POST(request: Request) {
       },
       priceExplanation: {
         base: `База: ${getDismantleValue(card.rarity as Rarity)} × 8`,
-        stats: `Статы: ${statSum} × 0.3`,
+        stats: `Статы: ${statSum} × 0.1`,
         rarity: `Редкость: ${rarityArray.indexOf(card.rarity)} × 25`,
-        mainChar: card.isMainCharacter ? `Главный герой: +${getDismantleValue(card.rarity as Rarity)}` : null
+        mainChar: card.isMainCharacter ? `Главный герой: +${getDismantleValue(card.rarity as Rarity)}` : null,
+        modifiers: modifierCost > 0 ? `Модификаторы: +${modifierCost}${modifierBonus > 0 ? ` (+${modifierBonus})` : ''}` : null
       }
     })
 

@@ -1,4 +1,3 @@
-
 "use server"
 
 import { getPackById, searchPacksByTitle, searchAnimeByTitle, createCustomPack, type AnimePack, type CustomAnimePack } from "@/lib/gacha-packs"
@@ -99,6 +98,8 @@ export interface GachaResult {
   allFanArtBanned?: boolean;
   packId?: string;
   packName?: string;
+  frameModifier?: string;
+  coatingModifier?: string;
   pityData?: {
     bad_luck_streak: number;
     pity_bonus_applied: boolean;
@@ -129,16 +130,7 @@ async function processCharacterData(
     return !usedIds.includes(r.character.id);
   });
 
-  // УДАЛИ ИЛИ ЗАКОММЕНТИРУЙ ЭТОТ БЛОК, чтобы не было повторов, пока пак не пуст
-  /*
-  let endgameArtMode = false;
-  if (available.length === 0 && allValidMainChars.length > 0) {
-     available = allValidMainChars;
-     endgameArtMode = true; 
-  }
-  */
-
-  if (available.length === 0) return null; // Если в этом аниме все выбиты, идем к следующему
+  if (available.length === 0) return null;
 
   const mainChars = available.filter((r: any) => (r.roles || []).includes('Main') || (r.roles_ru ||[]).includes('Главный'));
   
@@ -166,9 +158,7 @@ async function processCharacterData(
   let fanArt: string | null = null;
   let allFanArtBanned = false;
 
-  // В actions.ts найдите это место:
-if (isMain) {
-    // ВЫЗОВ ОБНОВЛЕН: получаем объект вместо строки с таймаутом
+  if (isMain) {
     try {
         const artPromise = fetchHighQualityArt(char.name, ignoredUrls, false);
         const timeoutPromise = new Promise<null>((_, reject) => 
@@ -178,8 +168,7 @@ if (isMain) {
         const artData = await Promise.race([artPromise, timeoutPromise]);
 
         if (artData) {
-            fanArt = artData.url; // Берем URL из объекта
-            // Можно залогировать и здесь
+            fanArt = artData.url;
             console.log(`[Server Action] Using art from ${artData.source} by tag ${artData.tag}`);
         }
     } catch (error) {
@@ -193,20 +182,36 @@ if (isMain) {
         }
         console.log(`[Server Action] No fanart for ${char.name}, using Shiki original.`);
     }
-}
+  }
 
-// Проверяем, что финальный арт не забанен
-const finalImageUrl = fanArt || originalShikiUrl;
-if (ignoredUrls.includes(finalImageUrl)) {
-    console.log(`[Gacha] Final image ${finalImageUrl} is banned, skipping character.`);
-    return null;
-}
+  const finalImageUrl = fanArt || originalShikiUrl;
+  if (ignoredUrls.includes(finalImageUrl)) {
+      console.log(`[Gacha] Final image ${finalImageUrl} is banned, skipping character.`);
+      return null;
+  }
 
-// Дополнительная проверка: убеждаемся, что URL валидный
-if (!finalImageUrl || finalImageUrl.trim() === '') {
-    console.error(`[Gacha] Empty image URL for character ${char.name}, skipping.`);
-    return null;
-}
+  if (!finalImageUrl || finalImageUrl.trim() === '') {
+      console.error(`[Gacha] Empty image URL for character ${char.name}, skipping.`);
+      return null;
+  }
+
+  // --- ВЫДАЧА МОДИФИКАТОРОВ (РАМКИ И ПОКРЫТИЯ) ---
+  let frameModifier: string | undefined = undefined;
+  let coatingModifier: string | undefined = undefined;
+
+  // 12% шанс на уникальную рамку
+  if (Math.random() < 0.12) {
+    const FRAMES =["gold", "neon", "crystal", "dark", "blood", "inferno", "lightning", "divine", "cyber_glitch", "abyss"];
+    frameModifier = FRAMES[Math.floor(Math.random() * FRAMES.length)];
+  }
+
+  // 12% шанс на уникальное покрытие
+  if (Math.random() < 0.12) {
+    const COATINGS =["holo", "prismatic", "gold_leaf", "blood_stain", "void", "matrix_foil", "crt_scanlines", "falling_ash", "heartbeat", "ethereal_mist"];
+    coatingModifier = COATINGS[Math.floor(Math.random() * COATINGS.length)];
+  }
+
+  console.log(`[Gacha] Final modifiers - Frame: ${frameModifier}, Coating: ${coatingModifier}`);
 
   return {
     animeName: anime.russian || anime.name,
@@ -222,6 +227,8 @@ if (!finalImageUrl || finalImageUrl.trim() === '') {
     allFanArtBanned: allFanArtBanned,
     packId: undefined,
     packName: undefined,
+    frameModifier,
+    coatingModifier,
     pityData: {
       bad_luck_streak: badLuckStreak,
       pity_bonus_applied: rarityResult.pityBonusApplied
@@ -231,7 +238,7 @@ if (!finalImageUrl || finalImageUrl.trim() === '') {
 
 export async function rollAnimeCharacter(
   usedCharacterIds: number[] =[], 
-  ignoredUrls: string[] = [],
+  ignoredUrls: string[] =[],
   expandForCharacterIds: number[] =[],
   badLuckStreak: number = 0
 ): Promise<GachaResult | null> {
@@ -252,7 +259,7 @@ export async function rollAnimeCharacter(
 
 export async function rollFromAnimePack(
   pack: AnimePack,
-  usedCharacterIds: number[] = [],
+  usedCharacterIds: number[] =[],
   ignoredUrls: string[] = [],
   expandForCharacterIds: number[] =[],
   badLuckStreak: number = 0
@@ -262,9 +269,8 @@ export async function rollFromAnimePack(
 
     const forceMainCharacter = pack.id.includes('main_characters');
 
-    // 1 проход: ищем только НОВЫХ
     for (let attempt = 0; attempt < 3; attempt++) {
-      const shuffledIds = [...pack.animeIds].sort(() => Math.random() - 0.5);
+      const shuffledIds =[...pack.animeIds].sort(() => Math.random() - 0.5);
       const isGuaranteedRoll = !!pack.guaranteedRarity && Math.random() < 0.10;
 
       for (const id of shuffledIds) {
@@ -285,9 +291,6 @@ export async function rollFromAnimePack(
       }
       await new Promise(resolve => setTimeout(resolve, 300));
     }
-
-    // Если ничего не нашли (все выбиты), можно запустить 2-й проход БЕЗ фильтра usedIds (опционально)
-    // Но лучше просто вернуть null, чтобы фронтенд показал ошибку "Пак пуст"
     return null; 
   } catch (e) {
     console.error(`[rollFromAnimePack] Error:`, e);
@@ -306,7 +309,7 @@ export interface CustomPackSearchResult {
 
 export async function checkPackAvailability(
   pack: AnimePack,
-  usedCharacterIds: number[] = []
+  usedCharacterIds: number[] =[]
 ): Promise<{
   totalCharacters: number;
   collectedCount: number;
@@ -327,7 +330,6 @@ export async function checkPackAvailability(
       };
     }
 
-    // Для каждого аниме в паке получаем количество персонажей
     let totalCharacterCount = 0;
     let availableCharacterCount = 0;
 
@@ -344,7 +346,6 @@ export async function checkPackAvailability(
           
           totalCharacterCount += validCharacters.length;
           
-          // Считаем персонажей, которых еще нет в коллекции
           const newCharacters = validCharacters.filter((r: any) => 
             !usedCharacterIds.includes(r.character.id)
           );
@@ -352,7 +353,6 @@ export async function checkPackAvailability(
         }
       } catch (error) {
         console.error(`Error checking anime ${animeId}:`, error);
-        // В случае ошибки, предполагаем 5 персонажей в среднем
         totalCharacterCount += 5;
         availableCharacterCount += Math.max(0, 5 - usedCharacterIds.length);
       }
@@ -361,7 +361,7 @@ export async function checkPackAvailability(
     const collectionRate = totalCharacterCount > 0 ? (totalCharacterCount - availableCharacterCount) / totalCharacterCount : 0;
     const collectedFromPack = totalCharacterCount - availableCharacterCount;
     
-    const isNearlyComplete = availableCharacterCount < (totalCharacterCount * 0.2); // Менее 20% доступно
+    const isNearlyComplete = availableCharacterCount < (totalCharacterCount * 0.2);
     const isEmpty = availableCharacterCount === 0;
 
     return {
@@ -375,7 +375,7 @@ export async function checkPackAvailability(
   } catch (error) {
     console.error('[checkPackAvailability] Error:', error);
     return {
-      totalCharacters: pack.animeIds ? pack.animeIds.length * 5 : 0, // Оценка
+      totalCharacters: pack.animeIds ? pack.animeIds.length * 5 : 0,
       collectedCount: usedCharacterIds.length,
       availableCount: Math.max(0, (pack.animeIds ? pack.animeIds.length * 5 : 0) - usedCharacterIds.length),
       collectionRate: usedCharacterIds.length / (pack.animeIds ? pack.animeIds.length * 5 : 1),
@@ -410,19 +410,14 @@ export async function createCustomGachaPack(query: string): Promise<CustomPackSe
 // Pity system management functions
 export async function updateUserPityAfterRoll(userId: string, result: GachaResult): Promise<{ newStreak: number; wasReset: boolean }> {
   try {
-    // Import supabase admin client to bypass RLS policies
     const { createClient } = await import('@supabase/supabase-js');
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
     const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
     
     const supabase = createClient(supabaseUrl, supabaseServiceKey, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false
-      }
+      auth: { autoRefreshToken: false, persistSession: false }
     });
     
-    // Get current pity data
     const { data: currentPity, error: fetchError } = await supabase
       .from('user_pity')
       .select('bad_luck_streak')
@@ -439,18 +434,15 @@ export async function updateUserPityAfterRoll(userId: string, result: GachaResul
     let wasReset: boolean;
 
     if (isDivineOrBetter(result.rarity)) {
-      // Reset streak on Divine+ roll
       newStreak = 0;
       wasReset = true;
       console.log(`[Pity System] User ${userId} got ${result.rarity}, resetting streak from ${currentStreak} to 0`);
     } else {
-      // Increment streak on trash/common/uncommon/rare/super_rare/epic/mythic/legendary/ancient roll
       newStreak = currentStreak + 1;
       wasReset = false;
       console.log(`[Pity System] User ${userId} got ${result.rarity}, incrementing streak from ${currentStreak} to ${newStreak}`);
     }
 
-    // Update pity data
     const updateData: any = { bad_luck_streak: newStreak };
     if (wasReset) {
       updateData.last_rare_roll = new Date().toISOString();
@@ -458,12 +450,7 @@ export async function updateUserPityAfterRoll(userId: string, result: GachaResul
 
     const { error: updateError } = await supabase
       .from('user_pity')
-      .upsert({ 
-        id: userId, 
-        ...updateData
-      }, {
-        onConflict: 'id'
-      });
+      .upsert({ id: userId, ...updateData }, { onConflict: 'id' });
 
     if (updateError) {
       console.error('[updateUserPityAfterRoll] Update error:', updateError);

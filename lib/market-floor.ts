@@ -122,8 +122,8 @@ export function computeMinListingPrice(card: CardForMarketFloor, sellerCollectio
 }
 
 /** Уменьшенные множители для более разумных потолков цен */
-const MAX_PRICE_MULTIPLIER = 50
-const ABSOLUTE_LISTING_PRICE_CAP = 5_000_000
+const MAX_PRICE_MULTIPLIER = 150
+const ABSOLUTE_LISTING_PRICE_CAP = 15_000_000
 
 /**
  * Максимальная цена лота: уменьшили множитель и абсолютный потолок
