@@ -294,7 +294,7 @@ export async function getForumNews(limit = 4): Promise<NewsItem[]> {
 
 export async function getAnimeCalendar(): Promise<WeeklySchedule> {
   console.log('[getAnimeCalendar] Starting fetch from Shikimori calendar API');
-  const data = await shikimoriJson<any[]>(`${BASE_URL}/calendar`, { next: { revalidate: 1800 } }, { fallback: [] });
+  const data = await shikimoriJson<any[]>(`${BASE_URL}/calendar`, { next: { revalidate: 0 } }, { fallback: [] });
   console.log('[getAnimeCalendar] Received data:', data.length, 'items');
   
   const schedule: WeeklySchedule = { 0: [], 1: [], 2: [], 3: [], 4: [], 5: [], 6: [] };
