@@ -473,8 +473,8 @@ export function GachaMarketPanel({
         throw new Error(data.error || "Покупка не удалась")
       }
       onNotify("Маркет", "Карта добавлена в коллекцию.", "info")
-      await onTradeComplete()
-      await load()
+      void onTradeComplete()
+      void load()
     } catch (e) {
       onNotify("Маркет", e instanceof Error ? e.message : "Ошибка покупки", "error")
     } finally {
@@ -511,8 +511,8 @@ export function GachaMarketPanel({
         throw new Error(data.error || "Не удалось снять лот")
       }
       onNotify("Маркет", "Лот снят, карта снова у вас в коллекции.", "info")
-      await onTradeComplete()
-      await load()
+      void onTradeComplete()
+      void load()
     } catch (e) {
       onNotify("Маркет", e instanceof Error ? e.message : "Ошибка", "error")
     } finally {

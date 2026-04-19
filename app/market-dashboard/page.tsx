@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { Loader2, Store, TrendingUp, BarChart3, History, Package, DollarSign, Eye, Filter, RefreshCw } from "lucide-react"
+import { LineChart, Line, BarChart, Bar, PieChart, Pie, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from "recharts"
 import type { Rarity } from "@/types/gacha"
 
 interface MarketListing {
@@ -98,6 +99,24 @@ const rarityConfig: Record<Rarity, { label: string; color: string; bgColor: stri
   divine: { label: "Божественная", color: "text-orange-400", bgColor: "bg-orange-900" },
   transcendent: { label: "Трансцендентная", color: "text-red-400", bgColor: "bg-red-900" },
   omnipotent: { label: "Всемогущая", color: "text-yellow-300", bgColor: "bg-yellow-900" }
+}
+
+const getBrightColor = (rarity: string): string => {
+  const brightColors: Record<string, string> = {
+    trash: "#a8a29e",
+    common: "#94a3b8",
+    uncommon: "#34d399",
+    rare: "#22d3ee",
+    super_rare: "#818cf8",
+    epic: "#c084fc",
+    mythic: "#e879f9",
+    legendary: "#f472b6",
+    ancient: "#fbbf24",
+    divine: "#fb923c",
+    transcendent: "#f87171",
+    omnipotent: "#facc15"
+  }
+  return brightColors[rarity] || "#94a3b8"
 }
 
 export default function MarketDashboardPage() {
@@ -383,9 +402,112 @@ export default function MarketDashboardPage() {
         {/* Analytics Tab */}
         {activeTab === "analytics" && analytics && (
           <div className="space-y-6">
+            {/* Charts Grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Supply/Demand Bar Chart */}
+              <div className="bg-slate-900 border border-slate-700 rounded-xl p-6">
+                <h2 className="text-xl font-black text-white mb-4">Спрос vs Предложение по редкостям</h2>
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={Object.entries(analytics.supply.byRarity).map(([rarity, supply]) => ({
+                    name: rarityConfig[rarity as Rarity]?.label || rarity,
+                    supply,
+                    demand: analytics.demand.byRarity[rarity] || 0
+                  }))}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                    <XAxis dataKey="name" stroke="#94a3b8" fontSize={12} />
+                    <YAxis stroke="#94a3b8" fontSize={12} />
+                    <Tooltip 
+                      contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '8px' }}
+                      itemStyle={{ color: '#fff' }}
+                    />
+                    <Legend />
+                    <Bar dataKey="supply" name="Предложение" fill="#06b6d4" />
+                    <Bar dataKey="demand" name="Спрос" fill="#a855f7" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+
+              {/* Rarity Distribution Pie Chart */}
+              <div className="bg-slate-900 border border-slate-700 rounded-xl p-6">
+                <h2 className="text-xl font-black text-white mb-4">Распределение лотов по редкостям</h2>
+                <ResponsiveContainer width="100%" height={300}>
+                  <PieChart>
+                    <Pie
+                      data={Object.entries(analytics.supply.byRarity)
+                        .filter(([_, count]) => count > 0)
+                        .map(([rarity, count]) => ({
+                          name: rarityConfig[rarity as Rarity]?.label || rarity,
+                          value: count,
+                          color: getBrightColor(rarity)
+                        }))}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={false}
+                      label={({ percent }) => `${(percent * 100).toFixed(0)}%`}
+                      outerRadius={100}
+                      innerRadius={60}
+                      fill="#8884d8"
+                      dataKey="value"
+                      paddingAngle={2}
+                    >
+                      {Object.entries(analytics.supply.byRarity)
+                        .filter(([_, count]) => count > 0)
+                        .map(([rarity, count]) => (
+                          <Cell 
+                            key={rarity} 
+                            fill={getBrightColor(rarity)} 
+                            stroke="#1e293b"
+                            strokeWidth={2}
+                          />
+                        ))}
+                    </Pie>
+                    <Tooltip 
+                      contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '8px' }}
+                      itemStyle={{ color: '#fff' }}
+                      formatter={(value, name) => [`${value} лотов`, name]}
+                    />
+                    <Legend 
+                      verticalAlign="bottom" 
+                      height={36}
+                      iconType="circle"
+                      wrapperStyle={{ fontSize: '12px' }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            {/* Price Trends Line Chart */}
+            <div className="bg-slate-900 border border-slate-700 rounded-xl p-6">
+              <h2 className="text-xl font-black text-white mb-4">Средние цены по редкостям</h2>
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={Object.entries(analytics.avgPrice)
+                  .filter(([_, price]) => price > 0)
+                  .map(([rarity, price]) => ({
+                    name: rarityConfig[rarity as Rarity]?.label || rarity,
+                    price: Math.round(price),
+                    rarity
+                  }))
+                  .sort((a, b) => {
+                    const rarityOrder = ['trash', 'common', 'uncommon', 'rare', 'super_rare', 'epic', 'mythic', 'legendary', 'ancient', 'divine', 'transcendent', 'omnipotent']
+                    return rarityOrder.indexOf(a.rarity) - rarityOrder.indexOf(b.rarity)
+                  })}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                  <XAxis dataKey="name" stroke="#94a3b8" fontSize={12} angle={-45} textAnchor="end" height={100} />
+                  <YAxis stroke="#94a3b8" fontSize={12} />
+                  <Tooltip 
+                    contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '8px' }}
+                    itemStyle={{ color: '#fff' }}
+                    formatter={(value) => [`${Number(value).toLocaleString()} монет`, 'Средняя цена']}
+                  />
+                  <Bar dataKey="price" name="Средняя цена" fill="#eab308" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+
             {/* Supply/Demand Overview */}
             <div className="bg-slate-900 border border-slate-700 rounded-xl p-6">
-              <h2 className="text-xl font-black text-white mb-4">Спрос и предложение</h2>
+              <h2 className="text-xl font-black text-white mb-4">Детальный анализ спроса и предложения</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <h3 className="text-lg font-bold text-cyan-400 mb-3">По редкостям</h3>
@@ -434,22 +556,6 @@ export default function MarketDashboardPage() {
                     })}
                   </div>
                 </div>
-              </div>
-            </div>
-
-            {/* Average Prices */}
-            <div className="bg-slate-900 border border-slate-700 rounded-xl p-6">
-              <h2 className="text-xl font-black text-white mb-4">Средние цены продаж</h2>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                {Object.entries(analytics.avgPrice).map(([rarity, avgPrice]) => {
-                  const config = rarityConfig[rarity as Rarity]
-                  return (
-                    <div key={rarity} className={`bg-slate-800 rounded-lg p-3 ${config.bgColor}`}>
-                      <p className={`font-bold ${config.color} mb-1`}>{config.label}</p>
-                      <p className="text-xl font-black text-white">{Math.round(avgPrice).toLocaleString()}</p>
-                    </div>
-                  )
-                })}
               </div>
             </div>
 
