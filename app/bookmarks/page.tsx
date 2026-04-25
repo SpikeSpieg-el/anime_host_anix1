@@ -7,23 +7,14 @@ import { useEpisodeUpdates } from "@/hooks/use-episode-updates"
 import { Navbar } from "@/components/navbar"
 import { Footer } from "@/components/footer"
 import Link from "next/link"
-import { Bookmark, ArrowLeft, Check, Filter, X } from "lucide-react"
+import { Bookmark, ArrowLeft, ArrowUpDown } from "lucide-react"
 import { ScrollToTop } from "@/components/scroll-to-top"
 import { BookmarksSkeleton } from "@/components/skeleton"
 
 export default function BookmarksPage() {
-  const { items, isLoading, toggleCompleted } = useBookmarks()
+  const { items, isLoading } = useBookmarks()
   const { updates } = useEpisodeUpdates()
-  const [showCompletedOnly, setShowCompletedOnly] = useState(false)
-  const [showCompletedFilter, setShowCompletedFilter] = useState(false)
-
-  // Filter items based on completion status
-  const filteredItems = useMemo(() => {
-    if (!showCompletedOnly) return items
-    return items.filter(anime => anime.is_completed)
-  }, [items, showCompletedOnly])
-
-  const completedCount = items.filter(anime => anime.is_completed).length
+  const [sortBy, setSortBy] = useState<'newest' | 'oldest'>('newest')
 
   // Helper function to get update info for an anime
   const getUpdateInfo = (animeId: string) => {
@@ -39,9 +30,22 @@ export default function BookmarksPage() {
     }
   }
 
-  const handleToggleCompleted = (animeId: string) => {
-    toggleCompleted(animeId)
-  }
+  // Sort items by date added
+  const sortedItems = useMemo(() => {
+    const itemsWithDate = items.map(item => ({
+      ...item,
+      sortDate: item.created_at || new Date(0).toISOString()
+    }))
+    
+    return [...itemsWithDate].sort((a, b) => {
+      const dateA = new Date(a.sortDate).getTime()
+      const dateB = new Date(b.sortDate).getTime()
+      // 'newest' = новые первые (большая дата первая)
+      // 'oldest' = старые первые (меньшая дата первая)
+      return sortBy === 'newest' ? dateB - dateA : dateA - dateB
+    })
+  }, [items, sortBy])
+
 
   if (isLoading) {
     return (
@@ -91,56 +95,21 @@ export default function BookmarksPage() {
                 <h1 className="text-3xl sm:text-4xl font-bold text-foreground dark:text-white">Сохранённое</h1>
                 <p className="text-muted-foreground mt-1 dark:text-zinc-500">
                   {items.length} {items.length === 1 ? 'аниме' : items.length < 5 ? 'аниме' : 'аниме'} в закладках
-                  {completedCount > 0 && ` (${completedCount} завершено)`}
                 </p>
               </div>
             </div>
             <div className="flex items-center gap-2">
               <button
-                onClick={() => setShowCompletedFilter(!showCompletedFilter)}
+                onClick={() => setSortBy(sortBy === 'newest' ? 'oldest' : 'newest')}
                 className="inline-flex items-center gap-2 px-3 py-2 bg-secondary hover:bg-accent border border-border hover:border-primary text-muted-foreground hover:text-foreground font-medium rounded-xl transition-all dark:bg-zinc-800 dark:hover:bg-zinc-800 dark:border-zinc-800 dark:hover:border-orange-500 dark:text-zinc-400 dark:hover:text-white"
+                title={sortBy === 'newest' ? 'Сначала новые' : 'Сначала старые'}
               >
-                <Filter className="w-4 h-4" />
-                Фильтр
+                <ArrowUpDown className="w-4 h-4" />
+                {sortBy === 'newest' ? 'Новые' : 'Старые'}
               </button>
             </div>
           </div>
           
-          {showCompletedFilter && (
-            <div className="mb-6 p-4 bg-secondary/50 border border-border rounded-xl dark:bg-zinc-800/50 dark:border-zinc-700">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="font-medium text-foreground dark:text-white">Фильтр завершенных</h3>
-                <button
-                  onClick={() => setShowCompletedFilter(false)}
-                  className="text-muted-foreground hover:text-foreground dark:text-zinc-400 dark:hover:text-white"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={() => setShowCompletedOnly(false)}
-                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
-                    !showCompletedOnly
-                      ? 'bg-orange-500 text-black'
-                      : 'bg-secondary hover:bg-accent text-muted-foreground hover:text-foreground dark:bg-zinc-700 dark:hover:bg-zinc-600 dark:text-zinc-300 dark:hover:text-white'
-                  }`}
-                >
-                  Все ({items.length})
-                </button>
-                <button
-                  onClick={() => setShowCompletedOnly(true)}
-                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
-                    showCompletedOnly
-                      ? 'bg-orange-500 text-black'
-                      : 'bg-secondary hover:bg-accent text-muted-foreground hover:text-foreground dark:bg-zinc-700 dark:hover:bg-zinc-600 dark:text-zinc-300 dark:hover:text-white'
-                  }`}
-                >
-                  Завершенные ({completedCount})
-                </button>
-              </div>
-            </div>
-          )}
         </div>
 
         {items.length === 0 ? (
@@ -158,30 +127,13 @@ export default function BookmarksPage() {
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-x-3 sm:gap-x-4 gap-y-6 sm:gap-y-8">
-            {filteredItems.map((anime) => (
-              <div key={anime.id} className="relative group">
-                <AnimeCard 
-                  anime={anime} 
-                  showUpdateBadge={!!getUpdateInfo(anime.id)}
-                  updateInfo={getUpdateInfo(anime.id)}
-                />
-                <button
-                  onClick={() => handleToggleCompleted(anime.id)}
-                  className={`absolute top-2 left-2 p-1.5 rounded-full shadow-lg transition-all opacity-0 group-hover:opacity-100 ${
-                    anime.is_completed
-                      ? 'bg-green-500 text-white'
-                      : 'bg-secondary/80 text-muted-foreground hover:bg-primary hover:text-white dark:bg-zinc-800/80 dark:text-zinc-300 dark:hover:bg-orange-500 dark:hover:text-black'
-                  }`}
-                  title={anime.is_completed ? 'Отметить как незавершенное' : 'Отметить как завершенное'}
-                >
-                  <Check className="w-3 h-3" />
-                </button>
-                {anime.is_completed && (
-                  <div className="absolute top-2 right-2 bg-green-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded shadow-sm">
-                    Завершено
-                  </div>
-                )}
-              </div>
+            {sortedItems.map((anime) => (
+              <AnimeCard 
+                key={anime.id}
+                anime={anime} 
+                showUpdateBadge={!!getUpdateInfo(anime.id)}
+                updateInfo={getUpdateInfo(anime.id)}
+              />
             ))}
           </div>
         )}

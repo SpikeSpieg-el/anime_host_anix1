@@ -8,6 +8,7 @@ import { loggers } from "@/lib/logger"
 
 type BookmarkAnime = Anime & {
   is_completed?: boolean
+  created_at?: string
 }
 
 type BookmarksContextValue = {
@@ -53,13 +54,14 @@ export function BookmarksProvider({ children }: { children: React.ReactNode }) {
           // Если залогинен - берем из Supabase
           const { data } = await supabase
             .from('bookmarks')
-            .select('anime_data, is_completed')
+            .select('anime_data, is_completed, created_at')
             .eq('user_id', user.id)
           
           if (data && isMounted) {
             const remoteItems = data.map((row: any) => ({
               ...row.anime_data,
-              is_completed: row.is_completed || false
+              is_completed: row.is_completed || false,
+              created_at: row.created_at
             }))
             setItems(remoteItems)
           }
@@ -114,7 +116,8 @@ export function BookmarksProvider({ children }: { children: React.ReactNode }) {
         await supabase.from('bookmarks').insert({
           user_id: user.id,
           anime_id: anime.id,
-          anime_data: anime
+          anime_data: anime,
+          created_at: new Date().toISOString()
         })
       } catch (error) {
         // Handle duplicate key error gracefully
