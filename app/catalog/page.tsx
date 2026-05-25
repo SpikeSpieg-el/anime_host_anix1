@@ -1,5 +1,5 @@
 import { Navbar } from "@/components/navbar"
-import { CatalogClient } from "@/components/catalog-client"
+import { CatalogPageWrapper } from "@/components/catalog-page-wrapper"
 import { CatalogFilters } from "@/lib/shikimori"
 import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
@@ -145,7 +145,7 @@ export default async function CatalogPage({ searchParams }: CatalogPageProps) {
 
       <Navbar />
       <div className="pt-0 relative z-10">
-        <CatalogClient key={clientKey} initialFilters={initialFilters} />
+        <CatalogPageWrapper key={clientKey} initialFilters={initialFilters} />
       </div>
       <ScrollToTop />
       <Footer />

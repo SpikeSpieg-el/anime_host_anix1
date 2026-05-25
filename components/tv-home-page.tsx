@@ -39,7 +39,7 @@ export function TVHomePage({ popularNow, popularAlways, ongoingAnime }: TVHomePa
   }
 
   const handleAnimeSelect = (id: string) => {
-    router.push(`/anime/${id}`)
+    router.push(`/watch/${id}`)
   }
 
   return (

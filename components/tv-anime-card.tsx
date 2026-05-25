@@ -12,7 +12,7 @@ interface TVAnimeCardProps {
   episodesCurrent?: number
   episodesTotal?: number
   rating?: number
-  onSelect: () => void
+  onSelect?: () => void
 }
 
 export function TVAnimeCard({ id, title, imageUrl, episodesCurrent, episodesTotal, rating, onSelect }: TVAnimeCardProps) {
