@@ -17,7 +17,7 @@ const navItems = [
   { icon: BookMarked, label: 'Закладки', path: '/bookmarks' },
   { icon: History, label: 'История', path: '/history' },
   { icon: Calendar, label: 'Расписание', path: '/schedule' },
-  { icon: User, label: 'Профиль', path: '/profile' },
+  { icon: User, label: 'Настройки', path: '/settings' },
 ]
 
 export function TVNavigation({ currentPath = '/', onNavigate, onExitTVMode }: TVNavigationProps) {
