@@ -44,6 +44,7 @@ export function HomePageWrapper({
     return (
       <TVHomePage
         popularNow={initialData.popularNow}
+        popularAlways={initialData.popularAlways}
         ongoingAnime={initialData.ongoingAnime}
       />
     )

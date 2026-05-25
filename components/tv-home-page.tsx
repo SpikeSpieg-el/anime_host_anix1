@@ -1,18 +1,21 @@
 "use client"
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { TVAnimeCard } from './tv-anime-card'
 import { TVVoiceSearch } from './tv-voice-search'
 import { TVLayout } from './tv-layout'
 import type { Anime } from '@/lib/shikimori'
+import { ChevronRight } from 'lucide-react'
+import Link from 'next/link'
 
 interface TVHomePageProps {
   popularNow: Anime[]
+  popularAlways: Anime[]
   ongoingAnime: Anime[]
 }
 
-export function TVHomePage({ popularNow, ongoingAnime }: TVHomePageProps) {
+export function TVHomePage({ popularNow, popularAlways, ongoingAnime }: TVHomePageProps) {
   const router = useRouter()
   const [searchResults, setSearchResults] = useState<Anime[]>([])
   const [isSearching, setIsSearching] = useState(false)
@@ -39,12 +42,10 @@ export function TVHomePage({ popularNow, ongoingAnime }: TVHomePageProps) {
     router.push(`/anime/${id}`)
   }
 
-  const displayAnime = isSearching ? searchResults : popularNow
-
   return (
     <TVLayout>
-      <div className="space-y-8">
-        <div className="flex flex-col items-center gap-6 mb-12">
+      <div className="space-y-10">
+        <div className="flex flex-col items-center gap-6 mb-8">
           <h1 className="text-5xl font-bold text-center">Weeb.X TV</h1>
           <TVVoiceSearch onSearch={handleSearch} />
         </div>
@@ -59,15 +60,38 @@ export function TVHomePage({ popularNow, ongoingAnime }: TVHomePageProps) {
                 Ничего не найдено
               </p>
             )}
+            {searchResults.length > 0 && (
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
+                {searchResults.map((anime) => (
+                  <TVAnimeCard
+                    key={anime.id}
+                    id={anime.id}
+                    title={anime.title}
+                    imageUrl={anime.poster}
+                    episodesTotal={anime.episodesTotal}
+                    rating={anime.rating}
+                    onSelect={() => handleAnimeSelect(anime.id)}
+                  />
+                ))}
+              </div>
+            )}
           </div>
         )}
 
         {!isSearching && (
           <>
             <section>
-              <h2 className="text-3xl font-bold mb-6">Популярное сейчас</h2>
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
-                {popularNow.slice(0, 10).map((anime) => (
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-3xl font-bold">Популярное сейчас</h2>
+                <Link 
+                  href="/catalog?order=popularity" 
+                  className="flex items-center gap-2 text-primary hover:underline focus:ring-2 focus:ring-primary rounded px-3 py-2"
+                >
+                  Все <ChevronRight className="h-5 w-5" />
+                </Link>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
+                {popularNow.slice(0, 12).map((anime) => (
                   <TVAnimeCard
                     key={anime.id}
                     id={anime.id}
@@ -82,9 +106,42 @@ export function TVHomePage({ popularNow, ongoingAnime }: TVHomePageProps) {
             </section>
 
             <section>
-              <h2 className="text-3xl font-bold mb-6">Онгоинги</h2>
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
-                {ongoingAnime.slice(0, 10).map((anime) => (
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-3xl font-bold">Онгоинги</h2>
+                <Link 
+                  href="/catalog?status=ongoing" 
+                  className="flex items-center gap-2 text-primary hover:underline focus:ring-2 focus:ring-primary rounded px-3 py-2"
+                >
+                  Все <ChevronRight className="h-5 w-5" />
+                </Link>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
+                {ongoingAnime.slice(0, 12).map((anime) => (
+                  <TVAnimeCard
+                    key={anime.id}
+                    id={anime.id}
+                    title={anime.title}
+                    imageUrl={anime.poster}
+                    episodesTotal={anime.episodesTotal}
+                    rating={anime.rating}
+                    onSelect={() => handleAnimeSelect(anime.id)}
+                  />
+                ))}
+              </div>
+            </section>
+
+            <section>
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-3xl font-bold">Популярное всех времён</h2>
+                <Link 
+                  href="/catalog?order=ranked" 
+                  className="flex items-center gap-2 text-primary hover:underline focus:ring-2 focus:ring-primary rounded px-3 py-2"
+                >
+                  Все <ChevronRight className="h-5 w-5" />
+                </Link>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
+                {popularAlways.slice(0, 12).map((anime) => (
                   <TVAnimeCard
                     key={anime.id}
                     id={anime.id}
@@ -98,22 +155,6 @@ export function TVHomePage({ popularNow, ongoingAnime }: TVHomePageProps) {
               </div>
             </section>
           </>
-        )}
-
-        {isSearching && searchResults.length > 0 && (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
-            {searchResults.map((anime) => (
-              <TVAnimeCard
-                key={anime.id}
-                id={anime.id}
-                title={anime.title}
-                imageUrl={anime.poster}
-                episodesTotal={anime.episodesTotal}
-                rating={anime.rating}
-                onSelect={() => handleAnimeSelect(anime.id)}
-              />
-            ))}
-          </div>
         )}
       </div>
     </TVLayout>

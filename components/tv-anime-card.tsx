@@ -38,27 +38,23 @@ export function TVAnimeCard({ id, title, imageUrl, episodesCurrent, episodesTota
         sizes="(max-width: 768px) 50vw, 25vw"
       />
       
-      <div className={`
-        absolute inset-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent
-        transition-opacity duration-300
-        ${isFocused ? 'opacity-100' : 'opacity-0'}
-      `}>
-        <div className="absolute bottom-0 left-0 right-0 p-4">
-          <h3 className="font-bold text-lg line-clamp-2 mb-2">{title}</h3>
-          <div className="flex items-center gap-3 text-sm text-gray-300">
+      <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/40 to-transparent">
+        <div className="absolute bottom-0 left-0 right-0 p-3 bg-black/80">
+          <h3 className="font-bold text-base line-clamp-2 mb-1">{title}</h3>
+          <div className="flex items-center gap-3 text-xs text-gray-300">
             {episodesTotal && <span>{episodesTotal} эп.</span>}
             {rating && <span>⭐ {rating.toFixed(1)}</span>}
           </div>
         </div>
-        
-        {isFocused && (
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
-            <div className="bg-primary rounded-full p-4">
-              <Play className="h-8 w-8" fill="currentColor" />
-            </div>
-          </div>
-        )}
       </div>
+      
+      {isFocused && (
+        <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+          <div className="bg-primary rounded-full p-4">
+            <Play className="h-8 w-8" fill="currentColor" />
+          </div>
+        </div>
+      )}
     </button>
   )
 }
