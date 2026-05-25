@@ -194,23 +194,40 @@ export function Navbar() {
             </Link>
 
             {/* Dropdown "Ещё" Desktop */}
-            <div className="group relative px-4 py-2 cursor-pointer">
-              <span className={cn(
-                "flex items-center gap-1.5 text-sm font-medium transition-colors",
-                (pathname.includes("genre") || pathname === "/bookmarks" || pathname === "/schedule" || pathname === "/history") ? "text-foreground" : "text-muted-foreground group-hover:text-foreground"
-              )}>
-                <Settings size={16} /> Ещё
-              </span>
-              <div className="absolute top-full left-1/2 -translate-x-1/2 pt-4 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 transform translate-y-2 group-hover:translate-y-0 z-50">
-                <div className="w-56 bg-background/95 backdrop-blur-xl border rounded-2xl p-2 shadow-2xl space-y-1">
+            <DropdownMenu open={isDropdownOpen} onOpenChange={setIsDropdownOpen}>
+              <DropdownMenuTrigger asChild>
+                <button className={cn(
+                  "px-4 py-2 rounded-full text-sm font-medium transition-all flex items-center gap-2",
+                  (pathname.includes("genre") || pathname === "/bookmarks" || pathname === "/schedule" || pathname === "/history") 
+                    ? "bg-secondary text-foreground shadow-lg" 
+                    : "text-muted-foreground hover:text-foreground hover:bg-secondary/50"
+                )}>
+                  <Settings size={16} /> Ещё
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="center" className="w-56 bg-background/95 backdrop-blur-xl border rounded-2xl p-2 shadow-2xl">
+                <DropdownMenuItem asChild>
                   <Link href="/beginners" className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-accent transition text-sm font-medium text-muted-foreground hover:text-foreground"><GraduationCap size={14} /> Для новичков</Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
                   <Link href="/bookmarks" className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-accent transition text-sm font-medium text-muted-foreground hover:text-foreground"><BookMarked size={14} /> Закладки</Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
                   <Link href="/schedule" className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-accent transition text-sm font-medium text-muted-foreground hover:text-foreground"><Calendar size={14} /> Расписание</Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
                   <Link href="/history" className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-accent transition text-sm font-medium text-muted-foreground hover:text-foreground"><History size={14} /> История</Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
                   <Link href="/battle" className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-accent transition text-sm font-medium text-red-500 hover:text-red-600"><Swords size={14} /> PVE Бои</Link>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <div className="px-2 py-1.5 flex items-center justify-between">
+                  <span className="text-sm">TV режим</span>
+                  <TVModeToggle />
                 </div>
-              </div>
-            </div>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </nav>
 
           {/* === 4. ПОИСК (DESKTOP) === */}
