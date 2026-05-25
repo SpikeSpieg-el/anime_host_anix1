@@ -56,10 +56,11 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCo
       shikimoriID: shikimoriId,
       episode: String(episode),
       types: 'anime,anime-serial',
-      no_ads: 'true', 
+      no_ads: 'true',
       block_blocked_countries: 'false', // Отключаем блокировку стран
       hide_selectors: 'false',
-      autoplay: '0'
+      autoplay: '0',
+      quality: '720' // Устанавливаем качество по умолчанию 720p
     })
     
     // Добавляем параметр страны если выбрана не Россия
