@@ -8,7 +8,7 @@ import dynamic from "next/dynamic"
 import { WatchPageHeaderSkeleton, PlayerSkeleton, EpisodeSelectorSkeleton, TextSkeleton, GridSkeleton, AnimeCardSkeleton } from "@/components/skeleton"
 import type { Metadata } from "next"
 
-const WatchPageClient = dynamic(() => import("@/components/watch-page-client").then(mod => ({ default: mod.WatchPageClient })), {
+const WatchPageWrapper = dynamic(() => import("@/components/watch-page-wrapper").then(mod => ({ default: mod.WatchPageWrapper })), {
   loading: () => (
     <div className="min-h-screen bg-background text-foreground">
       <Navbar />
@@ -113,7 +113,7 @@ export default async function WatchPage({
       <Navbar />
 
       <div className="container mx-auto px-4 py-8 relative z-10">
-        <WatchPageClient
+        <WatchPageWrapper
           anime={anime}
           initialEpisode={Number.isFinite(episode) && (episode as number) > 0 ? (episode as number) : undefined}
         />
