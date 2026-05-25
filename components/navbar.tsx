@@ -17,6 +17,7 @@ import { useAuth } from "@/components/auth-provider"
 import { AuthModal } from "@/components/auth-modal"
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 import { ThemeToggle } from "@/components/theme-toggle"
+import { TVModeToggle } from "@/components/tv-mode-toggle"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -292,6 +293,10 @@ export function Navbar() {
                   <div className="px-2 py-1.5 flex items-center justify-between">
                      <span className="text-sm">Тема</span>
                      <ThemeToggle />
+                  </div>
+                  <div className="px-2 py-1.5 flex items-center justify-between">
+                     <span className="text-sm">TV режим</span>
+                     <TVModeToggle />
                   </div>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem asChild><Link href="/settings">Настройки</Link></DropdownMenuItem>

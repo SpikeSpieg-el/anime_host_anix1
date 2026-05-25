@@ -57,10 +57,9 @@ export function HomePageClient({ initialData }: HomePageClientProps) {
         {/* Demo Button for Testing 
         <EpisodeUpdateDemo />*/}
         
-        {/* AiAdvisor 
         <section id="ai-advisor" className="mb-12 md:mb-16 flex justify-center md:justify-start w-full">
            <AiAdvisor />
-        </section>*/}
+        </section>
 
         {/* 2. ИСТОРИЯ И ЗАКЛАДКИ */}
         <section id="history-bookmarks" className="space-y-10 md:space-y-12 mb-14 md:mb-16">
