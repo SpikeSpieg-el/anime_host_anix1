@@ -1,7 +1,7 @@
 "use client"
 import Image from "next/image"
 import Link from "next/link"
-import { Play, Info, Star, Zap, TrendingUp, Sparkles, ChevronRight, Hash, Eye, Bookmark } from "lucide-react"
+import { Play, Info, Star, Zap, TrendingUp, Sparkles, ChevronRight, Hash, Eye, Bookmark, Loader2 } from "lucide-react"
 import {
   Dialog,
   DialogContent,
@@ -66,8 +66,36 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime, recommendationRea
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [bgImageError, setBgImageError] = useState(false)
   const [posterImageError, setPosterImageError] = useState(false)
+  const [fullDescription, setFullDescription] = useState<string | null>(null)
+  const [loadingDescription, setLoadingDescription] = useState(false)
   const { isSaved, toggle } = useBookmarks()
   const router = useRouter()
+
+  // Load full description when dialog opens
+  useEffect(() => {
+    if (isDialogOpen && anime?.id) {
+      const loadDescription = async () => {
+        // Only load if current description is placeholder
+        if (!anime.description || anime.description === "Описание отсутствует...") {
+          setLoadingDescription(true)
+          try {
+            const response = await fetch(`/api/anime/${anime.id}`)
+            if (response.ok) {
+              const data = await response.json()
+              if (data.description && data.description !== "Описание отсутствует...") {
+                setFullDescription(data.description)
+              }
+            }
+          } catch (error) {
+            console.error('[HeroBanner] Failed to load description:', error)
+          } finally {
+            setLoadingDescription(false)
+          }
+        }
+      }
+      loadDescription()
+    }
+  }, [isDialogOpen])
 
   // 3D tilt effect refs and state
   const containerRef = useRef<HTMLDivElement>(null)
@@ -115,6 +143,18 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime, recommendationRea
 
   const anime = mode === 'top' ? topOfWeekAnime : recommendedAnime
   const saved = !!anime?.id && isSaved(String(anime.id))
+
+  // Debug description
+  useEffect(() => {
+    if (anime) {
+      console.log('[HeroBanner] Anime description:', {
+        title: anime.title,
+        description: anime.description,
+        descriptionLength: anime.description?.length,
+        hasDescription: !!(anime.description && anime.description.trim() !== "" && anime.description !== "Описание отсутствует...")
+      })
+    }
+  }, [anime])
 
   // Auto-switch to top mode if recommended anime is not available
   useEffect(() => {
@@ -573,9 +613,17 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime, recommendationRea
                             </div>
                           )}
 
-                          {anime.description && anime.description.trim() !== "" && anime.description !== "Описание отсутствует..." ? (
+                          {/* Description with lazy loading */}
+                          {loadingDescription ? (
+                            <div className="my-4 p-4 rounded-2xl border border-border bg-secondary/[0.02] dark:border-white/5 dark:bg-white/[0.02]">
+                              <div className="flex items-center gap-2 text-muted-foreground">
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                                <span className="text-xs">Загрузка описания...</span>
+                              </div>
+                            </div>
+                          ) : fullDescription || (anime.description && anime.description.trim() !== "" && anime.description !== "Описание отсутствует...") ? (
                             <p className="text-muted-foreground text-xs sm:text-sm leading-relaxed mb-4 opacity-90 dark:text-zinc-300">
-                              {anime.description}
+                              {fullDescription || anime.description}
                             </p>
                           ) : (
                             <div className="my-4 p-5 rounded-2xl border border-border bg-secondary/[0.02] flex flex-col items-center text-center dark:border-white/5 dark:bg-white/[0.02]">

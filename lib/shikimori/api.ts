@@ -347,7 +347,11 @@ async function isSequelWithoutPreviousParts(anime: Anime, watchedIds: Set<string
 
     // Сортируем франшизу по весу (порядку) и году
     const sortedFranchise = franchise
-      .filter(item => item.kind === 'TV' || item.kind === 'Movie') // Только основные части
+      .filter(item => {
+        // Case-insensitive check for TV/Movie kinds (handles 'tv', 'TV', 'TV Сериал', 'movie', etc.)
+        const kind = item.kind?.toLowerCase() || '';
+        return kind.includes('tv') || kind.includes('movie');
+      }) // Только основные части
       .sort((a, b) => {
         // Сначала по весу, если есть
         if (a.weight !== b.weight) return (a.weight || 0) - (b.weight || 0);
