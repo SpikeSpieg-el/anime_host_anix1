@@ -5,7 +5,7 @@ import Image from "next/image"
 import { Bookmark, Star } from "lucide-react"
 import { Anime } from "@/lib/shikimori"
 import { Button } from "@/components/ui/button"
-import { useBookmarks } from "@/components/bookmarks-provider"
+import { useBookmarks } from "@/components/providers/bookmarks-provider"
 import { useState } from "react"
 import { cn } from "@/lib/utils"
 

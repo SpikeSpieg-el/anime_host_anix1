@@ -1,9 +1,9 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useAuth } from "@/components/auth-provider"
-import { AvatarUpload } from "@/components/avatar-upload"
-import { AuthModal } from "@/components/auth-modal"
+import { useAuth } from "@/components/auth/auth-provider"
+import { AvatarUpload } from "@/components/auth/avatar-upload"
+import { AuthModal } from "@/components/auth/auth-modal"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label"
 import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/lib/supabase"
 import Link from "next/link"
-import { ScrollToTop } from "@/components/scroll-to-top"
+import { ScrollToTop } from "@/components/layout/scroll-to-top"
 
 export default function SettingsPage() {
   const { user, profile, refreshProfile, session } = useAuth()

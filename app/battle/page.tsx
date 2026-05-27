@@ -1,8 +1,8 @@
 "use client"
 
 import { useState, useEffect, useCallback, useRef } from "react"
-import { Navbar } from "@/components/navbar"
-import { useAuth } from "@/components/auth-provider"
+import { Navbar } from "@/components/layout/navbar"
+import { useAuth } from "@/components/auth/auth-provider"
 import { useCoins } from "@/hooks/use-coins"
 import { useDust } from "@/hooks/use-dust"
 import { Rarity, rarityConfig } from "@/types/gacha"

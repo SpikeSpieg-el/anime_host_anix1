@@ -67,5 +67,6 @@ export function transformTopic(topic: any): NewsItem {
     author: topic.user.nickname,
     comments: topic.comments_count,
     url: `${SITE_URL}${topic.forum.url}/${topic.id}`,
+    htmlBody: topic.html_body || undefined,
   };
 }

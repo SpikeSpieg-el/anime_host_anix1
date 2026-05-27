@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { RegionDetector } from "@/components/region-detector"
+import { RegionDetector } from "@/components/providers/region-detector"
 
 export function RegionTest() {
   const [currentCountry, setCurrentCountry] = useState<string>('RU')

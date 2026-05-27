@@ -287,6 +287,21 @@ export async function getForumNews(limit = 4): Promise<NewsItem[]> {
   return data.map(transformTopic);
 }
 
+export async function getForumNewsPaginated(page = 1, limit = 12): Promise<NewsItem[]> {
+  const data = await shikimoriJson<any[]>(`${BASE_URL}/topics?forum=news&limit=${limit}&page=${page}`, { next: { revalidate: 1800 } }, { fallback: [] });
+  return data.map(transformTopic);
+}
+
+export async function getNewsById(id: string): Promise<NewsItem | null> {
+  try {
+    const data = await shikimoriJson<any>(`${BASE_URL}/topics/${id}`, { next: { revalidate: 3600 } }, { fallback: null });
+    if (!data) return null;
+    return transformTopic(data);
+  } catch {
+    return null;
+  }
+}
+
 export async function getAnimeCalendar(): Promise<WeeklySchedule> {
   console.log('[getAnimeCalendar] Starting fetch from Shikimori calendar API');
   const data = await shikimoriJson<any[]>(`${BASE_URL}/calendar`, { next: { revalidate: 3600 } }, { fallback: [] });

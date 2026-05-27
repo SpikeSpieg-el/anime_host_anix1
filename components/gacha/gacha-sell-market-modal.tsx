@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { Loader2, Store } from "lucide-react"
 import type { Card } from "@/app/gacha/page"
 import { computeMaxListingPrice, computeMinListingPrice } from "@/lib/market-floor"
-import { useAuth } from "@/components/auth-provider" // Импортируем хук авторизации
+import { useAuth } from "@/components/auth/auth-provider" // Импортируем хук авторизации
 
 export function GachaSellMarketModal({
   card,

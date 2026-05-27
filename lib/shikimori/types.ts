@@ -68,6 +68,7 @@ export interface NewsItem {
   author: string;
   comments: number;
   url: string;
+  htmlBody?: string;
 }
 
 export interface FranchiseItem {

@@ -1,8 +1,8 @@
-import { Navbar } from "@/components/navbar"
-import { Footer } from "@/components/footer"
-import { ScheduleClient } from "@/components/schedule-client"
+import { Navbar } from "@/components/layout/navbar"
+import { Footer } from "@/components/layout/footer"
+import { ScheduleClient } from "@/components/shared/schedule-client"
 import { getAnimeCalendar } from "@/lib/shikimori"
-import { ScrollToTop } from "@/components/scroll-to-top"
+import { ScrollToTop } from "@/components/layout/scroll-to-top"
 import { Metadata } from "next"
 
 

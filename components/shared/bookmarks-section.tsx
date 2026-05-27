@@ -1,11 +1,11 @@
 "use client"
 
 import { useMemo, useEffect } from "react"
-import { AnimeCard } from "@/components/anime-card"
-import { useBookmarks } from "@/components/bookmarks-provider"
+import { AnimeCard } from "@/components/shared/anime-card"
+import { useBookmarks } from "@/components/providers/bookmarks-provider"
 import { useEpisodeUpdates } from "@/hooks/use-episode-updates"
-import { EpisodeUpdateBadge } from "@/components/episode-update-badge"
-import { BookmarksSkeleton } from "@/components/skeleton"
+import { EpisodeUpdateBadge } from "@/components/watch/episode-update-badge"
+import { BookmarksSkeleton } from "@/components/shared/skeleton"
 import Link from "next/link"
 import { ChevronRight, Bookmark } from "lucide-react"
 

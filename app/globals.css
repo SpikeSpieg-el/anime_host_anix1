@@ -107,6 +107,12 @@
   }
   body {
     @apply text-foreground;
+    overflow-y: scroll !important;
+  }
+
+  body[data-scroll-locked] {
+    overflow-y: scroll !important;
+    margin-right: 0 !important;
   }
   html {
     @apply bg-background;
@@ -269,5 +275,103 @@
 
   .rotate-y-180 {
     transform: rotateY(180deg);
+  }
+
+  .shikimori-news-body {
+    color: hsl(var(--foreground));
+    line-height: 1.75;
+    font-size: 0.95rem;
+  }
+
+  .shikimori-news-body p {
+    margin-bottom: 1rem;
+    color: inherit;
+  }
+
+  .shikimori-news-body img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 0.75rem;
+    margin: 1rem 0;
+    display: block;
+  }
+
+  .shikimori-news-body a {
+    color: #60a5fa;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    transition: color 0.15s;
+  }
+
+  .shikimori-news-body a:hover {
+    color: #93c5fd;
+  }
+
+  .shikimori-news-body h1,
+  .shikimori-news-body h2,
+  .shikimori-news-body h3,
+  .shikimori-news-body h4 {
+    font-weight: 700;
+    margin-top: 1.5rem;
+    margin-bottom: 0.75rem;
+    color: hsl(var(--foreground));
+  }
+
+  .shikimori-news-body h2 { font-size: 1.25rem; }
+  .shikimori-news-body h3 { font-size: 1.1rem; }
+
+  .shikimori-news-body ul,
+  .shikimori-news-body ol {
+    padding-left: 1.5rem;
+    margin-bottom: 1rem;
+  }
+
+  .shikimori-news-body ul { list-style-type: disc; }
+  .shikimori-news-body ol { list-style-type: decimal; }
+
+  .shikimori-news-body li {
+    margin-bottom: 0.25rem;
+  }
+
+  .shikimori-news-body blockquote {
+    border-left: 3px solid #3f3f46;
+    padding-left: 1rem;
+    margin: 1rem 0;
+    color: #a1a1aa;
+    font-style: italic;
+  }
+
+  .shikimori-news-body pre,
+  .shikimori-news-body code {
+    background: rgba(255,255,255,0.05);
+    border-radius: 0.375rem;
+    padding: 0.2rem 0.4rem;
+    font-size: 0.875em;
+  }
+
+  .shikimori-news-body pre code {
+    padding: 0;
+    background: transparent;
+  }
+
+  .shikimori-news-body hr {
+    border-color: rgba(255,255,255,0.08);
+    margin: 1.5rem 0;
+  }
+
+  .shikimori-news-body .b-spoiler_block,
+  .shikimori-news-body .b-spoiler {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 0.5rem;
+    padding: 0.75rem 1rem;
+    margin: 0.75rem 0;
+  }
+
+  .shikimori-news-body .b-quote {
+    border-left: 3px solid #3b82f6;
+    padding-left: 1rem;
+    margin: 1rem 0;
+    color: #a1a1aa;
   }
 }

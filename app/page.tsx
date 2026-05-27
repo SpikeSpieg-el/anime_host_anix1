@@ -1,4 +1,4 @@
-import { HomePageWrapper } from "@/components/home-page-wrapper"
+import { HomePageWrapper } from "@/components/home/home-page-wrapper"
 import {
   getPopularNow,
   getPopularAlways,

@@ -3,7 +3,7 @@
 import { useState, useRef, MouseEvent, useCallback, useEffect, useMemo } from "react"
 import { flushSync } from "react-dom"
 import Image from "next/image"
-import { Navbar } from "@/components/navbar"
+import { Navbar } from "@/components/layout/navbar"
 import { Sparkles, Star, Heart, Loader2, X, ZoomIn, ExternalLink, RefreshCcw, Trash, Trash2, Crown, Package, Coins, Search, Database, Store, Share } from "lucide-react"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { rollAnimeCharacter, rollFromAnimePack, searchGachaPacks, createCustomGachaPack, checkPackAvailability, updateUserPityAfterRoll } from "./actions"
@@ -12,21 +12,21 @@ import { loadUserPity, updateUserPity, type PityData } from "./pity-actions"
 import { ANIME_PACKS, AnimePack, CustomAnimePack, createCustomPack, loadYearBasedPacks } from "@/lib/gacha-packs"
 import { useCoins } from "@/hooks/use-coins"
 import { useDust } from "@/hooks/use-dust"
-import { GachaLoading } from "@/components/gacha-loading"
-import { CollectionCardSkeleton } from "@/components/collection-skeleton"
-import { PackCardSkeleton } from "@/components/pack-skeleton"
-import { GachaErrorPopup } from "@/components/gacha-error-popup"
-import { DismantleConfirmPopup } from "@/components/dismantle-confirm-popup"
-import { DismantleSuccessPopup } from "@/components/dismantle-success-popup"
-import { BulkDismantleFilterPopup } from "@/components/bulk-dismantle-filter-popup"
-import { BulkDismantleConfirmPopup } from "@/components/bulk-dismantle-confirm-popup"
-import { BulkDismantleSuccessPopup } from "@/components/bulk-dismantle-success-popup"
+import { GachaLoading } from "@/components/gacha/gacha-loading"
+import { CollectionCardSkeleton } from "@/components/gacha/collection-skeleton"
+import { PackCardSkeleton } from "@/components/gacha/pack-skeleton"
+import { GachaErrorPopup } from "@/components/gacha/gacha-error-popup"
+import { DismantleConfirmPopup } from "@/components/gacha/dismantle-confirm-popup"
+import { DismantleSuccessPopup } from "@/components/gacha/dismantle-success-popup"
+import { BulkDismantleFilterPopup } from "@/components/gacha/bulk-dismantle-filter-popup"
+import { BulkDismantleConfirmPopup } from "@/components/gacha/bulk-dismantle-confirm-popup"
+import { BulkDismantleSuccessPopup } from "@/components/gacha/bulk-dismantle-success-popup"
 import { Rarity, rarityConfig, getDismantleValue } from "@/types/gacha"
-import { GachaMarketPanel } from "@/components/gacha-market-panel"
-import { GachaSellMarketModal } from "@/components/gacha-sell-market-modal"
-import { ChangeArtModal } from "@/components/change-art-modal"
-import { useAuth } from "@/components/auth-provider"
-import { frameNames, coatingNames, FrameOverlay, CoatingOverlay } from "@/components/card-modifiers"
+import { GachaMarketPanel } from "@/components/gacha/gacha-market-panel"
+import { GachaSellMarketModal } from "@/components/gacha/gacha-sell-market-modal"
+import { ChangeArtModal } from "@/components/gacha/change-art-modal"
+import { useAuth } from "@/components/auth/auth-provider"
+import { frameNames, coatingNames, FrameOverlay, CoatingOverlay } from "@/components/gacha/card-modifiers"
 
 export interface CardStats {
   hp: number
@@ -180,8 +180,17 @@ const StatBar = ({ label, value, color }: { label: string; value: number; color:
 
 const statLabels = { hp: "Очки Здоровья", atk: "Сила Атаки", def: "Защита", spd: "Скорость", luck: "Удача" } as const
 
+const isPinterestUrl = (url: string) => url.includes('i.pinimg.com') || url.includes('pinimg.com');
+
+const getProxiedSrc = (url: string) => {
+  if (!url) return url;
+  if (isPinterestUrl(url)) return `/api/image-proxy?url=${encodeURIComponent(url)}`;
+  return url;
+}
+
 const getOptimizedThumbSrc = (url: string, width: number = 384, quality: number = 60) => {
   if (!url) return url;
+  if (isPinterestUrl(url)) return `/api/image-proxy?url=${encodeURIComponent(url)}`;
   return `/_next/image?url=${encodeURIComponent(url)}&w=${width}&q=${quality}`;
 }
 
@@ -350,10 +359,11 @@ const CollectionCard = ({ card, onClick }: { card: Card; onClick: (card: Card) =
       className={`aspect-[2/3] rounded-2xl overflow-hidden border border-white/10 relative group bg-slate-900 cursor-pointer transition-all duration-300 hover:-translate-y-1.5 hover:shadow-2xl hover:shadow-indigo-500/20 ${rarityConfig[card.rarity].glow}`}
     >
       <Image
-        src={card.imageUrl}
+        src={getProxiedSrc(card.imageUrl)}
         className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ease-out"
         alt={card.name}
         fill
+        unoptimized={isPinterestUrl(card.imageUrl)}
         sizes="(max-width: 640px) 33vw, (max-width: 1024px) 20vw, 15vw"
         quality={50}
         loading="lazy"
@@ -524,7 +534,7 @@ const InteractiveCard = ({ card, forceFlipped = false }: { card: Card, forceFlip
         style={{ backfaceVisibility: "hidden" }}
       >
         <Image 
-          src={card.imageUrl} 
+          src={getProxiedSrc(card.imageUrl)} 
           alt={card.name}
           unoptimized={true}
           className="absolute inset-0 w-full h-full object-cover scale-[1.02]"

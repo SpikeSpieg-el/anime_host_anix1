@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from "react"
 import { getFreshAnimeData } from "@/app/actions/get-fresh-anime-data"
 import { supabase } from "@/lib/supabase"
-import { useAuth } from "@/components/auth-provider"
+import { useAuth } from "@/components/auth/auth-provider"
 
 interface EpisodeUpdate {
   animeId: string

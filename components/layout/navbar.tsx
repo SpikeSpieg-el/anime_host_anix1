@@ -8,15 +8,15 @@ import {
   Settings, GraduationCap, LogOut, Search, MoreHorizontal, X, ArrowUp,
   Sparkles, Swords
 } from "lucide-react"
-import { SearchSuggestions } from "@/components/search-suggestions"
-import { EpisodeUpdateBadge } from "@/components/episode-update-badge"
+import { SearchSuggestions } from "@/components/catalog/search-suggestions"
+import { EpisodeUpdateBadge } from "@/components/watch/episode-update-badge"
 import { useEpisodeUpdates } from "@/hooks/use-episode-updates"
 import { cn } from "@/lib/utils"
-import { useAuth } from "@/components/auth-provider"
-import { AuthModal } from "@/components/auth-modal"
+import { useAuth } from "@/components/auth/auth-provider"
+import { AuthModal } from "@/components/auth/auth-modal"
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
-import { ThemeToggle } from "@/components/theme-toggle"
-import { TVModeToggle } from "@/components/tv-mode-toggle"
+import { ThemeToggle } from "@/components/shared/theme-toggle"
+import { TVModeToggle } from "@/components/tv/tv-mode-toggle"
 import {
   DropdownMenu,
   DropdownMenuContent,

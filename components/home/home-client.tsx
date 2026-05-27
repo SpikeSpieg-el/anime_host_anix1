@@ -1,15 +1,15 @@
 'use client'
 
-import { AnimeCard } from '@/components/anime-card'
-import { UserHistory } from '@/components/user-history'
-import { BookmarksSection } from '@/components/bookmarks-section'
-import { AiAdvisor } from '@/components/ai-advisor'
-import { UpdatesBanner } from '@/components/updates-banner'
-import { Footer } from '@/components/footer'
-import { SectionSkeleton, UpdatesBannerSkeleton, GridSkeleton } from '@/components/skeleton'
+import { AnimeCard } from '@/components/shared/anime-card'
+import { UserHistory } from '@/components/shared/user-history'
+import { BookmarksSection } from '@/components/shared/bookmarks-section'
+import { AiAdvisor } from '@/components/shared/ai-advisor'
+import { UpdatesBanner } from '@/components/home/updates-banner'
+import { Footer } from '@/components/layout/footer'
+import { SectionSkeleton, UpdatesBannerSkeleton, GridSkeleton } from '@/components/shared/skeleton'
 import type { Anime } from '@/lib/shikimori'
 import Link from "next/link"
-import { MessageSquare, User, ExternalLink, ChevronRight, Newspaper, TrendingUp, Play, Star } from "lucide-react"
+import { MessageSquare, User, ChevronRight, Newspaper, TrendingUp, Play, Star } from "lucide-react"
 import { useEffect } from "react"
 import { useSearchParams } from "next/navigation"
 import { easterEggs } from "@/lib/easter-eggs"
@@ -90,22 +90,19 @@ export function HomePageClient({ initialData }: HomePageClientProps) {
                     </div>
                     
                     <Link 
-                      href="https://shikimori.one/forum/news" 
-                      target="_blank" 
+                      href="/news" 
                       className="group flex items-center gap-2 bg-secondary hover:bg-accent text-muted-foreground hover:text-accent-foreground px-3 sm:px-4 py-2 rounded-full text-xs sm:text-sm font-medium transition-colors dark:bg-zinc-800 dark:hover:bg-zinc-700 dark:text-zinc-200"
                     >
                         <span>Все новости</span>
-                        <ExternalLink className="w-3 h-3 sm:w-4 sm:h-4 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
+                        <ChevronRight className="w-3 h-3 sm:w-4 sm:h-4 transition-transform group-hover:translate-x-0.5" />
                     </Link>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
                     {initialData.newsUpdates.map((news) => (
-                        <a 
+                        <Link 
                            key={news.id} 
-                           href={news.url} 
-                           target="_blank" 
-                           rel="noopener noreferrer" 
+                           href={`/news/${news.id}`} 
                            className="group flex flex-col h-full bg-secondary/40 border rounded-xl sm:rounded-2xl p-4 sm:p-5 hover:border-accent transition-all hover:bg-secondary active:scale-[0.98] sm:hover:-translate-y-1 hover:shadow-xl hover:shadow-black/50 dark:bg-zinc-900/40 dark:border-zinc-800 dark:hover:border-zinc-600 dark:hover:bg-zinc-900"
                         >
                             <div className="flex items-center justify-between mb-2 sm:mb-3">
@@ -132,7 +129,7 @@ export function HomePageClient({ initialData }: HomePageClientProps) {
                                     <span>{news.comments}</span>
                                 </div>
                             </div>
-                        </a>
+                        </Link>
                     ))}
                 </div>
             </section>

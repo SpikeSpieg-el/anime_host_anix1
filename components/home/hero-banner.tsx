@@ -11,8 +11,8 @@ import {
 } from "@/components/ui/dialog"
 import { useState, useRef, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { HeroBannerSkeleton } from "@/components/skeleton"
-import { useBookmarks } from "@/components/bookmarks-provider"
+import { HeroBannerSkeleton } from "@/components/shared/skeleton"
+import { useBookmarks } from "@/components/providers/bookmarks-provider"
 import { RecommendationReason } from "@/lib/shikimori/types"
 import { cn } from "@/lib/utils"
 

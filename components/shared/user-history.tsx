@@ -4,8 +4,8 @@ import Link from "next/link"
 import Image from "next/image"
 import { Clock, Search, History, ChevronRight } from "lucide-react"
 import { useEpisodeUpdates } from "@/hooks/use-episode-updates"
-import { useHistory } from "@/components/history-provider"
-import { HistorySkeleton } from "@/components/skeleton"
+import { useHistory } from "@/components/providers/history-provider"
+import { HistorySkeleton } from "@/components/shared/skeleton"
 
 // Helper function for dynamic episode/series text
 const getEpisodeText = (count: number): string => {

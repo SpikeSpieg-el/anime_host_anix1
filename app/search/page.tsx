@@ -1,10 +1,10 @@
-import { Navbar } from "@/components/navbar"
-import { AnimeCard } from "@/components/anime-card"
+import { Navbar } from "@/components/layout/navbar"
+import { AnimeCard } from "@/components/shared/anime-card"
 import { searchAnime, Anime } from "@/lib/shikimori"
 import { SearchX } from "lucide-react"
 import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
-import { ScrollToTop } from "@/components/scroll-to-top"
+import { ScrollToTop } from "@/components/layout/scroll-to-top"
 
 async function getUserProfile() {
   try {

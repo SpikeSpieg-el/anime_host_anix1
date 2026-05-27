@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import { AlertCircle, ExternalLink, Search, Play } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { PlayerLoading } from "@/components/player-loading"
+import { PlayerLoading } from "@/components/watch/player-loading"
 
 interface BackupPlayerProps {
   title: string

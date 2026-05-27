@@ -1,6 +1,6 @@
 "use client"
 
-import { useHistory } from "@/components/history-provider"
+import { useHistory } from "@/components/providers/history-provider"
 
 type WatchHistoryItem = {
   id: string

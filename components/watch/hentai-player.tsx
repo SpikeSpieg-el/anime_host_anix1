@@ -8,7 +8,7 @@ import { getHentaiPlaylist } from "@/lib/hentai-actions"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { Slider } from "@/components/ui/slider"
-import { useAuth } from "@/components/auth-provider"
+import { useAuth } from "@/components/auth/auth-provider"
 
 interface HentaiPlayerProps {
 title: string

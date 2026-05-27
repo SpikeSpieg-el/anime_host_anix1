@@ -1,15 +1,15 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { AnimeCard } from "@/components/anime-card"
-import { useBookmarks } from "@/components/bookmarks-provider"
+import { AnimeCard } from "@/components/shared/anime-card"
+import { useBookmarks } from "@/components/providers/bookmarks-provider"
 import { useEpisodeUpdates } from "@/hooks/use-episode-updates"
-import { Navbar } from "@/components/navbar"
-import { Footer } from "@/components/footer"
+import { Navbar } from "@/components/layout/navbar"
+import { Footer } from "@/components/layout/footer"
 import Link from "next/link"
 import { Bookmark, ArrowLeft, ArrowUpDown } from "lucide-react"
-import { ScrollToTop } from "@/components/scroll-to-top"
-import { BookmarksSkeleton } from "@/components/skeleton"
+import { ScrollToTop } from "@/components/layout/scroll-to-top"
+import { BookmarksSkeleton } from "@/components/shared/skeleton"
 
 export default function BookmarksPage() {
   const { items, isLoading } = useBookmarks()

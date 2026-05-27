@@ -1,7 +1,7 @@
 "use client"
 
 import { useTVMode } from '@/hooks/use-tv-mode'
-import { TVCatalogPage } from './tv-catalog-page'
+import { TVCatalogPage } from '@/components/tv/tv-catalog-page'
 import { CatalogClient } from './catalog-client'
 import type { CatalogFilters } from '@/lib/shikimori'
 

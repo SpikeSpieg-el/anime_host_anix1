@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 import { getMarketAuth } from "@/app/api/market/_auth"
 import { computeMinListingPrice, computeMaxListingPrice } from "@/lib/market-floor"
 import type { Rarity } from "@/types/gacha"
-import { getModifiersCost, applyModifierStats } from "@/components/card-modifiers"
+import { getModifiersCost, applyModifierStats } from "@/components/gacha/card-modifiers"
 
 export async function POST(request: Request) {
   const auth = await getMarketAuth(request)

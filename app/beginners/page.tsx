@@ -43,9 +43,9 @@ import {
   Smartphone,
   HardDrive
 } from "lucide-react"
-import { Navbar } from "@/components/navbar"
-import { Footer } from "@/components/footer"
-import { ScrollToTop } from "@/components/scroll-to-top"
+import { Navbar } from "@/components/layout/navbar"
+import { Footer } from "@/components/layout/footer"
+import { ScrollToTop } from "@/components/layout/scroll-to-top"
 
 const navItems = [
   { id: "icons", label: "Значки", icon: BadgeCheck },

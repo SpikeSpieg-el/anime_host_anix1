@@ -5,10 +5,17 @@ import Image from "next/image"
 import { X, RefreshCcw, Sparkles, Loader2, Check } from "lucide-react"
 import type { Card } from "@/app/gacha/page"
 import { useDust } from "@/hooks/use-dust"
-import { useAuth } from "@/components/auth-provider"
+import { useAuth } from "@/components/auth/auth-provider"
 import { supabase } from "@/lib/supabase"
 
 const ART_CHANGE_COST = 50
+
+const isPinterestUrl = (url: string) => url.includes('i.pinimg.com') || url.includes('pinimg.com');
+const getProxiedSrc = (url: string) => {
+  if (!url) return url;
+  if (isPinterestUrl(url)) return `/api/image-proxy?url=${encodeURIComponent(url)}`;
+  return url;
+};
 
 interface ChangeArtModalProps {
   card: Card | null
@@ -294,9 +301,10 @@ export function ChangeArtModal({ card, onClose, onArtChanged, dust, refreshDust:
             <p className="text-xs text-slate-500 uppercase tracking-wider mb-2 text-center">Текущий</p>
             <div className="aspect-[2/3] rounded-xl overflow-hidden border border-slate-700 bg-slate-900 relative">
               <Image
-                src={card.imageUrl}
+                src={getProxiedSrc(card.imageUrl)}
                 alt="Current art"
                 fill
+                unoptimized={isPinterestUrl(card.imageUrl)}
                 className="object-cover"
                 sizes="(max-width: 640px) 50vw, 33vw"
                 quality={60}

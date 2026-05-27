@@ -2,12 +2,12 @@
 
 import { useState, useEffect, useMemo, useRef } from "react"
 import { Anime } from "@/lib/shikimori"
-import { AnimeCard } from "@/components/anime-card"
-import { ScheduleSkeleton } from "@/components/skeleton"
+import { AnimeCard } from "@/components/shared/anime-card"
+import { ScheduleSkeleton } from "@/components/shared/skeleton"
 import { Calendar, Clock, AlertCircle, ArrowLeft, Filter, Bookmark } from "lucide-react"
 import { cn } from "@/lib/utils"
 import Link from "next/link"
-import { useBookmarks } from "@/components/bookmarks-provider"
+import { useBookmarks } from "@/components/providers/bookmarks-provider"
 
 interface ScheduleClientProps {
   schedule: { [key: number]: Anime[] }

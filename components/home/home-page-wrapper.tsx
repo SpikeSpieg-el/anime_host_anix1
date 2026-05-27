@@ -1,11 +1,11 @@
 "use client"
 
 import { useTVMode } from '@/hooks/use-tv-mode'
-import { TVHomePage } from './tv-home-page'
-import { Navbar } from './navbar'
-import { FloatingNav } from './floating-nav'
+import { TVHomePage } from '@/components/tv/tv-home-page'
+import { Navbar } from '@/components/layout/navbar'
+import { FloatingNav } from '@/components/layout/floating-nav'
 import { HeroBanner } from './hero-banner'
-import { HeroBannerSkeleton } from './skeleton'
+import { HeroBannerSkeleton } from '@/components/shared/skeleton'
 import { HomePageClient } from './home-client'
 import type { Anime, RecommendationReason } from '@/lib/shikimori'
 

@@ -1,9 +1,9 @@
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
-import { PlayerLoading } from "@/components/player-loading"
+import { PlayerLoading } from "@/components/watch/player-loading"
 import { AlertCircle } from "lucide-react"
-import { RegionDetector } from "@/components/region-detector"
+import { RegionDetector } from "@/components/providers/region-detector"
 
 interface KodikPlayerProps {
   shikimoriId: string

@@ -3,7 +3,7 @@
 import { useEffect, useState, useTransition } from "react"
 import { Users, Eye, Bookmark, User, Search, LogOut, Lock } from "lucide-react"
 import Image from "next/image"
-import { ScrollToTop } from "@/components/scroll-to-top"
+import { ScrollToTop } from "@/components/layout/scroll-to-top"
 import { adminLogin, adminLogout, checkAdminAuth, getAdminUsers } from "./actions"
 
 interface UserProfile {

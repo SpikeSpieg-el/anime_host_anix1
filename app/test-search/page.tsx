@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { SearchSuggestions } from "@/components/search-suggestions"
+import { SearchSuggestions } from "@/components/catalog/search-suggestions"
 
 export default function SearchTestPage() {
   const [searchValue, setSearchValue] = useState("")

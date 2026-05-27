@@ -1,10 +1,10 @@
-import { Navbar } from "@/components/navbar"
-import { CatalogPageWrapper } from "@/components/catalog-page-wrapper"
+import { Navbar } from "@/components/layout/navbar"
+import { CatalogPageWrapper } from "@/components/catalog/catalog-page-wrapper"
 import { CatalogFilters } from "@/lib/shikimori"
 import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
-import { Footer } from "@/components/footer"
-import { ScrollToTop } from "@/components/scroll-to-top"
+import { Footer } from "@/components/layout/footer"
+import { ScrollToTop } from "@/components/layout/scroll-to-top"
 import type { Metadata } from "next"
 
 async function getUserProfile() {

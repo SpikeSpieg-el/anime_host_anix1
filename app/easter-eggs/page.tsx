@@ -1,10 +1,10 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Navbar } from "@/components/navbar"
+import { Navbar } from "@/components/layout/navbar"
 import { easterEggs, type EasterEgg } from "@/lib/easter-eggs"
 import { Sparkles, Skull, Moon, Music, BookOpen, ClipboardList, Zap, Heart, Terminal, AlertTriangle, ExternalLink, CloudRain, Ghost, Bug, Wand2, Flame } from "lucide-react"
-import { FloatingNav } from "@/components/floating-nav"
+import { FloatingNav } from "@/components/layout/floating-nav"
 import { toast } from "sonner"
 
 const commandIcons: Record<string, React.ElementType> = {

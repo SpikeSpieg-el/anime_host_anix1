@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react"
 import { Zap, ChevronRight, PlayCircle, Star } from "lucide-react"
-import { AuthModal } from "@/components/auth-modal"
+import { AuthModal } from "@/components/auth/auth-modal"
 
 // Вспомогательный компонент для скрытия заголовка (для a11y)
 const VisuallyHidden = ({ children }: { children: React.ReactNode }) => (

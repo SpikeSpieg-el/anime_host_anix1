@@ -4,7 +4,7 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useEpisodeUpdates } from "@/hooks/use-episode-updates"
-import { useBookmarks } from "@/components/bookmarks-provider"
+import { useBookmarks } from "@/components/providers/bookmarks-provider"
 import { Play, RefreshCw, Trash2 } from "lucide-react"
 
 export function EpisodeUpdateDemo() {

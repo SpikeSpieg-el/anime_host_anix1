@@ -1,8 +1,8 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { AnimeCard } from '@/components/anime-card'
-import { GridSkeleton, CatalogFiltersSkeleton, NavbarSkeleton, FooterSkeleton, MobileNavSkeleton } from '@/components/skeleton'
+import { AnimeCard } from '@/components/shared/anime-card'
+import { GridSkeleton, CatalogFiltersSkeleton, NavbarSkeleton, FooterSkeleton, MobileNavSkeleton } from '@/components/shared/skeleton'
 import type { Anime, CatalogFilters } from '@/lib/shikimori'
 import { GENRES_MAP } from '@/lib/shikimori'
 import { fetchAnimeData } from '@/app/catalog/actions'
@@ -13,7 +13,7 @@ import { Input } from '@/components/ui/input'
 import { Search, Filter, Loader2, X, RotateCcw, LayoutGrid, Grid3x3, Table, ArrowLeft } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import { useAuth } from '@/components/auth-provider'
+import { useAuth } from '@/components/auth/auth-provider'
 
 // ... (Ваши константы OPTIONS остаются без изменений)
 const ORDER_OPTIONS = [

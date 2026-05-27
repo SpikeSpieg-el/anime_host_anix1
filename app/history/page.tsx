@@ -4,12 +4,12 @@ import { useEffect, useState, useMemo } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import { Clock, History, Trash2, ArrowLeft, Archive, Filter, X, AlertTriangle, Check, Trash, CheckSquare } from "lucide-react"
-import { Navbar } from "@/components/navbar"
-import { Footer } from "@/components/footer"
+import { Navbar } from "@/components/layout/navbar"
+import { Footer } from "@/components/layout/footer"
 import { useEpisodeUpdates } from "@/hooks/use-episode-updates"
-import { useHistory } from "@/components/history-provider"
-import { ScrollToTop } from "@/components/scroll-to-top"
-import { HistorySkeleton } from "@/components/skeleton"
+import { useHistory } from "@/components/providers/history-provider"
+import { ScrollToTop } from "@/components/layout/scroll-to-top"
+import { HistorySkeleton } from "@/components/shared/skeleton"
 import {
   AlertDialog,
   AlertDialogAction,

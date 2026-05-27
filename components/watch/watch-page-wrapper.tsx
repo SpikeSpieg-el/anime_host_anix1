@@ -1,7 +1,7 @@
 "use client"
 
 import { useTVMode } from '@/hooks/use-tv-mode'
-import { TVWatchPage } from './tv-watch-page'
+import { TVWatchPage } from '@/components/tv/tv-watch-page'
 import { WatchPageClient } from './watch-page-client'
 import type { Anime } from '@/lib/shikimori'
 

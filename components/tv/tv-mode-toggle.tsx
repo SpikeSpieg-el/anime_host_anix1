@@ -2,7 +2,7 @@
 
 import { Tv, Monitor } from 'lucide-react'
 import { useTVMode } from '@/hooks/use-tv-mode'
-import { Button } from './ui/button'
+import { Button } from '@/components/ui/button'
 
 export function TVModeToggle() {
   const { isTVMode, toggleTVMode } = useTVMode()

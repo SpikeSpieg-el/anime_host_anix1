@@ -1,14 +1,14 @@
 "use client"
 
 import { useTVMode } from '@/hooks/use-tv-mode'
-import { TVWatchPage } from './tv-watch-page'
-import { Navbar } from './navbar'
-import { Footer } from './footer'
+import { TVWatchPage } from '@/components/tv/tv-watch-page'
+import { Navbar } from '@/components/layout/navbar'
+import { Footer } from '@/components/layout/footer'
 import { WatchPageClient } from './watch-page-client'
 import type { Anime, FranchiseItem } from '@/lib/shikimori'
 import Image from 'next/image'
 import Link from 'next/link'
-import { TextSkeleton } from './skeleton'
+import { TextSkeleton } from '@/components/shared/skeleton'
 
 interface WatchPageLayoutWrapperProps {
   anime: Anime

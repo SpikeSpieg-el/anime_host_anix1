@@ -1,11 +1,11 @@
 import { notFound } from "next/navigation"
-import { Navbar } from "@/components/navbar"
+import { Navbar } from "@/components/layout/navbar"
 import { getAnimeById, getAnimeFranchise } from "@/lib/shikimori"
 import dynamic from "next/dynamic"
-import { WatchPageHeaderSkeleton, PlayerSkeleton, EpisodeSelectorSkeleton, TextSkeleton } from "@/components/skeleton"
+import { WatchPageHeaderSkeleton, PlayerSkeleton, EpisodeSelectorSkeleton, TextSkeleton } from "@/components/shared/skeleton"
 import type { Metadata } from "next"
 
-const WatchPageLayoutWrapper = dynamic(() => import("@/components/watch-page-layout-wrapper").then(mod => ({ default: mod.WatchPageLayoutWrapper })), {
+const WatchPageLayoutWrapper = dynamic(() => import("@/components/watch/watch-page-layout-wrapper").then(mod => ({ default: mod.WatchPageLayoutWrapper })), {
   loading: () => (
     <div className="min-h-screen bg-background text-foreground">
       <Navbar />

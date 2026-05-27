@@ -7,9 +7,9 @@ import { Sparkles, Film, Timer, Hourglass, Loader2, AlertCircle, RefreshCcw, Boo
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { searchAnime, type Anime } from "@/lib/shikimori"
-import { useBookmarks } from "@/components/bookmarks-provider"
-import { useAuth } from "@/components/auth-provider"
-import { PreferenceSurvey } from "@/components/preference-survey"
+import { useBookmarks } from "@/components/providers/bookmarks-provider"
+import { useAuth } from "@/components/auth/auth-provider"
+import { PreferenceSurvey } from "@/components/shared/preference-survey"
 
 // --- ТИПЫ ДАННЫХ ---
 interface AiResponseItem {

@@ -1,7 +1,7 @@
 "use client"
 
-import { GachaLoading } from "@/components/gacha-loading"
-import { CollectionCardSkeleton } from "@/components/collection-skeleton"
+import { GachaLoading } from "@/components/gacha/gacha-loading"
+import { CollectionCardSkeleton } from "@/components/gacha/collection-skeleton"
 import { Package, Coins } from "lucide-react"
 
 export default function GachaLoadingPage() {

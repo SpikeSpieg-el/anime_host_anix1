@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { useAuth } from '@/components/auth-provider'
+import { useAuth } from '@/components/auth/auth-provider'
 import { supabase } from '@/lib/supabase'
 
 const DUST_STORAGE_KEY = 'gacha-dust'

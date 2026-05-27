@@ -5,9 +5,9 @@ import Image from "next/image"
 import { Loader2, ShoppingCart, XCircle, Store, RefreshCcw, ZoomIn, ExternalLink, X, Trash, Crown, Star, Filter, ChevronDown, Search } from "lucide-react"
 import type { Card } from "@/app/gacha/page"
 import { rarityConfig, type Rarity } from "@/types/gacha"
-import { useAuth } from "@/components/auth-provider"
+import { useAuth } from "@/components/auth/auth-provider"
 import { supabase } from "@/lib/supabase"
-import { frameNames, coatingNames, FrameOverlay, CoatingOverlay } from "@/components/card-modifiers"
+import { frameNames, coatingNames, FrameOverlay, CoatingOverlay } from "@/components/gacha/card-modifiers"
 
 type MarketListingApi = {
   listingId: string
@@ -26,6 +26,13 @@ type MarketFilters = {
   anime: string
   isMainCharacter: boolean | null
 }
+
+const isPinterestUrl = (url: string) => url.includes('i.pinimg.com') || url.includes('pinimg.com');
+const getProxiedSrc = (url: string) => {
+  if (!url) return url;
+  if (isPinterestUrl(url)) return `/api/image-proxy?url=${encodeURIComponent(url)}`;
+  return url;
+};
 
 function getTopStat(stats: { hp: number; atk: number; def: number; spd: number; luck: number }): {
   key: keyof typeof statLabels
@@ -210,7 +217,7 @@ const InteractiveCard = ({ card, forceFlipped = false }: { card: MarketListingAp
         style={{ backfaceVisibility: "hidden" }}
       >
         <Image 
-          src={card.imageUrl} 
+          src={getProxiedSrc(card.imageUrl)} 
           alt={card.name}
           unoptimized={true}
           className="absolute inset-0 w-full h-full object-cover scale-[1.02]"
@@ -777,9 +784,10 @@ export function GachaMarketPanel({
               >
                 <div className="aspect-[2/3] relative w-full cursor-pointer" onClick={() => setViewedCard(L)}>
                   <Image
-                    src={c.imageUrl}
+                    src={getProxiedSrc(c.imageUrl)}
                     alt={c.name}
                     fill
+                    unoptimized={isPinterestUrl(c.imageUrl)}
                     className="object-cover group-hover:scale-105 transition-transform duration-500 ease-out"
                     sizes="(max-width: 640px) 45vw, 18vw"
                     quality={50}

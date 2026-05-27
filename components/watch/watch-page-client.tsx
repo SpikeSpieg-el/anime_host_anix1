@@ -18,14 +18,14 @@ import {
   ArrowUp,
 } from "lucide-react"
 import type { Anime } from "@/lib/shikimori"
-import { KodikPlayer } from "@/components/kodik-player"
-import { BackupPlayer } from "@/components/backup-player"
-import { HentaiPlayer } from "@/components/hentai-player"
-import { EpisodeSelector } from "@/components/episode-selector"
-import { RegionWarning } from "@/components/region-warning"
-import { recordWatchStart } from "@/components/history-tracker"
+import { KodikPlayer } from "@/components/watch/kodik-player"
+import { BackupPlayer } from "@/components/watch/backup-player"
+import { HentaiPlayer } from "@/components/watch/hentai-player"
+import { EpisodeSelector } from "@/components/watch/episode-selector"
+import { RegionWarning } from "@/components/shared/region-warning"
+import { recordWatchStart } from "@/components/providers/history-tracker"
 import { Button } from "@/components/ui/button"
-import { useBookmarks } from "@/components/bookmarks-provider"
+import { useBookmarks } from "@/components/providers/bookmarks-provider"
 import {
   Dialog,
   DialogContent,
@@ -35,8 +35,8 @@ import {
   DialogDescription
 } from "@/components/ui/dialog"
 import { isHentaiContent } from "@/lib/hentai-detector"
-import { WatchPageGallery } from "@/components/watch-page-gallery"
-import { FloatingNav } from "@/components/floating-nav"
+import { WatchPageGallery } from "@/components/watch/watch-page-gallery"
+import { FloatingNav } from "@/components/layout/floating-nav"
 import { cn } from "@/lib/utils"
 
 interface WatchPageClientProps {

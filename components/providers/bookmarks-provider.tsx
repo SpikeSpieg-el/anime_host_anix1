@@ -3,7 +3,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState, useRef } from "react"
 import type { Anime } from "@/lib/shikimori"
 import { supabase } from "@/lib/supabase"
-import { useAuth } from "@/components/auth-provider"
+import { useAuth } from "@/components/auth/auth-provider"
 import { loggers } from "@/lib/logger"
 
 type BookmarkAnime = Anime & {
