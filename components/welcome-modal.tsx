@@ -19,6 +19,39 @@ const customStyles = `
   .animate-slow-zoom {
     animation: slow-zoom 20s infinite alternate ease-in-out;
   }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  @media (max-height: 720px) {
+    .welcome-card-content {
+      padding: 1rem !important;
+    }
+    .welcome-logo-container {
+      padding-top: 0.25rem !important;
+    }
+    .welcome-text-container {
+      margin-top: 0.5rem !important;
+    }
+    .welcome-text-container > * + * {
+      margin-top: 0.5rem !important;
+    }
+    .welcome-features-container {
+      margin-top: 0.5rem !important;
+    }
+    .welcome-features-container > * + * {
+      margin-top: 0.35rem !important;
+    }
+    .welcome-features-container > div {
+      padding: 0.5rem 0.75rem !important;
+    }
+    .welcome-text-container button {
+      height: 2.75rem !important;
+    }
+  }
 `
 
 // --- Класс Частицы ---
@@ -153,7 +186,7 @@ export function WelcomeModal() {
       >
         {/* Сама карточка модалки */}
         <div 
-          className={`relative w-full h-[95vh] sm:h-[90vh] md:h-[85vh] lg:h-[80vh] max-w-[95vw] sm:max-w-[420px] md:max-w-[450px] lg:max-w-[480px] bg-card rounded-[1.5rem] sm:rounded-[2rem] overflow-hidden shadow-2xl border border-border transition-all duration-500 ease-out transform ${
+          className={`relative w-full h-auto max-h-[95vh] sm:max-h-[90vh] md:max-h-[85vh] lg:max-h-[80vh] max-w-[95vw] sm:max-w-[420px] md:max-w-[450px] lg:max-w-[480px] bg-card rounded-[1.5rem] sm:rounded-[2rem] overflow-y-auto no-scrollbar shadow-2xl border border-border transition-all duration-500 ease-out transform ${
             isOpen ? "scale-100 opacity-100" : "scale-95 opacity-0"
           }`}
         >
@@ -181,10 +214,10 @@ export function WelcomeModal() {
           </div>
 
           {/* --- КОНТЕНТ --- */}
-          <div className="relative z-20 flex flex-col justify-between h-full p-4 sm:p-6 md:p-8">
+          <div className="relative z-20 flex flex-col justify-between min-h-full p-4 sm:p-6 md:p-8 welcome-card-content">
             
             {/* Логотип */}
-            <div className="flex justify-center pt-2 sm:pt-4">
+            <div className="flex justify-center pt-2 sm:pt-4 welcome-logo-container">
               <div className="relative group cursor-default">
                 {/* Свечение */}
                 <div className="absolute -inset-1 bg-gradient-to-r from-orange-600 to-purple-600 rounded-xl blur opacity-20 group-hover:opacity-40 transition duration-1000" />
@@ -197,7 +230,7 @@ export function WelcomeModal() {
             </div>
 
             {/* Текст и кнопки */}
-            <div className="flex flex-col items-center text-center space-y-6 sm:space-y-8 pb-2 sm:pb-4">
+            <div className="flex flex-col items-center text-center space-y-6 sm:space-y-8 pb-2 sm:pb-4 welcome-text-container">
               
               {/* Заголовки */}
               <div className="space-y-2 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-100">
@@ -210,7 +243,7 @@ export function WelcomeModal() {
               </div>
 
               {/* Преимущества (Список) */}
-              <div className="w-full space-y-2.5 sm:space-y-3 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-200">
+              <div className="w-full space-y-2.5 sm:space-y-3 welcome-features-container animate-in fade-in slide-in-from-bottom-4 duration-700 delay-200">
                 {/* Карточка 1 */}
                 <div className="flex items-center gap-3 sm:gap-4 bg-muted/5 border border-border p-3 sm:p-3.5 rounded-2xl backdrop-blur-sm hover:bg-muted/10 transition-colors cursor-default group">
                   <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-orange-500/10 flex items-center justify-center shrink-0 border border-orange-500/20">

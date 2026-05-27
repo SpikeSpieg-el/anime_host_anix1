@@ -6,12 +6,11 @@ import { useState, useEffect, useMemo, useRef } from "react"
 import {
   Flame, Tv, Compass, Home, BookMarked, History, Calendar,
   Settings, GraduationCap, LogOut, Search, MoreHorizontal, X, ArrowUp,
-  Sparkles, Coins, Swords
+  Sparkles, Swords
 } from "lucide-react"
 import { SearchSuggestions } from "@/components/search-suggestions"
 import { EpisodeUpdateBadge } from "@/components/episode-update-badge"
 import { useEpisodeUpdates } from "@/hooks/use-episode-updates"
-import { useCoins } from "@/hooks/use-coins"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/components/auth-provider"
 import { AuthModal } from "@/components/auth-modal"
@@ -50,7 +49,6 @@ export function Navbar() {
   const pathname = usePathname()
   const { user, signOut, profile } = useAuth()
   const { updates, clearUpdate, clearAllUpdates } = useEpisodeUpdates()
-  const { coins: userCoins, loading: coinsLoading } = useCoins()
 
   // Состояния
   const [searchValue, setSearchValue] = useState("")
@@ -281,21 +279,6 @@ export function Navbar() {
                     </div>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  {/* Показатель монет */}
-                  <div className="px-3 py-2">
-                    <div className="flex items-center gap-2 bg-yellow-500/10 rounded-lg px-3 py-2 border border-yellow-500/20">
-                      <Coins className="w-5 h-5 text-yellow-500" />
-                      <div className="flex flex-col">
-                        <span className="text-xs text-muted-foreground font-medium">Монеты</span>
-                        {coinsLoading ? (
-                          <span className="text-lg font-black text-yellow-500 leading-none animate-pulse">...</span>
-                        ) : (
-                          <span className="text-lg font-black text-yellow-500 leading-none">{userCoins}</span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                  {/* Кнопка перехода в Гачу */}
                   <DropdownMenuItem asChild>
                     <Link href="/gacha" className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-accent transition text-sm font-medium text-purple-500 hover:text-purple-600">
                       <Sparkles size={14} /> Гача

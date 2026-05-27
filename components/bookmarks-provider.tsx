@@ -1,6 +1,6 @@
 "use client"
 
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react"
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState, useRef } from "react"
 import type { Anime } from "@/lib/shikimori"
 import { supabase } from "@/lib/supabase"
 import { useAuth } from "@/components/auth-provider"
@@ -39,6 +39,7 @@ function safeParseBookmarks(raw: string | null): BookmarkAnime[] {
 export function BookmarksProvider({ children }: { children: React.ReactNode }) {
   const [items, setItems] = useState<BookmarkAnime[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const abortControllerRef = useRef<AbortController | null>(null)
   const { user } = useAuth() // Получаем юзера
 
   // 1. Загрузка данных
@@ -48,15 +49,23 @@ export function BookmarksProvider({ children }: { children: React.ReactNode }) {
     async function fetchBookmarks() {
       if (!isMounted) return
       
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort()
+      }
+      abortControllerRef.current = new AbortController()
+      const signal = abortControllerRef.current.signal
+
       setIsLoading(true)
       try {
         if (user) {
           // Если залогинен - берем из Supabase
+          if (signal.aborted) return
           const { data } = await supabase
             .from('bookmarks')
             .select('anime_data, is_completed, created_at')
             .eq('user_id', user.id)
           
+          if (signal.aborted) return
           if (data && isMounted) {
             const remoteItems = data.map((row: any) => ({
               ...row.anime_data,
@@ -71,6 +80,10 @@ export function BookmarksProvider({ children }: { children: React.ReactNode }) {
             setItems(safeParseBookmarks(window.localStorage.getItem(STORAGE_KEY)))
           }
         }
+      } catch (err: any) {
+        if (err.name !== 'AbortError') {
+          console.error('[BookmarksProvider] Error fetching bookmarks:', err)
+        }
       } finally {
         if (isMounted) {
           setIsLoading(false)
@@ -80,13 +93,27 @@ export function BookmarksProvider({ children }: { children: React.ReactNode }) {
 
     fetchBookmarks()
     
+    const handleFocus = () => {
+      if (document.visibilityState === "visible") {
+        fetchBookmarks()
+      }
+    }
+
+    document.addEventListener("visibilitychange", handleFocus)
+    window.addEventListener("focus", handleFocus)
+    
     // Слушаем событие синхронизации после входа
     window.addEventListener("auth-synced", fetchBookmarks)
     return () => {
       isMounted = false
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort()
+      }
+      document.removeEventListener("visibilitychange", handleFocus)
+      window.removeEventListener("focus", handleFocus)
       window.removeEventListener("auth-synced", fetchBookmarks)
     }
-  }, [user])
+  }, [user?.id])
 
   // 2. Сохранение (LocalStorage для гостей + cookie для сервера)
   useEffect(() => {
@@ -96,7 +123,7 @@ export function BookmarksProvider({ children }: { children: React.ReactNode }) {
     // Синхронизируем ID закладок в cookies для сервера (и гости, и залогиненные) — чтобы «Для вас» их исключал
     const bookmarkIds = items.map((a) => a.id).join(",")
     document.cookie = `bookmark_ids=${bookmarkIds}; path=/; max-age=31536000; SameSite=Lax`
-  }, [items, user])
+  }, [items, user?.id])
 
   const isSaved = useCallback(
     (id: string) => {
@@ -126,7 +153,7 @@ export function BookmarksProvider({ children }: { children: React.ReactNode }) {
         }
       }
     }
-  }, [user])
+  }, [user?.id])
 
   const remove = useCallback(async (id: string) => {
     setItems((prev) => prev.filter((a) => a.id !== id))
@@ -138,7 +165,7 @@ export function BookmarksProvider({ children }: { children: React.ReactNode }) {
         loggers.bookmarks.error('Failed to remove bookmark', error)
       }
     }
-  }, [user])
+  }, [user?.id])
 
   const toggle = useCallback(async (anime: BookmarkAnime) => {
     let isAdded = false
@@ -168,7 +195,7 @@ export function BookmarksProvider({ children }: { children: React.ReactNode }) {
         }
       }
     }
-  }, [user])
+  }, [user?.id])
 
   const toggleCompleted = useCallback(async (id: string) => {
     setItems((prev) => 
@@ -200,7 +227,7 @@ export function BookmarksProvider({ children }: { children: React.ReactNode }) {
         }
       }
     }
-  }, [user, items])
+  }, [user?.id, items])
 
   const value = useMemo<BookmarksContextValue>(() => ({ items, isLoading, isSaved, add, remove, toggle, toggleCompleted }), [items, isLoading, isSaved, add, remove, toggle, toggleCompleted])
 

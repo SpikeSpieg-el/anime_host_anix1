@@ -98,9 +98,9 @@ export function useDust() {
       if (result.success) {
         console.log('[useDust] Dust loaded from server:', result.dust)
         if (isMountedRef.current) {
-          setDust(result.dust || 0)
+          setDust(result.dust ?? 0)
           // Сохраняем в localStorage как кэш
-          localStorage.setItem(DUST_STORAGE_KEY, (result.dust || 0).toString())
+          localStorage.setItem(DUST_STORAGE_KEY, (result.dust ?? 0).toString())
           setLoading(false)
         }
         clearTimeout(loadingTimeout)
@@ -171,8 +171,8 @@ export function useDust() {
       if (result.success) {
         // Обновляем локальное состояние после успешной операции
         if (isMountedRef.current) {
-          setDust(result.newBalance || dust)
-          localStorage.setItem(DUST_STORAGE_KEY, (result.newBalance || dust).toString())
+          setDust(result.newBalance ?? dust)
+          localStorage.setItem(DUST_STORAGE_KEY, (result.newBalance ?? dust).toString())
         }
         console.log(`[useDust] Successfully added ${amount} dust`)
         return true
@@ -227,8 +227,8 @@ export function useDust() {
       if (result.success) {
         // Обновляем локальное состояние после успешной операции
         if (isMountedRef.current) {
-          setDust(result.newBalance || dust)
-          localStorage.setItem(DUST_STORAGE_KEY, (result.newBalance || dust).toString())
+          setDust(result.newBalance ?? dust)
+          localStorage.setItem(DUST_STORAGE_KEY, (result.newBalance ?? dust).toString())
         }
         console.log(`[useDust] Successfully spent ${amount} dust`)
         return true
@@ -251,6 +251,20 @@ export function useDust() {
   useEffect(() => {
     isMountedRef.current = true
     
+    // Слушаем событие переподключения Supabase (вызывается из lib/supabase.ts)
+    const handleSupabaseReconnect = () => {
+      if (!user) return
+      console.log('[useDust] Supabase reconnected, reloading dust...')
+      // Отменяем предыдущий запрос если он завис
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort()
+      }
+      isLoadingRef.current = false
+      loadDust()
+    }
+    
+    window.addEventListener('supabase-reconnected', handleSupabaseReconnect)
+    
     return () => {
       isMountedRef.current = false
       // Отменяем все pending запросы при размонтировании
@@ -258,8 +272,9 @@ export function useDust() {
         abortControllerRef.current.abort()
         abortControllerRef.current = null
       }
+      window.removeEventListener('supabase-reconnected', handleSupabaseReconnect)
     }
-  }, [])
+  }, [user, loadDust])
 
   // Слушаем изменения авторизации, но ждём пока authLoading !== true И sessionLoading !== true
   useEffect(() => {

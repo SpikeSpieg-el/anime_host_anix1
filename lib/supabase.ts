@@ -48,6 +48,9 @@ try {
         autoRefreshToken: true,
         detectSessionInUrl: true,
         flowType: 'pkce',
+        lock: async (name, acquireTimeout, fn) => {
+          return await fn()
+        },
       },
       db: {
         schema: 'public',
@@ -76,6 +79,39 @@ if (typeof window !== 'undefined') {
       event.preventDefault()
     }
   })
+  
+  // Механизм проверки и восстановления соединения при возврате на вкладку
+  let wasHidden = false
+  
+  const handleVisibilityChange = async () => {
+    if (document.visibilityState === 'visible' && wasHidden) {
+      console.log('[Supabase] Tab became visible after being hidden, checking connection...')
+      wasHidden = false
+      
+      try {
+        // Проверяем сессию
+        const { data: { session }, error } = await supabase.auth.getSession()
+        
+        if (error) {
+          console.error('[Supabase] Session check failed after tab focus:', error)
+          // Отправляем событие для переподключения
+          window.dispatchEvent(new CustomEvent('supabase-reconnect-needed'))
+        } else if (session) {
+          console.log('[Supabase] Session valid after tab focus')
+          // Отправляем событие для перезагрузки данных
+          window.dispatchEvent(new CustomEvent('supabase-reconnected'))
+        }
+      } catch (err) {
+        console.error('[Supabase] Error checking connection:', err)
+      }
+    } else if (document.visibilityState === 'hidden') {
+      wasHidden = true
+      console.log('[Supabase] Tab hidden, marking for reconnection check')
+    }
+  }
+  
+  document.addEventListener('visibilitychange', handleVisibilityChange)
+  window.addEventListener('focus', handleVisibilityChange)
 }
 
 // --- ФУНКЦИЯ ИСПРАВЛЕНИЯ ПЕРЕПОЛНЕНИЯ МОНЕТ ---

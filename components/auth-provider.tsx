@@ -204,9 +204,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setProfile(null)
       setProfileLoading(false)
     }
-  }, [user?.id, user, sessionLoading])
+  }, [user?.id, sessionLoading])
 
   useEffect(() => {
+    const checkSession = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        setSession(session)
+        setUser(session?.user ?? null)
+      } catch (err) {
+        console.error('[Auth] Failed to re-verify session on focus:', err)
+      }
+    }
+
     supabase.auth.getSession().then(({ data: { session } }: { data: { session: any } }) => {
       setSession(session)
       setUser(session?.user ?? null)
@@ -231,7 +241,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     })
 
-    return () => subscription.unsubscribe()
+    const handleFocus = () => {
+      if (document.visibilityState === "visible") {
+        console.log('[Auth] Tab became visible, checking session...')
+        checkSession()
+      }
+    }
+
+    document.addEventListener("visibilitychange", handleFocus)
+    window.addEventListener("focus", handleFocus)
+
+    return () => {
+      subscription.unsubscribe()
+      document.removeEventListener("visibilitychange", handleFocus)
+      window.removeEventListener("focus", handleFocus)
+    }
   }, [])
 
   const clearGuestLocalData = () => {

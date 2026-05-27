@@ -89,9 +89,9 @@ export function useCoins() {
         const data = await res.json()
         console.log('[useCoins] Coins loaded:', data.coins)
         if (isMountedRef.current) {
-          setCoins(data.coins || 10000)
+          setCoins(data.coins ?? 10000)
           // Сохраняем в localStorage как кэш
-          localStorage.setItem(COINS_STORAGE_KEY, data.coins.toString())
+          localStorage.setItem(COINS_STORAGE_KEY, (data.coins ?? 10000).toString())
           // Reset retry count on success
           retryCountRef.current = 0
           setLoading(false)
@@ -193,8 +193,8 @@ export function useCoins() {
       if (result.success) {
         // Обновляем локальное состояние после успешной операции
         if (isMountedRef.current) {
-          setCoins(result.newBalance || coins)
-          localStorage.setItem(COINS_STORAGE_KEY, (result.newBalance || coins).toString())
+          setCoins(result.newBalance ?? coins)
+          localStorage.setItem(COINS_STORAGE_KEY, (result.newBalance ?? coins).toString())
         }
         console.log(`[useCoins] Successfully spent ${amount} coins`)
         return true
@@ -242,8 +242,8 @@ export function useCoins() {
       if (result.success) {
         // Обновляем локальное состояние после успешной операции
         if (isMountedRef.current) {
-          setCoins(result.newBalance || coins)
-          localStorage.setItem(COINS_STORAGE_KEY, (result.newBalance || coins).toString())
+          setCoins(result.newBalance ?? coins)
+          localStorage.setItem(COINS_STORAGE_KEY, (result.newBalance ?? coins).toString())
         }
         console.log(`[useCoins] Successfully added ${amount} coins`)
         return true
@@ -266,6 +266,20 @@ export function useCoins() {
   useEffect(() => {
     isMountedRef.current = true
     
+    // Слушаем событие переподключения Supabase (вызывается из lib/supabase.ts)
+    const handleSupabaseReconnect = () => {
+      if (!user) return
+      console.log('[useCoins] Supabase reconnected, reloading coins...')
+      // Отменяем предыдущий запрос если он завис
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort()
+      }
+      isLoadingRef.current = false
+      loadCoins()
+    }
+    
+    window.addEventListener('supabase-reconnected', handleSupabaseReconnect)
+    
     return () => {
       isMountedRef.current = false
       // Отменяем все pending запросы при размонтировании
@@ -273,8 +287,9 @@ export function useCoins() {
         abortControllerRef.current.abort()
         abortControllerRef.current = null
       }
+      window.removeEventListener('supabase-reconnected', handleSupabaseReconnect)
     }
-  }, [])
+  }, [user, loadCoins])
 
   // Слушаем изменения авторизации, но ждём пока authLoading !== true И sessionLoading !== true
   useEffect(() => {
