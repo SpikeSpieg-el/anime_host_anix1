@@ -116,11 +116,47 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime, recommendationRea
   const anime = mode === 'top' ? topOfWeekAnime : recommendedAnime
   const saved = !!anime?.id && isSaved(String(anime.id))
 
+  // Auto-switch to top mode if recommended anime is not available
+  useEffect(() => {
+    if (mode === 'recommended' && !recommendedAnime && topOfWeekAnime) {
+      console.log('[HeroBanner] No recommendation available, switching to TOP mode')
+      setMode('top')
+    }
+  }, [mode, recommendedAnime, topOfWeekAnime])
+
   const hasHighQualityBackdrop = !!anime?.backdrop && !bgImageError;
   const bgImage = bgImageError ? generateFallbackPoster(anime?.title || 'Anime') : (anime?.backdrop || anime?.poster);
   const posterImage = posterImageError ? generateFallbackPoster(anime?.title || 'Anime') : anime?.poster;
 
-  if (!anime) return <HeroBannerSkeleton />
+  // Show skeleton only during initial load, not when recommendation is unavailable
+  if (!anime) {
+    // If we have no anime at all (neither top nor recommended), show skeleton
+    if (!topOfWeekAnime && !recommendedAnime) {
+      return <HeroBannerSkeleton />
+    }
+    // If we're in recommended mode but have no recommendation, show message
+    if (mode === 'recommended' && !recommendedAnime) {
+      return (
+        <div className="relative w-full min-h-[400px] lg:h-[600px] mb-8 lg:mb-12 overflow-hidden bg-background border-b border-border flex items-center justify-center">
+          <div className="text-center p-8">
+            <Sparkles className="w-12 h-12 text-muted-foreground mx-auto mb-4 opacity-50" />
+            <h3 className="text-xl font-bold text-foreground mb-2">Нет рекомендаций</h3>
+            <p className="text-muted-foreground text-sm max-w-md mb-4">
+              Чтобы получить персональные рекомендации, посмотрите несколько аниме или добавьте их в закладки
+            </p>
+            <button
+              onClick={() => setMode('top')}
+              className="px-4 py-2 bg-primary text-primary-foreground rounded-lg font-medium hover:bg-primary/90 transition-colors"
+            >
+              Показать топ аниме
+            </button>
+          </div>
+        </div>
+      )
+    }
+    // Fallback skeleton for any other case
+    return <HeroBannerSkeleton />
+  }
 
   // Адаптивный размер заголовка
   const getTitleClass = (title: string) => {
@@ -374,13 +410,17 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime, recommendationRea
               <div className="w-px h-4 bg-border mx-0.5 dark:bg-white/10"></div>
               <button
                 onClick={() => setMode('recommended')}
+                disabled={!recommendedAnime}
+                title={!recommendedAnime ? "Смотрите аниме, чтобы получить рекомендации" : ""}
                 className={`flex items-center gap-1.5 px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg text-[10px] sm:text-xs lg:text-sm font-black uppercase tracking-wider transition-all duration-300 ${
                   mode === 'recommended' 
                     ? 'bg-background text-foreground shadow-md scale-100 dark:bg-white dark:text-black' 
-                    : 'text-muted-foreground hover:text-foreground hover:bg-accent scale-95 dark:text-zinc-400 dark:hover:text-white dark:hover:bg-white/5'
+                    : !recommendedAnime
+                      ? 'text-muted-foreground/40 cursor-not-allowed scale-95 dark:text-zinc-600'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-accent scale-95 dark:text-zinc-400 dark:hover:text-white dark:hover:bg-white/5'
                 }`}
               >
-                <Sparkles size={14} className={mode === 'recommended' ? 'text-blue-500' : 'opacity-50'} />
+                <Sparkles size={14} className={mode === 'recommended' ? 'text-blue-500' : !recommendedAnime ? 'opacity-20' : 'opacity-50'} />
                 ДЛЯ ВАС
               </button>
             </div>

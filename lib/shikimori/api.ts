@@ -515,7 +515,21 @@ export async function getHeroRecommendation(
   }
 
   // 5. Возвращаем лучший вариант (баннер будет использовать постер как фон)
-  const bestCandidate = finalCandidates[0];
+  let bestCandidate = finalCandidates[0];
+  
+  // Fallback: если все кандидаты отфильтрованы (пользователь смотрел всё), 
+  // берем лучший из валидных кандидатов игнорируя exclude
+  if (!bestCandidate && validCandidates.length > 0) {
+    console.log('[HeroRec] All candidates excluded, using fallback (ignoring exclude list)');
+    bestCandidate = validCandidates[0];
+  }
+  
+  // Final fallback: если совсем ничего нет, берем первого из исходных кандидатов
+  if (!bestCandidate && candidates.length > 0) {
+    console.log('[HeroRec] No valid candidates, using first from candidates');
+    bestCandidate = candidates[0];
+  }
+  
   if (bestCandidate) {
     return {
       anime: bestCandidate,
