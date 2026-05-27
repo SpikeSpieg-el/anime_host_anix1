@@ -1,10 +1,10 @@
 "use client"
 
-import { useState, useEffect, useMemo, useRef } from "react"
+import { useState, useEffect, useMemo, useRef, useCallback } from "react"
 import { Anime } from "@/lib/shikimori"
 import { AnimeCard } from "@/components/shared/anime-card"
 import { ScheduleSkeleton } from "@/components/shared/skeleton"
-import { Calendar, Clock, AlertCircle, ArrowLeft, Filter, Bookmark } from "lucide-react"
+import { Calendar, Clock, AlertCircle, ArrowLeft, Filter, Bookmark, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import Link from "next/link"
 import { useBookmarks } from "@/components/providers/bookmarks-provider"
@@ -23,12 +23,94 @@ const DAY_NAMES = [
   { name: 'Суббота', short: 'Сб' },
 ]
 
-export function ScheduleClient({ schedule }: ScheduleClientProps) {
+// Collect all anime from schedule for poster fetching
+function getAllAnimeFromSchedule(schedule: { [key: number]: Anime[] }): Anime[] {
+  return Object.values(schedule).flat()
+}
+
+export function ScheduleClient({ schedule: initialSchedule }: ScheduleClientProps) {
   const [mounted, setMounted] = useState(false)
   const [selectedOffset, setSelectedOffset] = useState<number>(0)
   const [showBookmarksOnly, setShowBookmarksOnly] = useState<boolean>(false)
+  const [schedule, setSchedule] = useState(initialSchedule)
+  const [loadingPosters, setLoadingPosters] = useState(true)
   const scrollRef = useRef<HTMLDivElement>(null)
   const { items: bookmarks } = useBookmarks()
+  const postersFetchedRef = useRef(false)
+
+  // Load better posters in parallel after initial render
+  useEffect(() => {
+    if (postersFetchedRef.current) return
+    postersFetchedRef.current = true
+
+    const loadPosters = async () => {
+      try {
+        const allAnime = getAllAnimeFromSchedule(initialSchedule)
+        
+        // Prepare batch request for all anime
+        const posterRequests = allAnime.map(anime => ({
+          id: anime.id,
+          romajiName: anime.originalTitle,
+          russianName: anime.title,
+          shikimoriUrl: anime.poster
+        }))
+
+        console.log(`[ScheduleClient] Loading better posters for ${posterRequests.length} anime...`)
+        const startTime = Date.now()
+
+        const response = await fetch('/api/posters', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ animes: posterRequests })
+        })
+
+        if (!response.ok) {
+          console.error('[ScheduleClient] Failed to fetch posters:', response.status)
+          setLoadingPosters(false)
+          return
+        }
+
+        const { posters } = await response.json() as { posters: { id: string; poster: string }[] }
+        const duration = Date.now() - startTime
+
+        // Create a map for quick lookup
+        const posterMap = new Map(posters.map(p => [p.id, p.poster]))
+        
+        // Count how many posters actually changed
+        let updatedCount = 0
+        let sameCount = 0
+
+        // Update schedule with better posters
+        setSchedule(prevSchedule => {
+          const newSchedule: { [key: number]: Anime[] } = {}
+          
+          for (const [day, animes] of Object.entries(prevSchedule)) {
+            newSchedule[parseInt(day)] = animes.map(anime => {
+              const betterPoster = posterMap.get(anime.id)
+              if (betterPoster && betterPoster !== anime.poster) {
+                updatedCount++
+                return { ...anime, poster: betterPoster }
+              }
+              sameCount++
+              return anime
+            })
+          }
+          
+          return newSchedule
+        })
+        
+        console.log(`[ScheduleClient] Loaded ${posters.length} posters in ${duration}ms: ${updatedCount} updated, ${sameCount} unchanged (already good quality)`)
+      } catch (error) {
+        console.error('[ScheduleClient] Error loading posters:', error)
+      } finally {
+        setLoadingPosters(false)
+      }
+    }
+
+    // Start loading posters after a short delay to let the UI render first
+    const timer = setTimeout(loadPosters, 100)
+    return () => clearTimeout(timer)
+  }, [initialSchedule])
 
   // Генерируем данные для дней: -6 дней от сегодня ... Сегодня ... +6 дней
   const rollingDays = useMemo(() => {
@@ -109,6 +191,12 @@ export function ScheduleClient({ schedule }: ScheduleClientProps) {
           </h1>
           <p className="text-muted-foreground mt-2 text-sm md:text-base">
             График выхода серий: от прошлых к будущим
+            {loadingPosters && (
+              <span className="inline-flex items-center gap-1.5 ml-3 text-xs text-orange-500">
+                <Loader2 className="w-3 h-3 animate-spin" />
+                Загрузка постеров...
+              </span>
+            )}
           </p>
         </div>
         

@@ -1,8 +1,34 @@
 import { ShikimoriAnime, Anime, NewsItem } from "./types";
 import { resolveBestPoster } from "./images";
 import { SITE_URL } from "./config";
-import { normalizeShikimoriUrl } from "./utils";
+import { normalizeShikimoriUrl, upgradeShikimoriUrl } from "./utils";
 import { GenreFallbackService } from "../genre-fallback";
+
+/**
+ * Lightweight transform for calendar - uses only Shikimori poster without external API calls
+ * Client-side will fetch better posters in parallel
+ */
+export function transformAnimeCalendar(item: ShikimoriAnime): Anime {
+  // Use only Shikimori poster URL without external fetching
+  const posterUrl = upgradeShikimoriUrl(item.image?.original) || '';
+
+  return {
+    id: String(item.id),
+    shikimoriId: String(item.id),
+    title: item.russian || item.name,
+    originalTitle: item.name,
+    poster: posterUrl,
+    rating: parseFloat(item.score) || 0,
+    year: item.aired_on ? new Date(item.aired_on).getFullYear() : (new Date().getFullYear()),
+    airedOn: item.aired_on || undefined,
+    episodesCurrent: item.episodes_aired || 0,
+    episodesTotal: item.episodes || 0,
+    status: item.status === 'anons' ? 'Announcement' : item.status === 'ongoing' ? 'Ongoing' : 'Completed',
+    description: item.description?.replace(/\[.*?\]/g, "") || "Описание отсутствует...",
+    genres: item.genres?.map(g => g.russian).filter(Boolean) || [],
+    quality: item.kind?.toUpperCase() || "TV",
+  };
+}
 
 export async function transformAnime(item: ShikimoriAnime, enableGenreFallback: boolean = false, disableExternalAPIs: boolean = false): Promise<Anime> {
   const posterUrl = await resolveBestPoster(

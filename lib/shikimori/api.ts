@@ -1,6 +1,6 @@
 import { BASE_URL, HEADERS, GENRES_MAP } from "./config";
 import { shikimoriJson } from "./client";
-import { transformAnime, transformTopic } from "./transformers";
+import { transformAnime, transformTopic, transformAnimeCalendar } from "./transformers";
 import { getAnimeBackdrop } from "./images";
 import { generateSearchVariants, isAnimeSafe, normalizeShikimoriUrl, transliterateRuToEn, containsCyrillic } from "./utils";
 import { Anime, CatalogFilters, FranchiseItem, NewsItem, RecommendationReason, ShikimoriAnime, WeeklySchedule } from "./types";
@@ -304,19 +304,22 @@ export async function getNewsById(id: string): Promise<NewsItem | null> {
 
 export async function getAnimeCalendar(): Promise<WeeklySchedule> {
   console.log('[getAnimeCalendar] Starting fetch from Shikimori calendar API');
+  const startTime = Date.now();
   const data = await shikimoriJson<any[]>(`${BASE_URL}/calendar`, { next: { revalidate: 3600 } }, { fallback: [] });
   console.log('[getAnimeCalendar] Received data:', data.length, 'items');
   
   const schedule: WeeklySchedule = { 0: [], 1: [], 2: [], 3: [], 4: [], 5: [], 6: [] };
 
-  await Promise.all(data.map(async (item) => {
+  // Use lightweight synchronous transform - no external API calls
+  data.forEach((item) => {
     const day = (new Date(item.next_episode_at).getDay() + 6) % 7; // Сдвиг Вс(0)->6, Пн(1)->0
-    const anime = await transformAnime(item.anime);
+    const anime = transformAnimeCalendar(item.anime);
     anime.episodesCurrent = item.anime.episodes_aired;
     schedule[day].push(anime);
-  }));
+  });
   
-  console.log('[getAnimeCalendar] Final schedule:', Object.entries(schedule).map(([k, v]) => `${k}:${v.length}`).join(', '));
+  const duration = Date.now() - startTime;
+  console.log(`[getAnimeCalendar] Final schedule: ${Object.entries(schedule).map(([k, v]) => `${k}:${v.length}`).join(', ')} (loaded in ${duration}ms)`);
   return schedule;
 }
 
