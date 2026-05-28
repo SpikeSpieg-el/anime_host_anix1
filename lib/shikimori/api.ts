@@ -418,37 +418,48 @@ export async function getHeroRecommendation(
 ): Promise<{ anime: Anime | null; reason?: RecommendationReason }> {
   // 1. Создаем Set исключений (то, что юзер уже видел/отложил)
   const excludeSet = new Set([...watchedIds, ...bookmarkIds]);
-  console.log('[HeroRec] Exclusion set:', { watchedIds, bookmarkIds, excludeSetSize: excludeSet.size });
   
-  // Объединяем историю для анализа (берем последние 5, чтобы рекомендовать на основе свежих интересов)
-  const sourceIds = [...bookmarkIds, ...watchedIds].slice(0, 5);
-  console.log('[HeroRec] Source IDs for similarity:', sourceIds);
+  // Объединяем историю — последние взаимодействия наиболее релевантны
+  const historyPool = [...bookmarkIds, ...watchedIds].filter(Boolean);
   
   let candidates: Anime[] = [];
   let usedStrategy: 'similar' | 'trending' = 'trending';
   let sourceAnimeTitle: string | undefined;
 
-  // 2. СТРАТЕГИЯ A: "Похожее на любимое" (Если есть история)
-  if (sourceIds.length > 0) {
+  // 2. СТРАТЕГИЯ A: "Похожее на несколько аниме" (если есть история)
+  if (historyPool.length > 0) {
     try {
-      // Берем случайный ID из последних взаимодействий для разнообразия при каждом рефреше
-      const randomSourceId = sourceIds[Math.floor(Math.random() * sourceIds.length)];
-      
-      // Параллельно запрашиваем похожие и название исходного аниме
-      const [similarRaw, sourceAnime] = await Promise.all([
-        shikimoriJson<ShikimoriAnime[]>(
-          `${BASE_URL}/animes/${randomSourceId}/similar`, 
-          { next: { revalidate: 3600 } }, // Кешируем на час
-          { fallback: [] }
-        ),
-        getAnimeById(randomSourceId).catch(() => null), // Не блокируем если ошибка
-      ]);
+      // Берём до 3 случайных ID из истории (shuffle + slice)
+      const shuffled = [...historyPool].sort(() => Math.random() - 0.5);
+      const selectedIds = shuffled.slice(0, Math.min(3, shuffled.length));
 
-      // Трансформируем и фильтруем
-      if (similarRaw.length > 0) {
-        const safeSimilar = similarRaw.filter(isAnimeSafe);
-        candidates = await Promise.all(safeSimilar.map(item => transformAnime(item, false)));
+      // Параллельно запрашиваем similar для каждого выбранного ID
+      const results = await Promise.allSettled(
+        selectedIds.map(id =>
+          shikimoriJson<ShikimoriAnime[]>(
+            `${BASE_URL}/animes/${id}/similar`,
+            { next: { revalidate: 3600 } },
+            { fallback: [] }
+          )
+        )
+      );
+
+      // Объединяем все результаты, дедуплицируем по ID
+      const merged = new Map<number, ShikimoriAnime>();
+      results.forEach(result => {
+        if (result.status === 'fulfilled') {
+          result.value.filter(isAnimeSafe).forEach(item => {
+            if (!merged.has(item.id)) merged.set(item.id, item);
+          });
+        }
+      });
+
+      if (merged.size > 0) {
+        candidates = await Promise.all(Array.from(merged.values()).map(item => transformAnime(item, false)));
         usedStrategy = 'similar';
+        // Получаем название источника синхронно чтобы оно попало в reason
+        const firstSuccessId = selectedIds[0];
+        const sourceAnime = await getAnimeById(firstSuccessId).catch(() => null);
         sourceAnimeTitle = sourceAnime?.title;
       }
     } catch (e) {
@@ -456,85 +467,41 @@ export async function getHeroRecommendation(
     }
   }
 
-  // 3. СТРАТЕГИЯ B: "Тренды" (Фоллбек, если Стратегия А не дала результатов или нет истории)
+  // 3. СТРАТЕГИЯ B: "Тренды" (фоллбек)
   if (candidates.length === 0) {
-    // Если popularAnime не переданы, грузим их
-    if (!popularAnime || popularAnime.length === 0) {
-      candidates = await getPopularNow(20);
-    } else {
-      candidates = [...popularAnime];
-    }
+    candidates = popularAnime && popularAnime.length > 0 ? [...popularAnime] : await getPopularNow(20);
     usedStrategy = 'trending';
   }
 
-  // 4. Фильтрация и Сортировка
+  // 4. Фильтрация
   const validCandidates = candidates.filter(anime => {
-    // Исключаем просмотренное (проверяем оба ID на всякий случай)
-    const isExcluded = excludeSet.has(anime.shikimoriId) || excludeSet.has(anime.id);
-    if (isExcluded) {
-      console.log(`[HeroRec] Excluding ${anime.title} (shikimoriId: ${anime.shikimoriId}, id: ${anime.id})`);
-      return false;
-    }
-    // Исключаем низкий рейтинг для баннера
+    if (excludeSet.has(anime.shikimoriId) || excludeSet.has(anime.id)) return false;
     if (anime.rating < 6.5) return false;
     return true;
   });
-  console.log(`[HeroRec] Valid candidates after filtering: ${validCandidates.length}`);
 
-  // Сортируем по нашей формуле "Hero Score"
+  // Сортируем по Hero Score
   validCandidates.sort((a, b) => calculateHeroScore(b) - calculateHeroScore(a));
 
-  // 4.5. Фильтрация сиквелов (асинхронная, параллельная)
-  // Проверяем топ-10 кандидатов на наличие сиквелов без просмотренных предыдущих частей
-  const candidatesToCheck = validCandidates.slice(0, 10);
-  
-  // Параллельно проверяем все кандидаты на сиквелы
-  const sequelCheckResults = await Promise.all(
-    candidatesToCheck.map(candidate => 
-      isSequelWithoutPreviousParts(candidate, excludeSet).then(isSequel => ({ candidate, isSequel }))
-    )
-  );
-  
-  const sequelFilteredCandidates = sequelCheckResults
-    .filter(({ isSequel }) => !isSequel)
-    .map(({ candidate }) => candidate);
-
-  // Если после фильтрации сиквелов осталось мало кандидатов, берем больше
-  let finalCandidates = sequelFilteredCandidates;
-  if (finalCandidates.length < 3) {
-    // Берем еще кандидатов из списка, но пропуская те, что уже проверены
-    const additionalCandidates = validCandidates.slice(10);
-    const additionalCheckResults = await Promise.all(
-      additionalCandidates.slice(0, 10).map(candidate => 
-        isSequelWithoutPreviousParts(candidate, excludeSet).then(isSequel => ({ candidate, isSequel }))
-      )
-    );
-    
-    for (const { candidate, isSequel } of additionalCheckResults) {
-      if (!isSequel) {
-        finalCandidates.push(candidate);
-        if (finalCandidates.length >= 5) break;
-      }
-    }
+  // 5. Выбираем случайно из топ-5 чтобы каждый заход давал разный результат
+  let bestCandidate: Anime | undefined;
+  if (validCandidates.length > 0) {
+    const topN = validCandidates.slice(0, Math.min(5, validCandidates.length));
+    bestCandidate = topN[Math.floor(Math.random() * topN.length)];
   }
 
-  // 5. Возвращаем лучший вариант (баннер будет использовать постер как фон)
-  let bestCandidate = finalCandidates[0];
-  
-  // Fallback: если все кандидаты отфильтрованы (пользователь смотрел всё), 
-  // берем лучший из валидных кандидатов игнорируя exclude
-  if (!bestCandidate && validCandidates.length > 0) {
-    console.log('[HeroRec] All candidates excluded, using fallback (ignoring exclude list)');
-    bestCandidate = validCandidates[0];
-  }
-  
-  // Final fallback: если совсем ничего нет, берем первого из исходных кандидатов
   if (!bestCandidate && candidates.length > 0) {
-    console.log('[HeroRec] No valid candidates, using first from candidates');
-    bestCandidate = candidates[0];
+    bestCandidate = candidates[Math.floor(Math.random() * Math.min(5, candidates.length))];
   }
   
   if (bestCandidate) {
+    // /similar не возвращает жанры — дозагружаем детали для выбранного кандидата
+    if (!bestCandidate.genres || bestCandidate.genres.length === 0) {
+      const full = await getAnimeById(bestCandidate.id, false).catch(() => null);
+      if (full && full.genres && full.genres.length > 0) {
+        bestCandidate = { ...bestCandidate, genres: full.genres };
+      }
+    }
     return {
       anime: bestCandidate,
       reason: generateRecommendationReason(bestCandidate, usedStrategy, sourceAnimeTitle)
@@ -554,37 +521,40 @@ function generateRecommendationReason(
 ): RecommendationReason {
   const factors: string[] = [];
   const currentYear = new Date().getFullYear();
-  
-  // Анализируем факторы
-  if (anime.rating >= 8.5) {
-    factors.push(`Высокий рейтинг ${anime.rating}`);
-  } else if (anime.rating >= 7.5) {
-    factors.push(`Хороший рейтинг ${anime.rating}`);
+
+  // Рейтинг — человекочитаемо
+  if (anime.rating >= 9.0) {
+    factors.push(`Шедевр с рейтингом ${anime.rating}`);
+  } else if (anime.rating >= 8.5) {
+    factors.push(`Одно из лучших — рейтинг ${anime.rating}`);
+  } else if (anime.rating >= 8.0) {
+    factors.push(`Высоко оценено зрителями: ${anime.rating}`);
+  } else if (anime.rating >= 7.0) {
+    factors.push(`Рейтинг ${anime.rating} — стоит посмотреть`);
   }
-  
-  if (anime.year === currentYear) {
-    factors.push('Новинка 2025');
+
+  // Проверяем по названию — сиквел ли это (Season 2, Part 2, 2nd, II, цифра в конце)
+  const title = (anime.title || '') + ' ' + (anime.originalTitle || '');
+  const isLikelySequel = /(\b(season|part|cour)\s*[2-9]|\b[2-9](nd|rd|th)\s*(season|cour|part)|\bii+\b|[：:]\s*[2-9](?:nd|rd|th)?\b|\s[2-9]$|\s[2-9]\s)/i.test(title);
+
+  // Свежесть
+  if (anime.status === 'Ongoing' && isLikelySequel) {
+    factors.push('Сейчас выходит продолжение — советуем начать с 1 части');
+  } else if (anime.status === 'Ongoing') {
+    factors.push('Выходит прямо сейчас — следи за новыми сериями');
+  } else if (isLikelySequel) {
+    factors.push('Это продолжение — начни знакомство с 1 части');
+  } else if (anime.year === currentYear) {
+    factors.push(`Новинка ${currentYear} года`);
   } else if (anime.year === currentYear - 1) {
-    factors.push('Свежий релиз');
-  } else if (anime.year >= currentYear - 3) {
-    factors.push('Современное аниме');
+    factors.push('Вышло в прошлом году');
   }
-  
-  if (anime.status === 'Ongoing') {
-    factors.push('Выходит сейчас');
+
+  // Жанры всегда добавляем — это самое полезное
+  if (anime.genres && anime.genres.length > 0) {
+    factors.push(anime.genres.slice(0, 3).join(' · '));
   }
-  
-  if (anime.quality === 'TV') {
-    factors.push('Полнометражный сериал');
-  } else if (anime.quality === 'Movie') {
-    factors.push('Полнометражный фильм');
-  }
-  
-  // Если мало факторов, добавляем жанры
-  if (factors.length < 2 && anime.genres.length > 0) {
-    factors.push(`Жанры: ${anime.genres.slice(0, 2).join(', ')}`);
-  }
-  
+
   return {
     strategy,
     sourceAnime: sourceAnimeTitle,

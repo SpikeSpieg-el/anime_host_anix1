@@ -94,8 +94,8 @@ export function Navbar() {
   const handleLogoClick = (e: React.MouseEvent) => {
     if (pathname === "/") {
       e.preventDefault()
-      window.scrollTo({ top: 0, behavior: "smooth" })
     }
+    window.scrollTo({ top: 0, behavior: "smooth" })
   }
 
   // Общие классы для иконок навигации

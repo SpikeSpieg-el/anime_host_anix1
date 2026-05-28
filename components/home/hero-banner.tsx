@@ -1,7 +1,7 @@
 "use client"
 import Image from "next/image"
 import Link from "next/link"
-import { Play, Info, Star, Zap, TrendingUp, Sparkles, ChevronRight, Hash, Eye, Bookmark, Loader2 } from "lucide-react"
+import { Play, Info, Star, Zap, TrendingUp, Sparkles, ChevronRight, Hash, Eye, Bookmark, Loader2, RefreshCw } from "lucide-react"
 import {
   Dialog,
   DialogContent,
@@ -59,10 +59,23 @@ interface HeroBannerProps {
   topOfWeekAnime: any
   recommendedAnime: any
   recommendationReason?: RecommendationReason
+  isRecommendationLoading?: boolean
+  onRefreshRecommendation?: () => Promise<void>
 }
 
-export function HeroBanner({ topOfWeekAnime, recommendedAnime, recommendationReason }: HeroBannerProps) {
+export function HeroBanner({ topOfWeekAnime, recommendedAnime, recommendationReason, isRecommendationLoading, onRefreshRecommendation }: HeroBannerProps) {
   const [mode, setMode] = useState<'top' | 'recommended'>('top')
+  const [isTransitioning, setIsTransitioning] = useState(false)
+  const [isRefreshing, setIsRefreshing] = useState(false)
+
+  const switchMode = (newMode: 'top' | 'recommended') => {
+    if (newMode === mode) return
+    setIsTransitioning(true)
+    setTimeout(() => {
+      setMode(newMode)
+      setIsTransitioning(false)
+    }, 200)
+  }
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [bgImageError, setBgImageError] = useState(false)
   const [posterImageError, setPosterImageError] = useState(false)
@@ -156,13 +169,17 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime, recommendationRea
     }
   }, [anime])
 
-  // Auto-switch to top mode if recommended anime is not available
+  // Auto-switch to top mode only when loading is done and there's still no recommendation
   useEffect(() => {
-    if (mode === 'recommended' && !recommendedAnime && topOfWeekAnime) {
-      console.log('[HeroBanner] No recommendation available, switching to TOP mode')
+    if (mode === 'recommended' && !isRecommendationLoading && !recommendedAnime && topOfWeekAnime) {
       setMode('top')
     }
-  }, [mode, recommendedAnime, topOfWeekAnime])
+  }, [mode, isRecommendationLoading, recommendedAnime, topOfWeekAnime])
+
+  // Auto-switch to recommended when it arrives while user is waiting in recommended mode
+  useEffect(() => {
+    // nothing to do — we stay in recommended mode and show content once it arrives
+  }, [recommendedAnime])
 
   const hasHighQualityBackdrop = !!anime?.backdrop && !bgImageError;
   const bgImage = bgImageError ? generateFallbackPoster(anime?.title || 'Anime') : (anime?.backdrop || anime?.poster);
@@ -174,8 +191,27 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime, recommendationRea
     if (!topOfWeekAnime && !recommendedAnime) {
       return <HeroBannerSkeleton />
     }
-    // If we're in recommended mode but have no recommendation, show message
+    // If we're in recommended mode but have no recommendation yet
     if (mode === 'recommended' && !recommendedAnime) {
+      if (isRecommendationLoading) {
+        return (
+          <div className="relative w-full min-h-[400px] lg:h-[600px] mb-8 lg:mb-12 overflow-hidden bg-background border-b border-border flex items-center justify-center">
+            <div className="text-center p-8">
+              <div className="relative w-16 h-16 mx-auto mb-6">
+                <div className="absolute inset-0 rounded-full border-2 border-blue-500/20 animate-ping" />
+                <div className="absolute inset-0 rounded-full border-2 border-blue-500/40" />
+                <div className="flex items-center justify-center w-full h-full">
+                  <Sparkles className="w-7 h-7 text-blue-500 animate-pulse" />
+                </div>
+              </div>
+              <h3 className="text-lg font-bold text-foreground mb-2">Подбираем для вас...</h3>
+              <p className="text-muted-foreground text-sm max-w-xs">
+                Анализируем вашу историю и ищем идеальное аниме
+              </p>
+            </div>
+          </div>
+        )
+      }
       return (
         <div className="relative w-full min-h-[400px] lg:h-[600px] mb-8 lg:mb-12 overflow-hidden bg-background border-b border-border flex items-center justify-center">
           <div className="text-center p-8">
@@ -252,7 +288,14 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime, recommendationRea
 
       {/* --- КОНТЕЙНЕР КОНТЕНТА --- */}
       <div className="relative h-full container mx-auto px-4 sm:px-6 z-10 flex flex-col justify-center py-6 lg:py-0">
-        <div className="flex flex-col lg:flex-row h-full items-center">
+        <div
+          className="flex flex-col lg:flex-row h-full items-center"
+          style={{
+            opacity: isTransitioning ? 0 : 1,
+            transform: isTransitioning ? 'translateY(6px)' : 'translateY(0)',
+            transition: 'opacity 0.2s ease, transform 0.2s ease',
+          }}
+        >
           
           {/* --- ПРАВАЯ ЧАСТЬ: DVD-КЕЙС --- */}
           <div 
@@ -437,7 +480,7 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime, recommendationRea
               }}
             >
               <button
-                onClick={() => setMode('top')}
+                onClick={() => switchMode('top')}
                 className={`flex items-center gap-1.5 px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg text-[10px] sm:text-xs lg:text-sm font-black uppercase tracking-wider transition-all duration-300 ${
                   mode === 'top' 
                     ? 'bg-background text-foreground shadow-md scale-100 dark:bg-white dark:text-black' 
@@ -449,20 +492,37 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime, recommendationRea
               </button>
               <div className="w-px h-4 bg-border mx-0.5 dark:bg-white/10"></div>
               <button
-                onClick={() => setMode('recommended')}
-                disabled={!recommendedAnime}
-                title={!recommendedAnime ? "Смотрите аниме, чтобы получить рекомендации" : ""}
+                onClick={() => switchMode('recommended')}
                 className={`flex items-center gap-1.5 px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg text-[10px] sm:text-xs lg:text-sm font-black uppercase tracking-wider transition-all duration-300 ${
-                  mode === 'recommended' 
-                    ? 'bg-background text-foreground shadow-md scale-100 dark:bg-white dark:text-black' 
-                    : !recommendedAnime
-                      ? 'text-muted-foreground/40 cursor-not-allowed scale-95 dark:text-zinc-600'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-accent scale-95 dark:text-zinc-400 dark:hover:text-white dark:hover:bg-white/5'
+                  mode === 'recommended'
+                    ? 'bg-background text-foreground shadow-md scale-100 dark:bg-white dark:text-black'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-accent scale-95 dark:text-zinc-400 dark:hover:text-white dark:hover:bg-white/5'
                 }`}
               >
-                <Sparkles size={14} className={mode === 'recommended' ? 'text-blue-500' : !recommendedAnime ? 'opacity-20' : 'opacity-50'} />
+                {isRecommendationLoading && mode !== 'recommended' ? (
+                  <Loader2 size={14} className="animate-spin opacity-50" />
+                ) : (
+                  <Sparkles size={14} className={mode === 'recommended' ? 'text-blue-500' : 'opacity-50'} />
+                )}
                 ДЛЯ ВАС
               </button>
+              {mode === 'recommended' && onRefreshRecommendation && (
+                <>
+                  <div className="w-px h-4 bg-border mx-0.5 dark:bg-white/10"></div>
+                  <button
+                    onClick={async () => {
+                      setIsRefreshing(true)
+                      await onRefreshRecommendation().catch(() => {})
+                      setIsRefreshing(false)
+                    }}
+                    disabled={isRefreshing}
+                    title="Другая рекомендация"
+                    className="flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-all duration-200 dark:text-zinc-400 dark:hover:text-white dark:hover:bg-white/5 disabled:opacity-40"
+                  >
+                    <RefreshCw size={13} className={isRefreshing ? 'animate-spin' : ''} />
+                  </button>
+                </>
+              )}
             </div>
 
             {/* 3. МЕТА-ТЕГИ */}
@@ -591,15 +651,17 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime, recommendationRea
                                 </span>
                               </div>
                               
-                              {recommendationReason.strategy === 'similar' && recommendationReason.sourceAnime && (
+                              {recommendationReason.strategy === 'similar' && recommendationReason.sourceAnime ? (
                                 <p className="text-[11px] sm:text-xs text-muted-foreground dark:text-zinc-300 mb-2">
-                                  Похоже на «{recommendationReason.sourceAnime}» из вашей истории
+                                  Нашли для вас, потому что вам понравилось <span className="text-foreground dark:text-white font-semibold">«{recommendationReason.sourceAnime}»</span>
                                 </p>
-                              )}
-                              
-                              {recommendationReason.strategy === 'trending' && (
+                              ) : recommendationReason.strategy === 'similar' ? (
                                 <p className="text-[11px] sm:text-xs text-muted-foreground dark:text-zinc-300 mb-2">
-                                  Популярное аниме среди пользователей
+                                  Подобрано на основе вашей истории просмотров
+                                </p>
+                              ) : (
+                                <p className="text-[11px] sm:text-xs text-muted-foreground dark:text-zinc-300 mb-2">
+                                  Популярно среди зрителей со схожим вкусом
                                 </p>
                               )}
                               
@@ -622,9 +684,11 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime, recommendationRea
                               </div>
                             </div>
                           ) : fullDescription || (anime.description && anime.description.trim() !== "" && anime.description !== "Описание отсутствует...") ? (
-                            <p className="text-muted-foreground text-xs sm:text-sm leading-relaxed mb-4 opacity-90 dark:text-zinc-300">
-                              {fullDescription || anime.description}
-                            </p>
+                            <div className="max-h-[120px] sm:max-h-[160px] overflow-y-auto custom-scrollbar mb-4 pr-1">
+                              <p className="text-muted-foreground text-xs sm:text-sm leading-relaxed opacity-90 dark:text-zinc-300">
+                                {fullDescription || anime.description}
+                              </p>
+                            </div>
                           ) : (
                             <div className="my-4 p-5 rounded-2xl border border-border bg-secondary/[0.02] flex flex-col items-center text-center dark:border-white/5 dark:bg-white/[0.02]">
                               <Info className="w-6 h-6 text-muted-foreground mb-2 dark:text-zinc-600" />

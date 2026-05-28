@@ -3,14 +3,36 @@
 import { useEffect, useRef, useState } from "react"
 import { usePathname, useSearchParams } from "next/navigation"
 
+const MIN_DISPLAY_MS = 500
+const STOP_DELAY_MS = 600
+
 export function GlobalLoading() {
   const [isLoading, setIsLoading] = useState(false)
   const resetTimeoutRef = useRef<number | null>(null)
+  const stopDelayRef = useRef<number | null>(null)
+  const startedAtRef = useRef<number | null>(null)
   const pathname = usePathname()
   const searchParams = useSearchParams()
 
   useEffect(() => {
-    setIsLoading(false)
+    const clearStopDelay = () => {
+      if (stopDelayRef.current !== null) {
+        window.clearTimeout(stopDelayRef.current)
+        stopDelayRef.current = null
+      }
+    }
+
+    if (startedAtRef.current === null) return
+
+    const elapsed = Date.now() - startedAtRef.current
+    const remaining = Math.max(0, MIN_DISPLAY_MS - elapsed)
+
+    clearStopDelay()
+    stopDelayRef.current = window.setTimeout(() => {
+      setIsLoading(false)
+      startedAtRef.current = null
+      stopDelayRef.current = null
+    }, remaining + STOP_DELAY_MS)
   }, [pathname, searchParams])
 
   useEffect(() => {
@@ -23,17 +45,31 @@ export function GlobalLoading() {
     }
 
     const startLoading = () => {
+      startedAtRef.current = Date.now()
       setIsLoading(true)
       clearResetTimeout()
       resetTimeoutRef.current = window.setTimeout(() => {
         setIsLoading(false)
+        startedAtRef.current = null
         resetTimeoutRef.current = null
       }, 10000)
     }
 
     const stopLoading = () => {
       clearResetTimeout()
+      if (startedAtRef.current !== null) {
+        const elapsed = Date.now() - startedAtRef.current
+        const remaining = Math.max(0, MIN_DISPLAY_MS - elapsed)
+        if (remaining > 0) {
+          window.setTimeout(() => {
+            setIsLoading(false)
+            startedAtRef.current = null
+          }, remaining)
+          return
+        }
+      }
       setIsLoading(false)
+      startedAtRef.current = null
     }
 
     const onPopState = () => {
@@ -88,7 +124,6 @@ export function GlobalLoading() {
     // Слушаем события начала и окончания загрузки страницы (fallback)
     window.addEventListener("beforeunload", startLoading)
     window.addEventListener("load", stopLoading)
-    window.addEventListener("pageshow", stopLoading)
 
     // SPA-навигация
     document.addEventListener("click", onDocumentClick, true)
@@ -96,9 +131,12 @@ export function GlobalLoading() {
 
     return () => {
       clearResetTimeout()
+      if (stopDelayRef.current !== null) {
+        window.clearTimeout(stopDelayRef.current)
+        stopDelayRef.current = null
+      }
       window.removeEventListener("beforeunload", startLoading)
       window.removeEventListener("load", stopLoading)
-      window.removeEventListener("pageshow", stopLoading)
       document.removeEventListener("click", onDocumentClick, true)
       window.removeEventListener("popstate", onPopState)
     }

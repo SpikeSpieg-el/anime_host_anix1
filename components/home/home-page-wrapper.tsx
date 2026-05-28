@@ -7,12 +7,11 @@ import { FloatingNav } from '@/components/layout/floating-nav'
 import { HeroBanner } from './hero-banner'
 import { HeroBannerSkeleton } from '@/components/shared/skeleton'
 import { HomePageClient } from './home-client'
+import { useState, useEffect } from 'react'
 import type { Anime, RecommendationReason } from '@/lib/shikimori'
 
 interface HomePageWrapperProps {
-  topOfWeekHeroWithDetails: Anime | null
-  recommendedAnime: Anime | null
-  recommendationReason?: RecommendationReason
+  topOfWeekHero: Anime | null
   initialData: {
     popularNow: Anime[]
     popularAlways: Anime[]
@@ -23,12 +22,64 @@ interface HomePageWrapperProps {
 }
 
 export function HomePageWrapper({
-  topOfWeekHeroWithDetails,
-  recommendedAnime,
-  recommendationReason,
+  topOfWeekHero,
   initialData,
 }: HomePageWrapperProps) {
   const { isTVMode, isLoading } = useTVMode()
+  const [recommendedAnime, setRecommendedAnime] = useState<Anime | null>(null)
+  const [recommendationReason, setRecommendationReason] = useState<RecommendationReason | undefined>()
+  const [isRecommendationLoading, setIsRecommendationLoading] = useState(true)
+  const [topOfWeekHeroFull, setTopOfWeekHeroFull] = useState<Anime | null>(topOfWeekHero)
+
+  const fetchRecommendation = async () => {
+    setIsRecommendationLoading(true)
+    const params = new URLSearchParams()
+    try {
+      const watchedRaw = document.cookie
+        .split('; ')
+        .find(r => r.startsWith('watched_history='))
+        ?.split('=')[1]
+      if (watchedRaw) {
+        const ids: string[] = JSON.parse(decodeURIComponent(watchedRaw))
+        if (ids.length > 0) params.set('watched', ids.join(','))
+      }
+      const bookmarksRaw = document.cookie
+        .split('; ')
+        .find(r => r.startsWith('bookmark_ids='))
+        ?.split('=')[1]
+      if (bookmarksRaw) {
+        params.set('bookmarks', decodeURIComponent(bookmarksRaw))
+      }
+    } catch {}
+    if (topOfWeekHero?.id) params.set('excludeId', topOfWeekHero.id)
+    params.set('bust', String(Date.now()))
+
+    try {
+      const data = await fetch(`/api/hero-recommendation?${params.toString()}`, { cache: 'no-store' }).then(r => r.json())
+      if (data?.anime) {
+        setRecommendedAnime(data.anime)
+        setRecommendationReason(data.reason)
+      }
+    } finally {
+      setIsRecommendationLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchRecommendation().catch(() => {})
+
+    // Дозагружаем детали (жанры) для topOfWeekHero параллельно
+    if (topOfWeekHero?.id) {
+      fetch(`/api/anime/${topOfWeekHero.id}`)
+        .then(r => r.json())
+        .then(data => {
+          if (data?.genres?.length) {
+            setTopOfWeekHeroFull(prev => prev ? { ...prev, genres: data.genres } : prev)
+          }
+        })
+        .catch(() => {})
+    }
+  }, [topOfWeekHero?.id])
 
   if (isLoading) {
     return (
@@ -59,11 +110,13 @@ export function HomePageWrapper({
       <Navbar />
       <FloatingNav />
       <section id="hero">
-        {topOfWeekHeroWithDetails || recommendedAnime ? (
+        {topOfWeekHero ? (
           <HeroBanner
-            topOfWeekAnime={topOfWeekHeroWithDetails}
+            topOfWeekAnime={topOfWeekHeroFull ?? topOfWeekHero}
             recommendedAnime={recommendedAnime}
             recommendationReason={recommendationReason}
+            isRecommendationLoading={isRecommendationLoading}
+            onRefreshRecommendation={fetchRecommendation}
           />
         ) : (
           <HeroBannerSkeleton />
