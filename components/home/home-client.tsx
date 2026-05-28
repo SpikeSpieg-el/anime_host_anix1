@@ -6,7 +6,7 @@ import { BookmarksSection } from '@/components/shared/bookmarks-section'
 import { AiAdvisor } from '@/components/shared/ai-advisor'
 import { UpdatesBanner } from '@/components/home/updates-banner'
 import { Footer } from '@/components/layout/footer'
-import { SectionSkeleton, UpdatesBannerSkeleton, GridSkeleton } from '@/components/shared/skeleton'
+import { SectionSkeleton, UpdatesBannerSkeleton, GridSkeleton, NewsSkeleton } from '@/components/shared/skeleton'
 import type { Anime } from '@/lib/shikimori'
 import Link from "next/link"
 import { MessageSquare, User, ChevronRight, Newspaper, TrendingUp, Play, Star } from "lucide-react"
@@ -75,7 +75,7 @@ export function HomePageClient({ initialData }: HomePageClientProps) {
         )}
 
         {/* 4. НОВОСТИ И ОБНОВЛЕНИЯ */}
-        {initialData.newsUpdates.length > 0 && (
+        {initialData.newsUpdates.length > 0 ? (
             <section id="news" className="mb-14 sm:mb-20">
                 <div className="flex flex-row items-center justify-between mb-4 sm:mb-6">
                     <div>
@@ -133,6 +133,8 @@ export function HomePageClient({ initialData }: HomePageClientProps) {
                     ))}
                 </div>
             </section>
+        ) : (
+          <NewsSkeleton items={4} />
         )}
 
         {/* 5. ПОПУЛЯРНОЕ СЕЙЧАС */}

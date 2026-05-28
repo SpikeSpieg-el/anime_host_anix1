@@ -78,15 +78,22 @@ export async function generateMetadata(): Promise<Metadata> {
   }
 }
 
+function withTimeout<T>(promise: Promise<T>, fallback: T, ms = 8000): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((resolve) => setTimeout(() => resolve(fallback), ms)),
+  ])
+}
+
 export default async function HomePage() {
   // Загружаем только критические данные — без тяжёлой рекомендации
   const [popularNow, topOfWeekList, popularAlways, ongoingAnime, newsUpdates, announcements] = await Promise.all([
-    getPopularNow(12),
-    getTopOfWeek(30),
-    getPopularAlways(12),
-    getOngoingList(12),
-    getForumNews(5),
-    getAnnouncements(3),
+    withTimeout(getPopularNow(12), []),
+    withTimeout(getTopOfWeek(30), []),
+    withTimeout(getPopularAlways(12), []),
+    withTimeout(getOngoingList(12), []),
+    withTimeout(getForumNews(5), []),
+    withTimeout(getAnnouncements(3), []),
   ])
 
   const topOfWeekHero =

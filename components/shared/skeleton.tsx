@@ -471,6 +471,40 @@ export function DialogContentSkeleton() {
   )
 }
 
+// News Section Skeleton
+export function NewsSkeleton({ items = 4 }: { items?: number }) {
+  return (
+    <section className="mb-14 sm:mb-20">
+      <div className="flex flex-row items-center justify-between mb-4 sm:mb-6">
+        <div>
+          <div className="flex items-center gap-2 sm:gap-3 mb-1">
+            <Skeleton className="h-7 w-7 rounded" />
+            <Skeleton className="h-8 w-28" />
+            <Skeleton className="h-5 w-14 rounded hidden sm:block" />
+          </div>
+          <Skeleton className="h-4 w-44 hidden xs:block" />
+        </div>
+        <Skeleton className="h-8 w-28 rounded-full" />
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
+        {Array.from({ length: items }).map((_, i) => (
+          <div key={i} className="flex flex-col h-full bg-secondary/40 border rounded-xl sm:rounded-2xl p-4 sm:p-5">
+            <Skeleton className="h-4 w-24 mb-2 sm:mb-3" />
+            <Skeleton className="h-5 w-full mb-1" />
+            <Skeleton className="h-5 w-4/5 mb-2" />
+            <Skeleton className="h-4 w-full mb-1 flex-1" />
+            <Skeleton className="h-4 w-3/4 mb-3 sm:mb-4" />
+            <div className="flex items-center justify-between pt-3 sm:pt-4 border-t">
+              <Skeleton className="h-3 w-20" />
+              <Skeleton className="h-6 w-10 rounded-md" />
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  )
+}
+
 // Loading Bar for global loading states
 export function LoadingBarSkeleton({ progress = 30 }: { progress?: number }) {
   return (
