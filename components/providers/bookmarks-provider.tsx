@@ -64,6 +64,7 @@ export function BookmarksProvider({ children }: { children: React.ReactNode }) {
             .from('bookmarks')
             .select('anime_data, is_completed, created_at')
             .eq('user_id', user.id)
+            .order('created_at', { ascending: false })
           
           if (signal.aborted) return
           if (data && isMounted) {
@@ -75,9 +76,16 @@ export function BookmarksProvider({ children }: { children: React.ReactNode }) {
             setItems(remoteItems)
           }
         } else {
-          // Если нет - из LocalStorage
+          // Если нет - из LocalStorage (сортируем новые первыми)
           if (isMounted) {
-            setItems(safeParseBookmarks(window.localStorage.getItem(STORAGE_KEY)))
+            const local = safeParseBookmarks(window.localStorage.getItem(STORAGE_KEY))
+            local.sort((a, b) => {
+              if (!a.created_at && !b.created_at) return 0
+              if (!a.created_at) return 1
+              if (!b.created_at) return -1
+              return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+            })
+            setItems(local)
           }
         }
       } catch (err: any) {
