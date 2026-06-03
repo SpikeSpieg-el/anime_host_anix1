@@ -4,6 +4,7 @@ import { ScheduleClient } from "@/components/shared/schedule-client"
 import { getAnimeCalendar } from "@/lib/shikimori"
 import { ScrollToTop } from "@/components/layout/scroll-to-top"
 import { Metadata } from "next"
+import { CoverProvider } from "@/components/providers/cover-provider"
 
 
 export const metadata: Metadata = {
@@ -24,7 +25,9 @@ export default async function SchedulePage() {
       <Navbar />
 
       <div className="container mx-auto px-3 sm:px-4 py-8 relative z-10">
-        <ScheduleClient schedule={schedule} />
+        <CoverProvider>
+          <ScheduleClient schedule={schedule} />
+        </CoverProvider>
 
       </div>
 

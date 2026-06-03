@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Loader2, Store, TrendingUp, BarChart3, History, Package, DollarSign, Eye, Filter, RefreshCw } from "lucide-react"
+import { Loader2, Store, TrendingUp, TrendingDown, Minus, BarChart3, History, Package, DollarSign, Eye, Filter, RefreshCw } from "lucide-react"
 import { LineChart, Line, BarChart, Bar, PieChart, Pie, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from "recharts"
 import type { Rarity } from "@/types/gacha"
 
@@ -88,6 +88,41 @@ interface MarketAnalytics {
   period: string
 }
 
+interface PriceStats {
+  rarity: Rarity
+  count: number
+  minPrice: number
+  maxPrice: number
+  avgPrice: number
+  medianPrice: number
+  priceRange: { min: number; max: number; avg: number }
+}
+
+interface MarketAnalysis {
+  totalListings: number
+  totalValue: number
+  averagePrice: number
+  priceByRarity: Record<Rarity, PriceStats>
+  topCharacters: Array<{
+    characterId: number
+    characterName: string
+    count: number
+    avgPrice: number
+  }>
+  recentTrends: Array<{
+    date: string
+    avgPrice: number
+    volume: number
+  }>
+  priceRanges: Record<Rarity, { min: number; max: number; avg: number }>
+  recommendations: {
+    simplifyFormula: boolean
+    removeCollectionBonus: boolean
+    adjustStatMultiplier: number
+    baseMultiplier: number
+  }
+}
+
 const rarityConfig: Record<Rarity, { label: string; color: string; bgColor: string }> = {
   trash: { label: "Мусор", color: "text-stone-400", bgColor: "bg-stone-900" },
   common: { label: "Обычная", color: "text-slate-400", bgColor: "bg-slate-900" },
@@ -122,10 +157,11 @@ const getBrightColor = (rarity: string): string => {
 }
 
 export default function MarketDashboardPage() {
-  const [activeTab, setActiveTab] = useState<"listings" | "sales" | "analytics">("listings")
+  const [activeTab, setActiveTab] = useState<"listings" | "sales" | "analytics" | "price-analysis">("listings")
   const [listings, setListings] = useState<MarketListing[]>([])
   const [sales, setSales] = useState<MarketSale[]>([])
   const [analytics, setAnalytics] = useState<MarketAnalytics | null>(null)
+  const [marketAnalysis, setMarketAnalysis] = useState<MarketAnalysis | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [filterRarity, setFilterRarity] = useState<string>("all")
@@ -139,23 +175,27 @@ export default function MarketDashboardPage() {
       setLoading(true)
       setError(null)
 
-      const [listingsRes, salesRes, analyticsRes] = await Promise.all([
+      const [listingsRes, salesRes, analyticsRes, priceStatsRes] = await Promise.all([
         fetch('/api/market/listings?limit=100'),
         fetch('/api/market/sales-history?limit=50&days=30'),
-        fetch('/api/market/analytics?days=30')
+        fetch('/api/market/analytics?days=30'),
+        fetch('/api/market/price-stats')
       ])
 
       if (!listingsRes.ok) throw new Error('Не удалось загрузить лоты')
       if (!salesRes.ok) throw new Error('Не удалось загрузить историю продаж')
       if (!analyticsRes.ok) throw new Error('Не удалось загрузить аналитику')
+      if (!priceStatsRes.ok) throw new Error('Не удалось загрузить статистику цен')
 
       const listingsData = await listingsRes.json()
       const salesData = await salesRes.json()
       const analyticsData = await analyticsRes.json()
+      const priceStatsData = await priceStatsRes.json()
 
       setListings(listingsData.listings || [])
       setSales(salesData.sales || [])
       setAnalytics(analyticsData)
+      setMarketAnalysis(priceStatsData)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Произошла ошибка')
     } finally {
@@ -163,13 +203,19 @@ export default function MarketDashboardPage() {
     }
   }
 
-  const filteredListings = filterRarity === "all" 
-    ? listings 
+  const filteredListings = filterRarity === "all"
+    ? listings
     : listings.filter(l => l.card.rarity === filterRarity)
 
   const filteredSales = filterRarity === "all"
     ? sales
     : sales.filter(s => s.card.rarity === filterRarity)
+
+  const getPriceTrend = (current: number, suggested: number) => {
+    if (current > suggested * 1.1) return { icon: TrendingUp, color: "text-red-400", label: "Высокая" }
+    if (current < suggested * 0.9) return { icon: TrendingDown, color: "text-green-400", label: "Низкая" }
+    return { icon: Minus, color: "text-yellow-400", label: "Нормальная" }
+  }
 
   if (loading) {
     return (
@@ -282,6 +328,15 @@ export default function MarketDashboardPage() {
           >
             <BarChart3 className="w-4 h-4" />
             Аналитика
+          </button>
+          <button
+            onClick={() => setActiveTab("price-analysis")}
+            className={`flex-1 px-4 py-2 rounded-lg font-bold flex items-center justify-center gap-2 ${
+              activeTab === "price-analysis" ? "bg-amber-600 text-white" : "text-slate-400 hover:bg-slate-800"
+            }`}
+          >
+            <TrendingUp className="w-4 h-4" />
+            Анализ цен
           </button>
         </div>
 
@@ -572,6 +627,115 @@ export default function MarketDashboardPage() {
               <p className="text-slate-400 text-sm">
                 Период анализа: <span className="text-white font-bold">{analytics.period}</span>
               </p>
+            </div>
+          </div>
+        )}
+
+        {/* Price Analysis Tab */}
+        {activeTab === "price-analysis" && marketAnalysis && (
+          <div className="space-y-6">
+            {/* Общая статистика */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="bg-slate-900 border border-slate-700 rounded-xl p-4">
+                <p className="text-slate-400 text-sm mb-1">Всего лотов</p>
+                <p className="text-2xl font-black text-white">{marketAnalysis.totalListings}</p>
+              </div>
+              <div className="bg-slate-900 border border-slate-700 rounded-xl p-4">
+                <p className="text-slate-400 text-sm mb-1">Общая стоимость</p>
+                <p className="text-2xl font-black text-yellow-400">{marketAnalysis.totalValue.toLocaleString()}</p>
+              </div>
+              <div className="bg-slate-900 border border-slate-700 rounded-xl p-4">
+                <p className="text-slate-400 text-sm mb-1">Средняя цена</p>
+                <p className="text-2xl font-black text-cyan-400">{marketAnalysis.averagePrice.toLocaleString()}</p>
+              </div>
+              <div className="bg-slate-900 border border-slate-700 rounded-xl p-4">
+                <p className="text-slate-400 text-sm mb-1">Активных редкостей</p>
+                <p className="text-2xl font-black text-green-400">
+                  {Object.values(marketAnalysis.priceByRarity).filter(r => r.count > 0).length}
+                </p>
+              </div>
+            </div>
+
+            {/* Статистика по редкостям */}
+            <div className="bg-slate-900 border border-slate-700 rounded-xl p-6">
+              <h2 className="text-xl font-black text-white mb-4">Цены по редкостям</h2>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-slate-700">
+                      <th className="text-left py-2 text-slate-400">Редкость</th>
+                      <th className="text-right py-2 text-slate-400">Лотов</th>
+                      <th className="text-right py-2 text-slate-400">Минимум</th>
+                      <th className="text-right py-2 text-slate-400">Среднее</th>
+                      <th className="text-right py-2 text-slate-400">Максимум</th>
+                      <th className="text-center py-2 text-slate-400">Тренд</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {Object.entries(marketAnalysis.priceByRarity).map(([rarity, stats]) => {
+                      const config = rarityConfig[rarity as Rarity]
+                      const trend = getPriceTrend(stats.avgPrice, stats.priceRange.avg)
+                      const TrendIcon = trend.icon
+
+                      return (
+                        <tr key={rarity} className="border-b border-slate-800">
+                          <td className={`py-2 font-bold ${config.color}`}>{config.label}</td>
+                          <td className="text-right py-2 text-white">{stats.count}</td>
+                          <td className="text-right py-2 text-slate-300">{stats.minPrice.toLocaleString()}</td>
+                          <td className="text-right py-2 text-cyan-300 font-bold">{stats.avgPrice.toLocaleString()}</td>
+                          <td className="text-right py-2 text-slate-300">{stats.maxPrice.toLocaleString()}</td>
+                          <td className="text-center py-2">
+                            <div className={`flex items-center justify-center gap-1 ${trend.color}`}>
+                              <TrendIcon className="w-4 h-4" />
+                              <span className="text-xs">{trend.label}</span>
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Топ персонажей */}
+            <div className="bg-slate-900 border border-slate-700 rounded-xl p-6">
+              <h2 className="text-xl font-black text-white mb-4">Популярные персонажи</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {marketAnalysis.topCharacters.slice(0, 9).map((character, index) => (
+                  <div key={character.characterId} className="bg-slate-800 rounded-lg p-3">
+                    <div className="flex justify-between items-start mb-2">
+                      <p className="text-white font-bold truncate">{character.characterName}</p>
+                      <span className="text-cyan-400 text-xs">#{index + 1}</span>
+                    </div>
+                    <div className="flex justify-between text-xs">
+                      <span className="text-slate-400">Лотов: {character.count}</span>
+                      <span className="text-yellow-400">{character.avgPrice.toLocaleString()}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Рекомендации */}
+            <div className="bg-slate-900 border border-slate-700 rounded-xl p-6">
+              <h2 className="text-xl font-black text-white mb-4">Рекомендации по улучшению</h2>
+              <div className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <div className={`w-3 h-3 rounded-full ${marketAnalysis.recommendations.simplifyFormula ? 'bg-green-400' : 'bg-red-400'}`} />
+                  <span className="text-slate-300">Упростить формулу ценообразования</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className={`w-3 h-3 rounded-full ${marketAnalysis.recommendations.removeCollectionBonus ? 'bg-green-400' : 'bg-red-400'}`} />
+                  <span className="text-slate-300">Убрать коллекционный бонус</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="text-slate-300">Множитель статов: {marketAnalysis.recommendations.adjustStatMultiplier}</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="text-slate-300">Базовый множитель: {marketAnalysis.recommendations.baseMultiplier}</span>
+                </div>
+              </div>
             </div>
           </div>
         )}

@@ -9,6 +9,17 @@ const backdropCache = new Map<string, string | null>();
 let requestQueue = Promise.resolve();
 const REQUEST_DELAY = 50; // 50ms между запросами (ускорено для быстрой загрузки)
 
+/**
+ * Вспомогательная функция для проксирования картинок через Weserv.nl
+ * Обходит 403 ошибки от Shikimori, MyAnimeList и других источников
+ * Временно отключена - возвращает оригинальный URL
+ */
+export function proxyImage(url: string | null | undefined): string | null {
+  // Временно отключаем проксирование из-за проблем с Next.js
+  // Если будут 403 ошибки, можно будет добавить unoptimized prop к Image компонентам
+  return url || null;
+}
+
 function delayRequest(): Promise<void> {
   requestQueue = requestQueue.then(() => new Promise(resolve => setTimeout(resolve, REQUEST_DELAY)));
   return requestQueue;
@@ -36,10 +47,14 @@ export async function resolveBestPoster(shikimoriUrl: string, romajiName: string
   
   const targetName = russianName || romajiName || "Anime";
   
+  // Шаг 1: Пробуем Shikimori через прокси (всегда, даже если внешние API отключены)
   const upgradedUrl = upgradeShikimoriUrl(shikimoriUrl);
   if (isHighQualityImage(upgradedUrl, true)) {
-    posterCache.set(cacheKey, upgradedUrl);
-    return upgradedUrl;
+    const proxiedUrl = proxyImage(upgradedUrl);
+    if (proxiedUrl) {
+      posterCache.set(cacheKey, proxiedUrl);
+      return proxiedUrl;
+    }
   }
 
   // Если внешние API отключены (для гача), используем только фоллбэк
@@ -50,32 +65,70 @@ export async function resolveBestPoster(shikimoriUrl: string, romajiName: string
     return fallback;
   }
 
-  // Попробуем другие источники (Kodik, Anilist, MAL) с задержкой
+  // Шаг 2: Пробуем AniList (GraphQL) - самый надежный источник
   const namesToTry = [romajiName, russianName].filter(Boolean);
-  
-  await delayRequest();
-  const kodik = await getKodikPoster(shikimoriId);
-  if (kodik) {
-    posterCache.set(cacheKey, kodik);
-    return kodik;
-  }
-
   for (const name of namesToTry) {
     await delayRequest();
     const anilist = await getAnilistPoster(name);
     if (anilist) {
-      posterCache.set(cacheKey, anilist);
-      return anilist;
-    }
-    
-    await delayRequest();
-    const mal = await getMyAnimeListPoster(name);
-    if (mal) {
-      posterCache.set(cacheKey, mal);
-      return mal;
+      const proxied = proxyImage(anilist);
+      if (proxied) {
+        posterCache.set(cacheKey, proxied);
+        return proxied;
+      }
     }
   }
 
+  // Шаг 3: Пробуем Kitsu (REST API)
+  for (const name of namesToTry) {
+    await delayRequest();
+    const kitsu = await getKitsuPoster(name);
+    if (kitsu) {
+      const proxied = proxyImage(kitsu);
+      if (proxied) {
+        posterCache.set(cacheKey, proxied);
+        return proxied;
+      }
+    }
+  }
+
+  // Шаг 4: Пробуем Kodik
+  await delayRequest();
+  const kodik = await getKodikPoster(shikimoriId);
+  if (kodik) {
+    const proxied = proxyImage(kodik);
+    if (proxied) {
+      posterCache.set(cacheKey, proxied);
+      return proxied;
+    }
+  }
+
+  // Шаг 5: Пробуем MyAnimeList (Jikan API)
+  for (const name of namesToTry) {
+    await delayRequest();
+    const mal = await getMyAnimeListPoster(name);
+    if (mal) {
+      const proxied = proxyImage(mal);
+      if (proxied) {
+        posterCache.set(cacheKey, proxied);
+        return proxied;
+      }
+    }
+  }
+
+  // Шаг 6: Резервный вариант - оригинальный Shikimori через прокси
+  if (shikimoriUrl) {
+    const fullShikimoriUrl = shikimoriUrl.startsWith('http') 
+      ? shikimoriUrl 
+      : `https://shikimori.one${shikimoriUrl}`;
+    const proxied = proxyImage(fullShikimoriUrl);
+    if (proxied) {
+      posterCache.set(cacheKey, proxied);
+      return proxied;
+    }
+  }
+
+  // Шаг 7: Фоллбэк - генерируем заглушку
   const fallback = generateArtPoster(targetName);
   posterCache.set(cacheKey, fallback);
   return fallback;
@@ -108,6 +161,33 @@ async function getAnilistPoster(searchTitle: string): Promise<string | null> {
   } catch { return null; }
 }
 
+/**
+ * Получение обложки из Kitsu API (REST)
+ */
+async function getKitsuPoster(searchTitle: string): Promise<string | null> {
+  try {
+    const url = `https://kitsu.io/api/edge/anime?filter[text]=${encodeURIComponent(searchTitle)}&page[limit]=1`;
+    
+    const response = await fetch(url, {
+      headers: {
+        "Accept": "application/vnd.api+json",
+        "Content-Type": "application/vnd.api+json"
+      },
+      next: { revalidate: 86400 }
+    });
+
+    if (!response.ok) return null;
+
+    const json = await response.json();
+    const animeData = json.data?.[0];
+    
+    if (!animeData) return null;
+
+    const posterImages = animeData.attributes?.posterImage;
+    return posterImages?.original || posterImages?.large || posterImages?.medium || null;
+  } catch { return null; }
+}
+
 async function getMyAnimeListPoster(searchTitle: string): Promise<string | null> {
   try {
     const response = await fetch(`https://api.jikan.moe/v4/anime?q=${encodeURIComponent(searchTitle)}&limit=1`, { next: { revalidate: 86400 } });
@@ -126,26 +206,32 @@ export async function getAnimeBackdrop(shikimoriId: string, disableExternalAPIs:
   }
   
   try {
-    // 1. Screenshots - use only the first one
+    // 1. Screenshots - use only the first one через прокси
     const res = await shikimoriFetch(`${BASE_URL}/animes/${shikimoriId}/screenshots`);
     if (res.ok) {
       const data: any[] = await res.json();
       if (data && data.length > 0) {
         const result = normalizeShikimoriUrl(data[0].original);
-        backdropCache.set(cacheKey, result);
-        return result;
+        const proxied = proxyImage(result);
+        if (proxied) {
+          backdropCache.set(cacheKey, proxied);
+          return proxied;
+        }
       }
     }
     
-    // 2. Anilist Banner (если не отключен)
+    // 2. Anilist Banner (если не отключен) через прокси
     if (!disableExternalAPIs) {
       const animeRes = await shikimoriFetch(`${BASE_URL}/animes/${shikimoriId}`);
       if (animeRes.ok) {
         const data = await animeRes.json();
         const anilistBanner = await getAnilistBackdrop(data.name);
         if (anilistBanner) {
-          backdropCache.set(cacheKey, anilistBanner);
-          return anilistBanner;
+          const proxied = proxyImage(anilistBanner);
+          if (proxied) {
+            backdropCache.set(cacheKey, proxied);
+            return proxied;
+          }
         }
       }
     } else {

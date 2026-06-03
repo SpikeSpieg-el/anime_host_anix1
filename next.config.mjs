@@ -7,7 +7,7 @@ const nextConfig = {
       { protocol: 'http', hostname: '**' },
     ],
     // Добавляем 80 в список
-    qualities: [35, 50, 60, 75, 80, 90], 
+    qualities: [35, 50, 60, 75, 80, 90],
   },
   async headers() {
     return [

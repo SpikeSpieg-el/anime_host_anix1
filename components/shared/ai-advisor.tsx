@@ -347,12 +347,21 @@ ${context.bookmarks.slice(0, 15).map((b: any) =>
         preferences: userData.data.preferences || {}
       } : null
 
+      // Очищаем surveyData от циклических ссылок
+      const cleanSurveyData = surveyData ? {
+        favoriteGenres: surveyData.favoriteGenres || [],
+        mood: surveyData.mood || null,
+        pacing: surveyData.pacing || null,
+        artStyle: surveyData.artStyle || null,
+        themes: surveyData.themes || []
+      } : null
+
       const response = await fetch('/api/recommendations/ai-generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           prompt: buildPrompt(),
-          surveyData: surveyData,
+          surveyData: cleanSurveyData,
           userData: cleanUserData
         })
       })
@@ -569,7 +578,13 @@ ${context.bookmarks.slice(0, 15).map((b: any) =>
         <div className="flex-1 overflow-y-auto p-4 md:p-6 custom-scrollbar bg-background">
             {error && !loading && (
                <div className="flex flex-col items-center justify-center py-10 animate-in fade-in">
-                  <AlertCircle className="w-10 h-10 text-red-500 mb-4" />
+                  <Image
+                    src="/baner error.png"
+                    alt="Error"
+                    width={400}
+                    height={200}
+                    className="mb-4 rounded-lg"
+                  />
                   <p className="text-zinc-300 text-center mb-4">{error}</p>
                   <Button onClick={handleGenerate} variant="secondary">
                      <RefreshCcw className="w-4 h-4 mr-2" /> Повторить

@@ -63,7 +63,7 @@ export async function getAdminUsers() {
   const { data: watchHistory, error: historyError } = await supabase
     .from("watch_history")
     .select("*")
-    .order("created_at", { ascending: false })
+    .order("timestamp", { ascending: false })
 
   if (historyError) throw historyError
 

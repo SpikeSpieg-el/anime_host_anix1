@@ -8,6 +8,7 @@ import { Calendar, Clock, AlertCircle, ArrowLeft, Filter, Bookmark, Loader2 } fr
 import { cn } from "@/lib/utils"
 import Link from "next/link"
 import { useBookmarks } from "@/components/providers/bookmarks-provider"
+import { useCover } from "@/components/providers/cover-provider"
 
 interface ScheduleClientProps {
   schedule: { [key: number]: Anime[] }
@@ -33,84 +34,10 @@ export function ScheduleClient({ schedule: initialSchedule }: ScheduleClientProp
   const [selectedOffset, setSelectedOffset] = useState<number>(0)
   const [showBookmarksOnly, setShowBookmarksOnly] = useState<boolean>(false)
   const [schedule, setSchedule] = useState(initialSchedule)
-  const [loadingPosters, setLoadingPosters] = useState(true)
   const scrollRef = useRef<HTMLDivElement>(null)
   const { items: bookmarks } = useBookmarks()
-  const postersFetchedRef = useRef(false)
-
-  // Load better posters in parallel after initial render
-  useEffect(() => {
-    if (postersFetchedRef.current) return
-    postersFetchedRef.current = true
-
-    const loadPosters = async () => {
-      try {
-        const allAnime = getAllAnimeFromSchedule(initialSchedule)
-        
-        // Prepare batch request for all anime
-        const posterRequests = allAnime.map(anime => ({
-          id: anime.id,
-          romajiName: anime.originalTitle,
-          russianName: anime.title,
-          shikimoriUrl: anime.poster
-        }))
-
-        console.log(`[ScheduleClient] Loading better posters for ${posterRequests.length} anime...`)
-        const startTime = Date.now()
-
-        const response = await fetch('/api/posters', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ animes: posterRequests })
-        })
-
-        if (!response.ok) {
-          console.error('[ScheduleClient] Failed to fetch posters:', response.status)
-          setLoadingPosters(false)
-          return
-        }
-
-        const { posters } = await response.json() as { posters: { id: string; poster: string }[] }
-        const duration = Date.now() - startTime
-
-        // Create a map for quick lookup
-        const posterMap = new Map(posters.map(p => [p.id, p.poster]))
-        
-        // Count how many posters actually changed
-        let updatedCount = 0
-        let sameCount = 0
-
-        // Update schedule with better posters
-        setSchedule(prevSchedule => {
-          const newSchedule: { [key: number]: Anime[] } = {}
-          
-          for (const [day, animes] of Object.entries(prevSchedule)) {
-            newSchedule[parseInt(day)] = animes.map(anime => {
-              const betterPoster = posterMap.get(anime.id)
-              if (betterPoster && betterPoster !== anime.poster) {
-                updatedCount++
-                return { ...anime, poster: betterPoster }
-              }
-              sameCount++
-              return anime
-            })
-          }
-          
-          return newSchedule
-        })
-        
-        console.log(`[ScheduleClient] Loaded ${posters.length} posters in ${duration}ms: ${updatedCount} updated, ${sameCount} unchanged (already good quality)`)
-      } catch (error) {
-        console.error('[ScheduleClient] Error loading posters:', error)
-      } finally {
-        setLoadingPosters(false)
-      }
-    }
-
-    // Start loading posters after a short delay to let the UI render first
-    const timer = setTimeout(loadPosters, 100)
-    return () => clearTimeout(timer)
-  }, [initialSchedule])
+  const { preloadBatch, getFromCache } = useCover()
+  const loadedDaysRef = useRef<Set<number>>(new Set())
 
   // Генерируем данные для дней: -6 дней от сегодня ... Сегодня ... +6 дней
   const rollingDays = useMemo(() => {
@@ -161,6 +88,91 @@ export function ScheduleClient({ schedule: initialSchedule }: ScheduleClientProp
     }, 300)
   }, [])
 
+  // Load better posters for the currently selected day and adjacent days
+  // Strategy: Load current day + 2 days left + 2 days right progressively
+  useEffect(() => {
+    if (!mounted) return
+
+    const loadPostersForDay = (dayId: number) => {
+      // Skip if already loaded
+      if (loadedDaysRef.current.has(dayId)) {
+        console.log(`[ScheduleClient] Day ${dayId} already loaded, skipping`)
+        return
+      }
+
+      const dayAnimes = schedule[dayId]
+      if (!dayAnimes || dayAnimes.length === 0) return
+
+      console.log(`[ScheduleClient] Loading posters for day ${dayId} (${dayAnimes.length} anime)`)
+      const startTime = Date.now()
+
+      // Mark as loading to prevent duplicate requests
+      loadedDaysRef.current.add(dayId)
+
+      // Prepare batch request for current day only
+      const posterRequests = dayAnimes.map(anime => ({
+        id: anime.id,
+        shikimoriUrl: anime.poster,
+        romajiName: anime.originalTitle,
+        russianName: anime.title
+      }))
+
+      // Use CoverProvider's preloadBatch - loads posters in background
+      // Don't await - let it run in background without blocking UI
+      preloadBatch(posterRequests).then(() => {
+        const duration = Date.now() - startTime
+        console.log(`[ScheduleClient] Preload batch for day ${dayId} completed in ${duration}ms`)
+        
+        // Update schedule with posters from cache (non-blocking)
+        // Use setTimeout to defer state update and prevent UI blocking
+        setTimeout(() => {
+          setSchedule(prevSchedule => {
+            const newSchedule = { ...prevSchedule }
+            let updatedCount = 0
+            
+            newSchedule[dayId] = prevSchedule[dayId].map(anime => {
+              const cached = getFromCache(anime.id)
+              if (cached && cached.poster && cached.poster !== anime.poster) {
+                updatedCount++
+                return { ...anime, poster: cached.poster }
+              }
+              return anime
+            })
+            
+            console.log(`[ScheduleClient] Updated ${updatedCount} posters for day ${dayId}`)
+            return newSchedule
+          })
+        }, 0)
+      }).catch(error => {
+        console.error('[ScheduleClient] Error in preloadBatch:', error)
+        // Remove from loaded set on error so it can be retried
+        loadedDaysRef.current.delete(dayId)
+      })
+    }
+
+    const currentDayInfo = rollingDays.find(d => d.offset === selectedOffset)
+    if (currentDayInfo) {
+      // Load current day immediately
+      setTimeout(() => loadPostersForDay(currentDayInfo.scheduleId), 500)
+      
+      // Load 2 days to the left with delay
+      for (let i = 1; i <= 2; i++) {
+        const leftDay = rollingDays.find(d => d.offset === selectedOffset - i)
+        if (leftDay) {
+          setTimeout(() => loadPostersForDay(leftDay.scheduleId), 500 + i * 300)
+        }
+      }
+      
+      // Load 2 days to the right with delay
+      for (let i = 1; i <= 2; i++) {
+        const rightDay = rollingDays.find(d => d.offset === selectedOffset + i)
+        if (rightDay) {
+          setTimeout(() => loadPostersForDay(rightDay.scheduleId), 500 + i * 300)
+        }
+      }
+    }
+  }, [mounted, selectedOffset, schedule, rollingDays, preloadBatch, getFromCache])
+
   if (!mounted) return <ScheduleSkeleton />
 
   const currentDayInfo = rollingDays.find(d => d.offset === selectedOffset)!
@@ -191,12 +203,6 @@ export function ScheduleClient({ schedule: initialSchedule }: ScheduleClientProp
           </h1>
           <p className="text-muted-foreground mt-2 text-sm md:text-base">
             График выхода серий: от прошлых к будущим
-            {loadingPosters && (
-              <span className="inline-flex items-center gap-1.5 ml-3 text-xs text-orange-500">
-                <Loader2 className="w-3 h-3 animate-spin" />
-                Загрузка постеров...
-              </span>
-            )}
           </p>
         </div>
         
