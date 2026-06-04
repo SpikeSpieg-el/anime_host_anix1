@@ -32,7 +32,7 @@ export const DungeonSelector: React.FC<DungeonSelectorProps> = ({
         )}
       </div>
 
-      <div className="max-h-[600px] overflow-y-auto scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent pr-2 max-sm:max-h-[270px]">
+      <div className="max-h-[65vh] xl:max-h-[650px] overflow-y-auto scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent pr-2">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 auto-rows-max">
           {dungeons.map((dungeon) => {
             const theme = THEME_CONFIG[dungeon.theme] || THEME_CONFIG.dark_forest

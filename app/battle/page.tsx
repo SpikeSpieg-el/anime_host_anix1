@@ -1,5 +1,6 @@
 "use client"
 
+import { useState } from "react"
 import { Navbar } from "@/components/layout/navbar"
 import { Swords, AlertCircle, X } from "lucide-react"
 import { useBattleData } from "./hooks/use-battle-data"
@@ -12,6 +13,7 @@ import { TeamBuilderModal } from "./components/TeamBuilderModal"
 import { glassCard } from "./config"
 
 export default function BattlePage() {
+  const [activeTab, setActiveTab] = useState<"locations" | "deck">("locations")
   const {
     sessionLoading,
     userCoins,
@@ -24,17 +26,18 @@ export default function BattlePage() {
     setSelectedDungeon,
     battleState,
     setBattleState,
-    battleResult,
-    battleActionIndex,
-    setBattleActionIndex,
-    isAutoPlaying,
-    setIsAutoPlaying,
-    battleSpeed,
-    setBattleSpeed,
+    ccgState,
+    placedThisRound,
+    playCardToZone,
+    recallCard,
+    confirmRoundPlacement,
+    nextRound,
     showTeamBuilder,
     setShowTeamBuilder,
     teamSearch,
     setTeamSearch,
+    selectedRole,
+    setSelectedRole,
     sortBy,
     setSortBy,
     error,
@@ -58,29 +61,31 @@ export default function BattlePage() {
         <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMiIgY3k9IjIiIHI9IjEiIGZpbGw9InJnYmEoMjU1LDI1NSwyNTUsMC4wMykiLz48L3N2Zz4=')] opacity-50" />
       </div>
 
-      <Navbar />
+      {battleState === "idle" && <Navbar />}
 
-      <div className="container mx-auto px-4 sm:px-6 py-8 lg:py-12 max-w-[1400px] relative z-10">
+      <div className={`container mx-auto px-4 sm:px-6 relative z-10 ${battleState === "idle" ? "py-8 lg:py-12 max-w-[1400px]" : "py-1 sm:py-2.5 max-w-full"}`}>
         
         {/* Header Title */}
-        <div className="text-center mb-10 lg:mb-14">
-          <div className="inline-flex items-center justify-center gap-3 px-4 py-1.5 rounded-full bg-white/[0.03] border border-white/10 backdrop-blur-md mb-6 shadow-2xl">
-            <span className="relative flex h-3 w-3">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-3 w-3 bg-rose-500"></span>
-            </span>
-            <span className="text-xs font-bold tracking-widest text-slate-300 uppercase">Режим Арены</span>
+        {battleState === "idle" && (
+          <div className="text-center mb-10 lg:mb-14">
+            <div className="inline-flex items-center justify-center gap-3 px-4 py-1.5 rounded-full bg-white/[0.03] border border-white/10 backdrop-blur-md mb-6 shadow-2xl">
+              <span className="relative flex h-3 w-3">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-3 w-3 bg-rose-500"></span>
+              </span>
+              <span className="text-xs font-bold tracking-widest text-slate-300 uppercase">Режим Арены</span>
+            </div>
+            <h1 className="text-4xl md:text-6xl lg:text-7xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-br from-white via-slate-200 to-slate-500 uppercase drop-shadow-sm">
+              Битвы <span className="text-transparent bg-clip-text bg-gradient-to-r from-rose-400 to-orange-500">PVE</span>
+            </h1>
+            <p className="mt-4 text-slate-400 text-sm md:text-base max-w-2xl mx-auto font-medium">
+              Собери сильнейшую колоду, сочетай КНБ роли, блефуй скрытыми ходами и побеждай на 3-х линиях боя!
+            </p>
           </div>
-          <h1 className="text-4xl md:text-6xl lg:text-7xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-br from-white via-slate-200 to-slate-500 uppercase drop-shadow-sm">
-            Битвы <span className="text-transparent bg-clip-text bg-gradient-to-r from-rose-400 to-orange-500">PVE</span>
-          </h1>
-          <p className="mt-4 text-slate-400 text-sm md:text-base max-w-2xl mx-auto font-medium">
-            Собери сильнейший отряд, покоряй опасные подземелья и добывай монеты для призыва новых героев.
-          </p>
-        </div>
+        )}
 
         {/* Top bar indicators */}
-        <StatsPanel progress={progress} userCoins={userCoins} staminaTime={staminaTime} />
+        {battleState === "idle" && <StatsPanel progress={progress} userCoins={userCoins} staminaTime={staminaTime} />}
 
         {/* Error notification */}
         {error && (
@@ -97,42 +102,38 @@ export default function BattlePage() {
             1. BATTLE SYNCHRONIZATION LOADING STATE
         ========================================== */}
         {battleState === "loading" && (
-          <div className={`max-w-md mx-auto p-12 rounded-3xl ${glassCard} flex flex-col items-center justify-center text-center animate-in fade-in zoom-in-95`}>
+          <div className={"max-w-md mx-auto p-12 rounded-3xl " + glassCard + " flex flex-col items-center justify-center text-center animate-in fade-in zoom-in-95"}>
             <div className="relative w-24 h-24 mb-6">
               <div className="absolute inset-0 border-4 border-rose-500/20 rounded-full"></div>
               <div className="absolute inset-0 border-4 border-rose-500 border-t-transparent rounded-full animate-spin"></div>
               <Swords className="absolute inset-0 m-auto w-8 h-8 text-rose-400 animate-pulse" />
             </div>
-            <h3 className="text-xl font-black text-white uppercase tracking-wider mb-2">Синхронизация Арены</h3>
-            <p className="text-sm text-slate-400">Подготовка противников и расчет вероятностей...</p>
+            <h3 className="text-xl font-black text-white uppercase tracking-wider mb-2">Запуск Тактического Матча</h3>
+            <p className="text-sm text-slate-400">Формирование модификаторов территорий и подготовка ИИ...</p>
           </div>
         )}
 
         {/* ==========================================
             2. BATTLE SIMULATION ARENA VIEW
         ========================================== */}
-        {battleState === "battle" && battleResult && (
+        {battleState === "battle" && (
           <BattleArena
-            battleResult={battleResult}
-            battleActionIndex={battleActionIndex}
-            setBattleActionIndex={setBattleActionIndex}
-            isAutoPlaying={isAutoPlaying}
-            setIsAutoPlaying={setIsAutoPlaying}
-            battleSpeed={battleSpeed}
-            setBattleSpeed={setBattleSpeed}
+            ccgState={ccgState}
+            placedThisRound={placedThisRound}
+            playCardToZone={playCardToZone}
+            recallCard={recallCard}
+            confirmRoundPlacement={confirmRoundPlacement}
+            nextRound={nextRound}
             setBattleState={setBattleState}
-            selectedCards={selectedCards}
-            enemies={enemies}
-            progress={progress}
           />
         )}
 
         {/* ==========================================
             3. COMBAT RESULTS VIEW
         ========================================== */}
-        {battleState === "result" && battleResult && (
+        {battleState === "result" && (
           <BattleResultView
-            battleResult={battleResult}
+            ccgState={ccgState}
             finishBattle={finishBattle}
           />
         )}
@@ -141,25 +142,56 @@ export default function BattlePage() {
             4. MAIN IDLE DASHBOARD
         ========================================== */}
         {battleState === "idle" && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-12 gap-6 xl:gap-8 items-start">
-            <DungeonSelector
-              dungeons={dungeons}
-              progress={progress}
-              selectedDungeon={selectedDungeon}
-              setSelectedDungeon={setSelectedDungeon}
-            />
+          <div className="flex flex-col gap-4">
+            {/* Mobile Tab Switcher */}
+            <div className="xl:hidden flex p-1 rounded-2xl bg-white/[0.02] border border-white/5 backdrop-blur-md max-w-md mx-auto w-full mb-4">
+              <button
+                onClick={() => setActiveTab("locations")}
+                className={`flex-1 py-3 text-xs sm:text-sm font-black uppercase tracking-wider rounded-xl transition-all ${
+                  activeTab === "locations"
+                    ? "bg-white text-black shadow-lg"
+                    : "text-slate-400 hover:text-white"
+                }`}
+              >
+                🗺️ Локации
+              </button>
+              <button
+                onClick={() => setActiveTab("deck")}
+                className={`flex-1 py-3 text-xs sm:text-sm font-black uppercase tracking-wider rounded-xl transition-all ${
+                  activeTab === "deck"
+                    ? "bg-white text-black shadow-lg"
+                    : "text-slate-400 hover:text-white"
+                }`}
+              >
+                🃏 Колода ({selectedCards.length}/8)
+              </button>
+            </div>
 
-            <SelectedTeamPanel
-              selectedCards={selectedCards}
-              toggleCardSelection={toggleCardSelection}
-              setShowTeamBuilder={setShowTeamBuilder}
-              selectedDungeon={selectedDungeon}
-              enemies={enemies}
-              teamPower={teamPower}
-              progress={progress}
-              startBattle={startBattle}
-              logs={logs}
-            />
+            {/* Desktop Dashboard / Mobile Tabbed View */}
+            <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 xl:gap-8 items-start">
+              <div className={activeTab === "locations" ? "xl:col-span-8" : "hidden xl:block xl:col-span-8"}>
+                <DungeonSelector
+                  dungeons={dungeons}
+                  progress={progress}
+                  selectedDungeon={selectedDungeon}
+                  setSelectedDungeon={setSelectedDungeon}
+                />
+              </div>
+
+              <div className={activeTab === "deck" ? "xl:col-span-4" : "hidden xl:block xl:col-span-4"}>
+                <SelectedTeamPanel
+                  selectedCards={selectedCards}
+                  toggleCardSelection={toggleCardSelection}
+                  setShowTeamBuilder={setShowTeamBuilder}
+                  selectedDungeon={selectedDungeon}
+                  enemies={enemies}
+                  teamPower={teamPower}
+                  progress={progress}
+                  startBattle={startBattle}
+                  logs={logs}
+                />
+              </div>
+            </div>
           </div>
         )}
       </div>
@@ -174,6 +206,8 @@ export default function BattlePage() {
         toggleCardSelection={toggleCardSelection}
         teamSearch={teamSearch}
         setTeamSearch={setTeamSearch}
+        selectedRole={selectedRole}
+        setSelectedRole={setSelectedRole}
         sortBy={sortBy}
         setSortBy={setSortBy}
         filteredCards={filteredCards}
