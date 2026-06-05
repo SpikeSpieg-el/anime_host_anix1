@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react"
 import { Swords, ArrowRight, BookOpen, Clock, Zap, X, TrendingUp, TrendingDown, Crown } from "lucide-react"
-import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, useDraggable, useDroppable, closestCenter } from "@dnd-kit/core"
+import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, DragMoveEvent, useDraggable, useDroppable, closestCenter } from "@dnd-kit/core"
 import { SortableContext, useSortable, verticalListSortingStrategy, arrayMove } from "@dnd-kit/sortable"
 import { BattleZone, CCGBattleState, CardRole, Card, DeckContext } from "../types"
 import { getCardBasePower, getCardRole, getDeckPowerModifier, getTerritoryBuff } from "../utils"
@@ -81,6 +81,7 @@ interface SortableCardProps {
   isInteractive?: boolean
   idx?: number
   onClick?: () => void
+  fanStyle?: React.CSSProperties
 }
 
 const SortableCard: React.FC<SortableCardProps> = ({
@@ -90,7 +91,8 @@ const SortableCard: React.FC<SortableCardProps> = ({
   isPlacement = false,
   isInteractive = true,
   idx = 0,
-  onClick
+  onClick,
+  fanStyle
 }) => {
   const {
     attributes,
@@ -101,12 +103,18 @@ const SortableCard: React.FC<SortableCardProps> = ({
     isDragging
   } = useSortable({ id: cardId })
 
-  const style = {
-    transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
-    transition,
+  // Пружинящая кривая Безье для возврата на место (Balatro feel)
+  const springTransition = transition || 'transform 220ms cubic-bezier(0.18, 0.89, 0.32, 1.28)'
+
+  const style: React.CSSProperties = {
+    transform: transform
+      ? `translate3d(${transform.x}px, ${transform.y}px, 0) ${fanStyle?.transform || ''}`
+      : fanStyle?.transform,
+    transformOrigin: fanStyle?.transformOrigin || 'bottom center',
+    transition: springTransition,
     zIndex: isDragging ? 1000 : 10 + idx,
     cursor: isPlacement ? 'grab' : 'default',
-    opacity: isDragging ? 0.5 : 1
+    opacity: isDragging ? 0.15 : 1, // Оставляем едва заметный полупрозрачный силуэт в руке
   }
 
   return (
@@ -115,16 +123,23 @@ const SortableCard: React.FC<SortableCardProps> = ({
       {...attributes}
       {...listeners}
       style={style}
-      className={`relative transition-all duration-200 ease-out shrink-0 ${
-        isPlacement && !isDragging ? 'hover:-translate-y-2' : ''
+      className={`relative shrink-0 group transition-all duration-150 ${
+        isPlacement && !isDragging ? 'hover:!z-[999]' : ''
       }`}
     >
-      <BattleCard
-        card={card}
-        size={size}
-        onClick={onClick}
-        isInteractive={isInteractive}
-      />
+      {/* Внутренний контейнер для эффекта выдвижения и выравнивания при наведении */}
+      <div className={`transition-all duration-200 ease-out ${
+        isPlacement && !isDragging 
+          ? 'group-hover:-translate-y-8 group-hover:scale-110 group-hover:rotate-0' 
+          : ''
+      }`}>
+        <BattleCard
+          card={card}
+          size={size}
+          onClick={onClick}
+          isInteractive={isInteractive}
+        />
+      </div>
     </div>
   )
 }
@@ -161,6 +176,10 @@ const ZoneDropZone: React.FC<ZoneDropZoneProps> = ({
           : statusGlow
       }`}
     >
+      {/* Расширенная невидимая зона для более легкого перетаскивания */}
+      {isPlacement && isDragging && (
+        <div className="absolute inset-0 -m-4 pointer-events-none" />
+      )}
       {children}
     </div>
   )
@@ -211,6 +230,11 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
   const [dragSource, setDragSource] = useState<'hand' | 'zone' | null>(null)
   const [viewedCard, setViewedCard] = useState<{ card: any; isPlayer: boolean; power?: number; bonus?: number; synergyBonus?: number; formationBonus?: number; zoneModifier?: any } | null>(null)
   
+  // Состояния наклона для физики Balatro
+  const [dragTilt, setDragTilt] = useState({ x: 0, y: 0, z: 0 })
+  const lastDragPos = useRef({ x: 0, y: 0 })
+  const lastDragTime = useRef(Date.now())
+
   // Animation states
   const [revealingCards, setRevealingCards] = useState<Set<string>>(new Set())
   const [powerAnimations, setPowerAnimations] = useState<Map<string, { from: number; to: number }>>(new Map())
@@ -229,6 +253,21 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
   const isPlacement = ccgState.phase === "placement"
   const isReveal = ccgState.phase === "reveal"
   const isFinalizing = ccgState.phase === "finalizing"
+
+  // Расчет веерного расположения карт в руке в зависимости от общего количества карт
+  const getHandCardStyle = (idx: number, total: number) => {
+    if (total <= 1) return {}
+    const mid = (total - 1) / 2
+    const offset = idx - mid
+    const rotation = offset * 5 // Угол отклонения (в градусах)
+    const translateY = Math.abs(offset) * 3.5 // Опускание боковых карт для образования дуги
+    const translateX = offset * -1.5 // Небольшое сжатие веера по ширине
+
+    return {
+      transform: `rotate(${rotation}deg) translateY(${translateY}px) translateX(${translateX}px)`,
+      transformOrigin: 'bottom center'
+    }
+  }
 
   // Trigger reveal animation when phase changes to reveal
   useEffect(() => {
@@ -339,17 +378,50 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
 
   const handleDragStart = (event: DragStartEvent) => {
     if (!isPlacement || isRoundConfirmed) {
-      event.active.current.node.cancel()
       return
     }
     setActiveDragId(event.active.id as string)
     setDragSource(event.active.data.current?.source || 'hand')
+
+    // Сброс и инициализация позиций для трекинга физики движения
+    lastDragPos.current = { x: 0, y: 0 }
+    lastDragTime.current = Date.now()
+    setDragTilt({ x: 0, y: 0, z: 0 })
+  }
+
+  const handleDragMove = (event: DragMoveEvent) => {
+    const { delta } = event
+    const now = Date.now()
+    const dt = now - lastDragTime.current
+
+    if (dt > 10) {
+      const dx = delta.x - lastDragPos.current.x
+      const dy = delta.y - lastDragPos.current.y
+      
+      const speedX = dx / dt
+      const speedY = dy / dt
+      
+      // Вычисление углов наклона карты в зависимости от вектора скорости
+      const targetRotY = Math.max(-18, Math.min(18, speedX * 85))  // Наклон по оси Y (влево/вправо)
+      const targetRotX = Math.max(-12, Math.min(12, -speedY * 85)) // Наклон по оси X (вперед/назад)
+      const targetRotZ = Math.max(-8, Math.min(8, speedX * 35))    // Закручивание по оси Z
+
+      setDragTilt({
+        x: targetRotX,
+        y: targetRotY,
+        z: targetRotZ
+      })
+      
+      lastDragPos.current = { x: delta.x, y: delta.y }
+      lastDragTime.current = now
+    }
   }
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event
     setActiveDragId(null)
     setDragSource(null)
+    setDragTilt({ x: 0, y: 0, z: 0 })
 
     if (!over || !isPlacement || isRoundConfirmed) return
 
@@ -435,10 +507,16 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
   const isAiLeading = matchScore.aiZones > matchScore.playerZones
   const isTied = matchScore.playerZones === matchScore.aiZones
 
+  // Получаем массив еще не разыгранных карт в руке игрока
+  const activeHandCards = ccgState.hand.filter(
+    card => !placedThisRound.some(p => p.cardId === card.uniqueId)
+  )
+
   return (
     <DndContext
       collisionDetection={closestCenter}
       onDragStart={handleDragStart}
+      onDragMove={handleDragMove}
       onDragEnd={handleDragEnd}
     >
       <div className="w-full max-w-md mx-auto lg:max-w-4xl h-[100dvh] bg-[#05050a] text-white flex flex-col justify-between overflow-hidden relative select-none overscroll-none touch-none">
@@ -517,7 +595,7 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
         </div>
       )}
 
-      {/* ИГРОВОЕ ПОЛЕ ИЗ 3 ЛОКАЦИЙ (Вертикально адаптированная сетка) */}
+      {/* ИГРОВОЕ ПОЛЕ ИЗ 3 ЛОКАЦИЙ */}
       <main className="flex-1 p-2 flex flex-col justify-center gap-2 z-10">
         <div className="grid grid-cols-3 gap-1.5 lg:gap-3 h-full items-stretch max-h-[600px] lg:max-h-[850px]">
           {ccgState.zones.map((zone) => {
@@ -787,6 +865,10 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
 
                 if (isPlaced) return null
 
+                // Высчитываем общее число свободных карт в веере
+                const currentTotal = activeHandCards.length
+                const activeIdx = activeHandCards.findIndex(c => c.uniqueId === card.uniqueId)
+
                 return (
                   <SortableCard
                     key={card.uniqueId}
@@ -797,6 +879,7 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
                     onClick={() => handleCardView(card, true, getCardBasePower(card), 0, false, 0, false)}
                     isInteractive={true}
                     idx={idx}
+                    fanStyle={getHandCardStyle(activeIdx, currentTotal)}
                   />
                 )
               })}
@@ -805,13 +888,11 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
         </div>
       </div>
 
-      {/* DRAG OVERLAY */}
-      <DragOverlay>
+      {/* DRAG OVERLAY С ФИЗИКОЙ ИНЕРЦИИ И НАКЛОНА (Аналог Balatro) */}
+      <DragOverlay dropAnimation={null}>
         {activeDragId ? (() => {
-          // First try to find in hand
+          // Ищем карту в руке или среди размещенных
           let card = ccgState.hand.find(c => c.uniqueId === activeDragId)
-          
-          // If not in hand, try to find in placed cards
           if (!card) {
             const placed = placedThisRound.find(p => p.cardId === activeDragId)
             if (placed) {
@@ -822,7 +903,16 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
           if (!card) return null
           
           return (
-            <div className="scale-110 opacity-90 rotate-3">
+            <div 
+              style={{
+                transform: `perspective(1000px) rotateX(${dragTilt.x}deg) rotateY(${dragTilt.y}deg) rotateZ(${dragTilt.z}deg) scale(1.12)`,
+                filter: 'drop-shadow(0 25px 15px rgba(0, 0, 0, 0.65))',
+                transition: 'transform 0.08s ease-out',
+                zIndex: 10000,
+                pointerEvents: 'none',
+              }}
+              className="origin-center"
+            >
               <BattleCard card={card} size="sm" isInteractive={false} />
             </div>
           )
