@@ -2,8 +2,88 @@ import React, { useState } from 'react';
 import { Shield, Swords as SwordsIcon, Target, Info, Trophy, Skull, Dumbbell, Crown, Sparkles, Zap, X, Mountain, Footprints } from 'lucide-react';
 import { Card, Dungeon, Enemy, BattleProgress, BattleLog, DeckSynergy } from '../types';
 import { glassCard, glassButton, PROVISION_LIMIT, DECK_SIZE, FORMATION_CONFIG, SYNERGY_DEFINITIONS, SYNERGY_TOTAL_CAP, FormationId, THEME_CONFIG, LEADER_AURA_CONFIG, LEADER_AURA_VALUE, ROLE_CONFIG } from '../config';
+import { getDeckPowerModifier } from '../utils';
 import { getCardBasePower, computeDeckSynergies, getCardProvision, getCardRole } from '../utils';
 import { BattleCard } from './BattleCard';
+
+export const SelectedTeamPanelSkeleton: React.FC = () => {
+  return (
+    <div className="w-full max-w-md mx-auto flex flex-col gap-4 p-2 sm:p-4">
+      <div className={`rounded-3xl p-5 ${glassCard} border border-white/10 backdrop-blur-xl relative overflow-hidden shadow-2xl animate-pulse`}>
+        <div className="absolute -top-12 -left-12 w-32 h-32 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+        
+        <div className="flex items-center justify-between mb-4 relative z-10">
+          <div className="flex items-center gap-2">
+            <div className="p-2 rounded-xl bg-white/10 w-8 h-8" />
+            <div className="space-y-1">
+              <div className="h-4 w-24 bg-white/10 rounded" />
+              <div className="h-2 w-16 bg-white/5 rounded" />
+            </div>
+          </div>
+          <div className="px-2.5 py-1 rounded-full bg-white/10 w-12 h-5" />
+        </div>
+
+        <div className="mb-5 bg-black/40 rounded-2xl p-3 border border-white/5 relative z-10">
+          <div className="flex justify-between items-center mb-1.5">
+            <div className="h-2.5 w-20 bg-white/10 rounded" />
+            <div className="h-2.5 w-12 bg-white/10 rounded" />
+          </div>
+          <div className="w-full h-2.5 bg-slate-900 rounded-full overflow-hidden p-[2px] border border-white/5">
+            <div className="h-full rounded-full bg-white/10 w-3/4" />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2 mb-5 relative z-10">
+          {Array.from({ length: DECK_SIZE }).map((_, slot) => (
+            <div key={slot} className="aspect-[2/3] rounded-xl bg-white/5 border border-white/5" />
+          ))}
+        </div>
+
+        <div className="w-full py-3 mb-4 rounded-xl bg-white/5 h-10" />
+
+        <div className="mb-4 bg-black/40 rounded-2xl p-3 border border-white/5 relative z-10">
+          <div className="flex items-center justify-between mb-2">
+            <div className="h-2.5 w-16 bg-white/10 rounded" />
+          </div>
+          <div className="flex gap-2">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="flex-1 py-2 rounded-lg bg-white/5 h-8" />
+            ))}
+          </div>
+        </div>
+
+        <div className="bg-black/40 rounded-2xl p-3.5 border border-white/5 space-y-3 relative z-10">
+          <div className="flex items-center justify-between pb-2.5 border-b border-white/5">
+            <div className="flex items-center gap-2">
+              <div className="w-3.5 h-3.5 bg-white/10 rounded" />
+              <div className="space-y-0.5">
+                <div className="h-2 w-12 bg-white/5 rounded" />
+                <div className="h-3 w-16 bg-white/10 rounded" />
+              </div>
+            </div>
+            <div className="text-right">
+              <div className="h-2 w-8 bg-white/5 rounded mb-0.5" />
+              <div className="h-3 w-10 bg-white/10 rounded" />
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <div className="h-2 w-16 bg-white/5 rounded" />
+              <div className="h-5 w-20 bg-white/10 rounded" />
+            </div>
+            <div className="text-right space-y-1">
+              <div className="h-2.5 w-10 bg-white/10 rounded" />
+              <div className="h-2.5 w-10 bg-white/10 rounded" />
+            </div>
+          </div>
+        </div>
+
+        <div className="w-full mt-4 py-4 rounded-2xl bg-white/5 h-12" />
+      </div>
+    </div>
+  )
+}
 
 interface SelectedTeamPanelProps {
   selectedCards: Card[]
@@ -406,7 +486,10 @@ export const SelectedTeamPanel: React.FC<SelectedTeamPanelProps> = ({
                   if (leaderRole === "trickster") return LEADER_AURA_VALUE
                   return leaderRole === role ? LEADER_AURA_VALUE : 0
                 })() : 0
-                const totalBonus = totalSynergyBonus + leaderBonus
+                
+                // Calculate formation bonus
+                const formationBonus = getDeckPowerModifier(card, { deck: selectedCards, leaderId, formation }, false)
+                const totalBonus = totalSynergyBonus + leaderBonus + formationBonus
                 const totalCardPower = basePower + totalBonus
 
                 const RoleIcon = role === "vanguard" ? SwordsIcon : role === "guard" ? Shield : Footprints
@@ -431,11 +514,13 @@ export const SelectedTeamPanel: React.FC<SelectedTeamPanelProps> = ({
                           <span>=</span>
                           <span className="font-bold text-emerald-400 text-lg">{totalCardPower}</span>
                         </div>
-                        {(totalSynergyBonus !== 0 || leaderBonus !== 0) && (
+                        {(totalSynergyBonus !== 0 || leaderBonus !== 0 || formationBonus !== 0) && (
                           <div className="flex items-center gap-1 text-slate-500 mt-0.5 text-[10px]">
                             {totalSynergyBonus !== 0 && <span className="text-violet-400">син:{totalSynergyBonus}</span>}
-                            {totalSynergyBonus !== 0 && leaderBonus !== 0 && <span>+</span>}
+                            {totalSynergyBonus !== 0 && (leaderBonus !== 0 || formationBonus !== 0) && <span>+</span>}
                             {leaderBonus !== 0 && <span className="text-amber-400">аура:{leaderBonus}</span>}
+                            {leaderBonus !== 0 && formationBonus !== 0 && <span>+</span>}
+                            {formationBonus !== 0 && <span className="text-cyan-400">форм:{formationBonus}</span>}
                           </div>
                         )}
                       </div>

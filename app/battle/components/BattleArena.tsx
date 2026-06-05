@@ -1,7 +1,7 @@
 import React, { useState } from "react"
 import { Swords, ArrowRight, BookOpen, Clock, Zap, X } from "lucide-react"
-import { BattleZone, CCGBattleState, CardRole } from "../types"
-import { getCardBasePower, getCardRole } from "../utils"
+import { BattleZone, CCGBattleState, CardRole, Card, DeckContext } from "../types"
+import { getCardBasePower, getCardRole, getDeckPowerModifier } from "../utils"
 import { BattleCard } from "./BattleCard"
 
 interface BattleArenaProps {
@@ -14,6 +14,7 @@ interface BattleArenaProps {
   confirmRoundPlacement: () => void
   nextRound: () => void
   setBattleState: (state: "idle" | "loading" | "battle" | "result") => void
+  deckContext?: DeckContext
 }
 
 export const BattleArena: React.FC<BattleArenaProps> = ({
@@ -26,6 +27,7 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
   confirmRoundPlacement,
   nextRound,
   setBattleState,
+  deckContext,
 }) => {
   const [selectedHandCardId, setSelectedHandCardId] = useState<string | null>(null)
   const [showRules, setShowRules] = useState(false)
@@ -34,7 +36,7 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
   const [touchDragCard, setTouchDragCard] = useState<{ cardId: string; startX: number; startY: number } | null>(null)
   const [touchDragPosition, setTouchDragPosition] = useState<{ x: number; y: number } | null>(null)
   const [draggedZoneCardId, setDraggedZoneCardId] = useState<string | null>(null)
-  const [viewedCard, setViewedCard] = useState<{ card: any; isPlayer: boolean; power?: number; bonus?: number; synergyBonus?: number } | null>(null)
+  const [viewedCard, setViewedCard] = useState<{ card: any; isPlayer: boolean; power?: number; bonus?: number; synergyBonus?: number; formationBonus?: number } | null>(null)
 
   if (!ccgState) return null
 
@@ -152,9 +154,16 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
     })
   }
 
-  const handleCardView = (card: any, isPlayer: boolean, power?: number, bonus?: number, isSecret?: boolean, synergyBonus?: number) => {
+  const handleCardView = (card: any, isPlayer: boolean, power?: number, bonus?: number, isSecret?: boolean, synergyBonus?: number, wasSecret?: boolean) => {
     if (isSecret) return // Don't view secret cards
-    setViewedCard({ card, isPlayer, power, bonus, synergyBonus })
+    
+    // Calculate formation bonus for player cards
+    let formationBonus = 0
+    if (isPlayer && deckContext) {
+      formationBonus = getDeckPowerModifier(card, deckContext, wasSecret || false)
+    }
+    
+    setViewedCard({ card, isPlayer, power, bonus, synergyBonus, formationBonus })
   }
 
   const getZoneLiveScores = (zone: BattleZone) => {
@@ -175,7 +184,7 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
   }
 
   return (
-    <div className="w-full max-w-md mx-auto h-[100dvh] bg-[#05050a] text-white flex flex-col justify-between overflow-hidden relative select-none">
+    <div className="w-full max-w-md mx-auto h-[100dvh] bg-[#05050a] text-white flex flex-col justify-between overflow-hidden relative select-none overscroll-none touch-none">
       {/* Декоративное космическое свечение на фоне */}
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_30%,rgba(99,102,241,0.08),transparent_70%)] pointer-events-none" />
 
@@ -233,8 +242,8 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
       )}
 
       {/* ИГРОВОЕ ПОЛЕ ИЗ 3 ЛОКАЦИЙ (Вертикально адаптированная сетка) */}
-      <main className="flex-1 p-3 flex flex-col justify-center gap-3 z-10 overflow-y-auto">
-        <div className="grid grid-cols-3 gap-2 h-full items-stretch max-h-[600px]">
+      <main className="flex-1 p-2 flex flex-col justify-center gap-2 z-10">
+        <div className="grid grid-cols-3 gap-1.5 h-full items-stretch max-h-[600px]">
           {ccgState.zones.map((zone) => {
             const { playerPower, aiPower } = getZoneLiveScores(zone)
             const playerPendingOnThisZone = placedThisRound
@@ -257,10 +266,10 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
             // Стилизованное свечение локаций
             const statusGlow = 
               hasWon && isReveal
-                ? "border-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.35)] bg-emerald-950/20 text-emerald-300"
+                ? "border-emerald-500/50 bg-emerald-950/30"
                 : hasLost && isReveal
-                ? "border-rose-500 shadow-[0_0_20px_rgba(244,63,94,0.35)] bg-rose-950/20 text-rose-300"
-                : "border-indigo-500/20 bg-slate-900/30 text-slate-300 hover:border-indigo-500/40"
+                ? "border-rose-500/50 bg-rose-950/30"
+                : "border-white/10 bg-white/[0.02] hover:border-white/20"
 
             return (
               <div
@@ -269,17 +278,17 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
                 onClick={() => handleZoneClick(zone.id)}
                 onDragOver={(e) => handleDragOver(e, zone.id)}
                 onDrop={(e) => handleDrop(e, zone.id)}
-                className={`relative rounded-2xl p-1.5 transition-all flex flex-col justify-between border ${
+                className={`relative rounded-xl p-2 transition-all flex flex-col justify-between border ${
                   isPlacement && (selectedHandCardId || draggedCardId || touchDragCard)
-                    ? "cursor-pointer ring-2 ring-dashed ring-indigo-500/50 bg-indigo-950/10 animate-pulse"
-                    : "bg-[#08080f]/90 border-white/5"
+                    ? "cursor-pointer ring-2 ring-indigo-500/30 bg-indigo-500/5"
+                    : statusGlow
                 }`}
               >
                 {/* КАРТЫ ПРОТИВНИКА (Сверху локации) */}
-                <div className="flex-1 flex flex-col justify-start min-h-[90px] gap-1">
-                  <div className="flex justify-between items-center px-1 text-[8px] font-black uppercase text-rose-500/80">
+                <div className="flex-1 flex flex-col justify-start min-h-[80px] gap-1">
+                  <div className="flex justify-between items-center px-1.5 text-[9px] font-bold uppercase text-rose-400/70">
                     <span>Враг</span>
-                    <span className="text-xs font-black text-rose-400">⚡{aiPower}</span>
+                    <span className="text-xs font-black text-rose-400">{aiPower}</span>
                   </div>
                   <div className="grid grid-cols-2 gap-1 justify-items-center items-center">
                     {/* Карты из предыдущих раундов */}
@@ -294,7 +303,7 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
                           roleMatchupBonus={zc.roleMatchupBonus}
                           synergyBonus={zc.synergyBonus}
                           isInteractive={true}
-                          onClick={() => handleCardView(zc.card, false, zc.powerAfterModifier, zc.roleMatchupBonus, zc.isSecret && (!isReveal || ccgState.round < 3), zc.synergyBonus)}
+                          onClick={() => handleCardView(zc.card, false, zc.powerAfterModifier, zc.roleMatchupBonus, zc.isSecret && (!isReveal || ccgState.round < 3), zc.synergyBonus, zc.wasSecret)}
                           forceHidden={zone.modifier.id === "dark_zone"}
                         />
                       </div>
@@ -320,34 +329,24 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
                 </div>
 
                 {/* ПОРТАЛ СИЛЫ И ИНФОРМАЦИИ (Центр локации) */}
-                <div className="my-2 flex flex-col items-center">
+                <div className="my-1.5 flex flex-col items-center">
                   <button
                     onClick={(e) => {
                       e.stopPropagation()
                       setActiveTerrain({ nameRu: zone.modifier.nameRu, description: zone.modifier.description })
                     }}
-                    className={`relative w-full py-2.5 rounded-xl border flex flex-col items-center justify-center transition-all duration-300 active:scale-95 ${statusGlow}`}
+                    className="relative w-full py-2 rounded-lg border border-white/10 bg-white/[0.02] hover:bg-white/[0.05] flex flex-col items-center justify-center transition-all active:scale-95"
                   >
-                    {/* Сила AI сверху портала */}
-                    <div className="absolute -top-2 px-2 py-0.5 rounded-full bg-rose-950 border border-rose-500/40 text-[9px] font-black text-rose-400 shadow-md">
-                      {aiPower}
-                    </div>
-
                     <div className="text-center w-full px-1">
-                      <span className="text-[8px] font-black uppercase tracking-wider block truncate">
+                      <span className="text-[9px] font-bold uppercase tracking-wide text-slate-300 block truncate">
                         {zone.modifier.nameRu}
                       </span>
-                    </div>
-
-                    {/* Сила игрока снизу портала */}
-                    <div className="absolute -bottom-2 px-2 py-0.5 rounded-full bg-emerald-950 border border-emerald-500/40 text-[9px] font-black text-emerald-400 shadow-md">
-                      {playerPower}
                     </div>
                   </button>
                 </div>
 
                 {/* КАРТЫ ИГРОКА (Снизу локации) */}
-                <div className="flex-1 flex flex-col justify-end min-h-[90px] gap-1 border-t border-dashed border-white/5 pt-1.5">
+                <div className="flex-1 flex flex-col justify-end min-h-[80px] gap-1 border-t border-white/5 pt-1.5">
                   <div className="grid grid-cols-2 gap-1 justify-items-center items-center">
                     {zone.playerCards.map((zc, idx) => (
                       <div key={idx} className="scale-[0.85]">
@@ -359,7 +358,7 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
                           roleMatchupBonus={zc.roleMatchupBonus}
                           synergyBonus={zc.synergyBonus}
                           isInteractive={true}
-                          onClick={() => handleCardView(zc.card, true, zc.powerAfterModifier, zc.roleMatchupBonus, zc.isSecret && (!isReveal || ccgState.round < 3), zc.synergyBonus)}
+                          onClick={() => handleCardView(zc.card, true, zc.powerAfterModifier, zc.roleMatchupBonus, zc.isSecret && (!isReveal || ccgState.round < 3), zc.synergyBonus, zc.wasSecret)}
                           forceHidden={zone.modifier.id === "dark_zone"}
                         />
                       </div>
@@ -388,9 +387,9 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
                       )
                     })}
                   </div>
-                  <div className="flex justify-between items-center px-1 text-[8px] font-black uppercase text-indigo-400">
+                  <div className="flex justify-between items-center px-1.5 text-[9px] font-bold uppercase text-emerald-400/70">
                     <span>Вы</span>
-                    <span className="text-xs font-black text-emerald-400">⚡{playerPower}</span>
+                    <span className="text-xs font-black text-emerald-400">{playerPower}</span>
                   </div>
                 </div>
               </div>
@@ -606,6 +605,12 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
                   <div className="flex flex-col items-center p-2 rounded-lg bg-violet-500/10 border border-violet-500/20">
                     <span className="text-violet-400 font-bold text-[10px] uppercase">Синергия</span>
                     <span className="text-violet-300 font-black text-sm">+{viewedCard.synergyBonus}</span>
+                  </div>
+                )}
+                {(viewedCard.formationBonus ?? 0) !== 0 && (
+                  <div className="flex flex-col items-center p-2 rounded-lg bg-cyan-500/10 border border-cyan-500/20">
+                    <span className="text-cyan-400 font-bold text-[10px] uppercase">Формация</span>
+                    <span className="text-cyan-300 font-black text-sm">{(viewedCard.formationBonus ?? 0) > 0 ? '+' : ''}{viewedCard.formationBonus}</span>
                   </div>
                 )}
                 <div className="flex flex-col items-center p-2 rounded-lg bg-white/5">

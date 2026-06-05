@@ -3,6 +3,20 @@ import { Crown, Zap, Coins, Timer, Sparkles } from "lucide-react"
 import { BattleProgress } from "../types"
 import { glassCard } from "../config"
 
+export const StatsPanelSkeleton: React.FC = () => {
+  return (
+    <div className="flex overflow-x-auto pb-2 md:pb-0 mb-6 md:mb-8 snap-x scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0 md:justify-center gap-2">
+      {[1, 2, 3, 4, 5].map((i) => (
+        <div key={i} className={`shrink-0 snap-center flex flex-col justify-center px-3 py-2 rounded-xl ${glassCard} min-w-[100px] animate-pulse`}>
+          <div className="h-3 w-16 bg-white/10 rounded mb-2" />
+          <div className="h-6 w-8 bg-white/10 rounded mb-1" />
+          <div className="h-1.5 w-full bg-white/5 rounded" />
+        </div>
+      ))}
+    </div>
+  )
+}
+
 interface StatsPanelProps {
   progress: BattleProgress | null
   userCoins: number
@@ -11,7 +25,7 @@ interface StatsPanelProps {
 }
 
 export const StatsPanel: React.FC<StatsPanelProps> = ({ progress, userCoins, dust, staminaTime }) => {
-  if (!progress) return null
+  if (!progress) return <StatsPanelSkeleton />
 
   return (
     <div className="flex overflow-x-auto pb-2 md:pb-0 mb-6 md:mb-8 snap-x scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0 md:justify-center gap-2">

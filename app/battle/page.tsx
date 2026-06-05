@@ -3,11 +3,12 @@
 import { useState, useRef, useCallback, useEffect } from "react"
 import Image from "next/image"
 import { Navbar } from "@/components/layout/navbar"
+import { Footer } from "@/components/layout/footer"
 import { Swords, AlertCircle, X, RefreshCcw, Star, Crown } from "lucide-react"
 import { useBattleData } from "./hooks/use-battle-data"
-import { StatsPanel } from "./components/StatsPanel"
+import { StatsPanel, StatsPanelSkeleton } from "./components/StatsPanel"
 import { DungeonSelector } from "./components/DungeonSelector"
-import { SelectedTeamPanel } from "./components/SelectedTeamPanel"
+import { SelectedTeamPanel, SelectedTeamPanelSkeleton } from "./components/SelectedTeamPanel"
 import { BattleArena } from "./components/BattleArena"
 import { BattleResultView } from "./components/BattleResultView"
 import { TeamBuilderModal } from "./components/TeamBuilderModal"
@@ -367,11 +368,11 @@ export default function BattlePage() {
         )}
 
         {/* Top bar indicators */}
-        {battleState === "idle" && <StatsPanel progress={progress} userCoins={userCoins} dust={dust} staminaTime={staminaTime} />}
+        {battleState === "idle" && (sessionLoading || !progress ? <StatsPanelSkeleton /> : <StatsPanel progress={progress} userCoins={userCoins} dust={dust} staminaTime={staminaTime} />)}
 
         {/* Error notification */}
         {error && (
-          <div className="max-w-md mx-auto mb-8 p-4 rounded-2xl bg-red-500/10 backdrop-blur-md border border-red-500/20 shadow-lg shadow-red-500/10 flex items-center gap-3 animate-in fade-in slide-in-from-top-4">
+          <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 max-w-md mx-auto p-4 rounded-2xl bg-red-500/10 backdrop-blur-md border border-red-500/20 shadow-lg shadow-red-500/10 flex items-center gap-3 animate-in fade-in slide-in-from-top-4">
             <AlertCircle className="w-5 h-5 text-red-400 shrink-0" />
             <p className="text-red-200 text-sm font-medium flex-1">{error}</p>
             <button onClick={() => setError(null)} className="p-1 rounded-md hover:bg-white/10 transition-colors">
@@ -409,6 +410,7 @@ export default function BattlePage() {
             confirmRoundPlacement={confirmRoundPlacement}
             nextRound={nextRound}
             setBattleState={setBattleState}
+            deckContext={{ deck: selectedCards, leaderId, formation }}
           />
         )}
 
@@ -426,30 +428,37 @@ export default function BattlePage() {
             4. MAIN IDLE DASHBOARD
         ========================================== */}
         {battleState === "idle" && (
-          <div className="flex flex-col gap-4 pb-24">
+          <div className="flex flex-col gap-4 pb-6">
             <div className="flex justify-center">
-              <SelectedTeamPanel
-                selectedCards={selectedCards}
-                toggleCardSelection={toggleCardSelection}
-                setShowTeamBuilder={setShowTeamBuilder}
-                selectedDungeon={selectedDungeon}
-                enemies={enemies}
-                teamPower={teamPower}
-                progress={progress}
-                startBattle={startBattle}
-                logs={logs}
-                leaderId={leaderId}
-                setLeaderId={setLeaderId}
-                formation={formation}
-                setFormation={setFormation}
-                onCardClick={handleCardClick}
-                onOpenLocationSelector={() => setShowLocationSelector(true)}
-              />
+              {sessionLoading || !progress ? (
+                <SelectedTeamPanelSkeleton />
+              ) : (
+                <SelectedTeamPanel
+                  selectedCards={selectedCards}
+                  toggleCardSelection={toggleCardSelection}
+                  setShowTeamBuilder={setShowTeamBuilder}
+                  selectedDungeon={selectedDungeon}
+                  enemies={enemies}
+                  teamPower={teamPower}
+                  progress={progress}
+                  startBattle={startBattle}
+                  logs={logs}
+                  leaderId={leaderId}
+                  setLeaderId={setLeaderId}
+                  formation={formation}
+                  setFormation={setFormation}
+                  onCardClick={handleCardClick}
+                  onOpenLocationSelector={() => setShowLocationSelector(true)}
+                />
+              )}
             </div>
           </div>
         )}
 
       </div>
+
+      {/* Footer */}
+      {battleState === "idle" && <Footer />}
 
       {/* ==========================================
           5. LOCATION SELECTOR MODAL
