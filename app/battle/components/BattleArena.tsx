@@ -1,14 +1,14 @@
 import React, { useState } from "react"
-import { Swords, Eye, Shield, Skull, Zap, HelpCircle, Dumbbell, ArrowRight, BookOpen, Clock, Heart, Swords as SwordsIcon, Info, X } from "lucide-react"
-import { Card, BattleZone, CCGBattleState, ZoneCard } from "../types"
-import { glassCard, ROLE_CONFIG, TERRITORY_MODIFIERS } from "../config"
-import { rarityConfig } from "@/types/gacha"
+import { Swords, ArrowRight, BookOpen, Clock, Zap, X } from "lucide-react"
+import { BattleZone, CCGBattleState, CardRole } from "../types"
 import { getCardBasePower, getCardRole } from "../utils"
 import { BattleCard } from "./BattleCard"
 
 interface BattleArenaProps {
   ccgState: CCGBattleState | null
   placedThisRound: { cardId: string; zoneId: string; isSecret: boolean }[]
+  aiPlacedThisRound: { cardId: string; zoneId: string; isSecret: boolean }[]
+  isRoundConfirmed: boolean
   playCardToZone: (cardId: string, zoneId: string) => void
   recallCard: (cardId: string) => void
   confirmRoundPlacement: () => void
@@ -19,6 +19,8 @@ interface BattleArenaProps {
 export const BattleArena: React.FC<BattleArenaProps> = ({
   ccgState,
   placedThisRound,
+  aiPlacedThisRound,
+  isRoundConfirmed,
   playCardToZone,
   recallCard,
   confirmRoundPlacement,
@@ -28,22 +30,134 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
   const [selectedHandCardId, setSelectedHandCardId] = useState<string | null>(null)
   const [showRules, setShowRules] = useState(false)
   const [activeTerrain, setActiveTerrain] = useState<{ nameRu: string; description: string } | null>(null)
+  const [draggedCardId, setDraggedCardId] = useState<string | null>(null)
+  const [touchDragCard, setTouchDragCard] = useState<{ cardId: string; startX: number; startY: number } | null>(null)
+  const [touchDragPosition, setTouchDragPosition] = useState<{ x: number; y: number } | null>(null)
+  const [draggedZoneCardId, setDraggedZoneCardId] = useState<string | null>(null)
+  const [viewedCard, setViewedCard] = useState<{ card: any; isPlayer: boolean; power?: number; bonus?: number; synergyBonus?: number } | null>(null)
 
   if (!ccgState) return null
 
   const isPlacement = ccgState.phase === "placement"
   const isReveal = ccgState.phase === "reveal"
 
-  // Handle deploying card via clicks
   const handleZoneClick = (zoneId: string) => {
-    if (!selectedHandCardId || !isPlacement) return
+    if (!selectedHandCardId || !isPlacement || isRoundConfirmed) return
     playCardToZone(selectedHandCardId, zoneId)
     setSelectedHandCardId(null)
   }
 
-  // Real-time Power Calculation for display
+  const handleDragStart = (e: React.DragEvent, cardId: string) => {
+    if (!isPlacement || isRoundConfirmed) {
+      e.preventDefault()
+      return
+    }
+    setDraggedCardId(cardId)
+    e.dataTransfer.effectAllowed = "move"
+  }
+
+  const handleDragOver = (e: React.DragEvent, zoneId: string) => {
+    if (!isPlacement || !draggedCardId) return
+    e.preventDefault()
+    e.dataTransfer.dropEffect = "move"
+  }
+
+  const handleDrop = (e: React.DragEvent, zoneId: string) => {
+    if (!isPlacement || !draggedCardId) return
+    e.preventDefault()
+    playCardToZone(draggedCardId, zoneId)
+    setDraggedCardId(null)
+  }
+
+  const handleDragEnd = () => {
+    setDraggedCardId(null)
+  }
+
+  const handleTouchStart = (e: React.TouchEvent, cardId: string) => {
+    if (!isPlacement || isRoundConfirmed) return
+    const touch = e.touches[0]
+    setTouchDragCard({
+      cardId,
+      startX: touch.clientX,
+      startY: touch.clientY
+    })
+  }
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!touchDragCard) return
+    const touch = e.touches[0]
+    setTouchDragPosition({
+      x: touch.clientX,
+      y: touch.clientY
+    })
+  }
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (!touchDragCard) return
+
+    const touch = e.changedTouches[0]
+    const element = document.elementFromPoint(touch.clientX, touch.clientY)
+    if (element) {
+      const zoneElement = element.closest('[data-zone-id]')
+      if (zoneElement) {
+        const zoneId = zoneElement.getAttribute('data-zone-id')
+        if (zoneId) {
+          playCardToZone(touchDragCard.cardId, zoneId)
+        }
+      } else {
+        // Если сбросили не на зону - возвращаем карту в руку
+        const isZoneCard = placedThisRound.some(p => p.cardId === touchDragCard.cardId)
+        if (isZoneCard) {
+          recallCard(touchDragCard.cardId)
+        }
+      }
+    }
+
+    setTouchDragCard(null)
+    setTouchDragPosition(null)
+  }
+
+  const handleZoneCardDragStart = (e: React.DragEvent, cardId: string) => {
+    if (!isPlacement || isRoundConfirmed) {
+      e.preventDefault()
+      return
+    }
+    setDraggedZoneCardId(cardId)
+    e.dataTransfer.effectAllowed = "move"
+  }
+
+  const handleZoneCardDragEnd = (e: React.DragEvent) => {
+    if (!draggedZoneCardId) return
+
+    // Проверяем, сбросили ли на зону
+    const element = document.elementFromPoint(e.clientX, e.clientY)
+    if (element) {
+      const zoneElement = element.closest('[data-zone-id]')
+      if (!zoneElement) {
+        // Если сбросили не на зону - возвращаем карту в руку
+        recallCard(draggedZoneCardId)
+      }
+    }
+
+    setDraggedZoneCardId(null)
+  }
+
+  const handleZoneCardTouchStart = (e: React.TouchEvent, cardId: string) => {
+    if (!isPlacement || isRoundConfirmed) return
+    const touch = e.touches[0]
+    setTouchDragCard({
+      cardId,
+      startX: touch.clientX,
+      startY: touch.clientY
+    })
+  }
+
+  const handleCardView = (card: any, isPlayer: boolean, power?: number, bonus?: number, isSecret?: boolean, synergyBonus?: number) => {
+    if (isSecret) return // Don't view secret cards
+    setViewedCard({ card, isPlayer, power, bonus, synergyBonus })
+  }
+
   const getZoneLiveScores = (zone: BattleZone) => {
-    // 1. Player Confirmed + Pending
     let playerPower = zone.playerCards.reduce((acc, zc) => acc + zc.powerAfterModifier, 0)
     placedThisRound.forEach(p => {
       if (p.zoneId === zone.id) {
@@ -52,9 +166,7 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
       }
     })
 
-    // 2. AI Confirmed (including tentative in reveal phase)
     const aiPower = zone.aiCards.reduce((acc, zc) => {
-      // In placement phase, do not count power of secret AI cards for the current round
       if (zc.isSecret && isPlacement) return acc
       return acc + zc.powerAfterModifier
     }, 0)
@@ -63,336 +175,465 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
   }
 
   return (
-    <div className="w-full max-w-6xl mx-auto rounded-3xl bg-[#090911]/90 border border-white/10 overflow-hidden animate-in fade-in zoom-in-95 duration-500 flex flex-col relative min-h-0 shadow-[0_20px_50px_rgba(0,0,0,0.8)]">
-      
-      {/* HEADER BAR */}
-      <div className="bg-white/[0.02] border-b border-white/5 p-2.5 sm:p-4 flex flex-row items-center justify-between backdrop-blur-md relative z-20 gap-2">
-        <div className="flex items-center gap-2 sm:gap-4 min-w-0">
-          <div className="px-2.5 sm:px-4 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 shadow-inner shrink-0">
-            <span className="text-[9px] sm:text-[10px] font-black text-indigo-300 uppercase tracking-widest mr-1.5">Раунд</span>
-            <span className="text-xs sm:text-sm font-black text-white">{ccgState.round}</span>
-            <span className="text-[10px] sm:text-xs text-slate-500 ml-0.5">/ 3</span>
+    <div className="w-full max-w-md mx-auto h-[100dvh] bg-[#05050a] text-white flex flex-col justify-between overflow-hidden relative select-none">
+      {/* Декоративное космическое свечение на фоне */}
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_30%,rgba(99,102,241,0.08),transparent_70%)] pointer-events-none" />
+
+      {/* ВЕРХНЯЯ ИНФО-ПАНЕЛЬ */}
+      <header className="px-4 py-3 bg-slate-950/60 border-b border-white/5 backdrop-blur-md flex items-center justify-between z-30 shrink-0">
+        <div className="flex items-center gap-3">
+          <div className="px-3 py-1.5 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center gap-1">
+            <span className="text-[9px] font-black uppercase text-indigo-400 tracking-wider">Раунд</span>
+            <span className="text-xs font-black text-white">{ccgState.round}</span>
+            <span className="text-[10px] text-slate-500">/ 3</span>
           </div>
-          <div className="text-[10px] sm:text-xs font-bold text-slate-400 flex items-center gap-1.5 min-w-0">
-            <span className="relative flex h-2 w-2 shrink-0">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+          <div className="text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5">
+            <span className="relative flex h-2 w-2">
+              <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${isPlacement ? 'bg-amber-400' : 'bg-indigo-400'}`}></span>
+              <span className={`relative inline-flex rounded-full h-2 w-2 ${isPlacement ? 'bg-amber-500' : 'bg-indigo-500'}`}></span>
             </span>
-            <span className="truncate">
-              {isPlacement ? (
-                <span className="text-amber-400 font-black">Планирование (2 карты)</span>
-              ) : (
-                <span className="text-indigo-400 font-black">Вскрытие карт: дуэль!</span>
-              )}
+            <span className={isPlacement ? 'text-amber-400' : 'text-indigo-400'}>
+              {isPlacement ? 'Планирование' : 'Вскрытие!'}
             </span>
           </div>
         </div>
 
-        <div className="flex items-center gap-1.5 shrink-0">
+        <div className="flex items-center gap-1.5">
           <button
             onClick={() => setShowRules(!showRules)}
-            className="text-[10px] sm:text-xs px-2 sm:px-3 py-1 bg-white/5 hover:bg-white/10 text-slate-300 border border-white/5 rounded-lg sm:rounded-xl transition-all font-bold flex items-center gap-1"
+            className="p-2 bg-white/5 active:scale-90 border border-white/5 rounded-xl transition-all"
           >
-            <BookOpen className="w-3 sm:w-3.5 h-3 sm:h-3.5" />
-            <span className="hidden sm:inline">{showRules ? "Скрыть" : "Гайд"}</span>
+            <BookOpen className="w-4 h-4 text-slate-300" />
           </button>
           <button
             onClick={() => setBattleState("idle")}
-            className="text-[10px] sm:text-xs px-2.5 sm:px-3.5 py-1 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 rounded-lg sm:rounded-xl transition-all font-bold"
+            className="px-3 py-1.5 bg-rose-500/10 active:scale-90 text-rose-400 border border-rose-500/20 rounded-xl transition-all text-[10px] font-black uppercase"
           >
             Сдаться
           </button>
         </div>
-      </div>
+      </header>
 
-      {/* QUICK KNB RULES BANNER */}
+      {/* КРАТКИЙ СПРАВОЧНИК КНБ */}
       {showRules && (
-        <div className="bg-gradient-to-r from-indigo-950/40 via-purple-950/20 to-transparent border-b border-white/5 p-4 relative z-10 flex flex-col md:flex-row gap-4 items-center justify-between animate-in slide-in-from-top-4 duration-300">
-          <div className="flex-1">
-            <h4 className="text-xs font-black text-indigo-300 uppercase tracking-widest mb-1">🔥 Механика Боевых Ролей & КНБ</h4>
-            <p className="text-[11px] text-slate-400 leading-relaxed max-w-2xl">
-              Роль карты определяется автоматически по её доминирующей характеристике. При столкновении срабатывает КНБ бонус: побеждающая карта получает <strong>+50% силы</strong> против проигрывающей!
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2 shrink-0">
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-[10px] font-bold">
-              <span className="text-sm">🗡️</span> <strong>Авангард</strong> (ATK) бьет <strong>Плута</strong> (+50%)
+        <div className="bg-slate-950/95 border-b border-white/10 p-3.5 absolute top-[52px] left-0 right-0 z-40 animate-in slide-in-from-top-3 duration-200">
+          <h4 className="text-[10px] font-black text-indigo-400 uppercase tracking-wider mb-2">🔥 Бонус ролей (КНБ): победитель получает +50% к силе!</h4>
+          <div className="grid grid-cols-3 gap-1 text-[8px] font-extrabold text-center">
+            <div className="p-1.5 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-300">
+              🗡️ Авангард &gt; Плут
             </div>
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-300 text-[10px] font-bold">
-              <span className="text-sm">🛡️</span> <strong>Страж</strong> (HP/DEF) бьет <strong>Авангард</strong> (+50%)
+            <div className="p-1.5 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-300">
+              🛡️ Страж &gt; Авангард
             </div>
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-[10px] font-bold">
-              <span className="text-sm">⚡</span> <strong>Плут</strong> (SPD/LUCK) бьет <strong>Стража</strong> (+50%)
+            <div className="p-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-300">
+              ⚡ Плут &gt; Стража
             </div>
           </div>
         </div>
       )}
 
-      {/* THREE ZONE BATTLEFIELD */}
-      <div className="p-2 sm:p-4 md:p-6 pb-[170px] sm:pb-[210px] lg:pb-6 flex-1 flex flex-col gap-4 relative z-10">
-        <div className="grid grid-cols-3 gap-3 sm:gap-4 md:gap-6 flex-1 items-stretch overflow-x-auto min-w-full">
+      {/* ИГРОВОЕ ПОЛЕ ИЗ 3 ЛОКАЦИЙ (Вертикально адаптированная сетка) */}
+      <main className="flex-1 p-3 flex flex-col justify-center gap-3 z-10 overflow-y-auto">
+        <div className="grid grid-cols-3 gap-2 h-full items-stretch max-h-[600px]">
           {ccgState.zones.map((zone) => {
             const { playerPower, aiPower } = getZoneLiveScores(zone)
+            const playerPendingOnThisZone = placedThisRound
+              .filter(p => p.zoneId === zone.id)
+              .map(p => ({
+                card: ccgState.hand.find(c => c.uniqueId === p.cardId),
+                isSecret: p.isSecret
+              }))
 
-            // Find if any card is currently placed on this zone this round
-            const playerPendingOnThisZone = placedThisRound.filter(p => p.zoneId === zone.id).map(p => {
-              const card = ccgState.hand.find(c => c.uniqueId === p.cardId)
-              return { card, isSecret: p.isSecret }
-            })
+            const aiPendingOnThisZone = aiPlacedThisRound
+              .filter(p => p.zoneId === zone.id)
+              .map(p => ({
+                card: ccgState.aiHand.find(c => c.uniqueId === p.cardId),
+                isSecret: p.isSecret
+              }))
 
             const hasWon = zone.owner === "player"
             const hasLost = zone.owner === "ai"
 
-            // Medallion styling based on owner
-            const borderGlowClass = 
+            // Стилизованное свечение локаций
+            const statusGlow = 
               hasWon && isReveal
-                ? "border-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.4)] bg-emerald-950/40 text-emerald-300"
+                ? "border-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.35)] bg-emerald-950/20 text-emerald-300"
                 : hasLost && isReveal
-                ? "border-rose-500 shadow-[0_0_15px_rgba(244,63,94,0.4)] bg-rose-950/40 text-rose-300"
-                : "border-indigo-500/30 bg-slate-900/40 text-slate-300 hover:border-indigo-500/60"
+                ? "border-rose-500 shadow-[0_0_20px_rgba(244,63,94,0.35)] bg-rose-950/20 text-rose-300"
+                : "border-indigo-500/20 bg-slate-900/30 text-slate-300 hover:border-indigo-500/40"
 
             return (
               <div
                 key={zone.id}
+                data-zone-id={zone.id}
                 onClick={() => handleZoneClick(zone.id)}
-                className={"relative rounded-2xl p-2 sm:p-2.5 md:p-4 transition-all flex flex-col justify-between border select-none min-w-[150px] sm:min-w-0 " + (
-                  isPlacement && selectedHandCardId 
-                    ? "cursor-pointer hover:border-indigo-500/80 hover:bg-indigo-500/5 ring-1 ring-dashed ring-indigo-500/40 bg-white/[0.01] border-white/10" 
-                    : "bg-[#0b0b14]/40 border-white/5"
-                )}
+                onDragOver={(e) => handleDragOver(e, zone.id)}
+                onDrop={(e) => handleDrop(e, zone.id)}
+                className={`relative rounded-2xl p-1.5 transition-all flex flex-col justify-between border ${
+                  isPlacement && (selectedHandCardId || draggedCardId || touchDragCard)
+                    ? "cursor-pointer ring-2 ring-dashed ring-indigo-500/50 bg-indigo-950/10 animate-pulse"
+                    : "bg-[#08080f]/90 border-white/5"
+                }`}
               >
-                {/* AI DEPLOYED CARDS (Top) */}
-                <div className="flex-1 flex flex-col justify-start min-h-[110px] sm:min-h-[140px] md:min-h-[160px] pb-2 sm:pb-4">
-                  <div className="text-[9px] sm:text-[10px] uppercase font-bold text-rose-500/70 mb-1.5 sm:mb-2 flex justify-between items-center px-0.5">
-                    <span>Соперник</span>
-                    <span className="text-[10px] sm:text-xs font-black text-rose-400">⚡{aiPower}</span>
+                {/* КАРТЫ ПРОТИВНИКА (Сверху локации) */}
+                <div className="flex-1 flex flex-col justify-start min-h-[90px] gap-1">
+                  <div className="flex justify-between items-center px-1 text-[8px] font-black uppercase text-rose-500/80">
+                    <span>Враг</span>
+                    <span className="text-xs font-black text-rose-400">⚡{aiPower}</span>
                   </div>
-
-                  <div className="flex flex-nowrap gap-1 justify-center items-start">
-                    {zone.aiCards.map((zc, idx) => {
-                      return (
+                  <div className="grid grid-cols-2 gap-1 justify-items-center items-center">
+                    {/* Карты из предыдущих раундов */}
+                    {zone.aiCards.map((zc, idx) => (
+                      <div key={idx} className="scale-[0.85]">
                         <BattleCard
-                          key={idx}
                           card={zc.card}
                           size="sm"
-                          isSecret={zc.isSecret && !isReveal}
+                          isSecret={zc.isSecret && (!isReveal || ccgState.round < 3)}
+                          isPlayerCard={false}
                           powerValue={zc.powerAfterModifier}
                           roleMatchupBonus={zc.roleMatchupBonus}
-                          isInteractive={false}
+                          synergyBonus={zc.synergyBonus}
+                          isInteractive={true}
+                          onClick={() => handleCardView(zc.card, false, zc.powerAfterModifier, zc.roleMatchupBonus, zc.isSecret && (!isReveal || ccgState.round < 3), zc.synergyBonus)}
+                          forceHidden={zone.modifier.id === "dark_zone"}
                         />
+                      </div>
+                    ))}
+                    {/* Карты размещенные в этом раунде */}
+                    {aiPendingOnThisZone.map((p, idx) => {
+                      if (!p.card) return null
+                      return (
+                        <div key={`ai-pending-${idx}`} className="scale-[0.85]">
+                          <BattleCard
+                            card={p.card}
+                            size="sm"
+                            isSecret={p.isSecret && (!isReveal || ccgState.round < 3)}
+                            isPlayerCard={false}
+                            isPending={true}
+                            isInteractive={false}
+                            forceHidden={zone.modifier.id === "dark_zone"}
+                          />
+                        </div>
                       )
                     })}
                   </div>
                 </div>
 
-                {/* ZONE SCORE SUMMARY / MEDALLION (Middle) */}
-                <div className="my-3 flex flex-col items-center">
+                {/* ПОРТАЛ СИЛЫ И ИНФОРМАЦИИ (Центр локации) */}
+                <div className="my-2 flex flex-col items-center">
                   <button
                     onClick={(e) => {
                       e.stopPropagation()
                       setActiveTerrain({ nameRu: zone.modifier.nameRu, description: zone.modifier.description })
                     }}
-                    className={`relative w-full max-w-[120px] py-2 sm:py-3.5 rounded-xl border flex flex-col items-center justify-center transition-all duration-300 cursor-pointer ${borderGlowClass}`}
+                    className={`relative w-full py-2.5 rounded-xl border flex flex-col items-center justify-center transition-all duration-300 active:scale-95 ${statusGlow}`}
                   >
-                    {/* AI Score Badge */}
-                    <div className="absolute -top-2 px-2 py-0.5 rounded-full bg-rose-950/90 border border-rose-500/30 text-[10px] sm:text-[10px] font-black text-rose-400 shadow-md">
+                    {/* Сила AI сверху портала */}
+                    <div className="absolute -top-2 px-2 py-0.5 rounded-full bg-rose-950 border border-rose-500/40 text-[9px] font-black text-rose-400 shadow-md">
                       {aiPower}
                     </div>
 
-                    {/* Terrain Name */}
-                    <div className="px-1 text-center w-full">
-                      <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-wider block truncate">
+                    <div className="text-center w-full px-1">
+                      <span className="text-[8px] font-black uppercase tracking-wider block truncate">
                         {zone.modifier.nameRu}
-                      </span>
-                      <span className="text-[7px] sm:text-[8px] font-semibold text-slate-500 block">
-                        Инфо...
                       </span>
                     </div>
 
-                    {/* Player Score Badge */}
-                    <div className="absolute -bottom-2 px-2 py-0.5 rounded-full bg-emerald-950/90 border border-emerald-500/30 text-[10px] sm:text-[10px] font-black text-emerald-400 shadow-md">
+                    {/* Сила игрока снизу портала */}
+                    <div className="absolute -bottom-2 px-2 py-0.5 rounded-full bg-emerald-950 border border-emerald-500/40 text-[9px] font-black text-emerald-400 shadow-md">
                       {playerPower}
                     </div>
                   </button>
                 </div>
 
-                {/* PLAYER DEPLOYED CARDS (Bottom) */}
-                <div className="flex-1 flex flex-col justify-end pt-2 sm:pt-4 min-h-[110px] sm:min-h-[140px] md:min-h-[160px] border-t border-dashed border-white/5">
-                  <div className="text-[9px] sm:text-[10px] uppercase font-bold text-indigo-400/70 mt-1 sm:mt-2 mb-1.5 sm:mb-2 flex justify-between items-center px-0.5">
-                    <span>Вы</span>
-                    <span className="text-[10px] sm:text-xs font-black text-emerald-400">⚡{playerPower}</span>
-                  </div>
-
-                  <div className="flex flex-nowrap gap-1 justify-center items-start">
-                    {/* Pre-reveal confirmed cards */}
-                    {zone.playerCards.map((zc, idx) => {
-                      return (
+                {/* КАРТЫ ИГРОКА (Снизу локации) */}
+                <div className="flex-1 flex flex-col justify-end min-h-[90px] gap-1 border-t border-dashed border-white/5 pt-1.5">
+                  <div className="grid grid-cols-2 gap-1 justify-items-center items-center">
+                    {zone.playerCards.map((zc, idx) => (
+                      <div key={idx} className="scale-[0.85]">
                         <BattleCard
-                          key={idx}
                           card={zc.card}
                           size="sm"
+                          isSecret={zc.isSecret && (!isReveal || ccgState.round < 3)}
                           powerValue={zc.powerAfterModifier}
                           roleMatchupBonus={zc.roleMatchupBonus}
-                          isInteractive={false}
+                          synergyBonus={zc.synergyBonus}
+                          isInteractive={true}
+                          onClick={() => handleCardView(zc.card, true, zc.powerAfterModifier, zc.roleMatchupBonus, zc.isSecret && (!isReveal || ccgState.round < 3), zc.synergyBonus)}
+                          forceHidden={zone.modifier.id === "dark_zone"}
                         />
-                      )
-                    })}
+                      </div>
+                    ))}
 
-                    {/* Pending placed cards this round */}
                     {playerPendingOnThisZone.map((p, idx) => {
                       if (!p.card) return null
                       return (
-                        <BattleCard
-                          key={`pending-${idx}`}
-                          card={p.card}
-                          size="sm"
-                          isSecret={p.isSecret}
-                          isPending={true}
-                          onRemove={() => recallCard(p.card!.uniqueId)}
-                          isInteractive={false}
-                        />
+                        <div key={`pending-${idx}`} className="scale-[0.85]">
+                          <BattleCard
+                            card={p.card}
+                            size="sm"
+                            isSecret={p.isSecret && (!isReveal || ccgState.round < 3)}
+                            isPlayerCard={true}
+                            isPending={true}
+                            draggable={isPlacement}
+                            onDragStart={handleZoneCardDragStart}
+                            onDragEnd={handleZoneCardDragEnd}
+                            onTouchStart={handleZoneCardTouchStart}
+                            onTouchMove={handleTouchMove}
+                            onTouchEnd={handleTouchEnd}
+                            onRemove={() => recallCard(p.card!.uniqueId)}
+                            isInteractive={false}
+                          />
+                        </div>
                       )
                     })}
                   </div>
+                  <div className="flex justify-between items-center px-1 text-[8px] font-black uppercase text-indigo-400">
+                    <span>Вы</span>
+                    <span className="text-xs font-black text-emerald-400">⚡{playerPower}</span>
+                  </div>
                 </div>
-
               </div>
             )
           })}
         </div>
+      </main>
+
+      {/* ПЛАВАЮЩАЯ КНОПКА ЗАВЕРШЕНИЯ ХОДА СПРАВА */}
+      <div className="fixed right-4 bottom-40 z-50">
+        {isPlacement ? (
+          <button
+            onClick={confirmRoundPlacement}
+            disabled={placedThisRound.length < 2 || aiPlacedThisRound.length < 2}
+            className="w-14 h-14 rounded-full bg-emerald-500 disabled:bg-slate-700 text-white disabled:text-slate-500 font-black text-sm transition-all active:scale-100 flex flex-col items-center justify-center"
+          >
+            <Swords className="w-5 h-5" />
+            <span className="text-[9px] leading-none">
+              {placedThisRound.length}/{aiPlacedThisRound.length}
+            </span>
+          </button>
+        ) : (
+          <button
+            onClick={nextRound}
+            className="w-14 h-14 rounded-full bg-indigo-500 text-white font-black text-sm transition-all active:scale-100 flex flex-col items-center justify-center"
+          >
+            <ArrowRight className="w-5 h-5" />
+            <span className="text-[9px] leading-none">Далее</span>
+          </button>
+        )}
       </div>
 
-      {/* MOVE BATTLE EVENT LOGS */}
-      {ccgState.roundHistory.length > 0 && (
-        <div className="hidden xl:block px-6 py-3 border-t border-white/5 bg-[#0a0a14] relative z-10">
-          <div className="flex items-center gap-2 text-indigo-400 text-xs font-black uppercase mb-1">
-            <Clock className="w-3.5 h-3.5" /> Хроника боя (История ходов)
-          </div>
-          <div className="max-h-[60px] overflow-y-auto space-y-1.5 scrollbar-thin">
-            {ccgState.roundHistory.map((hist, idx) => (
-              <div key={idx} className="text-[11px] text-slate-400 flex flex-wrap gap-x-4 items-center bg-white/[0.01] px-2.5 py-1 rounded-lg border border-white/5">
-                <span className="font-black text-amber-400 uppercase tracking-wider shrink-0">Раунд {hist.round}:</span>
-                <span className="flex items-center gap-1">
-                  👤 Вы: {hist.playerActions.map((act, i) => (
-                    <strong key={i} className="text-slate-200">
-                      {act.cardName} {act.isSecret ? "🤫(Скрыто)" : "👁️(Открыто)"}{i < hist.playerActions.length - 1 ? ", " : ""}
-                    </strong>
-                  ))}
-                </span>
-                <span className="hidden md:inline text-slate-600">|</span>
-                <span className="flex items-center gap-1">
-                  🤖 Соперник: {hist.aiActions.map((act, i) => (
-                    <strong key={i} className="text-slate-400">
-                      {act.cardName} {act.isSecret ? "🤫(Скрыто)" : "👁️(Открыто)"}{i < hist.aiActions.length - 1 ? ", " : ""}
-                    </strong>
-                  ))}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* PLAYER HAND BAR */}
-      <div className="sticky bottom-0 left-0 right-0 bg-[#0a0a14]/95 border-t border-white/10 px-3 sm:px-4 py-2 sm:py-3.5 backdrop-blur-2xl z-40 shadow-[0_-15px_30px_rgba(0,0,0,0.9)] mt-auto">
-        <div className="flex items-center justify-between gap-3 max-w-5xl mx-auto w-full">
-          
-          {/* Hand Cards */}
-          <div className="flex-1 min-w-0 flex flex-col">
-            <div className="w-full flex items-center justify-between mb-1 px-1">
-              <span className="text-[9px] text-slate-500 font-bold block uppercase tracking-widest leading-none">
-                Твоя рука ({ccgState.hand.length})
+      {/* ЗОНА РУКИ - ОТДЕЛЬНЫЙ БЛОК */}
+      <div className="bg-slate-950/95 border-t border-white/10 px-3 pt-2 pb-5 backdrop-blur-2xl z-30 shadow-[0_-10px_30px_rgba(0,0,0,0.8)] shrink-0">
+        <div className="max-w-md mx-auto w-full relative">
+          <div className="flex items-center justify-between px-1 mb-1">
+            <span className="text-[8px] text-slate-400 font-extrabold uppercase tracking-wider">
+              Карт в руке ({ccgState.hand.length})
+            </span>
+            {selectedHandCardId && (
+              <span className="text-[8px] text-amber-400 font-black uppercase tracking-wider animate-pulse">
+                Выберите линию выше!
               </span>
-              {selectedHandCardId && (
-                <span className="text-[9px] text-amber-400 font-black uppercase tracking-wider animate-pulse">
-                  � Выстави на линию!
-                </span>
-              )}
-            </div>
-            
-            {/* Elegant CCG Card Fan Overlapping layout */}
-            <div className="flex flex-nowrap overflow-x-auto scrollbar-none items-end h-[150px] sm:h-[200px] md:h-[250px] pt-6 sm:pt-8 md:pt-14 pb-1 pl-2 gap-1">
-              {ccgState.hand.map((card, idx) => {
-                const isSelected = selectedHandCardId === card.uniqueId
-                const isPlaced = placedThisRound.some(p => p.cardId === card.uniqueId)
-
-                if (isPlaced) return null
-
-                return (
-                  <div
-                    key={card.uniqueId}
-                    className={`relative transition-all duration-300 ease-out shrink-0 -ml-4 sm:-ml-8 md:-ml-12 first:ml-0 hover:z-30 hover:-translate-y-3 sm:hover:-translate-y-5 ${
-                      isSelected ? "z-40 -translate-y-4 sm:-translate-y-6 scale-110" : ""
-                    }`}
-                  >
-                    <BattleCard
-                      card={card}
-                      size="md"
-                      onClick={() => isPlacement && setSelectedHandCardId(isSelected ? null : card.uniqueId)}
-                      className={isSelected ? "ring-2 ring-indigo-500 shadow-[0_0_20px_rgba(99,102,241,0.5)]" : ""}
-                    />
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-
-          {/* Action Button (Marvel Snap style circle on the right!) */}
-          <div className="shrink-0 flex items-center justify-center pl-2">
-            {isPlacement ? (
-              <button
-                onClick={confirmRoundPlacement}
-                disabled={placedThisRound.length < 2}
-                className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 disabled:from-slate-800 disabled:to-slate-900 text-white disabled:text-slate-500 font-black uppercase text-[10px] sm:text-xs tracking-wider transition-all duration-300 shadow-[0_0_20px_rgba(16,185,129,0.3)] disabled:shadow-none active:scale-95 border-2 border-emerald-400/30 disabled:border-white/5 flex flex-col items-center justify-center gap-1"
-              >
-                <Swords className="w-4.5 h-4.5 sm:w-5 sm:h-5" />
-                <span className="text-center leading-none text-[8px] sm:text-[9px]">
-                  В бой <br />({placedThisRound.length}/2)
-                </span>
-              </button>
-            ) : (
-              <button
-                onClick={nextRound}
-                className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 text-white font-black uppercase text-[10px] sm:text-xs tracking-wider transition-all duration-300 shadow-[0_0_20px_rgba(99,102,241,0.4)] active:scale-95 border-2 border-indigo-400/30 flex flex-col items-center justify-center gap-1"
-              >
-                <ArrowRight className="w-4.5 h-4.5 sm:w-5 sm:h-5 animate-pulse" />
-                <span className="text-center leading-none text-[8px] sm:text-[9px]">Шаг</span>
-              </button>
             )}
           </div>
+          
+          {/* Отрендеренный веер карт */}
+          <div className="flex items-center justify-center gap-2 py-3 px-2 overflow-visible min-h-[130px]">
+            {ccgState.hand.map((card, idx) => {
+              const isSelected = selectedHandCardId === card.uniqueId
+              const isPlaced = placedThisRound.some(p => p.cardId === card.uniqueId)
 
+              if (isPlaced) return null
+
+              return (
+                <div
+                  key={card.uniqueId}
+                  style={{
+                    transform: isSelected
+                      ? "translateY(-8px) scale(1.12)"
+                      : "translateY(0) scale(1)",
+                    zIndex: isSelected ? 50 : 10 + idx,
+                  }}
+                  className="relative transition-all duration-300 ease-out shrink-0 hover:-translate-y-2"
+                >
+                  <BattleCard
+                    card={card}
+                    size="sm"
+                    draggable={isPlacement && !isRoundConfirmed}
+                    onDragStart={handleDragStart}
+                    onDragEnd={() => {}}
+                    onTouchStart={handleTouchStart}
+                    onTouchMove={handleTouchMove}
+                    onTouchEnd={handleTouchEnd}
+                    onClick={() => isPlacement && !isRoundConfirmed && setSelectedHandCardId(isSelected ? null : card.uniqueId)}
+                    className={isSelected ? "ring-2 ring-indigo-500 shadow-[0_0_20px_rgba(99,102,241,0.6)]" : ""}
+                  />
+                </div>
+              )
+            })}
+          </div>
         </div>
       </div>
 
-      {/* activeTerrain details popup modal for mobile-first experience */}
+      {/* ВИЗУАЛЬНЫЙ ЭЛЕМЕНТ ПРИ TOUCH DRAG */}
+      {touchDragCard && touchDragPosition && (() => {
+        const card = ccgState.hand.find(c => c.uniqueId === touchDragCard.cardId)
+        if (!card) return null
+        return (
+          <div
+            className="fixed pointer-events-none z-50 opacity-80"
+            style={{
+              left: touchDragPosition.x - 52,
+              top: touchDragPosition.y - 75,
+              transform: 'scale(1.1) rotate(5deg)'
+            }}
+          >
+            <BattleCard
+              card={card}
+              size="sm"
+              isInteractive={false}
+            />
+          </div>
+        )
+      })()}
+
+      {/* ПОДРОБНОЕ МОДАЛЬНОЕ ОКНО ЛОКАЦИИ ДЛЯ СМАРТФОНОВ */}
       {activeTerrain && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-in fade-in duration-200"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200"
           onClick={() => setActiveTerrain(null)}
         >
           <div
-            className="bg-[#0b0b14]/95 border border-white/10 rounded-2xl p-5 max-w-sm w-full shadow-2xl relative animate-in zoom-in-95 duration-200"
+            className="bg-[#0b0b14]/95 border border-white/10 rounded-3xl p-5 max-w-xs w-full shadow-2xl relative animate-in zoom-in-95 duration-200"
             onClick={(e) => e.stopPropagation()}
           >
             <button
               onClick={() => setActiveTerrain(null)}
-              className="absolute top-3 right-3 p-1.5 rounded-full bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
+              className="absolute top-4 right-4 p-1.5 rounded-full bg-white/5 text-slate-400 active:scale-90 transition-colors"
             >
               <X className="w-4 h-4" />
             </button>
-            <div className="flex items-center gap-2 text-indigo-400 text-xs font-black uppercase mb-2">
-              <Zap className="w-4 h-4 animate-pulse text-yellow-400" /> Спец-эффект локации
+            <div className="flex items-center gap-2 text-yellow-400 text-xs font-black uppercase mb-3">
+              <Zap className="w-4 h-4 animate-pulse" /> Эффект локации
             </div>
-            <h3 className="text-lg font-black text-white uppercase tracking-wider mb-2">
+            <h3 className="text-base font-black text-white uppercase tracking-wider mb-2">
               {activeTerrain.nameRu}
             </h3>
-            <p className="text-xs sm:text-sm text-slate-300 leading-relaxed font-medium">
+            <p className="text-xs text-slate-300 leading-relaxed font-semibold">
               {activeTerrain.description}
             </p>
           </div>
         </div>
       )}
 
+      {/* МОДАЛЬНОЕ ОКНО ПРОСМОТРА КАРТЫ */}
+      {viewedCard && (() => {
+        const card = viewedCard.card
+        const role: CardRole = card.role || getCardRole(card)
+        const roleNames: Record<CardRole, string> = {
+          vanguard: "Авангард",
+          guard: "Страж",
+          trickster: "Плут"
+        }
+        const roleBeats: Record<CardRole, string> = {
+          vanguard: "Бьёт: Плут (+50%)",
+          guard: "Бьёт: Авангард (+50%)",
+          trickster: "Бьёт: Стража (+50%)"
+        }
+        const roleColors: Record<CardRole, string> = {
+          vanguard: "text-rose-400 bg-rose-500/10 border-rose-500/20",
+          guard: "text-cyan-400 bg-cyan-500/10 border-cyan-500/20",
+          trickster: "text-amber-400 bg-amber-500/10 border-amber-500/20"
+        }
+        
+        return (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200"
+            onClick={() => setViewedCard(null)}
+          >
+            <div
+              className="bg-[#0b0b14]/95 border border-white/10 rounded-3xl p-5 max-w-sm w-full shadow-2xl relative animate-in zoom-in-95 duration-200"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                onClick={() => setViewedCard(null)}
+                className="absolute top-4 right-4 p-1.5 rounded-full bg-white/5 text-slate-400 active:scale-90 transition-colors hover:bg-white/10"
+              >
+                <X className="w-4 h-4" />
+              </button>
+              
+              <div className="flex flex-col items-center mb-4">
+                <div className={`px-3 py-1.5 rounded-xl border text-xs font-black uppercase mb-3 ${roleColors[role]}`}>
+                  {roleNames[role]}
+                </div>
+                <div className="text-[10px] font-bold uppercase">
+                  {viewedCard.isPlayer ? (
+                    <span className="text-emerald-400">Ваша карта</span>
+                  ) : (
+                    <span className="text-rose-400">Карта врага</span>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex justify-center mb-4">
+                <BattleCard
+                  card={card}
+                  size="lg"
+                  showPower={true}
+                  powerValue={viewedCard.power}
+                  roleMatchupBonus={viewedCard.bonus}
+                  synergyBonus={viewedCard.synergyBonus}
+                  isInteractive={false}
+                />
+              </div>
+
+              <div className={`px-3 py-2 rounded-xl border mb-4 text-center text-[10px] font-black uppercase ${roleColors[role]}`}>
+                {roleBeats[role]}
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="flex flex-col items-center p-2 rounded-lg bg-white/5">
+                  <span className="text-slate-400 font-bold text-[10px] uppercase">Сила</span>
+                  <span className="text-white font-black text-sm">{viewedCard.power ?? getCardBasePower(card)}</span>
+                </div>
+                {(viewedCard.bonus ?? 0) > 0 && (
+                  <div className="flex flex-col items-center p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+                    <span className="text-emerald-400 font-bold text-[10px] uppercase">КНБ</span>
+                    <span className="text-emerald-300 font-black text-sm">+{Math.round((viewedCard.bonus ?? 0) * 100)}%</span>
+                  </div>
+                )}
+                {(viewedCard.synergyBonus ?? 0) > 0 && (
+                  <div className="flex flex-col items-center p-2 rounded-lg bg-violet-500/10 border border-violet-500/20">
+                    <span className="text-violet-400 font-bold text-[10px] uppercase">Синергия</span>
+                    <span className="text-violet-300 font-black text-sm">+{viewedCard.synergyBonus}</span>
+                  </div>
+                )}
+                <div className="flex flex-col items-center p-2 rounded-lg bg-white/5">
+                  <span className="text-slate-400 font-bold text-[10px] uppercase">HP</span>
+                  <span className="text-white font-black text-sm">{card.stats.hp}</span>
+                </div>
+                <div className="flex flex-col items-center p-2 rounded-lg bg-white/5">
+                  <span className="text-slate-400 font-bold text-[10px] uppercase">ATK</span>
+                  <span className="text-white font-black text-sm">{card.stats.atk}</span>
+                </div>
+                <div className="flex flex-col items-center p-2 rounded-lg bg-white/5">
+                  <span className="text-slate-400 font-bold text-[10px] uppercase">DEF</span>
+                  <span className="text-white font-black text-sm">{card.stats.def}</span>
+                </div>
+                <div className="flex flex-col items-center p-2 rounded-lg bg-white/5">
+                  <span className="text-slate-400 font-bold text-[10px] uppercase">SPD</span>
+                  <span className="text-white font-black text-sm">{card.stats.spd}</span>
+                </div>
+                <div className="flex flex-col items-center p-2 rounded-lg bg-white/5 col-span-2">
+                  <span className="text-slate-400 font-bold text-[10px] uppercase">LUCK</span>
+                  <span className="text-white font-black text-sm">{card.stats.luck}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
+
     </div>
   )
-};
+}

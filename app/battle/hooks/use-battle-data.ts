@@ -2,10 +2,11 @@ import { useState, useEffect, useCallback } from "react"
 import { useAuth } from "@/components/auth/auth-provider"
 import { useCoins } from "@/hooks/use-coins"
 import { useDust } from "@/hooks/use-dust"
-import { Card, Dungeon, Enemy, BattleProgress, BattleLog, CCGBattleState, BattleZone, ZoneCard, CardRole } from "../types"
-import { getCardRole, getCardProvision, calculateCardPowerOnZone, getCardBasePower } from "../utils"
-import { PROVISION_LIMIT, DECK_SIZE, TERRITORY_MODIFIERS } from "../config"
+import { Card, Dungeon, Enemy, BattleProgress, BattleLog, CCGBattleState, BattleZone, ZoneCard, CardRole, DeckContext } from "../types"
+import { getCardRole, getCardProvision, calculateCardPowerOnZone, getCardBasePower, computeDeckSynergies } from "../utils"
+import { PROVISION_LIMIT, DECK_SIZE, TERRITORY_MODIFIERS, FormationId } from "../config"
 import { Rarity } from "@/types/gacha"
+import { getAIDeckForDungeon, getRandomMarketDeck } from "../ai-decks"
 
 export function useBattleData() {
   const { user, session, sessionLoading } = useAuth()
@@ -20,17 +21,21 @@ export function useBattleData() {
   const [collectedCards, setCollectedCards] = useState<Card[]>([])
   const [selectedCards, setSelectedCards] = useState<Card[]>([]) // This is the player's DECK (max DECK_SIZE cards)
   const [selectedDungeon, setSelectedDungeon] = useState<Dungeon | null>(null)
+  const [leaderId, setLeaderId] = useState<string | null>(null)
+  const [formation, setFormation] = useState<FormationId>("balance")
 
   const [battleState, setBattleState] = useState<"idle" | "loading" | "battle" | "result">("idle")
   
   // CCG Match State
   const [ccgState, setCcgState] = useState<CCGBattleState | null>(null)
   const [placedThisRound, setPlacedPlacedThisRound] = useState<{ cardId: string; zoneId: string; isSecret: boolean }[]>([])
+  const [aiPlacedThisRound, setAiPlacedThisRound] = useState<{ cardId: string; zoneId: string; isSecret: boolean }[]>([])
+  const [isRoundConfirmed, setIsRoundConfirmed] = useState(false)
 
   const [showTeamBuilder, setShowTeamBuilder] = useState(false)
   const [teamSearch, setTeamSearch] = useState("")
   const [selectedRole, setSelectedRole] = useState<CardRole | "all">("all")
-  const [sortBy, setSortBy] = useState<"power" | "rarity" | "hp" | "atk">("power")
+  const [sortBy, setSortBy] = useState<"default" | "power" | "rarity" | "provision" | "name" | "anime">("default")
 
   const [error, setError] = useState<string | null>(null)
   const [staminaTime, setStaminaTime] = useState("")
@@ -50,15 +55,6 @@ export function useBattleData() {
         setEnemies(data.enemies)
         setLogs(data.logs || [])
 
-        if (data.progress && data.dungeons) {
-          const today = new Date().toISOString().split('T')[0]
-          const dailyDungeonId = 'daily-' + today
-          const dailyDungeon = data.dungeons.find((d: any) => d.id === dailyDungeonId)
-          if (dailyDungeon) {
-            const todayWinLog = data.logs?.find((log: any) => log.dungeon_id === dailyDungeonId && log.result === 'win')
-            setProgress(prev => prev ? { ...prev, daily_battles_today: todayWinLog ? 1 : 0 } : null)
-          }
-        }
       }
     } catch (err) {
       console.error('[BattlePage] Error loading battle data:', err)
@@ -101,6 +97,10 @@ export function useBattleData() {
       if (savedDeckIds) {
         const ids = JSON.parse(savedDeckIds) as string[]
         const savedDeck = mapped.filter((c: Card) => ids.includes(c.uniqueId)).slice(0, DECK_SIZE)
+        // Recalculate provision costs to ensure they're up to date
+        savedDeck.forEach((c: Card) => {
+          c.provisionCost = getCardProvision(c)
+        })
         setSelectedCards(savedDeck)
       } else {
         // Fallback: select top DECK_SIZE cards by power
@@ -108,11 +108,21 @@ export function useBattleData() {
           .slice()
           .sort((a: Card, b: Card) => getCardBasePower(b) - getCardBasePower(a))
           .slice(0, DECK_SIZE)
-        
-        const provisionSum = defaultDeck.reduce((acc: number, c: Card) => acc + (c.provisionCost || 4), 0)
+
+        const provisionSum = defaultDeck.reduce((acc: number, c: Card) => acc + (c.provisionCost || getCardProvision(c)), 0)
         if (provisionSum <= PROVISION_LIMIT && defaultDeck.length === DECK_SIZE) {
           setSelectedCards(defaultDeck)
         }
+      }
+
+      // Load saved leaderId and formation
+      const savedLeaderId = localStorage.getItem(`battle_leader_${user.id}`)
+      if (savedLeaderId) {
+        setLeaderId(savedLeaderId)
+      }
+      const savedFormation = localStorage.getItem(`battle_formation_${user.id}`) as FormationId
+      if (savedFormation && ["aggression", "defense", "balance"].includes(savedFormation)) {
+        setFormation(savedFormation)
       }
     } catch (err) {
       console.error('[BattlePage] Error loading cards:', err)
@@ -120,11 +130,28 @@ export function useBattleData() {
   }, [user])
 
   useEffect(() => {
-    if (user && !sessionLoading) { 
-      loadBattleData() 
-      loadUserCards() 
+    if (user && !sessionLoading) {
+      loadBattleData()
+      loadUserCards()
     }
   }, [user, sessionLoading, loadBattleData, loadUserCards])
+
+  // Save leaderId and formation to localStorage when they change
+  useEffect(() => {
+    if (user) {
+      if (leaderId) {
+        localStorage.setItem(`battle_leader_${user.id}`, leaderId)
+      } else {
+        localStorage.removeItem(`battle_leader_${user.id}`)
+      }
+    }
+  }, [leaderId, user])
+
+  useEffect(() => {
+    if (user) {
+      localStorage.setItem(`battle_formation_${user.id}`, formation)
+    }
+  }, [formation, user])
 
   // Timer for stamina recovery countdown
   useEffect(() => {
@@ -147,7 +174,7 @@ export function useBattleData() {
     setSelectedCards(prev => {
       if (prev.some(c => c.uniqueId === card.uniqueId)) {
         const next = prev.filter(c => c.uniqueId !== card.uniqueId)
-        const totalProv = next.reduce((acc: number, c: Card) => acc + (c.provisionCost || 4), 0)
+        const totalProv = next.reduce((acc: number, c: Card) => acc + (c.provisionCost || getCardProvision(c)), 0)
         if (totalProv > PROVISION_LIMIT) {
           setError(`Превышен лимит веса колоды (${totalProv}/${PROVISION_LIMIT})! Замените тяжёлые карты на более лёгкие перед дуэлью.`)
         } else {
@@ -159,7 +186,7 @@ export function useBattleData() {
       if (prev.length >= DECK_SIZE) return prev
       
       const next = [...prev, card]
-      const totalProv = next.reduce((acc: number, c: Card) => acc + (c.provisionCost || 4), 0)
+      const totalProv = next.reduce((acc: number, c: Card) => acc + (c.provisionCost || getCardProvision(c)), 0)
       if (totalProv > PROVISION_LIMIT) {
         setError(`Превышен лимит веса колоды (${totalProv}/${PROVISION_LIMIT})! Замените тяжёлые карты на более лёгкие перед дуэлью.`)
       } else {
@@ -176,7 +203,7 @@ export function useBattleData() {
     if (selectedCards.length !== DECK_SIZE) {
       return setError(`Колода должна содержать ровно ${DECK_SIZE} карт! Сейчас: ${selectedCards.length}`)
     }
-    const totalProv = selectedCards.reduce((acc: number, c: Card) => acc + (c.provisionCost || 4), 0)
+    const totalProv = selectedCards.reduce((acc: number, c: Card) => acc + (c.provisionCost || getCardProvision(c)), 0)
     if (totalProv > PROVISION_LIMIT) {
       return setError(`Превышен лимит веса колоды (${totalProv}/${PROVISION_LIMIT} очков)!`)
     }
@@ -184,10 +211,16 @@ export function useBattleData() {
     if (progress && progress.current_stamina < selectedDungeon.energy_cost) {
       return setError("Недостаточно энергии!")
     }
+    // Validate leader is in deck
+    if (leaderId && !selectedCards.some(c => c.uniqueId === leaderId)) {
+      return setError("Лидер должен быть в колоде!")
+    }
 
     setError(null)
     setBattleState("loading")
     setPlacedPlacedThisRound([])
+    setAiPlacedThisRound([])
+    setIsRoundConfirmed(false)
 
     try {
       const token = session?.access_token
@@ -206,25 +239,23 @@ export function useBattleData() {
 
       if (!spendRes.ok) {
         const data = await spendRes.json()
+        console.error('[Battle] API Error:', data)
         setError(data.message || "Ошибка списания энергии")
         setBattleState("idle")
         return
       }
 
-      // Generate AI Deck based on dungeon level & collected cards pool
-      const aiDeckPool: Card[] = collectedCards.length > 10 
-        ? collectedCards 
-        : [
-            ...collectedCards,
-            { uniqueId: 'ai-1', name: 'Какаши', anime: 'Naruto', rarity: 'rare' as Rarity, imageUrl: 'https://shikimori.one/system/characters/original/2.png', stats: { hp: 120, atk: 80, def: 60, spd: 90, luck: 50 } },
-            { uniqueId: 'ai-2', name: 'Наруто', anime: 'Naruto', rarity: 'legendary' as Rarity, imageUrl: 'https://shikimori.one/system/characters/original/1.png', stats: { hp: 200, atk: 95, def: 80, spd: 85, luck: 100 } },
-            { uniqueId: 'ai-3', name: 'Саске', anime: 'Naruto', rarity: 'legendary' as Rarity, imageUrl: 'https://shikimori.one/system/characters/original/3.png', stats: { hp: 180, atk: 105, def: 70, spd: 95, luck: 60 } },
-            { uniqueId: 'ai-4', name: 'Сакура', anime: 'Naruto', rarity: 'epic' as Rarity, imageUrl: 'https://shikimori.one/system/characters/original/4.png', stats: { hp: 150, atk: 70, def: 90, spd: 75, luck: 40 } },
-            { uniqueId: 'ai-5', name: 'Гаара', anime: 'Naruto', rarity: 'epic' as Rarity, imageUrl: 'https://shikimori.one/system/characters/original/5.png', stats: { hp: 220, atk: 85, def: 110, spd: 60, luck: 50 } },
-            { uniqueId: 'ai-6', name: 'Рок Ли', anime: 'Naruto', rarity: 'rare' as Rarity, imageUrl: 'https://shikimori.one/system/characters/original/6.png', stats: { hp: 140, atk: 115, def: 50, spd: 120, luck: 30 } }
-          ]
-
-      const aiDeck = aiDeckPool
+      // Generate AI Deck from pre-defined deck for this dungeon
+      let predefinedDeck: Card[]
+      if (selectedDungeon.id?.startsWith('daily-market-')) {
+        // Use random market deck for daily market battles
+        predefinedDeck = getRandomMarketDeck()
+      } else {
+        const dungeonTheme = selectedDungeon.is_daily ? 'daily' : selectedDungeon.theme
+        predefinedDeck = getAIDeckForDungeon(dungeonTheme)
+      }
+      
+      const aiDeck = predefinedDeck
         .slice()
         .sort(() => Math.random() - 0.5)
         .slice(0, DECK_SIZE)
@@ -274,6 +305,7 @@ export function useBattleData() {
   // Player deploys a card onto a zone
   const playCardToZone = (cardId: string, zoneId: string) => {
     if (!ccgState || ccgState.phase !== "placement") return
+    if (isRoundConfirmed) return // Блокируем размещение после подтверждения
 
     // Limit to placing 2 cards per round
     if (placedThisRound.length >= 2) {
@@ -289,21 +321,41 @@ export function useBattleData() {
     const isSecret = placedThisRound.length === 1
 
     setPlacedPlacedThisRound(prev => [...prev, { cardId, zoneId, isSecret }])
+
+    // AI immediately responds by placing a card
+    const aiCardIndex = aiPlacedThisRound.length
+    if (aiCardIndex < 2 && ccgState.aiHand.length > 0) {
+      const aiHandCards = [...ccgState.aiHand].sort((a, b) => getCardBasePower(b) - getCardBasePower(a))
+      const aiCard = aiHandCards[aiCardIndex]
+      const availableZones = ccgState.zones.map(z => z.id)
+      const randomZoneId = availableZones[Math.floor(Math.random() * availableZones.length)]
+      const aiIsSecret = aiCardIndex === 1 // 1st open, 2nd secret
+
+      setAiPlacedThisRound(prev => [...prev, { cardId: aiCard.uniqueId, zoneId: randomZoneId, isSecret: aiIsSecret }])
+    }
   }
 
   // Cancel card deployment before revealing
   const recallCard = (cardId: string) => {
+    if (isRoundConfirmed) return // Блокируем отзыв после подтверждения
     setPlacedPlacedThisRound(prev => prev.filter(p => p.cardId !== cardId))
   }
 
-  // Confirm round placement, trigger AI planning and Clash
+  // Confirm round placement, trigger reveal phase
   const confirmRoundPlacement = () => {
-    if (!ccgState || placedThisRound.length < 2) {
-      return setError("Вам нужно разместить ровно 2 карты из руки на зоны!")
+    if (!ccgState || placedThisRound.length < 2 || aiPlacedThisRound.length < 2) {
+      return setError("Оба игрока должны разместить по 2 карты!")
     }
 
     setError(null)
+    setIsRoundConfirmed(true) // Блокируем изменения после подтверждения
     const nextZones = ccgState.zones.map(z => ({ ...z, playerCards: [...z.playerCards], aiCards: [...z.aiCards] }))
+
+    // Track placement order per zone
+    const zoneCardCounts: Record<string, number> = {}
+    ccgState.zones.forEach(z => {
+      zoneCardCounts[z.id] = z.playerCards.length + z.aiCards.length
+    })
 
     // 1. Move player's cards from hand to zones
     placedThisRound.forEach(p => {
@@ -311,12 +363,15 @@ export function useBattleData() {
       if (card) {
         const zone = nextZones.find(z => z.id === p.zoneId)
         if (zone) {
+          const currentOrder = zoneCardCounts[p.zoneId] || 0
           zone.playerCards.push({
             card,
             isSecret: p.isSecret,
             wasSecret: p.isSecret,
-            powerAfterModifier: getCardBasePower(card) // temporary before reveal logic
+            powerAfterModifier: getCardBasePower(card), // temporary before reveal logic
+            placementOrder: currentOrder
           })
+          zoneCardCounts[p.zoneId] = currentOrder + 1
         }
       }
     })
@@ -325,34 +380,27 @@ export function useBattleData() {
     const placedIds = placedThisRound.map(p => p.cardId)
     const nextHand = ccgState.hand.filter(c => !placedIds.includes(c.uniqueId))
 
-    // 2. AI strategically places 2 cards from its hand onto random/strategic zones (1 open, 1 secret)
-    const aiPlaced: { card: Card; zoneId: string; isSecret: boolean }[] = []
-    const availableZones = ccgState.zones.map(z => z.id)
-    const aiHandCards = [...ccgState.aiHand]
-
-    // Sort AI hand by strength to select cards
-    aiHandCards.sort((a, b) => getCardBasePower(b) - getCardBasePower(a))
-    const aiCardsToPlay = aiHandCards.slice(0, 2) // plays top 2 cards or randomly
-
-    aiCardsToPlay.forEach((card, index) => {
-      // Pick random zone
-      const randomZoneId = availableZones[Math.floor(Math.random() * availableZones.length)]
-      const isSecret = index === 1 // 1 open, 1 secret
-      aiPlaced.push({ card, zoneId: randomZoneId, isSecret })
-
-      const zone = nextZones.find(z => z.id === randomZoneId)
-      if (zone) {
-        zone.aiCards.push({
-          card,
-          isSecret,
-          wasSecret: isSecret,
-          powerAfterModifier: getCardBasePower(card)
-        })
+    // 2. Move AI's cards from hand to zones (already selected during player's placement)
+    aiPlacedThisRound.forEach(p => {
+      const card = ccgState.aiHand.find(c => c.uniqueId === p.cardId)
+      if (card) {
+        const zone = nextZones.find(z => z.id === p.zoneId)
+        if (zone) {
+          const currentOrder = zoneCardCounts[p.zoneId] || 0
+          zone.aiCards.push({
+            card,
+            isSecret: p.isSecret,
+            wasSecret: p.isSecret,
+            powerAfterModifier: getCardBasePower(card),
+            placementOrder: currentOrder
+          })
+          zoneCardCounts[p.zoneId] = currentOrder + 1
+        }
       }
     })
 
     // Remove placed cards from AI hand
-    const aiPlacedIds = aiPlaced.map(p => p.card.uniqueId)
+    const aiPlacedIds = aiPlacedThisRound.map(p => p.cardId)
     const nextAIHand = ccgState.aiHand.filter(c => !aiPlacedIds.includes(c.uniqueId))
 
     // 3. Update battle state to Reveal phase
@@ -372,13 +420,17 @@ export function useBattleData() {
               const c = prev.hand.find(card => card.uniqueId === p.cardId)
               return { zoneId: p.zoneId, cardName: c?.name || "Герой", isSecret: p.isSecret }
             }),
-            aiActions: aiPlaced.map(a => ({ zoneId: a.zoneId, cardName: a.card.name, isSecret: a.isSecret }))
+            aiActions: aiPlacedThisRound.map(p => {
+              const c = prev.aiHand.find(card => card.uniqueId === p.cardId)
+              return { zoneId: p.zoneId, cardName: c?.name || "Враг", isSecret: p.isSecret }
+            })
           }
         ]
       }
     })
 
     setPlacedPlacedThisRound([])
+    setAiPlacedThisRound([])
   }
 
   // Evaluates end-of-round scores with actual matchups and transitions to next round/results
@@ -399,24 +451,43 @@ export function useBattleData() {
       }
 
       // Evaluate power modifiers and KNB matchups
+      // Calculate player HP percentage for last_stand modifier
+      const playerHpPercent = progress ? (progress.current_stamina / progress.max_stamina) * 100 : 100
+
+      // Prepare deck context for player cards (synergies, leader, formation)
+      const deckContext: DeckContext = {
+        deck: selectedCards,
+        leaderId,
+        formation,
+      }
+
       playerCards.forEach(zc => {
-        const { power, roleMatchupBonus } = calculateCardPowerOnZone(zc.card, zone.modifier.id, aiCards, playerCards, true, zc.wasSecret || false, true)
+        const { power, roleMatchupBonus, synergyBonus } = calculateCardPowerOnZone(zc.card, zone.modifier.id, aiCards, playerCards, true, zc.wasSecret || false, true, zc.placementOrder || 0, playerHpPercent, deckContext)
         zc.powerAfterModifier = power
         zc.roleMatchupBonus = roleMatchupBonus
+        zc.synergyBonus = synergyBonus
       })
 
       aiCards.forEach(zc => {
-        const { power, roleMatchupBonus } = calculateCardPowerOnZone(zc.card, zone.modifier.id, playerCards, aiCards, true, zc.wasSecret || false, false)
+        const { power, roleMatchupBonus, synergyBonus } = calculateCardPowerOnZone(zc.card, zone.modifier.id, playerCards, aiCards, true, zc.wasSecret || false, false, zc.placementOrder || 0, playerHpPercent)
         zc.powerAfterModifier = power
         zc.roleMatchupBonus = roleMatchupBonus
+        zc.synergyBonus = synergyBonus
       })
 
       // Sabotage Camp: Tricksters reduce enemy secret card power by 100
+      // Iron Curtain: Guards are protected from sabotage (checked in utils.ts)
       if (zone.modifier.id === "sabotage_camp") {
         const playerTricksters = playerCards.filter(zc => (zc.card.role || getCardRole(zc.card)) === "trickster")
         const aiTricksters = aiCards.filter(zc => (zc.card.role || getCardRole(zc.card)) === "trickster")
-        aiCards.forEach(zc => { if (zc.wasSecret) zc.powerAfterModifier -= 100 * playerTricksters.length })
-        playerCards.forEach(zc => { if (zc.wasSecret) zc.powerAfterModifier -= 100 * aiTricksters.length })
+        aiCards.forEach(zc => {
+          const isGuard = (zc.card.role || getCardRole(zc.card)) === "guard"
+          if (zc.wasSecret && !isGuard) zc.powerAfterModifier -= 100 * playerTricksters.length
+        })
+        playerCards.forEach(zc => {
+          const isGuard = (zc.card.role || getCardRole(zc.card)) === "guard"
+          if (zc.wasSecret && !isGuard) zc.powerAfterModifier -= 100 * aiTricksters.length
+        })
       }
 
       // Stamina Drain: strongest card gives 100 power to weakest card on the same zone
@@ -503,8 +574,14 @@ export function useBattleData() {
           const isPlayerStrongest = zone.playerCards.some(zc => zc.card.uniqueId === strongest.card.uniqueId)
           if (index > 0) {
             const adj = nextZones[index - 1]
-            if (isPlayerStrongest) adj.aiScore = Math.max(0, adj.aiScore - damage)
-            else adj.playerScore = Math.max(0, adj.playerScore - damage)
+            if (isPlayerStrongest) {
+              adj.aiCards.forEach(zc => { zc.powerAfterModifier = Math.max(0, zc.powerAfterModifier - damage) })
+            } else {
+              adj.playerCards.forEach(zc => { zc.powerAfterModifier = Math.max(0, zc.powerAfterModifier - damage) })
+            }
+            // Recalculate scores from modified card powers
+            adj.playerScore = adj.playerCards.reduce((acc, c) => acc + c.powerAfterModifier, 0)
+            adj.aiScore = adj.aiCards.reduce((acc, c) => acc + c.powerAfterModifier, 0)
             if (adj.modifier.id !== "reversal_gate") {
               adj.owner = adj.playerScore > adj.aiScore ? "player" : adj.aiScore > adj.playerScore ? "ai" : "none"
             } else {
@@ -513,8 +590,14 @@ export function useBattleData() {
           }
           if (index < nextZones.length - 1) {
             const adj = nextZones[index + 1]
-            if (isPlayerStrongest) adj.aiScore = Math.max(0, adj.aiScore - damage)
-            else adj.playerScore = Math.max(0, adj.playerScore - damage)
+            if (isPlayerStrongest) {
+              adj.aiCards.forEach(zc => { zc.powerAfterModifier = Math.max(0, zc.powerAfterModifier - damage) })
+            } else {
+              adj.playerCards.forEach(zc => { zc.powerAfterModifier = Math.max(0, zc.powerAfterModifier - damage) })
+            }
+            // Recalculate scores from modified card powers
+            adj.playerScore = adj.playerCards.reduce((acc, c) => acc + c.powerAfterModifier, 0)
+            adj.aiScore = adj.aiCards.reduce((acc, c) => acc + c.powerAfterModifier, 0)
             if (adj.modifier.id !== "reversal_gate") {
               adj.owner = adj.playerScore > adj.aiScore ? "player" : adj.aiScore > adj.playerScore ? "ai" : "none"
             } else {
@@ -550,9 +633,15 @@ export function useBattleData() {
           deck: remainingDeck,
           aiHand: nextAIHand,
           aiDeck: remainingAIDeck,
-          phase: "placement"
+          phase: "placement",
+          roundHistory: [...prev.roundHistory],
         }
       })
+
+      // Reset placement tracking for new round
+      setPlacedPlacedThisRound([])
+      setAiPlacedThisRound([])
+      setIsRoundConfirmed(false)
     } else {
       // Determine match winner based on Zone ownership
       let playerZonesWon = 0
@@ -563,6 +652,10 @@ export function useBattleData() {
         else if (z.owner === "ai") aiZonesWon++
       })
 
+      // Debug logging
+      console.log('[Battle] Final zone ownership:', nextZones.map(z => ({ id: z.id, owner: z.owner, playerScore: z.playerScore, aiScore: z.aiScore })))
+      console.log('[Battle] Player zones won:', playerZonesWon, 'AI zones won:', aiZonesWon)
+
       let victory = false
       if (playerZonesWon > aiZonesWon) {
         victory = true
@@ -570,6 +663,7 @@ export function useBattleData() {
         // Tie breaker: sum total power across all zones
         const totalPlayerPower = nextZones.reduce((acc, z) => acc + z.playerScore, 0)
         const totalAIPower = nextZones.reduce((acc, z) => acc + z.aiScore, 0)
+        console.log('[Battle] Tie breaker - Player total power:', totalPlayerPower, 'AI total power:', totalAIPower)
         victory = totalPlayerPower >= totalAIPower
       }
 
@@ -657,8 +751,9 @@ export function useBattleData() {
         case "rarity":
           const r = ["trash", "common", "uncommon", "rare", "super_rare", "epic", "mythic", "legendary", "ancient", "divine", "transcendent", "omnipotent"]
           return r.indexOf(a.rarity) - r.indexOf(b.rarity)
-        case "hp": return b.stats.hp - a.stats.hp
-        case "atk": return b.stats.atk - a.stats.atk
+        case "provision": return (getCardProvision(b) || 0) - (getCardProvision(a) || 0)
+        case "name": return a.name.localeCompare(b.name)
+        case "anime": return a.anime.localeCompare(b.anime)
         default: return 0
       }
     })
@@ -677,10 +772,16 @@ export function useBattleData() {
     setSelectedCards,
     selectedDungeon,
     setSelectedDungeon,
+    leaderId,
+    setLeaderId,
+    formation,
+    setFormation,
     battleState,
     setBattleState,
     ccgState,
     placedThisRound,
+    aiPlacedThisRound,
+    isRoundConfirmed,
     playCardToZone,
     recallCard,
     confirmRoundPlacement,

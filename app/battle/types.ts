@@ -1,6 +1,29 @@
 import { Rarity } from "@/types/gacha"
+import { FormationId } from "./config"
 
 export type CardRole = "vanguard" | "guard" | "trickster"
+
+// Active passive synergy computed from the current deck composition.
+export interface DeckSynergy {
+  id: string
+  nameRu: string
+  description: string
+  value: number // signed % contribution to the global deck multiplier (e.g. 0.04)
+}
+
+// Result of evaluating a deck's build-time depth.
+export interface DeckSynergyResult {
+  active: DeckSynergy[]
+  globalBonus: number // sum of role-agnostic synergy values
+  roleAdjust: { vanguard: number; guard: number; trickster: number }
+}
+
+// Context passed into power calculation to apply deck-wide modifiers (player only).
+export interface DeckContext {
+  deck: Card[]
+  leaderId?: string | null
+  formation?: FormationId
+}
 
 export interface Card {
   uniqueId: string
@@ -92,6 +115,8 @@ export interface ZoneCard {
   wasSecret?: boolean
   powerAfterModifier: number
   roleMatchupBonus?: number // +50% etc.
+  synergyBonus?: number // deck synergy bonus
+  placementOrder?: number // 0 = first on zone, 1 = second on zone
 }
 
 export interface BattleZone {

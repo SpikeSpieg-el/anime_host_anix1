@@ -315,9 +315,9 @@ export function Navbar() {
 
       {/* 
         === MODERN MOBILE FLOATING DOCK === 
-        Скрыт на md+, виден на мобильных. Скрываем при скролле вниз и на странице гачи.
+        Скрыт на md+, виден на мобильных. Скрываем при скролле вниз, на странице гачи и на странице боёв.
       */}
-      {!pathname.includes("/gacha") && (
+      {!pathname.includes("/gacha") && !pathname.includes("/battle") && (
         <div className={cn(
           "fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-[90%] max-w-[400px] md:hidden transition-all duration-500 ease-in-out",
           showBottomNav ? "translate-y-0 opacity-100" : "translate-y-24 opacity-0"

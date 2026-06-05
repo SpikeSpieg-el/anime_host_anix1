@@ -24,18 +24,65 @@ export async function GET(req: NextRequest) {
   try {
     const res = await fetch(url, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'Referer': 'https://www.pinterest.com/',
-        'Accept': 'image/webp,image/apng,image/*,*/*;q=0.8',
+        'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'DNT': '1',
+        'Connection': 'keep-alive',
+        'Sec-Fetch-Dest': 'image',
+        'Sec-Fetch-Mode': 'no-cors',
+        'Sec-Fetch-Site': 'cross-site',
       },
     });
 
     if (!res.ok) {
+      console.error('[image-proxy] Upstream error:', res.status, res.statusText);
       return NextResponse.json({ error: `Upstream ${res.status}` }, { status: res.status });
     }
 
     const contentType = res.headers.get('content-type') || 'image/jpeg';
     const buffer = await res.arrayBuffer();
+
+    // Check if response is valid image (minimum size check)
+    if (buffer.byteLength < 100) {
+      console.error('[image-proxy] Response too small:', buffer.byteLength);
+      return NextResponse.json({ error: 'Invalid image response' }, { status: 502 });
+    }
+
+    // Check for common Pinterest placeholder patterns in the buffer
+    const uint8Array = new Uint8Array(buffer);
+    const isLikelyPlaceholder = 
+      buffer.byteLength < 5000 || // Very small images are often placeholders
+      contentType.includes('text/html') || // Sometimes returns HTML instead of image
+      contentType.includes('application/json'); // Sometimes returns JSON error
+
+    if (isLikelyPlaceholder) {
+      console.error('[image-proxy] Likely placeholder returned:', contentType, buffer.byteLength);
+      return NextResponse.json({ error: 'Placeholder image detected' }, { status: 502 });
+    }
+
+    // Additional check: detect gradient placeholders by analyzing color variance
+    // Gradient placeholders typically have very low color variance
+    if (contentType.includes('image/') && buffer.byteLength < 50000) {
+      let colorVariance = 0;
+      const sampleSize = Math.min(1000, buffer.byteLength);
+      for (let i = 0; i < sampleSize - 3; i += 4) {
+        const r = uint8Array[i];
+        const g = uint8Array[i + 1];
+        const b = uint8Array[i + 2];
+        const avg = (r + g + b) / 3;
+        colorVariance += Math.abs(r - avg) + Math.abs(g - avg) + Math.abs(b - avg);
+      }
+      const avgVariance = colorVariance / (sampleSize / 4);
+      
+      // Very low variance suggests a gradient or solid color placeholder
+      if (avgVariance < 30) {
+        console.error('[image-proxy] Low color variance detected (likely gradient):', avgVariance);
+        return NextResponse.json({ error: 'Gradient placeholder detected' }, { status: 502 });
+      }
+    }
 
     return new NextResponse(buffer, {
       status: 200,

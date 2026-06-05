@@ -201,6 +201,19 @@ const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>, card
   // бесконечно пытаться загрузить битые ссылки разных размеров из srcset
   target.srcset = "";
   
+  // Если это проксированный URL от Pinterest и он не сработал, пробуем оригинал напрямую
+  if (!target.dataset.triedBypassProxy && target.src.includes('/api/image-proxy')) {
+    console.log(`[${card.name}] Pinterest proxy failed, trying direct URL`);
+    target.dataset.triedBypassProxy = "true";
+    // Извлекаем оригинальный URL из прокси
+    const urlMatch = target.src.match(/url=([^&]+)/);
+    if (urlMatch) {
+      const originalUrl = decodeURIComponent(urlMatch[1]);
+      target.src = originalUrl;
+      return;
+    }
+  }
+  
   if (!target.dataset.triedOriginal && card.originalUrl) {
     target.dataset.triedOriginal = "true";
     const cleanUrl = card.originalUrl.split('?')[0];

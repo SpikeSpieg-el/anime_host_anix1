@@ -2,7 +2,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import {
-  executeBattle,
   calculateTeamPower,
   calculateStaminaRefill,
   calculateLevelUp,
@@ -217,15 +216,46 @@ export async function GET(request: NextRequest) {
 
       // Get today's daily battle
       const today = new Date().toISOString().split('T')[0]
-      const { data: dailyBattle } = await supabaseAdmin
+      let { data: dailyBattle } = await supabaseAdmin
         .from('battle_daily')
         .select('*')
         .eq('date', today)
         .eq('is_active', true)
         .single()
 
+      // Auto-create daily battle if it doesn't exist
+      if (!dailyBattle) {
+        // Get random elite enemies for today's daily
+        const { data: eliteEnemies } = await supabaseAdmin
+          .from('battle_enemies')
+          .select('id')
+          .eq('tier', 'elite')
+          .eq('is_active', true)
+          .limit(2)
+
+        const enemyIds = eliteEnemies ? eliteEnemies.map((e: any) => e.id) : []
+
+        if (enemyIds.length > 0) {
+          const { data: newDaily } = await supabaseAdmin
+            .from('battle_daily')
+            .insert({
+              date: today,
+              enemy_ids: enemyIds,
+              coins_reward: 200,
+              dust_reward: 50,
+              xp_reward: 100,
+              energy_cost: 1,
+              is_active: true
+            })
+            .select('*')
+            .single()
+
+          dailyBattle = newDaily
+        }
+      }
+
       let dailyDungeon = null
-      if (dailyBattle && dailyBattle.enemy_ids.length > 0) {
+      if (dailyBattle && dailyBattle.enemy_ids && dailyBattle.enemy_ids.length > 0) {
         // Create a virtual daily dungeon from today's configuration
         dailyDungeon = {
           id: 'daily-' + today,
@@ -245,8 +275,30 @@ export async function GET(request: NextRequest) {
         }
       }
 
-      // Add daily dungeon to the beginning of the list if available
-      allDungeons = dailyDungeon ? [dailyDungeon, ...(dungeons || [])] : (dungeons || [])
+      // Create second daily dungeon with random market deck
+      const dailyMarketDungeon = {
+        id: 'daily-market-' + today,
+        name: 'Daily Market',
+        name_ru: 'Рыночный Бой',
+        description: 'Бой со случайной сильной колодой из рынка! Уникальные награды.',
+        theme: 'daily_market',
+        difficulty: 6,
+        required_level: 5,
+        energy_cost: 2,
+        coins_reward_base: 300,
+        dust_reward_base: 80,
+        xp_reward_base: 150,
+        image_url: null,
+        is_daily: true,
+        enemy_ids: []
+      }
+
+      // Add daily dungeons to the beginning of the list if available
+      const dailyDungeons = []
+      if (dailyDungeon) dailyDungeons.push(dailyDungeon)
+      if (dailyMarketDungeon) dailyDungeons.push(dailyMarketDungeon)
+      
+      allDungeons = dailyDungeons.length > 0 ? [...dailyDungeons, ...(dungeons || [])] : (dungeons || [])
 
       // Get logs
       const { data: logs } = await supabaseAdmin
@@ -321,16 +373,139 @@ export async function POST(request: NextRequest) {
     }
 
     // ==========================================
-    // ACTION: start_battle
+    // ACTION: finish_battle
     // ==========================================
-    if (action === 'start_battle') {
-      if (!playerCards || playerCards.length < 1 || playerCards.length > 3) {
+    if (action === 'finish_battle') {
+      if (!dungeonId) {
         return NextResponse.json({
           success: false,
-          message: "Выберите от 1 до 3 карт для боя"
+          message: "Отсутствует ID подземелья"
         }, { status: 400 })
       }
 
+      const { result, coinsEarned, dustEarned, xpEarned, turns } = body
+
+      if (result !== 'win' && result !== 'loss') {
+        return NextResponse.json({
+          success: false,
+          message: "Неверный результат боя"
+        }, { status: 400 })
+      }
+
+      // Get user progress
+      let { data: progress } = await supabaseAdmin
+        .from('user_battle_progress')
+        .select('*')
+        .eq('user_id', user.id)
+        .single()
+
+      if (!progress) {
+        const { data: newProgress } = await supabaseAdmin
+          .from('user_battle_progress')
+          .insert({ user_id: user.id })
+          .select('*')
+          .single()
+        progress = newProgress
+      }
+
+      // Apply rewards for wins
+      if (result === 'win') {
+        // Update daily counter for daily battles
+        if (dungeonId.startsWith('daily-')) {
+          await supabaseAdmin
+            .from('user_battle_progress')
+            .update({
+              daily_battles_today: progress.daily_battles_today + 1,
+            })
+            .eq('user_id', user.id)
+        }
+
+        // Add coins
+        if (coinsEarned > 0) {
+          try {
+            await supabaseAdmin.rpc('add_coins_secure', {
+              p_user_id: user.id,
+              p_amount: coinsEarned,
+            })
+          } catch {
+            await supabaseAdmin
+              .from('user_coins')
+              .update({ coins: coinsEarned, updated_at: new Date().toISOString() })
+              .eq('id', user.id)
+          }
+        }
+
+        // Add dust
+        if (dustEarned > 0) {
+          try {
+            await supabaseAdmin.rpc('add_dust_secure', {
+              p_user_id: user.id,
+              p_amount: dustEarned,
+            })
+          } catch {
+            await supabaseAdmin
+              .from('user_dust')
+              .update({ dust: dustEarned, updated_at: new Date().toISOString() })
+              .eq('id', user.id)
+          }
+        }
+
+        // Add XP and handle level up
+        if (xpEarned > 0) {
+          const { data: updatedProgress } = await supabaseAdmin
+            .from('user_battle_progress')
+            .select('xp, xp_to_next, level')
+            .eq('user_id', user.id)
+            .single()
+
+          if (updatedProgress) {
+            const newXp = updatedProgress.xp + xpEarned
+            const levelUp = calculateLevelUp(newXp, updatedProgress.xp_to_next, updatedProgress.level)
+
+            if (levelUp.leveledUp) {
+              await supabaseAdmin
+                .from('user_battle_progress')
+                .update({
+                  xp: levelUp.newXp,
+                  xp_to_next: levelUp.newXpToNext,
+                  level: levelUp.newLevel,
+                  max_stamina: levelUp.newMaxStamina,
+                  current_stamina: Math.min(
+                    levelUp.newMaxStamina,
+                    progress.current_stamina + 2 // Bonus stamina on level up
+                  ),
+                })
+                .eq('user_id', user.id)
+            } else {
+              await supabaseAdmin
+                .from('user_battle_progress')
+                .update({ xp: newXp })
+                .eq('user_id', user.id)
+            }
+          }
+        }
+      }
+
+      // Save battle log
+      await supabaseAdmin
+        .from('battle_logs')
+        .insert({
+          user_id: user.id,
+          dungeon_id: dungeonId,
+          result: result,
+          coins_earned: coinsEarned || 0,
+          dust_earned: dustEarned || 0,
+          xp_earned: xpEarned || 0,
+          battle_turns: turns || 3,
+        })
+
+      return NextResponse.json({ success: true })
+    }
+
+    // ==========================================
+    // ACTION: start_battle (CCG mode - stamina deduction only)
+    // ==========================================
+    if (action === 'start_battle') {
       if (!dungeonId) {
         return NextResponse.json({
           success: false,
@@ -338,28 +513,7 @@ export async function POST(request: NextRequest) {
         }, { status: 400 })
       }
 
-      // 1. Validate user owns these cards
-      const cardUniqueIds = playerCards.map((c: any) => c.uniqueId || c.unique_id)
-
-      const { data: ownedCards, error: cardsError } = await supabaseAdmin
-        .from('user_cards')
-        .select('unique_id, user_id')
-        .in('unique_id', cardUniqueIds)
-
-      if (cardsError) {
-        console.error('[Battle] Cards validation error:', cardsError)
-        return NextResponse.json({ success: false, message: "Ошибка проверки карт" }, { status: 500 })
-      }
-
-      // Verify all cards belong to this user
-      const ownedIds = new Set((ownedCards || []).map(c => c.unique_id))
-      for (const id of cardUniqueIds) {
-        if (!ownedIds.has(id)) {
-          return NextResponse.json({ success: false, message: "Карта не найдена в коллекции" }, { status: 403 })
-        }
-      }
-
-      // 2. Check stamina
+      // Check stamina
       let { data: progress } = await supabaseAdmin
         .from('user_battle_progress')
         .select('*')
@@ -392,8 +546,26 @@ export async function POST(request: NextRequest) {
       // Get dungeon info
       let dungeon = null
       
-      if (dungeonId.startsWith('daily-')) {
-        // Special handling for daily battles - get today's daily configuration
+      if (dungeonId.startsWith('daily-market-')) {
+        // Daily market battle with random deck
+        const today = new Date().toISOString().split('T')[0]
+        dungeon = {
+          id: 'daily-market-' + today,
+          name: 'Daily Market',
+          name_ru: 'Рыночный Бой',
+          description: 'Бой со случайной сильной колодой из рынка! Уникальные награды.',
+          theme: 'daily_market',
+          difficulty: 6,
+          required_level: 5,
+          energy_cost: 2,
+          coins_reward_base: 300,
+          dust_reward_base: 80,
+          xp_reward_base: 150,
+          image_url: null,
+          is_daily: true,
+          enemy_ids: []
+        }
+      } else if (dungeonId.startsWith('daily-')) {
         const today = new Date().toISOString().split('T')[0]
         const { data: dailyBattle } = await supabaseAdmin
           .from('battle_daily')
@@ -406,7 +578,6 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ success: false, message: "Ежедневный бой не найден" }, { status: 404 })
         }
 
-        // Create virtual dungeon object
         dungeon = {
           id: 'daily-' + today,
           name: 'Daily Battle',
@@ -424,7 +595,6 @@ export async function POST(request: NextRequest) {
           enemy_ids: dailyBattle.enemy_ids
         }
       } else {
-        // Regular dungeon - fetch from database
         const { data: regularDungeon } = await supabaseAdmin
           .from('battle_dungeons')
           .select('*')
@@ -450,280 +620,39 @@ export async function POST(request: NextRequest) {
       if (dungeonId.startsWith('daily-')) {
         const today = new Date().toISOString().split('T')[0]
         
-        // Reset daily counter if needed
         if (progress.last_daily_reset !== today) {
+          // Reset daily counter in database
+          await supabaseAdmin
+            .from('user_battle_progress')
+            .update({
+              daily_battles_today: 0,
+              last_daily_reset: today,
+            })
+            .eq('user_id', user.id)
           progress.daily_battles_today = 0
+          progress.last_daily_reset = today
         }
 
-        // Check if user actually completed today's daily battle
-        const { data: todayBattleLog } = await supabaseAdmin
-          .from('battle_logs')
-          .select('*')
-          .eq('user_id', user.id)
-          .eq('dungeon_id', 'daily-' + today)
-          .eq('result', 'win')
-          .single()
-
-        if (todayBattleLog || progress.daily_battles_today >= 1) {
+        // Allow 2 daily battles per day (regular + market)
+        if (progress.daily_battles_today >= 2) {
           return NextResponse.json({
             success: false,
-            message: "Ежедневный бой уже пройден! Следующий будет доступен завтра."
+            message: "Все ежедневные бои уже пройдены! Следующие будут доступны завтра."
           }, { status: 400 })
         }
       }
 
-      // 3. Get enemies for this dungeon
-      // First try dungeon's enemy_ids, if empty pick enemies by difficulty
-      let enemies: BattleEnemy[] = []
-
-      if (dungeon.enemy_ids && dungeon.enemy_ids.length > 0) {
-        const { data: dungeonEnemies } = await supabaseAdmin
-          .from('battle_enemies')
-          .select('*')
-          .in('id', dungeon.enemy_ids)
-          .eq('is_active', true)
-
-        if (dungeonEnemies) {
-          enemies = dungeonEnemies.map((e: any) => ({
-            id: e.id,
-            name: e.name,
-            nameRu: e.name_ru,
-            anime: e.anime,
-            imageUrl: e.image_url,
-            level: e.level,
-            tier: e.tier,
-            stats: {
-              hp: e.stats_hp,
-              atk: e.stats_atk,
-              def: e.stats_def,
-              spd: e.stats_spd,
-              luck: e.stats_luck,
-            },
-            specialAbility: e.special_ability,
-            specialDesc: e.special_desc,
-          }))
-        }
-      }
-
-      // Fallback: pick enemies based on dungeon difficulty
-      if (enemies.length === 0) {
-        const { data: allEnemies } = await supabaseAdmin
-          .from('battle_enemies')
-          .select('*')
-          .eq('is_active', true)
-
-        if (allEnemies && allEnemies.length > 0) {
-          // Pick 1-3 enemies appropriate for the difficulty
-          const appropriateEnemies = allEnemies
-            .filter((e: any) => {
-              if (dungeon.difficulty <= 3) return e.tier === 'normal'
-              if (dungeon.difficulty <= 6) return ['normal', 'elite'].includes(e.tier)
-              if (dungeon.difficulty <= 10) return ['elite', 'boss'].includes(e.tier)
-              return ['boss', 'legendary'].includes(e.tier)
-            })
-            .sort((a: any, b: any) => a.level - b.level)
-
-          if (appropriateEnemies.length === 0) {
-            // Fallback to any enemies
-            enemies = allEnemies.slice(0, Math.min(3, dungeon.difficulty <= 5 ? 1 : dungeon.difficulty <= 10 ? 2 : 3))
-              .map((e: any) => ({
-                id: e.id,
-                name: e.name,
-                nameRu: e.name_ru,
-                anime: e.anime,
-                imageUrl: e.image_url,
-                level: e.level,
-                tier: e.tier,
-                stats: {
-                  hp: e.stats_hp,
-                  atk: e.stats_atk,
-                  def: e.stats_def,
-                  spd: e.stats_spd,
-                  luck: e.stats_luck,
-                },
-                specialAbility: e.special_ability,
-                specialDesc: e.special_desc,
-              }))
-          } else {
-            const enemyCount = Math.min(3, Math.max(1, Math.ceil(dungeon.difficulty / 4)))
-            const shuffled = appropriateEnemies.sort(() => Math.random() - 0.5)
-            enemies = shuffled.slice(0, enemyCount).map((e: any) => ({
-              id: e.id,
-              name: e.name,
-              nameRu: e.name_ru,
-              anime: e.anime,
-              imageUrl: e.image_url,
-              level: e.level,
-              tier: e.tier,
-              stats: {
-                hp: e.stats_hp,
-                atk: e.stats_atk,
-                def: e.stats_def,
-                spd: e.stats_spd,
-                luck: e.stats_luck,
-              },
-              specialAbility: e.special_ability,
-              specialDesc: e.special_desc,
-            }))
-          }
-        }
-      }
-
-      if (enemies.length === 0) {
-        return NextResponse.json({
-          success: false,
-          message: "Нет доступных врагов для этого подземелья"
-        }, { status: 500 })
-      }
-
-      // 4. Convert player cards to battle format
-      const battleCards: BattleCard[] = playerCards.map((c: any) => {
-        console.log(`[Battle API] Card ${c.name}: hp=${c.stats?.hp || c.stats_hp || 0}, atk=${c.stats?.atk || c.stats_atk || 0}`)
-        
-        return {
-          uniqueId: c.uniqueId || c.unique_id,
-          name: c.name,
-          anime: c.anime,
-          rarity: c.rarity,
-          imageUrl: c.imageUrl || c.image_url,
-          stats: {
-            hp: c.stats?.hp || c.stats_hp || 0, // Use max HP for battle calculations
-            atk: c.stats?.atk || c.stats_atk || 0,
-            def: c.stats?.def || c.stats_def || 0,
-            spd: c.stats?.spd || c.stats_spd || 0,
-            luck: c.stats?.luck || c.stats_luck || 0,
-          },
-          isMainCharacter: c.isMainCharacter || c.is_main_character || false,
-        }
-      })
-
-      // 5. Execute battle
-      const result = executeBattle(battleCards, enemies, dungeon.difficulty)
-
-      // 6. Deduct stamina and update progress
-      const isDailyBattle = dungeonId.startsWith('daily-')
-      const today = new Date().toISOString().split('T')[0]
-      
+      // Deduct stamina
       await supabaseAdmin
         .from('user_battle_progress')
         .update({
           current_stamina: progress.current_stamina - dungeon.energy_cost,
           total_battles: progress.total_battles + 1,
-          total_wins: progress.total_wins + (result.victory ? 1 : 0),
-          total_losses: progress.total_losses + (result.victory ? 0 : 1),
-          daily_battles_today: isDailyBattle ? progress.daily_battles_today + 1 : progress.daily_battles_today,
-          last_daily_reset: today,
         })
         .eq('user_id', user.id)
 
-      // 7. Apply rewards
-      if (result.victory) {
-        // Use daily rewards for daily battles, otherwise use dungeon rewards
-        const coinsToAward = isDailyBattle ? dungeon.coins_reward_base : result.coinsEarned
-        const dustToAward = isDailyBattle ? dungeon.dust_reward_base : result.dustEarned
-        const xpToAward = isDailyBattle ? dungeon.xp_reward_base : result.xpEarned
-
-        // Add coins
-        try {
-          await supabaseAdmin.rpc('add_coins_secure', {
-            p_user_id: user.id,
-            p_amount: coinsToAward,
-          })
-        } catch {
-          // Fallback if RPC doesn't exist
-          await supabaseAdmin
-            .from('user_coins')
-            .update({ coins: coinsToAward, updated_at: new Date().toISOString() })
-            .eq('id', user.id)
-        }
-
-        // Add dust
-        try {
-          await supabaseAdmin.rpc('add_dust_secure', {
-            p_user_id: user.id,
-            p_amount: dustToAward,
-          })
-        } catch {
-          await supabaseAdmin
-            .from('user_dust')
-            .update({ dust: dustToAward, updated_at: new Date().toISOString() })
-            .eq('id', user.id)
-        }
-
-        // Add XP and handle level up
-        const { data: updatedProgress } = await supabaseAdmin
-          .from('user_battle_progress')
-          .select('xp, xp_to_next, level')
-          .eq('user_id', user.id)
-          .single()
-
-        if (updatedProgress) {
-          const newXp = updatedProgress.xp + xpToAward
-          const levelUp = calculateLevelUp(newXp, updatedProgress.xp_to_next, updatedProgress.level)
-
-          if (levelUp.leveledUp) {
-            await supabaseAdmin
-              .from('user_battle_progress')
-              .update({
-                xp: levelUp.newXp,
-                xp_to_next: levelUp.newXpToNext,
-                level: levelUp.newLevel,
-                max_stamina: levelUp.newMaxStamina,
-                current_stamina: Math.min(
-                  levelUp.newMaxStamina,
-                  (progress.current_stamina - dungeon.energy_cost) + 2 // Bonus stamina on level up
-                ),
-                highest_dungeon_cleared: Math.max(
-                  progress.highest_dungeon_cleared || 0,
-                  dungeon.difficulty
-                ),
-              })
-              .eq('user_id', user.id)
-          } else {
-            await supabaseAdmin
-              .from('user_battle_progress')
-              .update({
-                xp: newXp,
-                highest_dungeon_cleared: Math.max(
-                  progress.highest_dungeon_cleared || 0,
-                  dungeon.difficulty
-                ),
-              })
-              .eq('user_id', user.id)
-          }
-        }
-
-        // Update battle result with actual awarded values
-        result.coinsEarned = coinsToAward
-        result.dustEarned = dustToAward
-        result.xpEarned = xpToAward
-      }
-
-      // 8. Save battle log
-      await supabaseAdmin
-        .from('battle_logs')
-        .insert({
-          user_id: user.id,
-          dungeon_id: dungeonId,
-          result: result.victory ? 'win' : 'loss',
-          player_cards: cardUniqueIds,
-          enemy_ids: enemies.map(e => e.id),
-          coins_earned: result.coinsEarned,
-          dust_earned: result.dustEarned,
-          xp_earned: result.xpEarned,
-          battle_turns: result.turns,
-          player_hp_remaining: result.playerUnits.reduce((sum, u) => sum + Math.max(0, u.hpRemaining), 0),
-          enemy_hp_remaining: result.enemyUnits.reduce((sum, u) => sum + Math.max(0, u.hpRemaining), 0),
-          battle_data: {
-            actions: result.actions.slice(-10), // Store last 10 actions to save space
-            mvp: result.mvpCard,
-          },
-        })
-
-      // 9. Return battle result
       return NextResponse.json({
         success: true,
-        battle: result,
         staminaUsed: dungeon.energy_cost,
       })
     }

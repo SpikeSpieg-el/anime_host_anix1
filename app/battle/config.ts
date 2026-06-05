@@ -59,6 +59,89 @@ export const ROLE_CONFIG = {
   trickster: { name: "Плут", label: "Плут", color: "text-amber-400", bg: "bg-amber-500/10", border: "border-amber-500/20" }
 }
 
+// ==========================================
+// DECK DEPTH: SYNERGIES, LEADER, FORMATION
+// ==========================================
+
+// Hard caps on the total deck-building influence on a single card's power.
+// Keeps the system meaningful but never dominant (~+25 / -15).
+export const SYNERGY_TOTAL_CAP = 25
+export const SYNERGY_TOTAL_FLOOR = -15
+
+// Passive deck synergies. Tunable bonus values are kept here.
+// Computation of which synergies are active lives in utils.ts (computeDeckSynergies).
+export const SYNERGY_VALUES = {
+  brotherhood3: 6,   // 3+ cards from the same anime
+  brotherhood5: 12,   // 5+ cards from the same anime (replaces brotherhood3)
+  roleHarmony: 8,    // all 3 roles present
+  raritySpectrum: 5, // 5+ distinct rarities
+  lightStep: 5,      // total provision weight <= lightStepThreshold
+  elite: 6,          // 4+ cards of epic rarity or higher
+  specializationSelf: 6, // 4+ cards of one role: bonus to that role
+  specializationOther: -3, // ...penalty to the other roles
+}
+
+export const LIGHT_STEP_THRESHOLD = 28
+export const ELITE_RARITIES = ["epic", "mythic", "legendary", "ancient", "divine", "transcendent", "omnipotent"]
+
+export interface SynergyMeta {
+  nameRu: string
+  description: string
+  color: string
+  bg: string
+  border: string
+}
+
+export const SYNERGY_DEFINITIONS: Record<string, SynergyMeta> = {
+  brotherhood: { nameRu: "Братство", description: "Несколько карт из одного аниме усиливают всю колоду.", color: "text-violet-300", bg: "bg-violet-500/10", border: "border-violet-500/20" },
+  role_harmony: { nameRu: "Гармония ролей", description: "В колоде есть все три роли (Авангард, Страж, Плут).", color: "text-emerald-300", bg: "bg-emerald-500/10", border: "border-emerald-500/20" },
+  rarity_spectrum: { nameRu: "Спектр редкостей", description: "5+ разных редкостей карт в колоде.", color: "text-cyan-300", bg: "bg-cyan-500/10", border: "border-cyan-500/20" },
+  light_step: { nameRu: "Лёгкая поступь", description: `Общий вес колоды не превышает ${LIGHT_STEP_THRESHOLD} очков.`, color: "text-sky-300", bg: "bg-sky-500/10", border: "border-sky-500/20" },
+  elite: { nameRu: "Элита", description: "4+ карт редкости Эпическая и выше.", color: "text-amber-300", bg: "bg-amber-500/10", border: "border-amber-500/20" },
+  specialization: { nameRu: "Специализация", description: "4+ карт одной роли: бонус этой роли, штраф остальным.", color: "text-rose-300", bg: "bg-rose-500/10", border: "border-rose-500/20" },
+}
+
+// Leader aura: choosing a leader grants a soft role-based buff to the whole deck.
+export const LEADER_AURA_VALUE = 8
+export const LEADER_AURA_CONFIG: Record<string, { nameRu: string; description: string }> = {
+  vanguard: { nameRu: "Аура Авангарда", description: "+8 силы всем картам Авангард." },
+  guard: { nameRu: "Аура Стража", description: "+8 силы всем картам Страж." },
+  trickster: { nameRu: "Аура Плута", description: "Скрытые карты получают +8 при раскрытии." },
+}
+
+// Formation: tactical stance applied to the whole deck during a match.
+export type FormationId = "aggression" | "defense" | "balance"
+export interface FormationMeta {
+  nameRu: string
+  description: string
+  color: string
+  bg: string
+  border: string
+  open: number
+  secret: number
+  guard: number
+  trickster: number
+  all: number
+}
+
+export const FORMATION_CONFIG: Record<FormationId, FormationMeta> = {
+  aggression: {
+    nameRu: "Агрессия", description: "Открытые карты +10, скрытые -6.",
+    color: "text-rose-300", bg: "bg-rose-500/10", border: "border-rose-500/20",
+    open: 10, secret: -6, guard: 0, trickster: 0, all: 0,
+  },
+  defense: {
+    nameRu: "Оборона", description: "Стражи +10, Плуты -5.",
+    color: "text-blue-300", bg: "bg-blue-500/10", border: "border-blue-500/20",
+    open: 0, secret: 0, guard: 10, trickster: -5, all: 0,
+  },
+  balance: {
+    nameRu: "Баланс", description: "Все карты +5 (ровный профиль).",
+    color: "text-emerald-300", bg: "bg-emerald-500/10", border: "border-emerald-500/20",
+    open: 0, secret: 0, guard: 0, trickster: 0, all: 5,
+  },
+}
+
 export const TERRITORY_MODIFIERS = [
   // === ВЗАИМОДЕЙСТВИЕ С ИНФОРМАЦИЕЙ И СКРЫТЫМИ КАРТАМИ ===
   { id: "shadow_step", name: "Теневой выпад", nameRu: "Теневой выпад", description: "Все скрытые карты на этой линии получают +100 к силе при раскрытии." },
@@ -75,6 +158,8 @@ export const TERRITORY_MODIFIERS = [
   { id: "no_rps", name: "Чистый триумф", nameRu: "Чистый триумф", description: "На этой линии не действуют правила ролей (КНБ), сравнивается только чистая базовая сила карт." },
   { id: "tactical_synergy", name: "Тактический союз", nameRu: "Тактический союз", description: "Если ваши две карты на этой линии имеют разные роли, они обе получают бонус +100 к силе." },
   { id: "shared_fate", name: "Общая судьба", nameRu: "Общая судьба", description: "Если карты противников на этой линии имеют одинаковую роль, обе карты получают +150 к силе." },
+  { id: "unity", name: "Единство", nameRu: "Единство", description: "Если ваши две карты на этой линии из одного аниме, они обе получают бонус +150 к силе." },
+  { id: "rivalry", name: "Соперничество", nameRu: "Соперничество", description: "Если карты противников на этой линии из разных аниме, они теряют 50 к силе." },
   { id: "sabotage_camp", name: "Лагерь диверсантов", nameRu: "Лагерь диверсантов", description: "Плуты на этой линии снижают скрытую силу противостоящей карты противника на 100 единиц." },
   
   // === БАФФЫ ДЛЯ КОНКРЕТНЫХ РОЛЕЙ ===

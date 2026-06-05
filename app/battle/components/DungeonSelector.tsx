@@ -8,6 +8,7 @@ interface DungeonSelectorProps {
   progress: BattleProgress | null
   selectedDungeon: Dungeon | null
   setSelectedDungeon: (dungeon: Dungeon) => void
+  logs: any[]
 }
 
 export const DungeonSelector: React.FC<DungeonSelectorProps> = ({
@@ -15,6 +16,7 @@ export const DungeonSelector: React.FC<DungeonSelectorProps> = ({
   progress,
   selectedDungeon,
   setSelectedDungeon,
+  logs,
 }) => {
   return (
     <div className="xl:col-span-8 flex flex-col gap-4">
@@ -40,7 +42,15 @@ export const DungeonSelector: React.FC<DungeonSelectorProps> = ({
             const isLocked = progress ? progress.level < dungeon.required_level : true
             const isSelected = selectedDungeon?.id === dungeon.id
             const isDaily = dungeon.id?.startsWith("daily-")
-            const isDailyCompleted = isDaily && progress ? progress.daily_battles_today >= 1 : false
+            
+            // Check if this specific daily battle was completed today (via logs)
+            const isDailyCompletedViaLogs = isDaily && logs ? logs.some((log: any) => log.dungeon_id === dungeon.id && log.result === 'win') : false
+            
+            // Also check if daily battle limit is reached (2 battles per day)
+            const dailyLimitReached = isDaily && progress ? progress.daily_battles_today >= 2 : false
+            
+            // Disable if either completed via logs OR daily limit reached
+            const isDailyCompleted = isDailyCompletedViaLogs || dailyLimitReached
 
             return (
               <button

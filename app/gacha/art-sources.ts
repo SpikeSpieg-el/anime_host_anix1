@@ -15,8 +15,23 @@ function extractPinterestUrls(html: string): string[] {
   const matches = html.match(/https:\/\/i\.pinimg\.com\/(?:originals|\d+x)\/[^"'\\\s)]+\.(?:jpg|jpeg|png|webp)/gi) ||[];
   const unique = Array.from(new Set(matches));
 
+  // Filter out suspicious URLs that might be placeholders
+  const filtered = unique.filter(url => {
+    // Exclude very small image sizes (likely placeholders)
+    const sizeMatch = url.match(/\/(\d+)x\//i);
+    if (sizeMatch) {
+      const size = parseInt(sizeMatch[1], 10);
+      if (size < 236) return false; // Pinterest thumbnails smaller than 236x are often placeholders
+    }
+    
+    // Exclude URLs with placeholder-like patterns
+    if (url.includes('236x') && url.length < 80) return false; // Short 236x URLs are often placeholders
+    
+    return true;
+  });
+
   // Prefer originals first, then larger widths
-  unique.sort((a, b) => {
+  filtered.sort((a, b) => {
     const aIsOriginal = a.includes('/originals/');
     const bIsOriginal = b.includes('/originals/');
     if (aIsOriginal !== bIsOriginal) return aIsOriginal ? -1 : 1;
@@ -28,7 +43,7 @@ function extractPinterestUrls(html: string): string[] {
     return bNum - aNum;
   });
 
-  return unique;
+  return filtered;
 }
 
 interface CacheEntry {
@@ -219,6 +234,7 @@ export async function fetchHighQualityArt(
     console.log(`[Art Engine] Infinite Scour: Searching deeper for ${characterName}...`);
     
     const sourceBuckets = new Map<string, ArtResult[]>();
+    // Pinterest moved to end as fallback due to placeholder issues
     const sources =['zerochan', 'konachan', 'danbooru', 'safebooru', 'pinterest'];
 
     const tasks: Promise<{src: string, results: ArtResult[]}>[] =[];

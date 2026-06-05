@@ -1,6 +1,9 @@
-import { Dungeon, Enemy, Card, CardRole, ZoneCard, BattleZone } from "./types"
+import { Dungeon, Enemy, Card, CardRole, ZoneCard, BattleZone, DeckContext, DeckSynergyResult } from "./types"
 import { calculateEnemyTeamPower } from "@/lib/battle-engine"
-import { RARITY_PROVISION_MAP } from "./config"
+import {
+  RARITY_PROVISION_MAP, SYNERGY_VALUES, SYNERGY_DEFINITIONS, LIGHT_STEP_THRESHOLD, ELITE_RARITIES,
+  SYNERGY_TOTAL_CAP, SYNERGY_TOTAL_FLOOR, LEADER_AURA_VALUE, FORMATION_CONFIG, FormationId,
+} from "./config"
 
 // Calculate Enemy dungeon power for old compatibility/reference (if needed)
 export const getDungeonEnemyPower = (dungeon: Dungeon, enemies: Enemy[]) => {
@@ -43,12 +46,125 @@ export const getCardRole = (card: Card): CardRole => {
 }
 
 export const getCardProvision = (card: Card): number => {
-  return RARITY_PROVISION_MAP[card.rarity] !== undefined ? RARITY_PROVISION_MAP[card.rarity] : 4
+  return RARITY_PROVISION_MAP[card.rarity] !== undefined ? RARITY_PROVISION_MAP[card.rarity] : 0
 }
 
 export const getCardBasePower = (card: Card): number => {
   // Base power formula representing card's overall stat weight
-  return Math.round((card.stats.hp + card.stats.atk * 2.5 + card.stats.def * 1.5 + card.stats.spd * 1.2 + card.stats.luck) / 4)
+  // Reduced multipliers to keep power in reasonable range (30-100 for early game)
+  return Math.round((card.stats.hp / 8 + card.stats.atk * 0.5 + card.stats.def * 0.3 + card.stats.spd * 0.3 + card.stats.luck * 0.2))
+}
+
+// ==========================================
+// DECK DEPTH: SYNERGIES, LEADER, FORMATION
+// ==========================================
+
+// Evaluate which passive synergies a deck composition unlocks.
+// Returns role-agnostic global bonus + per-role adjustments (specialization).
+export const computeDeckSynergies = (deck: Card[]): DeckSynergyResult => {
+  const active: DeckSynergyResult["active"] = []
+  let globalBonus = 0
+  const roleAdjust = { vanguard: 0, guard: 0, trickster: 0 }
+
+  if (!deck || deck.length === 0) {
+    return { active, globalBonus, roleAdjust }
+  }
+
+  // Role counts
+  const roleCounts: Record<CardRole, number> = { vanguard: 0, guard: 0, trickster: 0 }
+  deck.forEach(c => { roleCounts[c.role || getCardRole(c)]++ })
+
+  // Anime counts (brotherhood)
+  const animeCounts: Record<string, number> = {}
+  deck.forEach(c => { animeCounts[c.anime] = (animeCounts[c.anime] || 0) + 1 })
+  const maxAnime = Math.max(0, ...Object.values(animeCounts))
+
+  // 1. Brotherhood
+  if (maxAnime >= 5) {
+    globalBonus += SYNERGY_VALUES.brotherhood5
+    active.push({ id: "brotherhood", ...SYNERGY_DEFINITIONS.brotherhood, value: SYNERGY_VALUES.brotherhood5 })
+  } else if (maxAnime >= 3) {
+    globalBonus += SYNERGY_VALUES.brotherhood3
+    active.push({ id: "brotherhood", ...SYNERGY_DEFINITIONS.brotherhood, value: SYNERGY_VALUES.brotherhood3 })
+  }
+
+  // 2. Role harmony (all 3 roles present)
+  if (roleCounts.vanguard > 0 && roleCounts.guard > 0 && roleCounts.trickster > 0) {
+    globalBonus += SYNERGY_VALUES.roleHarmony
+    active.push({ id: "role_harmony", ...SYNERGY_DEFINITIONS.role_harmony, value: SYNERGY_VALUES.roleHarmony })
+  }
+
+  // 3. Rarity spectrum (5+ distinct rarities)
+  const distinctRarities = new Set(deck.map(c => c.rarity)).size
+  if (distinctRarities >= 5) {
+    globalBonus += SYNERGY_VALUES.raritySpectrum
+    active.push({ id: "rarity_spectrum", ...SYNERGY_DEFINITIONS.rarity_spectrum, value: SYNERGY_VALUES.raritySpectrum })
+  }
+
+  // 4. Light step (total provision weight <= threshold)
+  const totalWeight = deck.reduce((acc, c) => acc + (c.provisionCost ?? getCardProvision(c)), 0)
+  if (totalWeight <= LIGHT_STEP_THRESHOLD) {
+    globalBonus += SYNERGY_VALUES.lightStep
+    active.push({ id: "light_step", ...SYNERGY_DEFINITIONS.light_step, value: SYNERGY_VALUES.lightStep })
+  }
+
+  // 5. Elite (4+ epic or higher)
+  const eliteCount = deck.filter(c => ELITE_RARITIES.includes(c.rarity)).length
+  if (eliteCount >= 4) {
+    globalBonus += SYNERGY_VALUES.elite
+    active.push({ id: "elite", ...SYNERGY_DEFINITIONS.elite, value: SYNERGY_VALUES.elite })
+  }
+
+  // 6. Specialization (4+ of one role): bonus to that role, penalty to others
+  ;(Object.keys(roleCounts) as CardRole[]).forEach(role => {
+    if (roleCounts[role] >= 4) {
+      roleAdjust[role] += SYNERGY_VALUES.specializationSelf
+      ;(Object.keys(roleAdjust) as CardRole[]).forEach(other => {
+        if (other !== role) roleAdjust[other] += SYNERGY_VALUES.specializationOther
+      })
+      active.push({
+        id: "specialization", ...SYNERGY_DEFINITIONS.specialization,
+        value: SYNERGY_VALUES.specializationSelf,
+      })
+    }
+  })
+
+  return { active, globalBonus, roleAdjust }
+}
+
+// Compute the final deck-wide power bonus for a single player card.
+// Combines synergies + leader aura + formation, clamped to keep influence modest.
+export const getDeckPowerModifier = (card: Card, ctx: DeckContext, wasSecret: boolean): number => {
+  const { deck, leaderId, formation } = ctx
+  const role = card.role || getCardRole(card)
+
+  const synergy = computeDeckSynergies(deck)
+  let bonus = synergy.globalBonus + (synergy.roleAdjust[role] || 0)
+
+  // Leader aura
+  if (leaderId) {
+    const leader = deck.find(c => c.uniqueId === leaderId)
+    if (leader) {
+      const leaderRole = leader.role || getCardRole(leader)
+      if (leaderRole === "vanguard" && role === "vanguard") bonus += LEADER_AURA_VALUE
+      else if (leaderRole === "guard" && role === "guard") bonus += LEADER_AURA_VALUE
+      else if (leaderRole === "trickster" && wasSecret) bonus += LEADER_AURA_VALUE
+    }
+  }
+
+  // Formation
+  if (formation && FORMATION_CONFIG[formation as FormationId]) {
+    const f = FORMATION_CONFIG[formation as FormationId]
+    bonus += f.all
+    if (wasSecret) bonus += f.secret
+    else bonus += f.open
+    if (role === "guard") bonus += f.guard
+    if (role === "trickster") bonus += f.trickster
+  }
+
+  // Clamp total influence
+  bonus = Math.max(SYNERGY_TOTAL_FLOOR, Math.min(SYNERGY_TOTAL_CAP, bonus))
+  return bonus
 }
 
 // KNB (Rock-Paper-Scissors) Matchup calculation
@@ -77,8 +193,11 @@ export const calculateCardPowerOnZone = (
   allPlayerCardsOnZone: ZoneCard[] = [],
   isRevealed: boolean = true,
   wasSecret: boolean = false,
-  isPlayerCard: boolean = true
-): { power: number; roleMatchupBonus: number } => {
+  isPlayerCard: boolean = true,
+  placementOrder: number = 0,
+  playerHpPercent: number = 100,
+  deckContext?: DeckContext
+): { power: number; roleMatchupBonus: number; synergyBonus: number } => {
   let basePower = getCardBasePower(card)
   const role = card.role || getCardRole(card)
   const provision = card.provisionCost || getCardProvision(card)
@@ -92,10 +211,14 @@ export const calculateCardPowerOnZone = (
 
   // === SYSTEM / EQUALITY ===
   if (zoneModifierId === "equality") {
-    return { power: 150, roleMatchupBonus: 0 }
+    return { power: 150, roleMatchupBonus: 0, synergyBonus: 0 }
   }
 
   // === RARITY OVERRIDES ===
+  if (zoneModifierId === "vandalism") {
+    // All cards treated as common rarity for power calculation
+    basePower = getCardBasePower({ ...card, rarity: "common" })
+  }
   if (zoneModifierId === "fools_gold" && (card.rarity === "legendary" || card.rarity === "mythic")) {
     basePower = 50
   }
@@ -113,7 +236,8 @@ export const calculateCardPowerOnZone = (
       if (!wasSecret) basePower += 80
       break
     case "ambush_point":
-      if (wasSecret) basePower += 120
+      // Bonus only if secret card was placed second on the zone
+      if (wasSecret && placementOrder === 1) basePower += 120
       break
   }
 
@@ -218,9 +342,24 @@ export const calculateCardPowerOnZone = (
     if (provision === minProv) finalPower += 250
   }
 
+  // === LAST STAND (bonus when player HP is low) ===
+  if (zoneModifierId === "last_stand" && isPlayerCard && playerHpPercent < 15) {
+    finalPower += 250
+  }
+
+  // === DECK-WIDE MODIFIERS (synergies, leader, formation) ===
+  // Only apply to player cards (AI does not have deck depth)
+  let synergyBonus = 0
+  if (isPlayerCard && deckContext) {
+    const deckBonus = getDeckPowerModifier(card, deckContext, wasSecret)
+    synergyBonus = deckBonus
+    finalPower = Math.round(finalPower + deckBonus)
+  }
+
   return {
     power: finalPower,
-    roleMatchupBonus: matchupBonusPercent
+    roleMatchupBonus: matchupBonusPercent,
+    synergyBonus
   }
 }
 
