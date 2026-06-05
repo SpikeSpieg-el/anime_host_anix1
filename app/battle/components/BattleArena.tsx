@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react"
 import { Swords, ArrowRight, BookOpen, Clock, Zap, X, TrendingUp, TrendingDown, Crown } from "lucide-react"
-import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, DragMoveEvent, useDraggable, useDroppable, closestCenter } from "@dnd-kit/core"
+import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, DragMoveEvent, useDraggable, useDroppable, closestCenter, PointerSensor, useSensor, useSensors } from "@dnd-kit/core"
 import { SortableContext, useSortable, verticalListSortingStrategy, arrayMove } from "@dnd-kit/sortable"
 import { BattleZone, CCGBattleState, CardRole, Card, DeckContext } from "../types"
 import { getCardBasePower, getCardRole, getDeckPowerModifier, getTerritoryBuff } from "../utils"
@@ -247,6 +247,15 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
   const [cardEffects, setCardEffects] = useState<Map<string, { type: 'buff' | 'debuff' | 'synergy' | 'knb-win' | 'knb-loss' }>>(new Map())
   const animationTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const floatingTextIdRef = useRef(0)
+
+  // Сенсоры для drag-and-drop: drag начинается только при перемещении на 5px
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 5
+      }
+    })
+  )
 
   if (!ccgState) return null
 
@@ -514,6 +523,7 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
 
   return (
     <DndContext
+      sensors={sensors}
       collisionDetection={closestCenter}
       onDragStart={handleDragStart}
       onDragMove={handleDragMove}
