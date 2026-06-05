@@ -388,43 +388,55 @@ class AdaptiveStrategy extends AIStrategy {
 
     this.log(`Анализ зон: Лидируем: ${winningZones.length}, Отстаем: ${losingZones.length}, Спорные: ${contestedZones.length}`, "detailed")
 
-    // Находим безнадежно потерянную зону (где у игрока сильный перевес, а у нас мало очков)
-    const heavilyLostZone = zoneStates.find(zs => zs.diff < -140)
-
     const candidates: Array<{ card: Card; zoneId: string; score: number; reasoning: string }> = []
     const isSecret = context.cardsPlacedThisRound === 1
 
     for (const card of context.hand) {
       for (const zoneState of zoneStates) {
-        
-        // ТАКТИЧЕСКИЙ ХОД: Игнорируем безнадежные зоны, если можем сосредоточиться на победе в остальных двух.
-        if (
-          heavilyLostZone && 
-          zoneState.zone.id === heavilyLostZone.zone.id && 
-          contestedZones.length + winningZones.length >= 2
-        ) {
-          continue // Экономим provision и ресурсы руки
-        }
-
         const evaluation = evaluateZoneCardCombo(card, zoneState.zone, isSecret, context)
         let finalScore = evaluation.score
 
-        // Коррекция логики в зависимости от положения на линии
-        if (zoneState.status === "winning") {
+        // Оцениваем потенциальную силу карты в этой зоне
+        const cardPotentialPower = evaluation.score
+        
+        // Если зона проигрывает, проверяем может ли эта карта перебить
+        if (zoneState.status === "losing") {
+          const gapToClose = Math.abs(zoneState.diff)
+          
+          // Если карта может потенциально закрыть разрыв (с учётом модификаторов)
+          if (cardPotentialPower >= gapToClose * 0.8) {
+            finalScore += 80 // Бонус за попытку перебить
+            this.log(`Карта ${card.name} может перебить отставание в ${zoneState.zone.nameRu} (разрыв: ${gapToClose.toFixed(0)}, потенциал: ${cardPotentialPower.toFixed(0)})`, "detailed")
+          } else {
+            // Если не может перебить - штрафуем, чтобы выбрать другую зону
+            finalScore -= 30
+          }
+          
+          // Пытаемся отвоевать отстающую линию агрессивной атакой
+          if (getCardRole(card) === "vanguard") {
+            finalScore += 50
+          }
+        } else if (zoneState.status === "winning") {
           // Защищаем лидирующую зону картами Стража (Guard)
           if (getCardRole(card) === "guard") {
             finalScore += 40
           } else if (getCardRole(card) === "vanguard") {
             finalScore -= 15 // Придерживаем атакующие карты для трудных линий
           }
-        } else if (zoneState.status === "losing") {
-          // Пытаемся отвоевать отстающую линию агрессивной атакой
-          if (getCardRole(card) === "vanguard") {
-            finalScore += 50
-          }
         } else {
           // Равный бой — повышаем значимость зоны для закрепления преимущества
           finalScore += 25
+        }
+
+        // Если зона сильно проигрывает (более 200) и у нас нет карты которая может перебрать
+        // и есть другие зоны с меньшим отставанием - приоритизируем их
+        if (zoneState.diff < -200 && cardPotentialPower < Math.abs(zoneState.diff) * 0.8) {
+          const otherZonesWithLessLoss = zoneStates.filter(zs => 
+            zs.zone.id !== zoneState.zone.id && zs.diff > zoneState.diff
+          )
+          if (otherZonesWithLessLoss.length > 0) {
+            finalScore -= 50 // Штраф за попытку борьбы в безнадежной зоне
+          }
         }
 
         candidates.push({
