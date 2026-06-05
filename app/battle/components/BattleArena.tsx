@@ -1,7 +1,7 @@
 import React, { useState } from "react"
 import { Swords, ArrowRight, BookOpen, Clock, Zap, X } from "lucide-react"
 import { BattleZone, CCGBattleState, CardRole, Card, DeckContext } from "../types"
-import { getCardBasePower, getCardRole, getDeckPowerModifier } from "../utils"
+import { getCardBasePower, getCardRole, getDeckPowerModifier, getTerritoryBuff } from "../utils"
 import { BattleCard } from "./BattleCard"
 
 interface BattleArenaProps {
@@ -29,14 +29,13 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
   setBattleState,
   deckContext,
 }) => {
-  const [selectedHandCardId, setSelectedHandCardId] = useState<string | null>(null)
   const [showRules, setShowRules] = useState(false)
   const [activeTerrain, setActiveTerrain] = useState<{ nameRu: string; description: string } | null>(null)
   const [draggedCardId, setDraggedCardId] = useState<string | null>(null)
   const [touchDragCard, setTouchDragCard] = useState<{ cardId: string; startX: number; startY: number } | null>(null)
   const [touchDragPosition, setTouchDragPosition] = useState<{ x: number; y: number } | null>(null)
   const [draggedZoneCardId, setDraggedZoneCardId] = useState<string | null>(null)
-  const [viewedCard, setViewedCard] = useState<{ card: any; isPlayer: boolean; power?: number; bonus?: number; synergyBonus?: number; formationBonus?: number } | null>(null)
+  const [viewedCard, setViewedCard] = useState<{ card: any; isPlayer: boolean; power?: number; bonus?: number; synergyBonus?: number; formationBonus?: number; zoneModifier?: any } | null>(null)
 
   if (!ccgState) return null
 
@@ -44,9 +43,7 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
   const isReveal = ccgState.phase === "reveal"
 
   const handleZoneClick = (zoneId: string) => {
-    if (!selectedHandCardId || !isPlacement || isRoundConfirmed) return
-    playCardToZone(selectedHandCardId, zoneId)
-    setSelectedHandCardId(null)
+    // Zone click only for drag-drop, no selection mode
   }
 
   const handleDragStart = (e: React.DragEvent, cardId: string) => {
@@ -154,7 +151,7 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
     })
   }
 
-  const handleCardView = (card: any, isPlayer: boolean, power?: number, bonus?: number, isSecret?: boolean, synergyBonus?: number, wasSecret?: boolean) => {
+  const handleCardView = (card: any, isPlayer: boolean, power?: number, bonus?: number, isSecret?: boolean, synergyBonus?: number, wasSecret?: boolean, zoneModifier?: any) => {
     if (isSecret) return // Don't view secret cards
     
     // Calculate formation bonus for player cards
@@ -163,7 +160,7 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
       formationBonus = getDeckPowerModifier(card, deckContext, wasSecret || false)
     }
     
-    setViewedCard({ card, isPlayer, power, bonus, synergyBonus, formationBonus })
+    setViewedCard({ card, isPlayer, power, bonus, synergyBonus, formationBonus, zoneModifier })
   }
 
   const getZoneLiveScores = (zone: BattleZone) => {
@@ -184,7 +181,7 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
   }
 
   return (
-    <div className="w-full max-w-md mx-auto h-[100dvh] bg-[#05050a] text-white flex flex-col justify-between overflow-hidden relative select-none overscroll-none touch-none">
+    <div className="w-full max-w-md mx-auto lg:max-w-4xl h-[100dvh] bg-[#05050a] text-white flex flex-col justify-between overflow-hidden relative select-none overscroll-none touch-none">
       {/* Декоративное космическое свечение на фоне */}
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_30%,rgba(99,102,241,0.08),transparent_70%)] pointer-events-none" />
 
@@ -243,7 +240,7 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
 
       {/* ИГРОВОЕ ПОЛЕ ИЗ 3 ЛОКАЦИЙ (Вертикально адаптированная сетка) */}
       <main className="flex-1 p-2 flex flex-col justify-center gap-2 z-10">
-        <div className="grid grid-cols-3 gap-1.5 h-full items-stretch max-h-[600px]">
+        <div className="grid grid-cols-3 gap-1.5 lg:gap-3 h-full items-stretch max-h-[600px] lg:max-h-[700px]">
           {ccgState.zones.map((zone) => {
             const { playerPower, aiPower } = getZoneLiveScores(zone)
             const playerPendingOnThisZone = placedThisRound
@@ -279,7 +276,7 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
                 onDragOver={(e) => handleDragOver(e, zone.id)}
                 onDrop={(e) => handleDrop(e, zone.id)}
                 className={`relative rounded-xl p-2 transition-all flex flex-col justify-between border ${
-                  isPlacement && (selectedHandCardId || draggedCardId || touchDragCard)
+                  isPlacement && (draggedCardId || touchDragCard)
                     ? "cursor-pointer ring-2 ring-indigo-500/30 bg-indigo-500/5"
                     : statusGlow
                 }`}
@@ -303,7 +300,7 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
                           roleMatchupBonus={zc.roleMatchupBonus}
                           synergyBonus={zc.synergyBonus}
                           isInteractive={true}
-                          onClick={() => handleCardView(zc.card, false, zc.powerAfterModifier, zc.roleMatchupBonus, zc.isSecret && (!isReveal || ccgState.round < 3), zc.synergyBonus, zc.wasSecret)}
+                          onClick={() => handleCardView(zc.card, false, zc.powerAfterModifier, zc.roleMatchupBonus, zc.isSecret && (!isReveal || ccgState.round < 3), zc.synergyBonus, zc.wasSecret, zone.modifier)}
                           forceHidden={zone.modifier.id === "dark_zone"}
                         />
                       </div>
@@ -358,7 +355,7 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
                           roleMatchupBonus={zc.roleMatchupBonus}
                           synergyBonus={zc.synergyBonus}
                           isInteractive={true}
-                          onClick={() => handleCardView(zc.card, true, zc.powerAfterModifier, zc.roleMatchupBonus, zc.isSecret && (!isReveal || ccgState.round < 3), zc.synergyBonus, zc.wasSecret)}
+                          onClick={() => handleCardView(zc.card, true, zc.powerAfterModifier, zc.roleMatchupBonus, zc.isSecret && (!isReveal || ccgState.round < 3), zc.synergyBonus, zc.wasSecret, zone.modifier)}
                           forceHidden={zone.modifier.id === "dark_zone"}
                         />
                       </div>
@@ -399,7 +396,7 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
       </main>
 
       {/* ПЛАВАЮЩАЯ КНОПКА ЗАВЕРШЕНИЯ ХОДА СПРАВА */}
-      <div className="fixed right-4 bottom-40 z-50">
+      <div className="fixed right-4 bottom-40 z-50 lg:absolute lg:right-6 lg:bottom-40">
         {isPlacement ? (
           <button
             onClick={confirmRoundPlacement}
@@ -424,22 +421,16 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
 
       {/* ЗОНА РУКИ - ОТДЕЛЬНЫЙ БЛОК */}
       <div className="bg-slate-950/95 border-t border-white/10 px-3 pt-2 pb-5 backdrop-blur-2xl z-30 shadow-[0_-10px_30px_rgba(0,0,0,0.8)] shrink-0">
-        <div className="max-w-md mx-auto w-full relative">
+        <div className="max-w-md mx-auto lg:max-w-4xl w-full relative">
           <div className="flex items-center justify-between px-1 mb-1">
             <span className="text-[8px] text-slate-400 font-extrabold uppercase tracking-wider">
               Карт в руке ({ccgState.hand.length})
             </span>
-            {selectedHandCardId && (
-              <span className="text-[8px] text-amber-400 font-black uppercase tracking-wider animate-pulse">
-                Выберите линию выше!
-              </span>
-            )}
           </div>
           
           {/* Отрендеренный веер карт */}
-          <div className="flex items-center justify-center gap-2 py-3 px-2 overflow-visible min-h-[130px]">
+          <div className="flex items-center justify-center gap-2 lg:gap-4 py-3 px-2 overflow-visible min-h-[130px] lg:min-h-[160px]">
             {ccgState.hand.map((card, idx) => {
-              const isSelected = selectedHandCardId === card.uniqueId
               const isPlaced = placedThisRound.some(p => p.cardId === card.uniqueId)
 
               if (isPlaced) return null
@@ -448,10 +439,8 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
                 <div
                   key={card.uniqueId}
                   style={{
-                    transform: isSelected
-                      ? "translateY(-8px) scale(1.12)"
-                      : "translateY(0) scale(1)",
-                    zIndex: isSelected ? 50 : 10 + idx,
+                    transform: "translateY(0) scale(1)",
+                    zIndex: 10 + idx,
                   }}
                   className="relative transition-all duration-300 ease-out shrink-0 hover:-translate-y-2"
                 >
@@ -464,8 +453,8 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
                     onTouchStart={handleTouchStart}
                     onTouchMove={handleTouchMove}
                     onTouchEnd={handleTouchEnd}
-                    onClick={() => isPlacement && !isRoundConfirmed && setSelectedHandCardId(isSelected ? null : card.uniqueId)}
-                    className={isSelected ? "ring-2 ring-indigo-500 shadow-[0_0_20px_rgba(99,102,241,0.6)]" : ""}
+                    onClick={() => handleCardView(card, true, getCardBasePower(card), 0, false, 0, false)}
+                    isInteractive={true}
                   />
                 </div>
               )
@@ -545,13 +534,19 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
           trickster: "text-amber-400 bg-amber-500/10 border-amber-500/20"
         }
         
+        // Calculate territory buff if zone modifier is available
+        let territoryBuff = null
+        if (viewedCard.zoneModifier) {
+          territoryBuff = getTerritoryBuff(card, viewedCard.zoneModifier.id, false, 0)
+        }
+        
         return (
           <div
             className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200"
             onClick={() => setViewedCard(null)}
           >
             <div
-              className="bg-[#0b0b14]/95 border border-white/10 rounded-3xl p-5 max-w-sm w-full shadow-2xl relative animate-in zoom-in-95 duration-200"
+              className="bg-[#0b0b14]/95 border border-white/10 rounded-3xl p-5 max-w-lg w-full shadow-2xl relative animate-in zoom-in-95 duration-200"
               onClick={(e) => e.stopPropagation()}
             >
               <button
@@ -561,77 +556,106 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
                 <X className="w-4 h-4" />
               </button>
               
-              <div className="flex flex-col items-center mb-4">
-                <div className={`px-3 py-1.5 rounded-xl border text-xs font-black uppercase mb-3 ${roleColors[role]}`}>
-                  {roleNames[role]}
-                </div>
-                <div className="text-[10px] font-bold uppercase">
-                  {viewedCard.isPlayer ? (
-                    <span className="text-emerald-400">Ваша карта</span>
-                  ) : (
-                    <span className="text-rose-400">Карта врага</span>
-                  )}
-                </div>
-              </div>
-
-              <div className="flex justify-center mb-4">
-                <BattleCard
-                  card={card}
-                  size="lg"
-                  showPower={true}
-                  powerValue={viewedCard.power}
-                  roleMatchupBonus={viewedCard.bonus}
-                  synergyBonus={viewedCard.synergyBonus}
-                  isInteractive={false}
-                />
-              </div>
-
-              <div className={`px-3 py-2 rounded-xl border mb-4 text-center text-[10px] font-black uppercase ${roleColors[role]}`}>
-                {roleBeats[role]}
-              </div>
-
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                <div className="flex flex-col items-center p-2 rounded-lg bg-white/5">
-                  <span className="text-slate-400 font-bold text-[10px] uppercase">Сила</span>
-                  <span className="text-white font-black text-sm">{viewedCard.power ?? getCardBasePower(card)}</span>
-                </div>
-                {(viewedCard.bonus ?? 0) > 0 && (
-                  <div className="flex flex-col items-center p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
-                    <span className="text-emerald-400 font-bold text-[10px] uppercase">КНБ</span>
-                    <span className="text-emerald-300 font-black text-sm">+{Math.round((viewedCard.bonus ?? 0) * 100)}%</span>
+              <div className="flex gap-4">
+                {/* КАРТА СЛЕВА */}
+                <div className="flex flex-col items-center">
+                  <div className={`px-3 py-1.5 rounded-xl border text-xs font-black uppercase mb-3 ${roleColors[role]}`}>
+                    {roleNames[role]}
                   </div>
-                )}
-                {(viewedCard.synergyBonus ?? 0) > 0 && (
-                  <div className="flex flex-col items-center p-2 rounded-lg bg-violet-500/10 border border-violet-500/20">
-                    <span className="text-violet-400 font-bold text-[10px] uppercase">Синергия</span>
-                    <span className="text-violet-300 font-black text-sm">+{viewedCard.synergyBonus}</span>
+                  <div className="text-[10px] font-bold uppercase mb-3">
+                    {viewedCard.isPlayer ? (
+                      <span className="text-emerald-400">Ваша карта</span>
+                    ) : (
+                      <span className="text-rose-400">Карта врага</span>
+                    )}
                   </div>
-                )}
-                {(viewedCard.formationBonus ?? 0) !== 0 && (
-                  <div className="flex flex-col items-center p-2 rounded-lg bg-cyan-500/10 border border-cyan-500/20">
-                    <span className="text-cyan-400 font-bold text-[10px] uppercase">Формация</span>
-                    <span className="text-cyan-300 font-black text-sm">{(viewedCard.formationBonus ?? 0) > 0 ? '+' : ''}{viewedCard.formationBonus}</span>
+                  <BattleCard
+                    card={card}
+                    size="lg"
+                    showPower={true}
+                    powerValue={viewedCard.power}
+                    roleMatchupBonus={viewedCard.bonus}
+                    synergyBonus={viewedCard.synergyBonus}
+                    isInteractive={false}
+                  />
+                  <div className={`px-3 py-2 rounded-xl border mt-3 text-center text-[10px] font-black uppercase ${roleColors[role]}`}>
+                    {roleBeats[role]}
                   </div>
-                )}
-                <div className="flex flex-col items-center p-2 rounded-lg bg-white/5">
-                  <span className="text-slate-400 font-bold text-[10px] uppercase">HP</span>
-                  <span className="text-white font-black text-sm">{card.stats.hp}</span>
                 </div>
-                <div className="flex flex-col items-center p-2 rounded-lg bg-white/5">
-                  <span className="text-slate-400 font-bold text-[10px] uppercase">ATK</span>
-                  <span className="text-white font-black text-sm">{card.stats.atk}</span>
-                </div>
-                <div className="flex flex-col items-center p-2 rounded-lg bg-white/5">
-                  <span className="text-slate-400 font-bold text-[10px] uppercase">DEF</span>
-                  <span className="text-white font-black text-sm">{card.stats.def}</span>
-                </div>
-                <div className="flex flex-col items-center p-2 rounded-lg bg-white/5">
-                  <span className="text-slate-400 font-bold text-[10px] uppercase">SPD</span>
-                  <span className="text-white font-black text-sm">{card.stats.spd}</span>
-                </div>
-                <div className="flex flex-col items-center p-2 rounded-lg bg-white/5 col-span-2">
-                  <span className="text-slate-400 font-bold text-[10px] uppercase">LUCK</span>
-                  <span className="text-white font-black text-sm">{card.stats.luck}</span>
+
+                {/* БАФЫ СПРАВА */}
+                <div className="flex-1 flex flex-col justify-center gap-3">
+                  {/* МОДИФИКАТОРЫ СИЛЫ */}
+                  <div>
+                    <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-2">Модификаторы силы</div>
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div className="flex flex-col items-center p-2 rounded-lg bg-white/5">
+                        <span className="text-slate-400 font-bold text-[10px] uppercase">Базовая сила</span>
+                        <span className="text-slate-300 font-black text-sm">{getCardBasePower(card)}</span>
+                      </div>
+                      <div className="flex flex-col items-center p-2 rounded-lg bg-white/5">
+                        <span className="text-slate-400 font-bold text-[10px] uppercase">Итоговая сила</span>
+                        <span className="text-white font-black text-sm">{viewedCard.power ?? getCardBasePower(card)}</span>
+                      </div>
+                      {(viewedCard.bonus ?? 0) > 0 && (
+                        <div className="flex flex-col items-center p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+                          <span className="text-emerald-400 font-bold text-[10px] uppercase">КНБ</span>
+                          <span className="text-emerald-300 font-black text-sm">+{Math.round((viewedCard.bonus ?? 0) * 100)}%</span>
+                        </div>
+                      )}
+                      {(viewedCard.synergyBonus ?? 0) > 0 && (
+                        <div className="flex flex-col items-center p-2 rounded-lg bg-violet-500/10 border border-violet-500/20">
+                          <span className="text-violet-400 font-bold text-[10px] uppercase">Синергия</span>
+                          <span className="text-violet-300 font-black text-sm">+{viewedCard.synergyBonus}</span>
+                        </div>
+                      )}
+                      {(viewedCard.formationBonus ?? 0) !== 0 && (
+                        <div className="flex flex-col items-center p-2 rounded-lg bg-cyan-500/10 border border-cyan-500/20">
+                          <span className="text-cyan-400 font-bold text-[10px] uppercase">Формация</span>
+                          <span className="text-cyan-300 font-black text-sm">{(viewedCard.formationBonus ?? 0) > 0 ? '+' : ''}{viewedCard.formationBonus}</span>
+                        </div>
+                      )}
+                      {territoryBuff && territoryBuff.value !== 0 && (
+                        <div className="flex flex-col items-center p-2 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
+                          <span className="text-yellow-400 font-bold text-[10px] uppercase">Локация</span>
+                          <span className="text-yellow-300 font-black text-sm">{territoryBuff.value > 0 ? '+' : ''}{territoryBuff.value}</span>
+                        </div>
+                      )}
+                      {territoryBuff && territoryBuff.description && territoryBuff.description !== "0" && (
+                        <div className="flex flex-col items-center p-2 rounded-lg bg-orange-500/10 border border-orange-500/20 col-span-2">
+                          <span className="text-orange-400 font-bold text-[10px] uppercase">Эффект локации</span>
+                          <span className="text-orange-300 font-black text-sm">{territoryBuff.description}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* БАЗОВЫЕ СТАТЫ */}
+                  <div>
+                    <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-2">Базовые характеристики</div>
+                    <div className="grid grid-cols-3 gap-2 text-xs">
+                      <div className="flex flex-col items-center p-2 rounded-lg bg-white/5">
+                        <span className="text-slate-400 font-bold text-[10px] uppercase">HP</span>
+                        <span className="text-white font-black text-sm">{card.stats.hp}</span>
+                      </div>
+                      <div className="flex flex-col items-center p-2 rounded-lg bg-white/5">
+                        <span className="text-slate-400 font-bold text-[10px] uppercase">ATK</span>
+                        <span className="text-white font-black text-sm">{card.stats.atk}</span>
+                      </div>
+                      <div className="flex flex-col items-center p-2 rounded-lg bg-white/5">
+                        <span className="text-slate-400 font-bold text-[10px] uppercase">DEF</span>
+                        <span className="text-white font-black text-sm">{card.stats.def}</span>
+                      </div>
+                      <div className="flex flex-col items-center p-2 rounded-lg bg-white/5">
+                        <span className="text-slate-400 font-bold text-[10px] uppercase">SPD</span>
+                        <span className="text-white font-black text-sm">{card.stats.spd}</span>
+                      </div>
+                      <div className="flex flex-col items-center p-2 rounded-lg bg-white/5 col-span-2">
+                        <span className="text-slate-400 font-bold text-[10px] uppercase">LUCK</span>
+                        <span className="text-white font-black text-sm">{card.stats.luck}</span>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>

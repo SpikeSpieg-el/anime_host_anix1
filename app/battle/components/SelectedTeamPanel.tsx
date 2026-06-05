@@ -8,7 +8,7 @@ import { BattleCard } from './BattleCard';
 
 export const SelectedTeamPanelSkeleton: React.FC = () => {
   return (
-    <div className="w-full max-w-md mx-auto flex flex-col gap-4 p-2 sm:p-4">
+    <div className="w-full max-w-md mx-auto flex flex-col gap-4 p-2 sm:p-4 lg:max-w-none">
       <div className={`rounded-3xl p-5 ${glassCard} border border-white/10 backdrop-blur-xl relative overflow-hidden shadow-2xl animate-pulse`}>
         <div className="absolute -top-12 -left-12 w-32 h-32 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
         
@@ -33,7 +33,7 @@ export const SelectedTeamPanelSkeleton: React.FC = () => {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-2 mb-5 relative z-10">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 mb-5 relative z-10">
           {Array.from({ length: DECK_SIZE }).map((_, slot) => (
             <div key={slot} className="aspect-[2/3] rounded-xl bg-white/5 border border-white/5" />
           ))}
@@ -154,9 +154,9 @@ export const SelectedTeamPanel: React.FC<SelectedTeamPanelProps> = ({
   }
 
   return (
-    <div className="w-full max-w-md mx-auto flex flex-col gap-4 p-2 sm:p-4">
+    <div className="w-full flex flex-col gap-4 p-2 sm:p-4">
       {/* Основной контейнер колоды */}
-      <div className={`rounded-3xl p-5 ${glassCard} border border-white/10 backdrop-blur-xl relative overflow-hidden shadow-2xl`}>
+      <div className={`rounded-3xl p-5 lg:p-8 ${glassCard} border border-white/10 backdrop-blur-xl relative overflow-hidden shadow-2xl`}>
         {/* Фоновое декоративное свечение */}
         <div className="absolute -top-12 -left-12 w-32 h-32 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
 
@@ -166,18 +166,18 @@ export const SelectedTeamPanel: React.FC<SelectedTeamPanelProps> = ({
               <Shield className="w-4 h-4" />
             </div>
             <div>
-              <h2 className="text-base font-black text-white uppercase tracking-wider">Ваша колода</h2>
-              <p className="text-[10px] text-slate-400 font-bold">Собрано карт для дуэли</p>
+              <h2 className="text-base lg:text-lg font-black text-white uppercase tracking-wider">Ваша колода</h2>
+              <p className="text-[10px] lg:text-xs text-slate-400 font-bold">Собрано карт для дуэли</p>
             </div>
           </div>
-          <span className="px-2.5 py-1 rounded-full bg-indigo-500/20 border border-indigo-500/30 text-xs font-black text-indigo-300">
+          <span className="px-2.5 py-1 rounded-full bg-indigo-500/20 border border-indigo-500/30 text-xs lg:text-sm font-black text-indigo-300">
             {selectedCards.length} / {DECK_SIZE}
           </span>
         </div>
 
         {/* Шкала лимита веса (Provision) */}
         <div className="mb-5 bg-black/40 rounded-2xl p-3 border border-white/5 relative z-10">
-          <div className="flex justify-between items-center text-[10px] font-bold mb-1.5 uppercase tracking-wider">
+          <div className="flex justify-between items-center text-[10px] lg:text-xs font-bold mb-1.5 uppercase tracking-wider">
             <span className="text-slate-400 flex items-center gap-1">
               <Dumbbell className="w-3.5 h-3.5 text-indigo-400" /> Вес колоды
             </span>
@@ -197,251 +197,260 @@ export const SelectedTeamPanel: React.FC<SelectedTeamPanelProps> = ({
           </div>
         </div>
 
-        {/* Сетка слотов (Мини-карты) */}
-        <div className="grid grid-cols-2 gap-2 mb-5 relative z-10">
-          {Array.from({ length: DECK_SIZE }).map((_, slot) => {
-            const card = selectedCards[slot];
-            if (!card) {
-              return (
-                <button
-                  key={slot}
-                  onClick={() => setShowTeamBuilder(true)}
-                  className="aspect-[2/3] rounded-xl border-2 border-dashed border-white/10 bg-white/[0.02] hover:bg-white/[0.05] active:scale-95 transition-all flex flex-col items-center justify-center gap-1 text-slate-500 hover:text-slate-300"
-                >
-                  <span className="text-lg font-black text-indigo-400/60">+</span>
-                  <span className="text-[7px] uppercase tracking-wider font-extrabold text-slate-500">Слот {slot + 1}</span>
-                </button>
-              );
-            }
+        {/* Desktop: двухколоночная сетка тела */}
+        <div className="lg:grid lg:grid-cols-5 lg:gap-8">
+          {/* ЛЕВАЯ КОЛОНКА — Карты */}
+          <div className="lg:col-span-3 flex flex-col gap-4">
+            {/* Сетка слотов (Мини-карты) */}
+            <div className="grid grid-cols-2 gap-2 lg:grid-cols-4 lg:gap-4 relative z-10 justify-items-center">
+              {Array.from({ length: DECK_SIZE }).map((_, slot) => {
+                const card = selectedCards[slot];
+                if (!card) {
+                  return (
+                    <button
+                      key={slot}
+                      onClick={() => setShowTeamBuilder(true)}
+                      className="w-[160px] h-[240px] lg:w-[170px] lg:h-[255px] rounded-xl border-2 border-dashed border-white/10 bg-white/[0.02] hover:bg-white/[0.05] active:scale-95 transition-all flex flex-col items-center justify-center gap-1 text-slate-500 hover:text-slate-300"
+                    >
+                      <span className="text-lg font-black text-indigo-400/60">+</span>
+                      <span className="text-[7px] uppercase tracking-wider font-extrabold text-slate-500">Слот {slot + 1}</span>
+                    </button>
+                  );
+                }
 
-            return (
-              <div key={card.uniqueId} className="relative aspect-[2/3] transform transition-transform active:scale-95">
-                <BattleCard
-                  card={card}
-                  size="sm"
-                  onRemove={() => toggleCardSelection(card)}
-                  onClick={() => onCardClick?.(card)}
-                  className="w-full h-full shadow-lg"
-                />
-              </div>
-            );
-          })}
-        </div>
+                return (
+                  <div key={card.uniqueId} className="relative transform transition-transform active:scale-95">
+                    <BattleCard
+                      card={card}
+                      size="lg"
+                      onRemove={() => toggleCardSelection(card)}
+                      onClick={() => onCardClick?.(card)}
+                      className="shadow-lg w-[160px] h-[240px] lg:w-[170px] lg:h-[255px]"
+                    />
+                  </div>
+                );
+              })}
+            </div>
 
-        <button
-          onClick={() => setShowTeamBuilder(true)}
-          className={`w-full py-3 mb-4 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 ${glassButton} text-indigo-300 border border-indigo-500/20 active:scale-98 transition-all`}
-        >
-          <Target className="w-3.5 h-3.5" /> Изменить состав
-        </button>
-
-        {/* Formation Selector */}
-        <div className="mb-4 bg-black/40 rounded-2xl p-3 border border-white/5 relative z-10">
-          <div className="flex items-center justify-between text-[10px] font-bold mb-2 uppercase tracking-wider">
-            <span className="text-slate-400 flex items-center gap-1">
-              <Zap className="w-3.5 h-3.5 text-amber-400" /> Формация
-            </span>
+            <button
+              onClick={() => setShowTeamBuilder(true)}
+              className={`w-full py-3 lg:py-4 rounded-xl text-xs lg:text-base font-black uppercase tracking-wider flex items-center justify-center gap-2 ${glassButton} text-indigo-300 border border-indigo-500/20 active:scale-98 transition-all`}
+            >
+              <Target className="w-3.5 h-3.5 lg:w-5 lg:h-5" /> Изменить состав
+            </button>
           </div>
-          <div className="flex gap-2">
-            {(Object.keys(FORMATION_CONFIG) as FormationId[]).map((fid) => {
-              const f = FORMATION_CONFIG[fid]
-              const isSelected = formation === fid
-              return (
-                <button
-                  key={fid}
-                  onClick={() => setFormation(fid)}
-                  className={`flex-1 py-2 rounded-lg text-[10px] font-black uppercase tracking-wider border transition-all ${
-                    isSelected
-                      ? `${f.bg} ${f.color} ${f.border} shadow-[0_0_10px_rgba(255,255,255,0.05)]`
-                      : "bg-white/5 text-slate-400 border-transparent hover:bg-white/10"
-                  }`}
-                >
-                  {f.nameRu}
-                </button>
-              )
-            })}
-          </div>
-        </div>
 
-        {/* Leader Display */}
-        {leaderId && (
-          <div className="mb-4 bg-amber-500/5 rounded-2xl p-3 border border-amber-500/20 relative z-10">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Crown className="w-4 h-4 text-amber-400" />
-                <span className="text-[10px] font-black text-amber-300 uppercase tracking-wider">Лидер</span>
+          {/* ПРАВАЯ КОЛОНКА — Управление и статы */}
+          <div className="lg:col-span-2 flex flex-col gap-4 mt-4 lg:mt-0 lg:gap-5">
+            {/* Formation Selector */}
+            <div className="bg-black/40 rounded-2xl p-3 lg:p-4 border border-white/5 relative z-10">
+              <div className="flex items-center justify-between text-[10px] lg:text-sm font-bold mb-2 lg:mb-3 uppercase tracking-wider">
+                <span className="text-slate-400 flex items-center gap-1">
+                  <Zap className="w-3.5 h-3.5 lg:w-5 lg:h-5 text-amber-400" /> Формация
+                </span>
               </div>
-              <button
-                onClick={() => setLeaderId(null)}
-                className="text-[8px] text-slate-400 hover:text-rose-400 font-black uppercase transition-colors"
+              <div className="flex gap-2 lg:gap-3">
+                {(Object.keys(FORMATION_CONFIG) as FormationId[]).map((fid) => {
+                  const f = FORMATION_CONFIG[fid]
+                  const isSelected = formation === fid
+                  return (
+                    <button
+                      key={fid}
+                      onClick={() => setFormation(fid)}
+                      className={`flex-1 py-2 lg:py-3 rounded-lg text-[10px] lg:text-sm font-black uppercase tracking-wider border transition-all ${
+                        isSelected
+                          ? `${f.bg} ${f.color} ${f.border} shadow-[0_0_10px_rgba(255,255,255,0.05)]`
+                          : "bg-white/5 text-slate-400 border-transparent hover:bg-white/10"
+                      }`}
+                    >
+                      {f.nameRu}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* Leader Display */}
+            {leaderId && (
+              <div className="bg-amber-500/5 rounded-2xl p-3 lg:p-4 border border-amber-500/20 relative z-10">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Crown className="w-4 h-4 lg:w-5 lg:h-5 text-amber-400" />
+                    <span className="text-[10px] lg:text-sm font-black text-amber-300 uppercase tracking-wider">Лидер</span>
+                  </div>
+                  <button
+                    onClick={() => setLeaderId(null)}
+                    className="text-[8px] lg:text-sm text-slate-400 hover:text-rose-400 font-black uppercase transition-colors"
+                  >
+                    Убрать
+                  </button>
+                </div>
+                <div className="mt-2">
+                  <div className="text-xs lg:text-base font-bold text-white truncate">
+                    {selectedCards.find(c => c.uniqueId === leaderId)?.name || "Не найден"}
+                  </div>
+                  <div className="mt-1.5 text-[9px] lg:text-sm text-amber-200/80 font-medium leading-tight">
+                    {(() => {
+                      const leader = selectedCards.find(c => c.uniqueId === leaderId)
+                      if (!leader) return ""
+                      const role = leader.role || getCardRole(leader)
+                      return LEADER_AURA_CONFIG[role]?.description || ""
+                    })()}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Synergies Panel */}
+            {synergyResult.active.length > 0 && (
+              <div className="bg-violet-500/5 rounded-2xl p-3 lg:p-4 border border-violet-500/20 relative z-10">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 lg:w-5 lg:h-5 text-violet-400" />
+                    <span className="text-[10px] lg:text-sm font-black text-violet-300 uppercase tracking-wider">Синергии</span>
+                  </div>
+                  <span className="text-[10px] lg:text-sm font-black text-emerald-400">+{totalBonus}</span>
+                </div>
+                <div className="flex flex-wrap gap-1.5 lg:gap-2">
+                  {synergyResult.active.map((syn) => (
+                    <div
+                      key={syn.id}
+                      onClick={() => setViewedSynergy(syn)}
+                      className={`px-2 py-1 lg:px-3 lg:py-1.5 rounded-md border cursor-pointer hover:scale-105 transition-transform ${SYNERGY_DEFINITIONS[syn.id]?.bg} ${SYNERGY_DEFINITIONS[syn.id]?.border} ${SYNERGY_DEFINITIONS[syn.id]?.color} text-[8px] lg:text-sm font-black uppercase tracking-wider`}
+                      title={syn.description}
+                    >
+                      {syn.nameRu}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Сводка силы колоды */}
+            <div className="bg-black/40 rounded-2xl p-3.5 lg:p-5 border border-white/5 space-y-3 relative z-10 flex-1">
+              {selectedDungeon && (
+                <div className="flex items-center justify-between pb-2.5 border-b border-white/5">
+                  <div className="flex items-center gap-2">
+                    {(() => {
+                      const theme = THEME_CONFIG[selectedDungeon.theme] || THEME_CONFIG.dark_forest
+                      const ThemeIcon = theme.icon
+                      return <ThemeIcon className={`w-3.5 h-3.5 lg:w-4 lg:h-4 ${theme.color}`} />
+                    })()}
+                    <div>
+                      <div className="text-[8px] lg:text-xs text-slate-500 uppercase font-black tracking-widest">Локация</div>
+                      <div className="text-xs lg:text-sm font-bold text-white">{selectedDungeon.name_ru}</div>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-[8px] lg:text-xs text-slate-500 uppercase font-black tracking-widest mb-0.5">Угроза</div>
+                    <div className="text-xs lg:text-sm font-black text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded-md border border-rose-500/20">
+                      {selectedDungeon.difficulty}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div 
+                className="flex items-center justify-between cursor-pointer hover:bg-white/5 rounded-lg p-2 -mx-2 transition-colors"
+                onClick={() => setShowPowerBreakdown(true)}
               >
-                Убрать
+                <div>
+                  <div className="text-[8px] lg:text-xs text-slate-500 uppercase font-black tracking-widest mb-0.5">Сила колоды</div>
+                  <div className="text-lg lg:text-3xl font-black text-white flex items-center gap-1">
+                    <Zap className="w-4 h-4 lg:w-6 lg:h-6 text-emerald-400" />
+                    {(selectedCards.reduce((acc, c) => acc + getCardBasePower(c), 0) + totalBonus + leaderAuraBonus).toLocaleString()}
+                  </div>
+                </div>
+                <div className="text-right space-y-1">
+                  {totalBonus > 0 && (
+                    <div>
+                      <div className="text-[8px] lg:text-xs text-slate-500 uppercase font-black tracking-widest mb-0.5">Синергии</div>
+                      <div className="text-xs lg:text-sm font-black text-violet-400 bg-violet-500/10 px-2 py-0.5 rounded-md border border-violet-500/20">
+                        +{totalBonus}
+                      </div>
+                    </div>
+                  )}
+                  {leaderAuraBonus > 0 && (
+                    <div>
+                      <div className="text-[8px] lg:text-xs text-slate-500 uppercase font-black tracking-widest mb-0.5">Аура лидера</div>
+                      <div className="text-xs lg:text-sm font-black text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/20">
+                        +{leaderAuraBonus}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {selectedDungeon && (
+                <div className="pt-2.5 border-t border-white/5 flex items-center justify-between">
+                  <span className="text-[9px] lg:text-xs text-slate-400 flex items-center gap-1">
+                    <Info className="w-3 h-3 text-slate-500" /> Подсказка
+                  </span>
+                  <span className="text-[8px] lg:text-xs text-indigo-300 font-extrabold uppercase">
+                    Анализируйте КНБ-эффект ролей!
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Главная кнопка боя */}
+            {!selectedDungeon ? (
+              <button
+                onClick={onOpenLocationSelector}
+                className="w-full py-4 lg:py-5 rounded-2xl font-black uppercase tracking-widest text-xs lg:text-base transition-all duration-300 active:scale-95
+                  bg-gradient-to-r from-indigo-400 via-blue-500 to-indigo-500 text-white shadow-[0_4px_20px_rgba(99,102,241,0.4)] border-b-4 border-indigo-700 hover:brightness-110"
+              >
+                Выбрать локацию
               </button>
-            </div>
-            <div className="mt-2">
-              <div className="text-xs font-bold text-white truncate">
-                {selectedCards.find(c => c.uniqueId === leaderId)?.name || "Не найден"}
-              </div>
-              <div className="mt-1.5 text-[9px] text-amber-200/80 font-medium leading-tight">
-                {(() => {
-                  const leader = selectedCards.find(c => c.uniqueId === leaderId)
-                  if (!leader) return ""
-                  const role = leader.role || getCardRole(leader)
-                  return LEADER_AURA_CONFIG[role]?.description || ""
-                })()}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Synergies Panel */}
-        {synergyResult.active.length > 0 && (
-          <div className="mb-4 bg-violet-500/5 rounded-2xl p-3 border border-violet-500/20 relative z-10">
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-violet-400" />
-                <span className="text-[10px] font-black text-violet-300 uppercase tracking-wider">Синергии</span>
-              </div>
-              <span className="text-[10px] font-black text-emerald-400">+{totalBonus}</span>
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              {synergyResult.active.map((syn) => (
-                <div
-                  key={syn.id}
-                  onClick={() => setViewedSynergy(syn)}
-                  className={`px-2 py-1 rounded-md border cursor-pointer hover:scale-105 transition-transform ${SYNERGY_DEFINITIONS[syn.id]?.bg} ${SYNERGY_DEFINITIONS[syn.id]?.border} ${SYNERGY_DEFINITIONS[syn.id]?.color} text-[8px] font-black uppercase tracking-wider`}
-                  title={syn.description}
+            ) : (
+              <div className="flex gap-3">
+                <button
+                  onClick={startBattle}
+                  disabled={!isDeckValid || (progress ? progress.current_stamina < selectedDungeon.energy_cost : false)}
+                  className="flex-1 py-4 lg:py-5 rounded-2xl font-black uppercase tracking-widest text-xs lg:text-base transition-all duration-300 active:scale-95 disabled:pointer-events-none disabled:opacity-40
+                    bg-gradient-to-r from-amber-400 via-orange-500 to-amber-500 text-black shadow-[0_4px_20px_rgba(245,158,11,0.4)] border-b-4 border-amber-700 hover:brightness-110"
                 >
-                  {syn.nameRu}
-                </div>
-              ))}
-            </div>
+                  {selectedCards.length < DECK_SIZE
+                    ? `Собери колоду (${selectedCards.length}/${DECK_SIZE})`
+                    : totalProvisionUsed > PROVISION_LIMIT
+                    ? 'Превышен вес колоды'
+                    : progress && progress.current_stamina < selectedDungeon.energy_cost
+                    ? `Мало энергии (${progress.current_stamina}/${selectedDungeon.energy_cost})`
+                    : 'Вступить в дуэль'}
+                </button>
+                <button
+                  onClick={onOpenLocationSelector}
+                  className="px-4 py-4 lg:px-6 lg:py-5 rounded-2xl font-black uppercase tracking-widest text-[10px] lg:text-sm transition-all duration-300 active:scale-95
+                    bg-gradient-to-r from-indigo-400 via-blue-500 to-indigo-500 text-white shadow-[0_4px_20px_rgba(99,102,241,0.4)] border-b-4 border-indigo-700 hover:brightness-110"
+                >
+                  Локация
+                </button>
+              </div>
+            )}
           </div>
-        )}
-
-        {/* Сводка силы колоды */}
-        <div className="bg-black/40 rounded-2xl p-3.5 border border-white/5 space-y-3 relative z-10">
-          {selectedDungeon && (
-            <div className="flex items-center justify-between pb-2.5 border-b border-white/5">
-              <div className="flex items-center gap-2">
-                {(() => {
-                  const theme = THEME_CONFIG[selectedDungeon.theme] || THEME_CONFIG.dark_forest
-                  const ThemeIcon = theme.icon
-                  return <ThemeIcon className={`w-3.5 h-3.5 ${theme.color}`} />
-                })()}
-                <div>
-                  <div className="text-[8px] text-slate-500 uppercase font-black tracking-widest">Локация</div>
-                  <div className="text-xs font-bold text-white">{selectedDungeon.name_ru}</div>
-                </div>
-              </div>
-              <div className="text-right">
-                <div className="text-[8px] text-slate-500 uppercase font-black tracking-widest mb-0.5">Угроза</div>
-                <div className="text-xs font-black text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded-md border border-rose-500/20">
-                  {selectedDungeon.difficulty}
-                </div>
-              </div>
-            </div>
-          )}
-
-          <div 
-            className="flex items-center justify-between cursor-pointer hover:bg-white/5 rounded-lg p-2 -mx-2 transition-colors"
-            onClick={() => setShowPowerBreakdown(true)}
-          >
-            <div>
-              <div className="text-[8px] text-slate-500 uppercase font-black tracking-widest mb-0.5">Сила колоды</div>
-              <div className="text-lg font-black text-white flex items-center gap-1">
-                <Zap className="w-4 h-4 text-emerald-400" />
-                {(selectedCards.reduce((acc, c) => acc + getCardBasePower(c), 0) + totalBonus + leaderAuraBonus).toLocaleString()}
-              </div>
-            </div>
-            <div className="text-right space-y-1">
-              {totalBonus > 0 && (
-                <div>
-                  <div className="text-[8px] text-slate-500 uppercase font-black tracking-widest mb-0.5">Синергии</div>
-                  <div className="text-xs font-black text-violet-400 bg-violet-500/10 px-2 py-0.5 rounded-md border border-violet-500/20">
-                    +{totalBonus}
-                  </div>
-                </div>
-              )}
-              {leaderAuraBonus > 0 && (
-                <div>
-                  <div className="text-[8px] text-slate-500 uppercase font-black tracking-widest mb-0.5">Аура лидера</div>
-                  <div className="text-xs font-black text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/20">
-                    +{leaderAuraBonus}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {selectedDungeon && (
-            <div className="pt-2.5 border-t border-white/5 flex items-center justify-between">
-              <span className="text-[9px] text-slate-400 flex items-center gap-1">
-                <Info className="w-3 h-3 text-slate-500" /> Подсказка
-              </span>
-              <span className="text-[8px] text-indigo-300 font-extrabold uppercase">
-                Анализируйте КНБ-эффект ролей!
-              </span>
-            </div>
-          )}
         </div>
-
-        {/* Главная кнопка боя (В духе Marvel Snap) */}
-        {!selectedDungeon ? (
-          <button
-            onClick={onOpenLocationSelector}
-            className="w-full mt-4 py-4 rounded-2xl font-black uppercase tracking-widest text-xs transition-all duration-300 active:scale-95
-              bg-gradient-to-r from-indigo-400 via-blue-500 to-indigo-500 text-white shadow-[0_4px_20px_rgba(99,102,241,0.4)] border-b-4 border-indigo-700 hover:brightness-110"
-          >
-            Выбрать локацию
-          </button>
-        ) : (
-          <div className="flex gap-3 mt-4">
-            <button
-              onClick={startBattle}
-              disabled={!isDeckValid || (progress ? progress.current_stamina < selectedDungeon.energy_cost : false)}
-              className="flex-1 py-4 rounded-2xl font-black uppercase tracking-widest text-xs transition-all duration-300 active:scale-95 disabled:pointer-events-none disabled:opacity-40
-                bg-gradient-to-r from-amber-400 via-orange-500 to-amber-500 text-black shadow-[0_4px_20px_rgba(245,158,11,0.4)] border-b-4 border-amber-700 hover:brightness-110"
-            >
-              {selectedCards.length < DECK_SIZE
-                ? `Собери колоду (${selectedCards.length}/${DECK_SIZE})`
-                : totalProvisionUsed > PROVISION_LIMIT
-                ? 'Превышен вес колоды'
-                : progress && progress.current_stamina < selectedDungeon.energy_cost
-                ? `Мало энергии (${progress.current_stamina}/${selectedDungeon.energy_cost})`
-                : 'Вступить в дуэль'}
-            </button>
-            <button
-              onClick={onOpenLocationSelector}
-              className="px-4 py-4 rounded-2xl font-black uppercase tracking-widest text-[10px] transition-all duration-300 active:scale-95
-                bg-gradient-to-r from-indigo-400 via-blue-500 to-indigo-500 text-white shadow-[0_4px_20px_rgba(99,102,241,0.4)] border-b-4 border-indigo-700 hover:brightness-110"
-            >
-              Локация
-            </button>
-          </div>
-        )}
       </div>
 
       {/* История логов */}
       {logs.length > 0 && (
-        <div className={`rounded-3xl p-5 ${glassCard} border border-white/5 shadow-xl`}>
-          <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">История операций</h3>
-          <div className="space-y-2">
+        <div className={`rounded-3xl p-5 lg:p-6 ${glassCard} border border-white/5 shadow-xl`}>
+          <h3 className="text-[10px] lg:text-sm font-black text-slate-400 uppercase tracking-widest mb-3 lg:mb-4">История операций</h3>
+          <div className="space-y-2 lg:space-y-3">
             {logs.slice(0, 3).map((log) => (
-              <div key={log.id} className="flex items-center justify-between p-2.5 rounded-xl bg-black/40 border border-white/5">
-                <div className="flex items-center gap-2.5">
-                  <div className={`p-1.5 rounded-lg ${log.result === 'win' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'}`}>
-                    {log.result === 'win' ? <Trophy className="w-3.5 h-3.5" /> : <Skull className="w-3.5 h-3.5" />}
+              <div key={log.id} className="flex items-center justify-between p-2.5 lg:p-4 rounded-xl bg-black/40 border border-white/5">
+                <div className="flex items-center gap-2.5 lg:gap-4">
+                  <div className={`p-1.5 lg:p-2.5 rounded-lg ${log.result === 'win' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'}`}>
+                    {log.result === 'win' ? <Trophy className="w-3.5 h-3.5 lg:w-5 lg:h-5" /> : <Skull className="w-3.5 h-3.5 lg:w-5 lg:h-5" />}
                   </div>
                   <div>
-                    <div className="text-xs font-black text-white">{log.result === 'win' ? 'Победа' : 'Поражение'}</div>
-                    <div className="text-[9px] text-slate-500">{log.battle_turns} ходов</div>
+                    <div className="text-xs lg:text-base font-black text-white">{log.result === 'win' ? 'Победа' : 'Поражение'}</div>
+                    <div className="text-[9px] lg:text-sm text-slate-500">{log.battle_turns} ходов</div>
                   </div>
                 </div>
                 {log.result === 'win' && (
-                  <div className="text-right">
-                    <div className="text-[10px] font-black text-yellow-400">+{log.coins_earned} 💰</div>
-                    <div className="text-[9px] font-black text-blue-400">+{log.xp_earned} XP</div>
+                  <div className="text-right space-y-1">
+                    <div className="text-[10px] lg:text-sm font-black text-yellow-400">+{log.coins_earned} 💰</div>
+                    <div className="text-[9px] lg:text-xs font-black text-blue-400">+{log.xp_earned} XP</div>
                   </div>
                 )}
               </div>

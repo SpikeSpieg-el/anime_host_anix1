@@ -1,5 +1,6 @@
 import React, { useState } from "react"
 import Image from "next/image"
+import Link from "next/link"
 import { X, ShieldHalf, CheckCircle2, Heart, Swords as SwordsIcon, Shield, Zap, Star, Crown, Sparkles, HelpCircle } from "lucide-react"
 import { Card, DeckSynergy } from "../types"
 import { rarityConfig } from "@/types/gacha"
@@ -200,7 +201,13 @@ export const TeamBuilderModal: React.FC<TeamBuilderModalProps> = ({
           {sortedCards.length === 0 && (
             <div className="col-span-full flex flex-col items-center justify-center py-12 text-slate-500">
               <ShieldHalf className="w-12 h-12 mb-3 opacity-20" />
-              <p className="text-sm font-bold">Коллекция пуста или не найдено совпадений</p>
+              <p className="text-sm font-bold mb-4">Коллекция пуста или не найдено совпадений</p>
+              <Link
+                href="/gacha"
+                className="px-6 py-3 bg-indigo-500 hover:bg-indigo-600 text-white font-bold rounded-xl transition-all active:scale-95 shadow-[0_0_20px_rgba(99,102,241,0.3)]"
+              >
+                Получить карты
+              </Link>
             </div>
           )}
           {groupedCards ? (

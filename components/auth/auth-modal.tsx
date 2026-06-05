@@ -151,7 +151,7 @@ export function AuthModal({ isOpen: externalIsOpen, onClose, children }: AuthMod
     }}>
       {children || (
         <DialogTrigger asChild>
-          <Button variant="ghost" className="gap-2 text-zinc-400 hover:text-white transition-colors">
+          <Button variant="ghost" className="w-9 h-9 md:w-10 md:h-10 gap-2 text-zinc-400 hover:text-white transition-colors rounded-full">
             <LogIn className="w-4 h-4" />
             <span className="hidden sm:inline font-medium">Войти</span>
           </Button>

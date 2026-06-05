@@ -4,8 +4,10 @@ import { useState, useRef, useCallback, useEffect } from "react"
 import Image from "next/image"
 import { Navbar } from "@/components/layout/navbar"
 import { Footer } from "@/components/layout/footer"
-import { Swords, AlertCircle, X, RefreshCcw, Star, Crown } from "lucide-react"
+import { Swords, AlertCircle, X, RefreshCcw, Star, Crown, Lock, LogIn } from "lucide-react"
 import { useBattleData } from "./hooks/use-battle-data"
+import { useAuth } from "@/components/auth/auth-provider"
+import { AuthModal } from "@/components/auth/auth-modal"
 import { StatsPanel, StatsPanelSkeleton } from "./components/StatsPanel"
 import { DungeonSelector } from "./components/DungeonSelector"
 import { SelectedTeamPanel, SelectedTeamPanelSkeleton } from "./components/SelectedTeamPanel"
@@ -282,10 +284,12 @@ const InteractiveCard = ({ card }: { card: Card }) => {
 }
 
 export default function BattlePage() {
+  const { user, sessionLoading } = useAuth()
+  const [showAuthModal, setShowAuthModal] = useState(false)
   const [showLocationSelector, setShowLocationSelector] = useState(false)
   const [viewedCard, setViewedCard] = useState<Card | null>(null)
   const {
-    sessionLoading,
+    sessionLoading: battleSessionLoading,
     userCoins,
     dust,
     progress,
@@ -346,7 +350,39 @@ export default function BattlePage() {
 
       {battleState === "idle" && <Navbar />}
 
-      <div className={`container mx-auto px-4 sm:px-6 relative z-10 ${battleState === "idle" ? "py-8 lg:py-12 max-w-[1400px]" : "py-1 sm:py-2.5 max-w-full"}`}>
+      {/* Auth Required Screen */}
+      {!sessionLoading && !user && battleState === "idle" && (
+        <div className="fixed inset-0 z-20 flex items-center justify-center p-4 bg-[#05050A]">
+          <div className="max-w-md w-full text-center space-y-6 animate-in fade-in zoom-in-95">
+            <div className="relative w-24 h-24 mx-auto mb-4">
+              <div className="absolute inset-0 rounded-full bg-orange-500/20 blur-xl animate-pulse" />
+              <div className="relative w-full h-full rounded-full bg-white/5 border border-white/10 flex items-center justify-center">
+                <Lock className="w-10 h-10 text-orange-500" />
+              </div>
+            </div>
+            
+            <h1 className="text-3xl md:text-4xl font-black tracking-tighter text-white uppercase">
+              Требуется <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-rose-500">Авторизация</span>
+            </h1>
+            
+            <p className="text-slate-400 text-sm md:text-base max-w-sm mx-auto">
+              Для доступа к арене и битвам PVE необходимо войти в аккаунт
+            </p>
+            
+            <button
+              onClick={() => setShowAuthModal(true)}
+              className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-white text-black hover:bg-zinc-200 font-bold text-lg rounded-xl shadow-lg shadow-white/10 transition-all hover:scale-[1.02] active:scale-[0.98]"
+            >
+              <LogIn className="w-5 h-5" />
+              Войти в аккаунт
+            </button>
+          </div>
+        </div>
+      )}
+
+      {!sessionLoading && !user && <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} />}
+
+      <div className={`container mx-auto px-4 sm:px-6 relative z-10 ${battleState === "idle" ? "py-8 lg:py-12 max-w-[1400px]" : "py-1 sm:py-2.5 max-w-full"}`} style={{ display: !sessionLoading && !user && battleState === "idle" ? "none" : "block" }}>
         
         {/* Header Title */}
         {battleState === "idle" && (
@@ -368,7 +404,7 @@ export default function BattlePage() {
         )}
 
         {/* Top bar indicators */}
-        {battleState === "idle" && (sessionLoading || !progress ? <StatsPanelSkeleton /> : <StatsPanel progress={progress} userCoins={userCoins} dust={dust} staminaTime={staminaTime} />)}
+        {battleState === "idle" && (battleSessionLoading || !progress ? <StatsPanelSkeleton /> : <StatsPanel progress={progress} userCoins={userCoins} dust={dust} staminaTime={staminaTime} />)}
 
         {/* Error notification */}
         {error && (
@@ -428,8 +464,8 @@ export default function BattlePage() {
             4. MAIN IDLE DASHBOARD
         ========================================== */}
         {battleState === "idle" && (
-          <div className="flex flex-col gap-4 pb-6">
-            <div className="flex justify-center">
+          <div className="flex flex-col gap-4 pb-6 lg:items-center">
+            <div className="w-full max-w-md lg:max-w-none">
               {sessionLoading || !progress ? (
                 <SelectedTeamPanelSkeleton />
               ) : (

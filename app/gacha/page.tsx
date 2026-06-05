@@ -4,7 +4,7 @@ import { useState, useRef, MouseEvent, useCallback, useEffect, useMemo } from "r
 import { flushSync } from "react-dom"
 import Image from "next/image"
 import { Navbar } from "@/components/layout/navbar"
-import { Sparkles, Star, Heart, Loader2, X, ZoomIn, ExternalLink, RefreshCcw, Trash, Trash2, Crown, Package, Coins, Search, Database, Store, Share } from "lucide-react"
+import { Sparkles, Star, Heart, Loader2, X, ZoomIn, ExternalLink, RefreshCcw, Trash, Trash2, Crown, Package, Coins, Search, Database, Store, Share, Swords } from "lucide-react"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { rollAnimeCharacter, rollFromAnimePack, searchGachaPacks, createCustomGachaPack, checkPackAvailability, updateUserPityAfterRoll } from "./actions"
 import { saveCardToDatabase, loadUserCards, deleteCardFromDatabase, queueCardForSync, syncQueuedCards } from "./client-actions"
@@ -27,6 +27,7 @@ import { GachaSellMarketModal } from "@/components/gacha/gacha-sell-market-modal
 import { ChangeArtModal } from "@/components/gacha/change-art-modal"
 import { useAuth } from "@/components/auth/auth-provider"
 import { frameNames, coatingNames, FrameOverlay, CoatingOverlay } from "@/components/gacha/card-modifiers"
+import { getCardBasePower } from "@/app/battle/utils"
 
 export interface CardStats {
   hp: number
@@ -673,6 +674,13 @@ const InteractiveCard = ({ card, forceFlipped = false }: { card: Card, forceFlip
         </div>
 
         <div className="relative z-10 text-center space-y-2 sm:space-y-3">
+          <div className="flex items-center justify-center gap-2 bg-black/30 backdrop-blur-sm rounded-xl px-4 py-2.5 border border-white/10 shadow-xl">
+            <Swords className="w-4 sm:w-5 h-4 sm:h-5 text-amber-400" />
+            <div className="flex flex-col items-start">
+              <span className="text-[7px] sm:text-[8px] font-bold text-slate-400 uppercase tracking-wider">Боевая сила</span>
+              <span className="text-sm sm:text-base font-black text-amber-300">{getCardBasePower(card)}</span>
+            </div>
+          </div>
            <div className="w-10 sm:w-14 h-10 sm:h-14 mx-auto rounded-full border-2 border-white/10 flex items-center justify-center bg-white/5 backdrop-blur-sm shadow-xl">
               <RefreshCcw className="w-4 sm:w-6 h-4 sm:h-6 text-white/40" />
            </div>

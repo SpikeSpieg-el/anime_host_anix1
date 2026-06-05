@@ -382,3 +382,66 @@ export const calculateCardPowerOnZone = (
   }
 }
 
+// Calculate only the territory modifier buff for display purposes
+export const getTerritoryBuff = (
+  card: Card,
+  zoneModifierId: string,
+  wasSecret: boolean = false,
+  placementOrder: number = 0
+): { value: number; description: string } => {
+  const role = card.role || getCardRole(card)
+  const provision = card.provisionCost || getCardProvision(card)
+  const basePower = getCardBasePower(card)
+  
+  // Calculate power without territory modifier
+  const powerWithoutTerritory = basePower
+  
+  // Calculate power with territory modifier
+  const { power: powerWithTerritory } = calculateCardPowerOnZone(
+    card,
+    zoneModifierId,
+    [],
+    [],
+    true,
+    wasSecret,
+    true,
+    placementOrder
+  )
+  
+  const buff = powerWithTerritory - powerWithoutTerritory
+  
+  // Get description based on modifier
+  const descriptions: Record<string, string> = {
+    shadow_step: wasSecret ? "+100 (скрытая)" : "0",
+    mirage_zone: wasSecret ? "x2 (скрытая)" : "-50%",
+    first_strike: "+80 (открытая)",
+    ambush_point: placementOrder === 1 ? "+120 (скрытая 2-я)" : "0",
+    vanguard_ring: role === "vanguard" ? "+150" : "0",
+    fortress_gate: role === "guard" ? "+150" : "0",
+    speed_valley: role === "trickster" ? "+150" : "0",
+    heavy_weight: provision >= 10 ? "x2" : "0",
+    trash_revolution: (card.rarity === "trash" || card.rarity === "common") ? "x4" : "0",
+    golden_cage: ["divine", "transcendent", "omnipotent"].includes(card.rarity) ? "-40%" : "0",
+    balanced_force: ["epic", "super_rare", "rare"].includes(card.rarity) ? "+100" : "0",
+    black_market: ["uncommon", "rare"].includes(card.rarity) ? "+120" : "0",
+    asceticism: provision <= 4 ? "+150" : "0",
+    power_vacuum: "-50%",
+    god_domain: card.rarity === "omnipotent" ? "x2" : "0",
+    underdog_triumph: "+250 (мин. вес)",
+    lonely_hero: "+200 (один против двух)",
+    duelist_honor: "+150 (дуэль)",
+    tactical_synergy: "+100 (разные роли)",
+    shared_fate: "+150 (одинаковые роли врага)",
+    unity: "+150 (одно аниме)",
+    rivalry: "-50 (разные аниме врага)",
+    double_bluff: wasSecret ? "+200 (двойной блеф)" : "0",
+    equality: "фиксировано 150",
+    gambler_den: card.stats.luck >= 60 ? "рандом 50-250" : "0",
+    last_stand: "+250 (HP < 15%)",
+  }
+  
+  return {
+    value: buff,
+    description: descriptions[zoneModifierId] || "0"
+  }
+}

@@ -47,7 +47,7 @@ function saveSearchHistory(query: string) {
 export function Navbar() {
   const router = useRouter()
   const pathname = usePathname()
-  const { user, signOut, profile } = useAuth()
+  const { user, signOut, profile, sessionLoading } = useAuth()
   const { updates, clearUpdate, clearAllUpdates } = useEpisodeUpdates()
 
   // Состояния
@@ -259,7 +259,9 @@ export function Navbar() {
             />
 
             {/* Аватар / Вход */}
-            {user ? (
+            {sessionLoading ? (
+              <div className="w-9 h-9 md:w-10 md:h-10 rounded-full bg-secondary/50 animate-pulse" />
+            ) : user ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button className="w-9 h-9 md:w-10 md:h-10 rounded-full bg-gradient-to-tr from-orange-500 to-purple-600 p-[2px] overflow-hidden focus:outline-none cursor-pointer active:scale-95 transition-transform">

@@ -14,6 +14,7 @@ import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/lib/supabase"
 import Link from "next/link"
 import { ScrollToTop } from "@/components/layout/scroll-to-top"
+import { SuccessNotification } from "@/components/settings/success-notification"
 
 export default function SettingsPage() {
   const { user, profile, refreshProfile, session } = useAuth()
@@ -22,6 +23,7 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(false)
   const [loadingNsfw, setLoadingNsfw] = useState(false)
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false)
+  const [successPopup, setSuccessPopup] = useState({ isOpen: false, title: '', message: '' })
   const { toast } = useToast()
 
   const handleUsernameSave = async () => {
@@ -45,9 +47,10 @@ export default function SettingsPage() {
 
       await refreshProfile()
       
-      toast({
+      setSuccessPopup({
+        isOpen: true,
         title: "Успешно",
-        description: "Имя пользователя обновлено"
+        message: "Имя пользователя обновлено"
       })
     } catch (error: any) {
       toast({
@@ -93,9 +96,10 @@ export default function SettingsPage() {
       setAllowNsfwSearch(enabled)
       await refreshProfile()
       
-      toast({
+      setSuccessPopup({
+        isOpen: true,
         title: "Успешно",
-        description: enabled 
+        message: enabled 
           ? "Опасный поиск включен. Теперь в результатах поиска может отображаться контент для взрослых." 
           : "Опасный поиск отключен. Контент для взрослых будет скрыт из результатов поиска."
       })
@@ -298,6 +302,13 @@ export default function SettingsPage() {
       </div>
 
       <ScrollToTop />
+      
+      <SuccessNotification
+        isOpen={successPopup.isOpen}
+        onClose={() => setSuccessPopup({ isOpen: false, title: '', message: '' })}
+        title={successPopup.title}
+        message={successPopup.message}
+      />
     </div>
   )
 }
