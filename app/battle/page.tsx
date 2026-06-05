@@ -327,6 +327,7 @@ export default function BattlePage() {
     toggleCardSelection,
     startBattle,
     finishBattle,
+    isFinishing,
     teamPower,
     filteredCards,
   } = useBattleData()
@@ -457,6 +458,7 @@ export default function BattlePage() {
           <BattleResultView
             ccgState={ccgState}
             finishBattle={finishBattle}
+            isFinishing={isFinishing}
           />
         )}
 

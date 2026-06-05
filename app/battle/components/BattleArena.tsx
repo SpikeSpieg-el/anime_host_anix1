@@ -240,7 +240,7 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
 
       {/* ИГРОВОЕ ПОЛЕ ИЗ 3 ЛОКАЦИЙ (Вертикально адаптированная сетка) */}
       <main className="flex-1 p-2 flex flex-col justify-center gap-2 z-10">
-        <div className="grid grid-cols-3 gap-1.5 lg:gap-3 h-full items-stretch max-h-[600px] lg:max-h-[700px]">
+        <div className="grid grid-cols-3 gap-1.5 lg:gap-3 h-full items-stretch max-h-[600px] lg:max-h-[850px]">
           {ccgState.zones.map((zone) => {
             const { playerPower, aiPower } = getZoneLiveScores(zone)
             const playerPendingOnThisZone = placedThisRound
@@ -290,7 +290,7 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
                   <div className="grid grid-cols-2 gap-1 justify-items-center items-center">
                     {/* Карты из предыдущих раундов */}
                     {zone.aiCards.map((zc, idx) => (
-                      <div key={idx} className="scale-[0.85]">
+                      <div key={idx} className="scale-[0.85] lg:scale-100">
                         <BattleCard
                           card={zc.card}
                           size="sm"
@@ -309,7 +309,7 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
                     {aiPendingOnThisZone.map((p, idx) => {
                       if (!p.card) return null
                       return (
-                        <div key={`ai-pending-${idx}`} className="scale-[0.85]">
+                        <div key={`ai-pending-${idx}`} className="scale-[0.85] lg:scale-100">
                           <BattleCard
                             card={p.card}
                             size="sm"
@@ -346,7 +346,7 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
                 <div className="flex-1 flex flex-col justify-end min-h-[80px] gap-1 border-t border-white/5 pt-1.5">
                   <div className="grid grid-cols-2 gap-1 justify-items-center items-center">
                     {zone.playerCards.map((zc, idx) => (
-                      <div key={idx} className="scale-[0.85]">
+                      <div key={idx} className="scale-[0.85] lg:scale-100">
                         <BattleCard
                           card={zc.card}
                           size="sm"
@@ -364,7 +364,7 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
                     {playerPendingOnThisZone.map((p, idx) => {
                       if (!p.card) return null
                       return (
-                        <div key={`pending-${idx}`} className="scale-[0.85]">
+                        <div key={`pending-${idx}`} className="scale-[0.85] lg:scale-100">
                           <BattleCard
                             card={p.card}
                             size="sm"
@@ -492,7 +492,7 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
           onClick={() => setActiveTerrain(null)}
         >
           <div
-            className="bg-[#0b0b14]/95 border border-white/10 rounded-3xl p-5 max-w-xs w-full shadow-2xl relative animate-in zoom-in-95 duration-200"
+            className="bg-[#0b0b14]/95 border border-white/10 rounded-3xl p-5 max-w-xs lg:max-w-md w-full shadow-2xl relative animate-in zoom-in-95 duration-200"
             onClick={(e) => e.stopPropagation()}
           >
             <button
@@ -546,7 +546,7 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
             onClick={() => setViewedCard(null)}
           >
             <div
-              className="bg-[#0b0b14]/95 border border-white/10 rounded-3xl p-5 max-w-lg w-full shadow-2xl relative animate-in zoom-in-95 duration-200"
+              className="bg-[#0b0b14]/95 border border-white/10 rounded-3xl p-5 max-w-lg lg:max-w-2xl w-full shadow-2xl relative animate-in zoom-in-95 duration-200"
               onClick={(e) => e.stopPropagation()}
             >
               <button

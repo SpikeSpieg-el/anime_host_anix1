@@ -1,22 +1,24 @@
 import React from "react"
-import { Trophy, Skull, Coins, Sparkles, Star, Crown, RotateCcw } from "lucide-react"
+import { Trophy, Skull, Coins, Sparkles, Star, Crown, RotateCcw, Loader2 } from "lucide-react"
 import { CCGBattleState } from "../types"
 
 interface BattleResultViewProps {
   ccgState: CCGBattleState | null
   finishBattle: () => Promise<void> | void
+  isFinishing?: boolean
 }
 
 export const BattleResultView: React.FC<BattleResultViewProps> = ({
   ccgState,
   finishBattle,
+  isFinishing = false,
 }) => {
   if (!ccgState) return null
 
   const isVictory = ccgState.victory
 
   return (
-    <div className="max-w-3xl mx-auto relative animate-in fade-in zoom-in-95 duration-700">
+    <div className="max-w-3xl lg:max-w-5xl mx-auto relative animate-in fade-in zoom-in-95 duration-700">
       {/* Decorative Glow */}
       <div
         className={"absolute -inset-4 rounded-3xl blur-2xl opacity-50 " + (
@@ -54,18 +56,18 @@ export const BattleResultView: React.FC<BattleResultViewProps> = ({
         {/* Rewards */}
         {isVictory && (
           <div className="grid grid-cols-3 gap-3 md:gap-6 w-full max-w-md mb-10">
-            <div className="flex flex-col items-center justify-center p-4 rounded-2xl bg-black/40 border border-yellow-500/20 shadow-inner">
-              <Coins className="w-6 h-6 text-yellow-400 mb-2 drop-shadow-md" />
+            <div className="flex flex-col items-center justify-center p-4 rounded-2xl bg-black/40 border border-yellow-500/20 shadow-inner animate-in slide-in-from-bottom-4 duration-500 delay-100">
+              <Coins className="w-6 h-6 text-yellow-400 mb-2 drop-shadow-md animate-bounce" style={{ animationDuration: '2s' }} />
               <span className="text-2xl font-black text-yellow-400">+{ccgState.coinsEarned || 0}</span>
               <span className="text-[10px] text-slate-400 uppercase font-bold mt-1">Монеты</span>
             </div>
-            <div className="flex flex-col items-center justify-center p-4 rounded-2xl bg-black/40 border border-amber-500/20 shadow-inner">
-              <Sparkles className="w-6 h-6 text-amber-400 mb-2 drop-shadow-md" />
+            <div className="flex flex-col items-center justify-center p-4 rounded-2xl bg-black/40 border border-amber-500/20 shadow-inner animate-in slide-in-from-bottom-4 duration-500 delay-200">
+              <Sparkles className="w-6 h-6 text-amber-400 mb-2 drop-shadow-md animate-pulse" />
               <span className="text-2xl font-black text-amber-400">+{ccgState.dustEarned || 0}</span>
               <span className="text-[10px] text-slate-400 uppercase font-bold mt-1">Пыль</span>
             </div>
-            <div className="flex flex-col items-center justify-center p-4 rounded-2xl bg-black/40 border border-blue-500/20 shadow-inner">
-              <Star className="w-6 h-6 text-blue-400 mb-2 drop-shadow-md" />
+            <div className="flex flex-col items-center justify-center p-4 rounded-2xl bg-black/40 border border-blue-500/20 shadow-inner animate-in slide-in-from-bottom-4 duration-500 delay-300">
+              <Star className="w-6 h-6 text-blue-400 mb-2 drop-shadow-md animate-spin" style={{ animationDuration: '3s' }} />
               <span className="text-2xl font-black text-blue-400">+{ccgState.xpEarned || 0}</span>
               <span className="text-[10px] text-slate-400 uppercase font-bold mt-1">Опыт</span>
             </div>
@@ -88,10 +90,20 @@ export const BattleResultView: React.FC<BattleResultViewProps> = ({
 
         <button
           onClick={finishBattle}
-          className="w-full max-w-sm py-4 bg-white text-black hover:bg-slate-200 font-black uppercase tracking-widest rounded-2xl transition-all hover:scale-105 active:scale-95 shadow-[0_0_20px_rgba(255,255,255,0.3)] flex items-center justify-center gap-2"
+          disabled={isFinishing}
+          className="w-full max-w-sm py-4 bg-white text-black hover:bg-slate-200 disabled:bg-slate-400 disabled:cursor-not-allowed font-black uppercase tracking-widest rounded-2xl transition-all hover:scale-105 active:scale-95 disabled:hover:scale-100 disabled:active:scale-100 shadow-[0_0_20px_rgba(255,255,255,0.3)] flex items-center justify-center gap-2 relative"
         >
-          <RotateCcw className="w-5 h-5" />
-          Продолжить
+          {isFinishing ? (
+            <>
+              <Loader2 className="w-5 h-5 animate-spin" />
+              Сохранение...
+            </>
+          ) : (
+            <>
+              <RotateCcw className="w-5 h-5" />
+              Продолжить
+            </>
+          )}
         </button>
       </div>
     </div>

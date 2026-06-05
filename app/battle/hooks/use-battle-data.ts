@@ -39,6 +39,7 @@ export function useBattleData() {
 
   const [error, setError] = useState<string | null>(null)
   const [staminaTime, setStaminaTime] = useState("")
+  const [isFinishing, setIsFinishing] = useState(false)
 
   const loadBattleData = useCallback(async () => {
     if (!user) return
@@ -705,34 +706,39 @@ export function useBattleData() {
   }
 
   const finishBattle = async () => {
-    if (ccgState && ccgState.victory) {
-      const token = session?.access_token
-      if (token) {
-        try {
-          // Send result log to the server
-          await fetch('/api/battle', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-            body: JSON.stringify({
-              action: 'finish_battle',
-              dungeonId: selectedDungeon?.id,
-              result: 'win',
-              coinsEarned: ccgState.coinsEarned || 0,
-              dustEarned: ccgState.dustEarned || 0,
-              xpEarned: ccgState.xpEarned || 0,
-              turns: 3
+    setIsFinishing(true)
+    try {
+      if (ccgState && ccgState.victory) {
+        const token = session?.access_token
+        if (token) {
+          try {
+            // Send result log to the server
+            await fetch('/api/battle', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+              body: JSON.stringify({
+                action: 'finish_battle',
+                dungeonId: selectedDungeon?.id,
+                result: 'win',
+                coinsEarned: ccgState.coinsEarned || 0,
+                dustEarned: ccgState.dustEarned || 0,
+                xpEarned: ccgState.xpEarned || 0,
+                turns: 3
+              })
             })
-          })
-        } catch (e) {
-          console.error("Failed to post battle logs", e)
+          } catch (e) {
+            console.error("Failed to post battle logs", e)
+          }
         }
+        await refreshCoins()
+        await refreshDust()
       }
-      await refreshCoins()
-      await refreshDust()
+      await loadBattleData()
+      setBattleState("idle")
+      setCcgState(null)
+    } finally {
+      setIsFinishing(false)
     }
-    await loadBattleData()
-    setBattleState("idle")
-    setCcgState(null)
   }
 
   const teamPower = {
@@ -800,6 +806,7 @@ export function useBattleData() {
     toggleCardSelection,
     startBattle,
     finishBattle,
+    isFinishing,
     teamPower,
     filteredCards,
   }

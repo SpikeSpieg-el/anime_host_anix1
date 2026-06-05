@@ -100,7 +100,7 @@ export const TeamBuilderModal: React.FC<TeamBuilderModalProps> = ({
       onClick={() => setShowTeamBuilder(false)}
     >
       <div
-        className="bg-[#0a0a0f]/90 border border-white/10 rounded-[2rem] p-6 max-w-4xl w-full max-h-[90vh] flex flex-col shadow-[0_0_50px_rgba(0,0,0,0.8)]"
+        className="bg-[#0a0a0f]/90 border border-white/10 rounded-[2rem] p-6 max-w-4xl lg:max-w-6xl w-full max-h-[90vh] flex flex-col shadow-[0_0_50px_rgba(0,0,0,0.8)]"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-6 shrink-0">
@@ -440,7 +440,7 @@ export const TeamBuilderModal: React.FC<TeamBuilderModalProps> = ({
           onClick={() => setShowHelpModal(false)}
         >
           <div
-            className="bg-[#0a0a0f]/95 border border-white/10 rounded-[2rem] p-6 max-w-2xl w-full max-h-[85vh] flex flex-col shadow-[0_0_50px_rgba(0,0,0,0.8)] overflow-y-auto"
+            className="bg-[#0a0a0f]/95 border border-white/10 rounded-[2rem] p-6 max-w-2xl lg:max-w-4xl w-full max-h-[85vh] flex flex-col shadow-[0_0_50px_rgba(0,0,0,0.8)] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-6 shrink-0">

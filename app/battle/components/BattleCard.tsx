@@ -63,9 +63,9 @@ export const BattleCard: React.FC<BattleCardProps> = ({
   const finalPower = powerValue !== undefined ? powerValue : getCardBasePower(card)
 
   const sizeClasses = {
-    sm: "w-[72px] h-[108px]",
-    md: "w-[100px] h-[150px]",
-    lg: "w-[140px] h-[210px]",
+    sm: "w-[72px] h-[108px] lg:w-[90px] lg:h-[135px]",
+    md: "w-[100px] h-[150px] lg:w-[120px] lg:h-[180px]",
+    lg: "w-[140px] h-[210px] lg:w-[160px] lg:h-[240px]",
   }
 
   const roleTheme = {

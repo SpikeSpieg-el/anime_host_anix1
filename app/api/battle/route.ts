@@ -428,10 +428,18 @@ export async function POST(request: NextRequest) {
               p_amount: coinsEarned,
             })
           } catch {
-            await supabaseAdmin
+            // Fallback: increment coins directly
+            const { data: currentCoins } = await supabaseAdmin
               .from('user_coins')
-              .update({ coins: coinsEarned, updated_at: new Date().toISOString() })
+              .select('coins')
               .eq('id', user.id)
+              .single()
+            if (currentCoins) {
+              await supabaseAdmin
+                .from('user_coins')
+                .update({ coins: currentCoins.coins + coinsEarned, updated_at: new Date().toISOString() })
+                .eq('id', user.id)
+            }
           }
         }
 
@@ -443,10 +451,18 @@ export async function POST(request: NextRequest) {
               p_amount: dustEarned,
             })
           } catch {
-            await supabaseAdmin
+            // Fallback: increment dust directly
+            const { data: currentDust } = await supabaseAdmin
               .from('user_dust')
-              .update({ dust: dustEarned, updated_at: new Date().toISOString() })
+              .select('dust')
               .eq('id', user.id)
+              .single()
+            if (currentDust) {
+              await supabaseAdmin
+                .from('user_dust')
+                .update({ dust: currentDust.dust + dustEarned, updated_at: new Date().toISOString() })
+                .eq('id', user.id)
+            }
           }
         }
 
