@@ -19,7 +19,7 @@ export const DungeonSelector: React.FC<DungeonSelectorProps> = ({
   logs,
 }) => {
   return (
-    <div className="xl:col-span-8 flex flex-col gap-4">
+    <div className="flex flex-col gap-4">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-2">
         <h2 className="text-2xl font-black text-white flex items-center gap-3 drop-shadow-sm">
           <span className="p-2 rounded-xl bg-rose-500/20 text-rose-400 border border-rose-500/30">
@@ -34,7 +34,7 @@ export const DungeonSelector: React.FC<DungeonSelectorProps> = ({
         )}
       </div>
 
-      <div className="max-h-[65vh] xl:max-h-[650px] overflow-y-auto scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent pr-2">
+      <div className="max-h-[65vh] overflow-y-auto scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent px-2">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 auto-rows-max">
           {dungeons.map((dungeon) => {
             const theme = THEME_CONFIG[dungeon.theme] || THEME_CONFIG.dark_forest
@@ -42,13 +42,13 @@ export const DungeonSelector: React.FC<DungeonSelectorProps> = ({
             const isLocked = progress ? progress.level < dungeon.required_level : true
             const isSelected = selectedDungeon?.id === dungeon.id
             const isDaily = dungeon.id?.startsWith("daily-")
-            
+
             // Check if this specific daily battle was completed today (via logs)
             const isDailyCompletedViaLogs = isDaily && logs ? logs.some((log: any) => log.dungeon_id === dungeon.id && log.result === 'win') : false
-            
+
             // Also check if daily battle limit is reached (2 battles per day)
             const dailyLimitReached = isDaily && progress ? progress.daily_battles_today >= 2 : false
-            
+
             // Disable if either completed via logs OR daily limit reached
             const isDailyCompleted = isDailyCompletedViaLogs || dailyLimitReached
 
@@ -61,8 +61,8 @@ export const DungeonSelector: React.FC<DungeonSelectorProps> = ({
                   isLocked || isDailyCompleted
                     ? "opacity-50 cursor-not-allowed bg-black/40 border border-white/5"
                     : isSelected
-                    ? `bg-white/[0.05] ring-2 ring-indigo-500 shadow-[0_0_30px_rgba(99,102,241,0.15)] border-transparent scale-[1.02]`
-                    : `bg-white/[0.02] border border-white/10 hover:bg-white/[0.06] hover:border-white/20 hover:scale-[1.01]`
+                    ? `bg-white/[0.05] ring-2 ring-indigo-500 shadow-[0_0_30px_rgba(99,102,241,0.15)] border-transparent`
+                    : `bg-white/[0.02] border border-white/10 hover:bg-white/[0.06] hover:border-white/20 hover:shadow-lg`
                 } backdrop-blur-md`}
               >
                 {/* Theme theme gradient */}

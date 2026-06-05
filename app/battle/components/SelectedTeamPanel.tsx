@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { Shield, Swords as SwordsIcon, Target, Info, Trophy, Skull, Dumbbell, Crown, Sparkles, Zap, X } from 'lucide-react';
+import { Shield, Swords as SwordsIcon, Target, Info, Trophy, Skull, Dumbbell, Crown, Sparkles, Zap, X, Mountain, Footprints } from 'lucide-react';
 import { Card, Dungeon, Enemy, BattleProgress, BattleLog, DeckSynergy } from '../types';
-import { glassCard, glassButton, PROVISION_LIMIT, DECK_SIZE, FORMATION_CONFIG, SYNERGY_DEFINITIONS, SYNERGY_TOTAL_CAP, FormationId } from '../config';
-import { getCardBasePower, computeDeckSynergies, getCardProvision } from '../utils';
+import { glassCard, glassButton, PROVISION_LIMIT, DECK_SIZE, FORMATION_CONFIG, SYNERGY_DEFINITIONS, SYNERGY_TOTAL_CAP, FormationId, THEME_CONFIG, LEADER_AURA_CONFIG, LEADER_AURA_VALUE, ROLE_CONFIG } from '../config';
+import { getCardBasePower, computeDeckSynergies, getCardProvision, getCardRole } from '../utils';
 import { BattleCard } from './BattleCard';
 
 interface SelectedTeamPanelProps {
@@ -24,6 +24,7 @@ interface SelectedTeamPanelProps {
   formation: FormationId
   setFormation: (formation: FormationId) => void
   onCardClick?: (card: Card) => void
+  onOpenLocationSelector?: () => void
 }
 
 export const SelectedTeamPanel: React.FC<SelectedTeamPanelProps> = ({
@@ -41,14 +42,36 @@ export const SelectedTeamPanel: React.FC<SelectedTeamPanelProps> = ({
   formation,
   setFormation,
   onCardClick,
+  onOpenLocationSelector,
 }) => {
   const [viewedSynergy, setViewedSynergy] = useState<DeckSynergy | null>(null)
+  const [showPowerBreakdown, setShowPowerBreakdown] = useState(false)
 
   const totalProvisionUsed = selectedCards.reduce((acc, c) => acc + (c.provisionCost || getCardProvision(c)), 0);
   const isDeckValid = selectedCards.length === DECK_SIZE && totalProvisionUsed <= PROVISION_LIMIT;
 
   const synergyResult = computeDeckSynergies(selectedCards);
   const totalBonus = synergyResult.globalBonus;
+
+  // Calculate leader aura bonus for deck power display
+  let leaderAuraBonus = 0
+  if (leaderId) {
+    const leader = selectedCards.find(c => c.uniqueId === leaderId)
+    if (leader) {
+      const leaderRole = leader.role || getCardRole(leader)
+      // Count cards that benefit from leader aura
+      const affectedCards = selectedCards.filter(c => {
+        const cardRole = c.role || getCardRole(c)
+        if (leaderRole === "trickster") {
+          // Trickster leader gives bonus to secret cards (we'll estimate as 50% of deck)
+          return true // Simplified: all cards could potentially be secret
+        } else {
+          return cardRole === leaderRole
+        }
+      })
+      leaderAuraBonus = affectedCards.length * LEADER_AURA_VALUE
+    }
+  }
 
   return (
     <div className="w-full max-w-md mx-auto flex flex-col gap-4 p-2 sm:p-4">
@@ -175,8 +198,18 @@ export const SelectedTeamPanel: React.FC<SelectedTeamPanelProps> = ({
                 Убрать
               </button>
             </div>
-            <div className="mt-2 text-xs font-bold text-white truncate">
-              {selectedCards.find(c => c.uniqueId === leaderId)?.name || "Не найден"}
+            <div className="mt-2">
+              <div className="text-xs font-bold text-white truncate">
+                {selectedCards.find(c => c.uniqueId === leaderId)?.name || "Не найден"}
+              </div>
+              <div className="mt-1.5 text-[9px] text-amber-200/80 font-medium leading-tight">
+                {(() => {
+                  const leader = selectedCards.find(c => c.uniqueId === leaderId)
+                  if (!leader) return ""
+                  const role = leader.role || getCardRole(leader)
+                  return LEADER_AURA_CONFIG[role]?.description || ""
+                })()}
+              </div>
             </div>
           </div>
         )}
@@ -208,30 +241,57 @@ export const SelectedTeamPanel: React.FC<SelectedTeamPanelProps> = ({
 
         {/* Сводка силы колоды */}
         <div className="bg-black/40 rounded-2xl p-3.5 border border-white/5 space-y-3 relative z-10">
-          <div className="flex items-center justify-between">
+          {selectedDungeon && (
+            <div className="flex items-center justify-between pb-2.5 border-b border-white/5">
+              <div className="flex items-center gap-2">
+                {(() => {
+                  const theme = THEME_CONFIG[selectedDungeon.theme] || THEME_CONFIG.dark_forest
+                  const ThemeIcon = theme.icon
+                  return <ThemeIcon className={`w-3.5 h-3.5 ${theme.color}`} />
+                })()}
+                <div>
+                  <div className="text-[8px] text-slate-500 uppercase font-black tracking-widest">Локация</div>
+                  <div className="text-xs font-bold text-white">{selectedDungeon.name_ru}</div>
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="text-[8px] text-slate-500 uppercase font-black tracking-widest mb-0.5">Угроза</div>
+                <div className="text-xs font-black text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded-md border border-rose-500/20">
+                  {selectedDungeon.difficulty}
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div 
+            className="flex items-center justify-between cursor-pointer hover:bg-white/5 rounded-lg p-2 -mx-2 transition-colors"
+            onClick={() => setShowPowerBreakdown(true)}
+          >
             <div>
               <div className="text-[8px] text-slate-500 uppercase font-black tracking-widest mb-0.5">Сила колоды</div>
               <div className="text-lg font-black text-white flex items-center gap-1">
-                <span className="text-emerald-400">⚡</span>
-                {selectedCards.reduce((acc, c) => acc + getCardBasePower(c), 0).toLocaleString()}
+                <Zap className="w-4 h-4 text-emerald-400" />
+                {(selectedCards.reduce((acc, c) => acc + getCardBasePower(c), 0) + totalBonus + leaderAuraBonus).toLocaleString()}
               </div>
             </div>
-            {totalBonus > 0 && (
-              <div className="text-right">
-                <div className="text-[8px] text-slate-500 uppercase font-black tracking-widest mb-0.5">Бонус колоды</div>
-                <div className="text-xs font-black text-violet-400 bg-violet-500/10 px-2 py-0.5 rounded-md border border-violet-500/20">
-                  +{totalBonus}
+            <div className="text-right space-y-1">
+              {totalBonus > 0 && (
+                <div>
+                  <div className="text-[8px] text-slate-500 uppercase font-black tracking-widest mb-0.5">Синергии</div>
+                  <div className="text-xs font-black text-violet-400 bg-violet-500/10 px-2 py-0.5 rounded-md border border-violet-500/20">
+                    +{totalBonus}
+                  </div>
                 </div>
-              </div>
-            )}
-            {selectedDungeon && (
-              <div className="text-right">
-                <div className="text-[8px] text-slate-500 uppercase font-black tracking-widest mb-0.5">Сложность</div>
-                <div className="text-xs font-black text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded-md border border-rose-500/20">
-                  Ур. {selectedDungeon.difficulty * 2}
+              )}
+              {leaderAuraBonus > 0 && (
+                <div>
+                  <div className="text-[8px] text-slate-500 uppercase font-black tracking-widest mb-0.5">Аура лидера</div>
+                  <div className="text-xs font-black text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/20">
+                    +{leaderAuraBonus}
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
 
           {selectedDungeon && (
@@ -247,22 +307,39 @@ export const SelectedTeamPanel: React.FC<SelectedTeamPanelProps> = ({
         </div>
 
         {/* Главная кнопка боя (В духе Marvel Snap) */}
-        <button
-          onClick={startBattle}
-          disabled={!isDeckValid || !selectedDungeon || (progress ? progress.current_stamina < selectedDungeon.energy_cost : false)}
-          className="w-full mt-4 py-4 rounded-2xl font-black uppercase tracking-widest text-xs transition-all duration-300 active:scale-95 disabled:pointer-events-none disabled:opacity-40
-            bg-gradient-to-r from-amber-400 via-orange-500 to-amber-500 text-black shadow-[0_4px_20px_rgba(245,158,11,0.4)] border-b-4 border-amber-700 hover:brightness-110"
-        >
-          {selectedCards.length < DECK_SIZE
-            ? `Собери колоду (${selectedCards.length}/${DECK_SIZE})`
-            : totalProvisionUsed > PROVISION_LIMIT
-            ? 'Превышен вес колоды'
-            : !selectedDungeon
-            ? 'Выбери локацию'
-            : progress && progress.current_stamina < selectedDungeon.energy_cost
-            ? `Мало энергии (${progress.current_stamina}/${selectedDungeon.energy_cost})`
-            : 'Вступить в дуэль'}
-        </button>
+        {!selectedDungeon ? (
+          <button
+            onClick={onOpenLocationSelector}
+            className="w-full mt-4 py-4 rounded-2xl font-black uppercase tracking-widest text-xs transition-all duration-300 active:scale-95
+              bg-gradient-to-r from-indigo-400 via-blue-500 to-indigo-500 text-white shadow-[0_4px_20px_rgba(99,102,241,0.4)] border-b-4 border-indigo-700 hover:brightness-110"
+          >
+            Выбрать локацию
+          </button>
+        ) : (
+          <div className="flex gap-3 mt-4">
+            <button
+              onClick={startBattle}
+              disabled={!isDeckValid || (progress ? progress.current_stamina < selectedDungeon.energy_cost : false)}
+              className="flex-1 py-4 rounded-2xl font-black uppercase tracking-widest text-xs transition-all duration-300 active:scale-95 disabled:pointer-events-none disabled:opacity-40
+                bg-gradient-to-r from-amber-400 via-orange-500 to-amber-500 text-black shadow-[0_4px_20px_rgba(245,158,11,0.4)] border-b-4 border-amber-700 hover:brightness-110"
+            >
+              {selectedCards.length < DECK_SIZE
+                ? `Собери колоду (${selectedCards.length}/${DECK_SIZE})`
+                : totalProvisionUsed > PROVISION_LIMIT
+                ? 'Превышен вес колоды'
+                : progress && progress.current_stamina < selectedDungeon.energy_cost
+                ? `Мало энергии (${progress.current_stamina}/${selectedDungeon.energy_cost})`
+                : 'Вступить в дуэль'}
+            </button>
+            <button
+              onClick={onOpenLocationSelector}
+              className="px-4 py-4 rounded-2xl font-black uppercase tracking-widest text-[10px] transition-all duration-300 active:scale-95
+                bg-gradient-to-r from-indigo-400 via-blue-500 to-indigo-500 text-white shadow-[0_4px_20px_rgba(99,102,241,0.4)] border-b-4 border-indigo-700 hover:brightness-110"
+            >
+              Локация
+            </button>
+          </div>
+        )}
       </div>
 
       {/* История логов */}
@@ -289,6 +366,93 @@ export const SelectedTeamPanel: React.FC<SelectedTeamPanelProps> = ({
                 )}
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Power Breakdown Modal */}
+      {showPowerBreakdown && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200"
+          onClick={() => setShowPowerBreakdown(false)}
+        >
+          <div
+            className="bg-[#0b0b14] border border-white/10 rounded-2xl p-5 max-w-sm w-full shadow-2xl relative animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setShowPowerBreakdown(false)}
+              className="absolute top-3 right-3 p-1.5 rounded-lg bg-white/5 text-slate-400 hover:text-white transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            <div className="mb-4">
+              <h3 className="text-sm font-bold text-white">Разбор силы колоды</h3>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              {selectedCards.map((card) => {
+                const basePower = getCardBasePower(card)
+                const role = card.role || getCardRole(card)
+                const roleConfig = ROLE_CONFIG[role]
+                const globalSynergyBonus = synergyResult.globalBonus
+                const roleSynergyBonus = synergyResult.roleAdjust[role] || 0
+                const totalSynergyBonus = globalSynergyBonus + roleSynergyBonus
+                const leaderBonus = leaderId ? (() => {
+                  const leader = selectedCards.find(c => c.uniqueId === leaderId)
+                  if (!leader) return 0
+                  const leaderRole = leader.role || getCardRole(leader)
+                  if (leaderRole === "trickster") return LEADER_AURA_VALUE
+                  return leaderRole === role ? LEADER_AURA_VALUE : 0
+                })() : 0
+                const totalBonus = totalSynergyBonus + leaderBonus
+                const totalCardPower = basePower + totalBonus
+
+                const RoleIcon = role === "vanguard" ? SwordsIcon : role === "guard" ? Shield : Footprints
+
+                return (
+                  <div key={card.uniqueId} className="relative rounded-xl p-3 border border-white/5 overflow-hidden">
+                    <div className={`absolute inset-0 bg-gradient-to-br ${roleConfig.bg} to-transparent opacity-30`} />
+                    <div className="absolute -right-4 -bottom-4 opacity-10">
+                      <RoleIcon className="w-20 h-20 text-white" />
+                    </div>
+                    <div className="relative">
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <div className={`p-1 rounded-lg ${roleConfig.bg} border ${roleConfig.border} shrink-0`}>
+                          <RoleIcon className={`w-3 h-3 ${roleConfig.color}`} />
+                        </div>
+                        <div className="text-xs font-medium text-white truncate">{card.name}</div>
+                      </div>
+                      <div className="text-xs">
+                        <div className="flex items-center gap-1 text-slate-400">
+                          <span>{basePower}</span>
+                          <span className="text-white">+{totalBonus}</span>
+                          <span>=</span>
+                          <span className="font-bold text-emerald-400 text-lg">{totalCardPower}</span>
+                        </div>
+                        {(totalSynergyBonus !== 0 || leaderBonus !== 0) && (
+                          <div className="flex items-center gap-1 text-slate-500 mt-0.5 text-[10px]">
+                            {totalSynergyBonus !== 0 && <span className="text-violet-400">син:{totalSynergyBonus}</span>}
+                            {totalSynergyBonus !== 0 && leaderBonus !== 0 && <span>+</span>}
+                            {leaderBonus !== 0 && <span className="text-amber-400">аура:{leaderBonus}</span>}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+
+            <div className="mt-4 pt-3 border-t border-white/10">
+              <div className="flex justify-between items-center">
+                <span className="text-xs font-medium text-slate-400">Итого</span>
+                <span className="text-sm font-bold text-emerald-400">
+                  {(selectedCards.reduce((acc, c) => acc + getCardBasePower(c), 0) + totalBonus + leaderAuraBonus).toLocaleString()}
+                </span>
+              </div>
+            </div>
           </div>
         </div>
       )}

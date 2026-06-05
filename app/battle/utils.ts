@@ -141,14 +141,15 @@ export const getDeckPowerModifier = (card: Card, ctx: DeckContext, wasSecret: bo
   const synergy = computeDeckSynergies(deck)
   let bonus = synergy.globalBonus + (synergy.roleAdjust[role] || 0)
 
-  // Leader aura
+  // Leader aura (added separately, not clamped)
+  let leaderBonus = 0
   if (leaderId) {
     const leader = deck.find(c => c.uniqueId === leaderId)
     if (leader) {
       const leaderRole = leader.role || getCardRole(leader)
-      if (leaderRole === "vanguard" && role === "vanguard") bonus += LEADER_AURA_VALUE
-      else if (leaderRole === "guard" && role === "guard") bonus += LEADER_AURA_VALUE
-      else if (leaderRole === "trickster" && wasSecret) bonus += LEADER_AURA_VALUE
+      if (leaderRole === "vanguard" && role === "vanguard") leaderBonus += LEADER_AURA_VALUE
+      else if (leaderRole === "guard" && role === "guard") leaderBonus += LEADER_AURA_VALUE
+      else if (leaderRole === "trickster" && wasSecret) leaderBonus += LEADER_AURA_VALUE
     }
   }
 
@@ -162,9 +163,11 @@ export const getDeckPowerModifier = (card: Card, ctx: DeckContext, wasSecret: bo
     if (role === "trickster") bonus += f.trickster
   }
 
-  // Clamp total influence
+  // Clamp synergies + formation only (leader aura is always applied)
   bonus = Math.max(SYNERGY_TOTAL_FLOOR, Math.min(SYNERGY_TOTAL_CAP, bonus))
-  return bonus
+
+  // Add leader aura on top (no clamp)
+  return bonus + leaderBonus
 }
 
 // KNB (Rock-Paper-Scissors) Matchup calculation
@@ -312,11 +315,13 @@ export const calculateCardPowerOnZone = (
 
   // === KNB ROLE MATCHUPS ===
   let matchupBonusPercent = 0
+  let secretRevealBonus = 0
   const reverseRPS = zoneModifierId === "reverse_rps"
   const noRPS = zoneModifierId === "no_rps"
   const doubleRPS = zoneModifierId === "double_rps"
 
-  if (!noRPS && isRevealed && allEnemyCardsOnZone.length > 0) {
+  // Passive KNB bonus: always applies when facing revealed enemy cards
+  if (!noRPS && allEnemyCardsOnZone.length > 0) {
     allEnemyCardsOnZone.forEach(opposingZoneCard => {
       if (!opposingZoneCard.isSecret) {
         const opposingRole = opposingZoneCard.card.role || getCardRole(opposingZoneCard.card)
@@ -327,7 +332,21 @@ export const calculateCardPowerOnZone = (
     })
   }
 
-  let finalPower = Math.round(basePower * (1 + matchupBonusPercent))
+  // Secret reveal bonus: +15% of enemy power when secret card reveals and has KNB advantage
+  if (wasSecret && isRevealed && matchupBonusPercent > 0 && allEnemyCardsOnZone.length > 0) {
+    allEnemyCardsOnZone.forEach(opposingZoneCard => {
+      if (!opposingZoneCard.isSecret) {
+        const opposingRole = opposingZoneCard.card.role || getCardRole(opposingZoneCard.card)
+        const hasAdvantage = getKNBBonusMultiplier(role, opposingRole, reverseRPS) > 0
+        if (hasAdvantage) {
+          const enemyPower = opposingZoneCard.powerAfterModifier || getCardBasePower(opposingZoneCard.card)
+          secretRevealBonus += Math.round(enemyPower * 0.15)
+        }
+      }
+    })
+  }
+
+  let finalPower = Math.round(basePower * (1 + matchupBonusPercent)) + secretRevealBonus
 
   // === FINAL MULTIPLIERS ===
   if (zoneModifierId === "god_domain" && card.rarity === "omnipotent" && !isVandalism) {

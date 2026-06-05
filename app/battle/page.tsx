@@ -281,7 +281,7 @@ const InteractiveCard = ({ card }: { card: Card }) => {
 }
 
 export default function BattlePage() {
-  const [activeTab, setActiveTab] = useState<"locations" | "deck">("locations")
+  const [showLocationSelector, setShowLocationSelector] = useState(false)
   const [viewedCard, setViewedCard] = useState<Card | null>(null)
   const {
     sessionLoading,
@@ -422,76 +422,69 @@ export default function BattlePage() {
           />
         )}
 
-        {/* ==========================================
+        {/* =========================================
             4. MAIN IDLE DASHBOARD
         ========================================== */}
         {battleState === "idle" && (
           <div className="flex flex-col gap-4 pb-24">
-            {/* Desktop Dashboard / Mobile Tabbed View */}
-            <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 xl:gap-8 items-start">
-              <div className={activeTab === "locations" ? "xl:col-span-8" : "hidden xl:block xl:col-span-8"}>
-                <DungeonSelector
-                  dungeons={dungeons}
-                  progress={progress}
-                  selectedDungeon={selectedDungeon}
-                  setSelectedDungeon={setSelectedDungeon}
-                  logs={logs}
-                />
-              </div>
-
-              <div className={activeTab === "deck" ? "xl:col-span-4" : "hidden xl:block xl:col-span-4"}>
-                <SelectedTeamPanel
-                  selectedCards={selectedCards}
-                  toggleCardSelection={toggleCardSelection}
-                  setShowTeamBuilder={setShowTeamBuilder}
-                  selectedDungeon={selectedDungeon}
-                  enemies={enemies}
-                  teamPower={teamPower}
-                  progress={progress}
-                  startBattle={startBattle}
-                  logs={logs}
-                  leaderId={leaderId}
-                  setLeaderId={setLeaderId}
-                  formation={formation}
-                  setFormation={setFormation}
-                  onCardClick={handleCardClick}
-                />
-              </div>
+            <div className="flex justify-center">
+              <SelectedTeamPanel
+                selectedCards={selectedCards}
+                toggleCardSelection={toggleCardSelection}
+                setShowTeamBuilder={setShowTeamBuilder}
+                selectedDungeon={selectedDungeon}
+                enemies={enemies}
+                teamPower={teamPower}
+                progress={progress}
+                startBattle={startBattle}
+                logs={logs}
+                leaderId={leaderId}
+                setLeaderId={setLeaderId}
+                formation={formation}
+                setFormation={setFormation}
+                onCardClick={handleCardClick}
+                onOpenLocationSelector={() => setShowLocationSelector(true)}
+              />
             </div>
           </div>
         )}
 
-        {/* Mobile Fixed Bottom Tab Switcher */}
-        {battleState === "idle" && (
-          <div className="fixed bottom-4 sm:bottom-6 left-1/2 -translate-x-1/2 z-40 w-[92%] max-w-[400px] xl:hidden pb-[env(safe-area-inset-bottom)]">
-            <div className="max-w-md mx-auto bg-background/80 backdrop-blur-xl border border-white/10 dark:border-white/5 rounded-2xl shadow-2xl shadow-black/20 flex items-center justify-between px-2 py-2 h-[68px]">
-              <button
-                onClick={() => setActiveTab("locations")}
-                className={`flex-1 py-3 text-xs sm:text-sm font-black uppercase tracking-wider rounded-xl transition-all ${
-                  activeTab === "locations"
-                    ? "bg-white text-black shadow-lg"
-                    : "text-slate-400 hover:text-white"
-                }`}
-              >
-                🗺️ Локации
-              </button>
-              <button
-                onClick={() => setActiveTab("deck")}
-                className={`flex-1 py-3 text-xs sm:text-sm font-black uppercase tracking-wider rounded-xl transition-all ${
-                  activeTab === "deck"
-                    ? "bg-white text-black shadow-lg"
-                    : "text-slate-400 hover:text-white"
-                }`}
-              >
-                🃏 Колода ({selectedCards.length}/8)
-              </button>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* ==========================================
-          5. BARRACKS HERO SELECT DIALOG
+          5. LOCATION SELECTOR MODAL
+      ========================================== */}
+      {showLocationSelector && (
+        <div 
+          className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200"
+          onClick={() => setShowLocationSelector(false)}
+        >
+          <div 
+            className="bg-[#0b0b14]/95 border border-white/10 rounded-3xl p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-2xl relative animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                setShowLocationSelector(false)
+              }}
+              className="absolute top-4 right-4 z-10 p-2 rounded-full bg-white/5 text-slate-400 hover:text-white transition-colors border border-white/10"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <DungeonSelector
+              dungeons={dungeons}
+              progress={progress}
+              selectedDungeon={selectedDungeon}
+              setSelectedDungeon={setSelectedDungeon}
+              logs={logs}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* ==========================================
+          6. BARRACKS HERO SELECT DIALOG
       ========================================== */}
       <TeamBuilderModal
         showTeamBuilder={showTeamBuilder}
