@@ -1,9 +1,170 @@
 import React, { useState, useEffect, useRef } from "react"
 import { Swords, ArrowRight, BookOpen, Clock, Zap, X, TrendingUp, TrendingDown, Crown } from "lucide-react"
+import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, useDraggable, useDroppable, closestCenter } from "@dnd-kit/core"
+import { SortableContext, useSortable, verticalListSortingStrategy, arrayMove } from "@dnd-kit/sortable"
 import { BattleZone, CCGBattleState, CardRole, Card, DeckContext } from "../types"
 import { getCardBasePower, getCardRole, getDeckPowerModifier, getTerritoryBuff } from "../utils"
 import { BattleCard } from "./BattleCard"
 import { rarityConfig } from "@/types/gacha"
+
+// Helper component for draggable cards (for zones)
+interface DraggableCardProps {
+  card: Card
+  cardId: string
+  size: "sm" | "lg"
+  isPlacement?: boolean
+  source: 'hand' | 'zone'
+  isSecret?: boolean
+  isPlayerCard?: boolean
+  isPending?: boolean
+  isInteractive?: boolean
+  idx?: number
+  onClick?: () => void
+  onRemove?: () => void
+}
+
+const DraggableCard: React.FC<DraggableCardProps> = ({
+  card,
+  cardId,
+  size,
+  isPlacement = false,
+  source,
+  isSecret = false,
+  isPlayerCard = true,
+  isPending = false,
+  isInteractive = true,
+  idx = 0,
+  onClick,
+  onRemove
+}) => {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: cardId,
+    data: { source },
+    disabled: !isPlacement
+  })
+
+  return (
+    <div
+      ref={setNodeRef}
+      {...listeners}
+      {...attributes}
+      style={{
+        transform: isDragging ? 'scale(1.1) rotate(3deg)' : '',
+        zIndex: isDragging ? 1000 : 10 + idx,
+        cursor: isPlacement ? 'grab' : 'default',
+        opacity: isDragging ? 0.5 : 1
+      }}
+      className={`relative transition-all duration-200 ease-out shrink-0 ${
+        isPlacement && !isDragging ? 'hover:-translate-y-2' : ''
+      }`}
+    >
+      <BattleCard
+        card={card}
+        size={size}
+        isSecret={isSecret}
+        isPlayerCard={isPlayerCard}
+        isPending={isPending}
+        onClick={onClick}
+        onRemove={onRemove}
+        isInteractive={isInteractive}
+      />
+    </div>
+  )
+}
+
+// Helper component for sortable cards in hand
+interface SortableCardProps {
+  card: Card
+  cardId: string
+  size: "sm" | "lg"
+  isPlacement?: boolean
+  isInteractive?: boolean
+  idx?: number
+  onClick?: () => void
+}
+
+const SortableCard: React.FC<SortableCardProps> = ({
+  card,
+  cardId,
+  size,
+  isPlacement = false,
+  isInteractive = true,
+  idx = 0,
+  onClick
+}) => {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging
+  } = useSortable({ id: cardId })
+
+  const style = {
+    transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
+    transition,
+    zIndex: isDragging ? 1000 : 10 + idx,
+    cursor: isPlacement ? 'grab' : 'default',
+    opacity: isDragging ? 0.5 : 1
+  }
+
+  return (
+    <div
+      ref={setNodeRef}
+      {...attributes}
+      {...listeners}
+      style={style}
+      className={`relative transition-all duration-200 ease-out shrink-0 ${
+        isPlacement && !isDragging ? 'hover:-translate-y-2' : ''
+      }`}
+    >
+      <BattleCard
+        card={card}
+        size={size}
+        onClick={onClick}
+        isInteractive={isInteractive}
+      />
+    </div>
+  )
+}
+
+// Helper component for droppable zones
+interface ZoneDropZoneProps {
+  zoneId: string
+  isPlacement: boolean
+  isDragging: boolean
+  statusGlow: string
+  children: React.ReactNode
+}
+
+const ZoneDropZone: React.FC<ZoneDropZoneProps> = ({
+  zoneId,
+  isPlacement,
+  isDragging,
+  statusGlow,
+  children
+}) => {
+  const { setNodeRef, isOver } = useDroppable({
+    id: zoneId,
+    disabled: !isPlacement
+  })
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={`relative rounded-xl p-2 transition-all flex flex-col justify-between border ${
+        isPlacement && isDragging
+          ? isOver
+            ? "ring-2 ring-emerald-500/50 bg-emerald-500/10"
+            : "ring-2 ring-indigo-500/30 bg-indigo-500/5"
+          : statusGlow
+      }`}
+    >
+      {children}
+    </div>
+  )
+}
 
 interface BattleArenaProps {
   ccgState: CCGBattleState | null
@@ -12,6 +173,8 @@ interface BattleArenaProps {
   isRoundConfirmed: boolean
   playCardToZone: (cardId: string, zoneId: string) => void
   recallCard: (cardId: string) => void
+  reorganizeHand: (oldIndex: number, newIndex: number) => void
+  moveCardBetweenZones: (cardId: string, newZoneId: string) => void
   confirmRoundPlacement: () => void
   nextRound: () => void
   finishBattle: () => void
@@ -30,6 +193,8 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
   isRoundConfirmed,
   playCardToZone,
   recallCard,
+  reorganizeHand,
+  moveCardBetweenZones,
   confirmRoundPlacement,
   nextRound,
   finishBattle,
@@ -42,14 +207,11 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
 }) => {
   const [showRules, setShowRules] = useState(false)
   const [activeTerrain, setActiveTerrain] = useState<{ nameRu: string; description: string } | null>(null)
-  const [draggedCardId, setDraggedCardId] = useState<string | null>(null)
-  const [touchDragCard, setTouchDragCard] = useState<{ cardId: string; startX: number; startY: number } | null>(null)
-  const [touchDragPosition, setTouchDragPosition] = useState<{ x: number; y: number } | null>(null)
-  const [draggedZoneCardId, setDraggedZoneCardId] = useState<string | null>(null)
+  const [activeDragId, setActiveDragId] = useState<string | null>(null)
+  const [dragSource, setDragSource] = useState<'hand' | 'zone' | null>(null)
   const [viewedCard, setViewedCard] = useState<{ card: any; isPlayer: boolean; power?: number; bonus?: number; synergyBonus?: number; formationBonus?: number; zoneModifier?: any } | null>(null)
   
   // Animation states
-  const [animatingCards, setAnimatingCards] = useState<Set<string>>(new Set())
   const [revealingCards, setRevealingCards] = useState<Set<string>>(new Set())
   const [powerAnimations, setPowerAnimations] = useState<Map<string, { from: number; to: number }>>(new Map())
   const [zoneAnimations, setZoneAnimations] = useState<Set<string>>(new Set())
@@ -59,29 +221,14 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
   const [floatingTexts, setFloatingTexts] = useState<Array<{ id: string; text: string; x: number; y: number; color: string; isPositive: boolean }>>([])
   const [modifierActivations, setModifierActivations] = useState<Set<string>>(new Set())
   const [cardEffects, setCardEffects] = useState<Map<string, { type: 'buff' | 'debuff' | 'synergy' | 'knb-win' | 'knb-loss' }>>(new Map())
-  const [drawingCards, setDrawingCards] = useState<Set<string>>(new Set())
   const animationTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const floatingTextIdRef = useRef(0)
-  const previousHandRef = useRef<string[]>([])
 
   if (!ccgState) return null
 
   const isPlacement = ccgState.phase === "placement"
   const isReveal = ccgState.phase === "reveal"
   const isFinalizing = ccgState.phase === "finalizing"
-
-  // Trigger placement animation when cards are placed
-  useEffect(() => {
-    if (placedThisRound.length > 0) {
-      const newCardIds = placedThisRound.map(p => p.cardId)
-      setAnimatingCards(prev => new Set([...prev, ...newCardIds]))
-      
-      if (animationTimeoutRef.current) clearTimeout(animationTimeoutRef.current)
-      animationTimeoutRef.current = setTimeout(() => {
-        setAnimatingCards(new Set())
-      }, 500)
-    }
-  }, [placedThisRound])
 
   // Trigger reveal animation when phase changes to reveal
   useEffect(() => {
@@ -119,28 +266,6 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
     }
   }, [ccgState.zones, isReveal])
 
-  // Trigger card draw animation when hand changes (new cards drawn)
-  useEffect(() => {
-    if (ccgState && ccgState.hand.length > 0) {
-      const currentHandIds = ccgState.hand.map(c => c.uniqueId)
-      const previousHandIds = previousHandRef.current
-      
-      // Find cards that are in current hand but not in previous hand
-      const newCardIds = currentHandIds.filter(id => !previousHandIds.includes(id))
-      
-      if (newCardIds.length > 0) {
-        setDrawingCards(new Set(newCardIds))
-        
-        if (animationTimeoutRef.current) clearTimeout(animationTimeoutRef.current)
-        animationTimeoutRef.current = setTimeout(() => {
-          setDrawingCards(new Set())
-        }, 400)
-      }
-      
-      // Update previous hand ref
-      previousHandRef.current = currentHandIds
-    }
-  }, [ccgState?.hand, ccgState?.round])
 
   // Cleanup on unmount
   useEffect(() => {
@@ -212,129 +337,57 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
     }
   }
 
-  const handleZoneClick = (zoneId: string) => {
-    // Zone click only for drag-drop, no selection mode
-  }
-
-  const handleDragStart = (e: React.DragEvent, cardId: string) => {
+  const handleDragStart = (event: DragStartEvent) => {
     if (!isPlacement || isRoundConfirmed) {
-      e.preventDefault()
+      event.active.current.node.cancel()
       return
     }
-    setDraggedCardId(cardId)
-    e.dataTransfer.effectAllowed = "move"
+    setActiveDragId(event.active.id as string)
+    setDragSource(event.active.data.current?.source || 'hand')
   }
 
-  const handleDragOver = (e: React.DragEvent, zoneId: string) => {
-    if (!isPlacement || !draggedCardId) return
-    e.preventDefault()
-    e.dataTransfer.dropEffect = "move"
-  }
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event
+    setActiveDragId(null)
+    setDragSource(null)
 
-  const handleDrop = (e: React.DragEvent, zoneId: string) => {
-    if (!isPlacement || !draggedCardId) return
-    e.preventDefault()
-    playCardToZone(draggedCardId, zoneId)
-    setDraggedCardId(null)
-  }
+    if (!over || !isPlacement || isRoundConfirmed) return
 
-  const handleDragEnd = () => {
-    setDraggedCardId(null)
-  }
+    const cardId = active.id as string
+    const overId = over.id as string
 
-  const handleTouchStart = (e: React.TouchEvent, cardId: string) => {
-    if (!isPlacement || isRoundConfirmed) return
-    const touch = e.touches[0]
-    setTouchDragCard({
-      cardId,
-      startX: touch.clientX,
-      startY: touch.clientY
-    })
-  }
-
-  const handleTouchMove = (e: React.TouchEvent) => {
-    if (!touchDragCard) return
-    const touch = e.touches[0]
-    setTouchDragPosition({
-      x: touch.clientX,
-      y: touch.clientY
-    })
-  }
-
-  const handleTouchEnd = (e: React.TouchEvent) => {
-    if (!touchDragCard) return
-
-    const touch = e.changedTouches[0]
-    const element = document.elementFromPoint(touch.clientX, touch.clientY)
-    if (element) {
-      const zoneElement = element.closest('[data-zone-id]')
-      if (zoneElement) {
-        const zoneId = zoneElement.getAttribute('data-zone-id')
-        if (zoneId) {
-          playCardToZone(touchDragCard.cardId, zoneId)
+    // Check if dropping on a zone
+    if (overId.startsWith('zone-')) {
+      // If dragging from zone and dropped on different zone, move card
+      if (dragSource === 'zone') {
+        const existingPlacement = placedThisRound.find(p => p.cardId === cardId)
+        if (existingPlacement && existingPlacement.zoneId !== overId) {
+          // Move to different zone
+          moveCardBetweenZones(cardId, overId)
         }
       } else {
-        // Если сбросили не на зону - возвращаем карту в руку с анимацией
-        const isZoneCard = placedThisRound.some(p => p.cardId === touchDragCard.cardId)
-        if (isZoneCard) {
-          setRecallingCards(prev => new Set([...prev, touchDragCard.cardId]))
-          setTimeout(() => {
-            recallCard(touchDragCard.cardId)
-            setRecallingCards(prev => {
-              const newSet = new Set(prev)
-              newSet.delete(touchDragCard.cardId)
-              return newSet
-            })
-          }, 300)
-        }
+        // Dragging from hand to zone
+        playCardToZone(cardId, overId)
+      }
+    } else if (dragSource === 'zone') {
+      // Dropped outside zone - recall card
+      setRecallingCards(prev => new Set([...prev, cardId]))
+      setTimeout(() => {
+        recallCard(cardId)
+        setRecallingCards(prev => {
+          const newSet = new Set(prev)
+          newSet.delete(cardId)
+          return newSet
+        })
+      }, 300)
+    } else if (dragSource === 'hand' && overId !== cardId) {
+      // Dragging within hand - reorder
+      const oldIndex = ccgState.hand.findIndex(c => c.uniqueId === cardId)
+      const newIndex = ccgState.hand.findIndex(c => c.uniqueId === overId)
+      if (oldIndex !== -1 && newIndex !== -1) {
+        reorganizeHand(oldIndex, newIndex)
       }
     }
-
-    setTouchDragCard(null)
-    setTouchDragPosition(null)
-  }
-
-  const handleZoneCardDragStart = (e: React.DragEvent, cardId: string) => {
-    if (!isPlacement || isRoundConfirmed) {
-      e.preventDefault()
-      return
-    }
-    setDraggedZoneCardId(cardId)
-    e.dataTransfer.effectAllowed = "move"
-  }
-
-  const handleZoneCardDragEnd = (e: React.DragEvent) => {
-    if (!draggedZoneCardId) return
-
-    // Проверяем, сбросили ли на зону
-    const element = document.elementFromPoint(e.clientX, e.clientY)
-    if (element) {
-      const zoneElement = element.closest('[data-zone-id]')
-      if (!zoneElement) {
-        // Если сбросили не на зону - возвращаем карту в руку с анимацией
-        setRecallingCards(prev => new Set([...prev, draggedZoneCardId]))
-        setTimeout(() => {
-          recallCard(draggedZoneCardId)
-          setRecallingCards(prev => {
-            const newSet = new Set(prev)
-            newSet.delete(draggedZoneCardId)
-            return newSet
-          })
-        }, 300)
-      }
-    }
-
-    setDraggedZoneCardId(null)
-  }
-
-  const handleZoneCardTouchStart = (e: React.TouchEvent, cardId: string) => {
-    if (!isPlacement || isRoundConfirmed) return
-    const touch = e.touches[0]
-    setTouchDragCard({
-      cardId,
-      startX: touch.clientX,
-      startY: touch.clientY
-    })
   }
 
   const handleCardView = (card: any, isPlayer: boolean, power?: number, bonus?: number, isSecret?: boolean, synergyBonus?: number, wasSecret?: boolean, zoneModifier?: any) => {
@@ -383,7 +436,12 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
   const isTied = matchScore.playerZones === matchScore.aiZones
 
   return (
-    <div className="w-full max-w-md mx-auto lg:max-w-4xl h-[100dvh] bg-[#05050a] text-white flex flex-col justify-between overflow-hidden relative select-none overscroll-none touch-none">
+    <DndContext
+      collisionDetection={closestCenter}
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
+    >
+      <div className="w-full max-w-md mx-auto lg:max-w-4xl h-[100dvh] bg-[#05050a] text-white flex flex-col justify-between overflow-hidden relative select-none overscroll-none touch-none">
       {/* Декоративное космическое свечение на фоне */}
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_30%,rgba(99,102,241,0.08),transparent_70%)] pointer-events-none" />
 
@@ -495,17 +553,12 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
                 : "border-white/10 bg-white/[0.02] hover:border-white/20"
 
             return (
-              <div
+              <ZoneDropZone
                 key={zone.id}
-                data-zone-id={zone.id}
-                onClick={() => handleZoneClick(zone.id)}
-                onDragOver={(e) => handleDragOver(e, zone.id)}
-                onDrop={(e) => handleDrop(e, zone.id)}
-                className={`relative rounded-xl p-2 transition-all flex flex-col justify-between border ${
-                  isPlacement && (draggedCardId || touchDragCard)
-                    ? "cursor-pointer ring-2 ring-indigo-500/30 bg-indigo-500/5"
-                    : statusGlow
-                }`}
+                zoneId={zone.id}
+                isPlacement={isPlacement}
+                isDragging={activeDragId !== null}
+                statusGlow={statusGlow}
               >
                 {/* КАРТЫ ПРОТИВНИКА (Сверху локации) */}
                 <div className="flex-1 flex flex-col justify-start min-h-[80px] gap-1">
@@ -636,26 +689,20 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
 
                     {playerPendingOnThisZone.map((p, idx) => {
                       if (!p.card) return null
-                      const isAnimating = animatingCards.has(p.card.uniqueId)
                       const isRecalling = recallingCards.has(p.card.uniqueId)
                       return (
                         <div key={`pending-${idx}`} className={`scale-[0.85] lg:scale-100 transition-all duration-300 ${
-                          isAnimating ? 'animate-[cardPlace_0.4s_ease-out]' : ''
-                        } ${
                           isRecalling ? 'animate-cardRecall' : ''
                         }`}>
-                          <BattleCard
-                            card={p.card}
+                          <DraggableCard
+                            card={p.card!}
+                            cardId={p.card!.uniqueId}
                             size="sm"
                             isSecret={p.isSecret && (!isReveal || ccgState.round < 3)}
                             isPlayerCard={true}
                             isPending={true}
-                            draggable={isPlacement && !isRecalling}
-                            onDragStart={handleZoneCardDragStart}
-                            onDragEnd={handleZoneCardDragEnd}
-                            onTouchStart={handleZoneCardTouchStart}
-                            onTouchMove={handleTouchMove}
-                            onTouchEnd={handleTouchEnd}
+                            isPlacement={isPlacement && !isRecalling}
+                            source="zone"
                             onRemove={() => {
                               setRecallingCards(prev => new Set([...prev, p.card!.uniqueId]))
                               setTimeout(() => {
@@ -685,7 +732,7 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
                     </span>
                   </div>
                 </div>
-              </div>
+              </ZoneDropZone>
             )
           })}
         </div>
@@ -733,64 +780,54 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
           </div>
           
           {/* Отрендеренный веер карт */}
-          <div className="flex items-center justify-center gap-2 lg:gap-4 py-3 px-2 overflow-visible min-h-[130px] lg:min-h-[160px]">
-            {ccgState.hand.map((card, idx) => {
-              const isPlaced = placedThisRound.some(p => p.cardId === card.uniqueId)
-              const isDrawing = drawingCards.has(card.uniqueId)
+          <SortableContext items={ccgState.hand.map(c => c.uniqueId)} strategy={verticalListSortingStrategy}>
+            <div className="flex items-center justify-center gap-2 lg:gap-4 py-3 px-2 overflow-visible min-h-[130px] lg:min-h-[160px]">
+              {ccgState.hand.map((card, idx) => {
+                const isPlaced = placedThisRound.some(p => p.cardId === card.uniqueId)
 
-              if (isPlaced) return null
+                if (isPlaced) return null
 
-              return (
-                <div
-                  key={card.uniqueId}
-                  style={{
-                    transform: "translateY(0) scale(1)",
-                    zIndex: 10 + idx,
-                  }}
-                  className={`relative transition-all duration-300 ease-out shrink-0 hover:-translate-y-2 ${
-                    isDrawing ? 'animate-cardDraw' : ''
-                  }`}
-                >
-                  <BattleCard
+                return (
+                  <SortableCard
+                    key={card.uniqueId}
                     card={card}
+                    cardId={card.uniqueId}
                     size="sm"
-                    draggable={isPlacement && !isRoundConfirmed}
-                    onDragStart={handleDragStart}
-                    onDragEnd={() => {}}
-                    onTouchStart={handleTouchStart}
-                    onTouchMove={handleTouchMove}
-                    onTouchEnd={handleTouchEnd}
+                    isPlacement={isPlacement && !isRoundConfirmed}
                     onClick={() => handleCardView(card, true, getCardBasePower(card), 0, false, 0, false)}
                     isInteractive={true}
+                    idx={idx}
                   />
-                </div>
-              )
-            })}
-          </div>
+                )
+              })}
+            </div>
+          </SortableContext>
         </div>
       </div>
 
-      {/* ВИЗУАЛЬНЫЙ ЭЛЕМЕНТ ПРИ TOUCH DRAG */}
-      {touchDragCard && touchDragPosition && (() => {
-        const card = ccgState.hand.find(c => c.uniqueId === touchDragCard.cardId)
-        if (!card) return null
-        return (
-          <div
-            className="fixed pointer-events-none z-50 opacity-80"
-            style={{
-              left: touchDragPosition.x - 52,
-              top: touchDragPosition.y - 75,
-              transform: 'scale(1.1) rotate(5deg)'
-            }}
-          >
-            <BattleCard
-              card={card}
-              size="sm"
-              isInteractive={false}
-            />
-          </div>
-        )
-      })()}
+      {/* DRAG OVERLAY */}
+      <DragOverlay>
+        {activeDragId ? (() => {
+          // First try to find in hand
+          let card = ccgState.hand.find(c => c.uniqueId === activeDragId)
+          
+          // If not in hand, try to find in placed cards
+          if (!card) {
+            const placed = placedThisRound.find(p => p.cardId === activeDragId)
+            if (placed) {
+              card = ccgState.hand.find(c => c.uniqueId === placed.cardId)
+            }
+          }
+          
+          if (!card) return null
+          
+          return (
+            <div className="scale-110 opacity-90 rotate-3">
+              <BattleCard card={card} size="sm" isInteractive={false} />
+            </div>
+          )
+        })() : null}
+      </DragOverlay>
 
       {/* ПЛАВАЮЩИЙ ТЕКСТ ДЛЯ ИЗМЕНЕНИЙ СИЛЫ */}
       {floatingTexts.map(ft => (
@@ -987,6 +1024,7 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
         )
       })()}
 
-    </div>
+      </div>
+    </DndContext>
   )
 }

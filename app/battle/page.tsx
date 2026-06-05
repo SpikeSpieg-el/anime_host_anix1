@@ -311,6 +311,8 @@ export default function BattlePage() {
     isRoundConfirmed,
     playCardToZone,
     recallCard,
+    reorganizeHand,
+    moveCardBetweenZones,
     confirmRoundPlacement,
     nextRound,
     showTeamBuilder,
@@ -454,6 +456,8 @@ export default function BattlePage() {
             isRoundConfirmed={isRoundConfirmed}
             playCardToZone={playCardToZone}
             recallCard={recallCard}
+            reorganizeHand={reorganizeHand}
+            moveCardBetweenZones={moveCardBetweenZones}
             confirmRoundPlacement={confirmRoundPlacement}
             nextRound={nextRound}
             finishBattle={finishBattle}

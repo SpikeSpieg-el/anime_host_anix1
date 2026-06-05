@@ -107,6 +107,29 @@ interface SelectedTeamPanelProps {
   onOpenLocationSelector?: () => void
 }
 
+// Helper function to convert difficulty to vague threat description
+function getThreatDescription(difficulty: number): string {
+  if (difficulty <= 1) return 'Слабая'
+  if (difficulty <= 2) return 'Легкая'
+  if (difficulty <= 3) return 'Средняя'
+  if (difficulty <= 4) return 'Высокая'
+  if (difficulty <= 5) return 'Очень высокая'
+  return 'Экстремальная'
+}
+
+// Helper function to calculate vague enemy deck power range
+function getEnemyPowerRange(dungeon: Dungeon): string {
+  // Base power estimate based on difficulty
+  const basePower = dungeon.difficulty * 100
+  
+  // Add variance (±15%)
+  const variance = Math.round(basePower * 0.15)
+  const minPower = basePower - variance
+  const maxPower = basePower + variance
+  
+  return `${minPower} - ${maxPower}`
+}
+
 export const SelectedTeamPanel: React.FC<SelectedTeamPanelProps> = ({
   selectedCards,
   toggleCardSelection,
@@ -344,7 +367,11 @@ export const SelectedTeamPanel: React.FC<SelectedTeamPanelProps> = ({
                   <div className="text-right">
                     <div className="text-[8px] lg:text-xs text-slate-500 uppercase font-black tracking-widest mb-0.5">Угроза</div>
                     <div className="text-xs lg:text-sm font-black text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded-md border border-rose-500/20">
-                      {selectedDungeon.difficulty}
+                      {getThreatDescription(selectedDungeon.difficulty)}
+                    </div>
+                    <div className="text-[8px] lg:text-xs text-slate-500 uppercase font-black tracking-widest mb-0.5 mt-1">Сила врага</div>
+                    <div className="text-xs lg:text-sm font-black text-white bg-white/10 px-2 py-0.5 rounded-md border border-white/20">
+                      {getEnemyPowerRange(selectedDungeon)}
                     </div>
                   </div>
                 </div>

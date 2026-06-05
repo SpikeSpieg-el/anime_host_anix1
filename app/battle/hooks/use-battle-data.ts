@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react"
 import { useAuth } from "@/components/auth/auth-provider"
 import { useCoins } from "@/hooks/use-coins"
 import { useDust } from "@/hooks/use-dust"
+import { arrayMove } from "@dnd-kit/sortable"
 import { Card, Dungeon, Enemy, BattleProgress, BattleLog, CCGBattleState, BattleZone, ZoneCard, CardRole, DeckContext } from "../types"
 import { getCardRole, getCardProvision, calculateCardPowerOnZone, getCardBasePower, computeDeckSynergies } from "../utils"
 import { PROVISION_LIMIT, DECK_SIZE, TERRITORY_MODIFIERS, FormationId } from "../config"
@@ -482,7 +483,44 @@ export function useBattleData() {
   // Cancel card deployment before revealing
   const recallCard = (cardId: string) => {
     if (isRoundConfirmed) return // Блокируем отзыв после подтверждения
+    
+    // Move the recalled card to the end of hand (Balatro-style move)
+    setCcgState(prev => {
+      if (!prev) return null
+      const card = prev.hand.find(c => c.uniqueId === cardId)
+      if (!card) return prev
+      
+      // Remove card from current position and add to end
+      const newHand = prev.hand.filter(c => c.uniqueId !== cardId)
+      newHand.push(card)
+      
+      return {
+        ...prev,
+        hand: newHand
+      }
+    })
+    
     setPlacedPlacedThisRound(prev => prev.filter(p => p.cardId !== cardId))
+  }
+
+  // Reorganize hand by moving card from oldIndex to newIndex
+  const reorganizeHand = useCallback((oldIndex: number, newIndex: number) => {
+    setCcgState(prev => {
+      if (!prev) return null
+      const newHand = arrayMove(prev.hand, oldIndex, newIndex)
+      return {
+        ...prev,
+        hand: newHand
+      }
+    })
+  }, [])
+
+  // Move card between zones during placement
+  const moveCardBetweenZones = (cardId: string, newZoneId: string) => {
+    if (isRoundConfirmed) return
+    setPlacedPlacedThisRound(prev => 
+      prev.map(p => p.cardId === cardId ? { ...p, zoneId: newZoneId } : p)
+    )
   }
 
   // Confirm round placement, trigger reveal phase
@@ -1069,6 +1107,8 @@ export function useBattleData() {
     isRoundConfirmed,
     playCardToZone,
     recallCard,
+    reorganizeHand,
+    moveCardBetweenZones,
     confirmRoundPlacement,
     nextRound,
     showTeamBuilder,

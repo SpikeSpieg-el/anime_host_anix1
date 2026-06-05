@@ -21,12 +21,6 @@ interface BattleCardProps {
   roleMatchupBonus?: number
   synergyBonus?: number
   isInteractive?: boolean
-  draggable?: boolean
-  onDragStart?: (e: React.DragEvent, cardId: string) => void
-  onDragEnd?: (e: React.DragEvent) => void
-  onTouchStart?: (e: React.TouchEvent, cardId: string) => void
-  onTouchMove?: (e: React.TouchEvent) => void
-  onTouchEnd?: (e: React.TouchEvent) => void
   forceHidden?: boolean
 }
 
@@ -52,12 +46,6 @@ export const BattleCard: React.FC<BattleCardProps> = ({
   roleMatchupBonus = 0,
   synergyBonus = 0,
   isInteractive = true,
-  draggable = false,
-  onDragStart,
-  onDragEnd,
-  onTouchStart,
-  onTouchMove,
-  onTouchEnd,
   forceHidden = false,
 }) => {
   const role = card.role || getCardRole(card)
@@ -90,17 +78,11 @@ export const BattleCard: React.FC<BattleCardProps> = ({
   return (
     <div
       onClick={onClick}
-      draggable={draggable}
-      onDragStart={(e) => draggable && onDragStart?.(e, card.uniqueId)}
-      onDragEnd={(e) => onDragEnd?.(e)}
-      onTouchStart={(e) => onTouchStart?.(e, card.uniqueId)}
-      onTouchMove={(e) => onTouchMove?.(e)}
-      onTouchEnd={(e) => onTouchEnd?.(e)}
       className={`
         relative select-none rounded-xl overflow-hidden
         shadow-[0_8px_16px_rgba(0,0,0,0.6)] ring-1 ring-white/10
         ${sizeClasses[size]} ${className}
-        ${draggable ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'}
+        cursor-pointer
         ${isPending ? "scale-95 opacity-80" : "hover:scale-[1.02] transition-transform duration-200"}
         ${hasKnbBonus ? 'animate-knbHighlight' : ''}
       `}
