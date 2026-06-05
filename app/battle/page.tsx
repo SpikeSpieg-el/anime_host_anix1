@@ -330,6 +330,15 @@ export default function BattlePage() {
     isFinishing,
     teamPower,
     filteredCards,
+    // Animation states and functions
+    cardEffects,
+    destroyingCards,
+    modifierActivations,
+    floatingTexts,
+    triggerCardEffect,
+    triggerCardDestruction,
+    triggerModifierActivation,
+    addFloatingText,
   } = useBattleData()
 
   const handleCardClick = (card: Card) => {
@@ -448,6 +457,10 @@ export default function BattlePage() {
             nextRound={nextRound}
             setBattleState={setBattleState}
             deckContext={{ deck: selectedCards, leaderId, formation }}
+            onCardEffect={triggerCardEffect}
+            onCardDestroy={triggerCardDestruction}
+            onModifierActivate={triggerModifierActivation}
+            onFloatingText={addFloatingText}
           />
         )}
 

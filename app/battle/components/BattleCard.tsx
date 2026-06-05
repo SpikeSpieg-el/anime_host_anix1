@@ -50,6 +50,7 @@ export const BattleCard: React.FC<BattleCardProps> = ({
   powerValue,
   isPending = false,
   roleMatchupBonus = 0,
+  synergyBonus = 0,
   isInteractive = true,
   draggable = false,
   onDragStart,
@@ -61,6 +62,8 @@ export const BattleCard: React.FC<BattleCardProps> = ({
 }) => {
   const role = card.role || getCardRole(card)
   const finalPower = powerValue !== undefined ? powerValue : getCardBasePower(card)
+  const hasKnbBonus = roleMatchupBonus > 0
+  const hasSynergyBonus = synergyBonus > 0
 
   const sizeClasses = {
     sm: "w-[72px] h-[108px] lg:w-[90px] lg:h-[135px]",
@@ -99,6 +102,7 @@ export const BattleCard: React.FC<BattleCardProps> = ({
         ${sizeClasses[size]} ${className}
         ${draggable ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'}
         ${isPending ? "scale-95 opacity-80" : "hover:scale-[1.02] transition-transform duration-200"}
+        ${hasKnbBonus ? 'animate-knbHighlight' : ''}
       `}
       style={{
         transformStyle: "preserve-3d",
@@ -156,7 +160,13 @@ export const BattleCard: React.FC<BattleCardProps> = ({
             <div className="absolute top-1.5 left-1.5 z-30 drop-shadow-md">
               <div className="relative flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9">
                 {/* Внешний фон (ромб) */}
-                <div className={`absolute inset-0 bg-gradient-to-br from-slate-800 to-black rounded-[0.3rem] rotate-45 border border-slate-600 ${roleMatchupBonus > 0 ? 'border-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.5)]' : ''}`} />
+                <div className={`absolute inset-0 bg-gradient-to-br from-slate-800 to-black rounded-[0.3rem] rotate-45 border border-slate-600 transition-all duration-300 ${
+                  hasKnbBonus 
+                    ? 'border-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.8)] animate-pulse' 
+                    : hasSynergyBonus
+                    ? 'border-violet-400 shadow-[0_0_10px_rgba(139,92,246,0.5)]'
+                    : ''
+                }`} />
                 {/* Внутренняя металлическая вставка */}
                 <div className={`absolute inset-[3px] bg-gradient-to-br from-slate-200 to-slate-400 rounded-sm rotate-45 border-2 ${theme.innerBorder} flex items-center justify-center`} />
                 {/* Текст Силы */}
@@ -171,10 +181,16 @@ export const BattleCard: React.FC<BattleCardProps> = ({
           <div className="absolute bottom-0 inset-x-0 z-20 flex flex-col justify-end">
             
             {/* АНИМАЦИЯ БАФФА (Парит прямо над плашкой имени) */}
-            {roleMatchupBonus > 0 && (
-              <div className="absolute -top-5 left-1/2 -translate-x-1/2 z-40 flex items-center gap-1 bg-emerald-500 text-white text-[9px] font-black px-2 py-0.5 rounded-t-lg shadow-[0_0_10px_rgba(16,185,129,0.8)] border-t border-x border-emerald-300 animate-bounce">
+            {hasKnbBonus && (
+              <div className="absolute -top-5 left-1/2 -translate-x-1/2 z-40 flex items-center gap-1 bg-emerald-500 text-white text-[9px] font-black px-2 py-0.5 rounded-t-lg shadow-[0_0_15px_rgba(16,185,129,0.9)] border-t border-x border-emerald-300 animate-bounce">
                 <Crosshair className="w-2 h-2" />
                 +{Math.round(roleMatchupBonus * 100)}%
+              </div>
+            )}
+            {hasSynergyBonus && !hasKnbBonus && (
+              <div className="absolute -top-5 left-1/2 -translate-x-1/2 z-40 flex items-center gap-1 bg-violet-500 text-white text-[9px] font-black px-2 py-0.5 rounded-t-lg shadow-[0_0_15px_rgba(139,92,246,0.9)] border-t border-x border-violet-300 animate-pulse">
+                <Zap className="w-2 h-2" />
+                +{synergyBonus}
               </div>
             )}
 

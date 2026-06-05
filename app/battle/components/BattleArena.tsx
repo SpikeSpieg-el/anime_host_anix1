@@ -1,5 +1,5 @@
-import React, { useState } from "react"
-import { Swords, ArrowRight, BookOpen, Clock, Zap, X } from "lucide-react"
+import React, { useState, useEffect, useRef } from "react"
+import { Swords, ArrowRight, BookOpen, Clock, Zap, X, TrendingUp, TrendingDown, Crown } from "lucide-react"
 import { BattleZone, CCGBattleState, CardRole, Card, DeckContext } from "../types"
 import { getCardBasePower, getCardRole, getDeckPowerModifier, getTerritoryBuff } from "../utils"
 import { BattleCard } from "./BattleCard"
@@ -15,6 +15,10 @@ interface BattleArenaProps {
   nextRound: () => void
   setBattleState: (state: "idle" | "loading" | "battle" | "result") => void
   deckContext?: DeckContext
+  onCardEffect?: (cardId: string, type: 'buff' | 'debuff' | 'synergy' | 'knb-win' | 'knb-loss') => void
+  onCardDestroy?: (cardId: string) => void
+  onModifierActivate?: (zoneId: string) => void
+  onFloatingText?: (text: string, x: number, y: number, isPositive: boolean) => void
 }
 
 export const BattleArena: React.FC<BattleArenaProps> = ({
@@ -28,6 +32,10 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
   nextRound,
   setBattleState,
   deckContext,
+  onCardEffect,
+  onCardDestroy,
+  onModifierActivate,
+  onFloatingText,
 }) => {
   const [showRules, setShowRules] = useState(false)
   const [activeTerrain, setActiveTerrain] = useState<{ nameRu: string; description: string } | null>(null)
@@ -36,11 +44,169 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
   const [touchDragPosition, setTouchDragPosition] = useState<{ x: number; y: number } | null>(null)
   const [draggedZoneCardId, setDraggedZoneCardId] = useState<string | null>(null)
   const [viewedCard, setViewedCard] = useState<{ card: any; isPlayer: boolean; power?: number; bonus?: number; synergyBonus?: number; formationBonus?: number; zoneModifier?: any } | null>(null)
+  
+  // Animation states
+  const [animatingCards, setAnimatingCards] = useState<Set<string>>(new Set())
+  const [revealingCards, setRevealingCards] = useState<Set<string>>(new Set())
+  const [powerAnimations, setPowerAnimations] = useState<Map<string, { from: number; to: number }>>(new Map())
+  const [zoneAnimations, setZoneAnimations] = useState<Set<string>>(new Set())
+  const [phaseTransition, setPhaseTransition] = useState(false)
+  const [recallingCards, setRecallingCards] = useState<Set<string>>(new Set())
+  const [destroyingCards, setDestroyingCards] = useState<Set<string>>(new Set())
+  const [floatingTexts, setFloatingTexts] = useState<Array<{ id: string; text: string; x: number; y: number; color: string; isPositive: boolean }>>([])
+  const [modifierActivations, setModifierActivations] = useState<Set<string>>(new Set())
+  const [cardEffects, setCardEffects] = useState<Map<string, { type: 'buff' | 'debuff' | 'synergy' | 'knb-win' | 'knb-loss' }>>(new Map())
+  const [drawingCards, setDrawingCards] = useState<Set<string>>(new Set())
+  const animationTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const floatingTextIdRef = useRef(0)
+  const previousHandRef = useRef<string[]>([])
 
   if (!ccgState) return null
 
   const isPlacement = ccgState.phase === "placement"
   const isReveal = ccgState.phase === "reveal"
+
+  // Trigger placement animation when cards are placed
+  useEffect(() => {
+    if (placedThisRound.length > 0) {
+      const newCardIds = placedThisRound.map(p => p.cardId)
+      setAnimatingCards(prev => new Set([...prev, ...newCardIds]))
+      
+      if (animationTimeoutRef.current) clearTimeout(animationTimeoutRef.current)
+      animationTimeoutRef.current = setTimeout(() => {
+        setAnimatingCards(new Set())
+      }, 500)
+    }
+  }, [placedThisRound])
+
+  // Trigger reveal animation when phase changes to reveal
+  useEffect(() => {
+    if (isReveal) {
+      setPhaseTransition(true)
+      setRevealingCards(new Set())
+      
+      // Animate secret cards revealing
+      const secretCards = ccgState.zones.flatMap(zone => 
+        [...zone.playerCards, ...zone.aiCards]
+          .filter(zc => zc.wasSecret)
+          .map(zc => zc.card.uniqueId)
+      )
+      
+      setRevealingCards(new Set(secretCards))
+      
+      if (animationTimeoutRef.current) clearTimeout(animationTimeoutRef.current)
+      animationTimeoutRef.current = setTimeout(() => {
+        setRevealingCards(new Set())
+        setPhaseTransition(false)
+      }, 800)
+    }
+  }, [ccgState.phase, ccgState.round])
+
+  // Trigger zone ownership animation
+  useEffect(() => {
+    if (isReveal) {
+      const ownedZones = ccgState.zones.filter(z => z.owner !== "none").map(z => z.id)
+      setZoneAnimations(new Set(ownedZones))
+      
+      if (animationTimeoutRef.current) clearTimeout(animationTimeoutRef.current)
+      animationTimeoutRef.current = setTimeout(() => {
+        setZoneAnimations(new Set())
+      }, 1000)
+    }
+  }, [ccgState.zones, isReveal])
+
+  // Trigger card draw animation when hand changes (new cards drawn)
+  useEffect(() => {
+    if (ccgState && ccgState.hand.length > 0) {
+      const currentHandIds = ccgState.hand.map(c => c.uniqueId)
+      const previousHandIds = previousHandRef.current
+      
+      // Find cards that are in current hand but not in previous hand
+      const newCardIds = currentHandIds.filter(id => !previousHandIds.includes(id))
+      
+      if (newCardIds.length > 0) {
+        setDrawingCards(new Set(newCardIds))
+        
+        if (animationTimeoutRef.current) clearTimeout(animationTimeoutRef.current)
+        animationTimeoutRef.current = setTimeout(() => {
+          setDrawingCards(new Set())
+        }, 400)
+      }
+      
+      // Update previous hand ref
+      previousHandRef.current = currentHandIds
+    }
+  }, [ccgState?.hand, ccgState?.round])
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (animationTimeoutRef.current) clearTimeout(animationTimeoutRef.current)
+    }
+  }, [])
+
+  // Helper function to add floating text
+  const addFloatingText = (text: string, x: number, y: number, isPositive: boolean) => {
+    if (onFloatingText) {
+      onFloatingText(text, x, y, isPositive)
+    } else {
+      const id = `float-${floatingTextIdRef.current++}`
+      const color = isPositive ? 'text-emerald-400' : 'text-rose-400'
+      setFloatingTexts(prev => [...prev, { id, text, x, y, color, isPositive }])
+      
+      setTimeout(() => {
+        setFloatingTexts(prev => prev.filter(t => t.id !== id))
+      }, 1000)
+    }
+  }
+
+  // Helper function to trigger card effect animation
+  const triggerCardEffect = (cardId: string, type: 'buff' | 'debuff' | 'synergy' | 'knb-win' | 'knb-loss') => {
+    if (onCardEffect) {
+      onCardEffect(cardId, type)
+    } else {
+      setCardEffects(prev => new Map(prev).set(cardId, { type }))
+      setTimeout(() => {
+        setCardEffects(prev => {
+          const next = new Map(prev)
+          next.delete(cardId)
+          return next
+        })
+      }, 600)
+    }
+  }
+
+  // Helper function to trigger modifier activation
+  const triggerModifierActivation = (zoneId: string) => {
+    if (onModifierActivate) {
+      onModifierActivate(zoneId)
+    } else {
+      setModifierActivations(prev => new Set(prev).add(zoneId))
+      setTimeout(() => {
+        setModifierActivations(prev => {
+          const next = new Set(prev)
+          next.delete(zoneId)
+          return next
+        })
+      }, 500)
+    }
+  }
+
+  // Trigger card destruction animation
+  const triggerCardDestruction = (cardId: string) => {
+    if (onCardDestroy) {
+      onCardDestroy(cardId)
+    } else {
+      setDestroyingCards(prev => new Set(prev).add(cardId))
+      setTimeout(() => {
+        setDestroyingCards(prev => {
+          const next = new Set(prev)
+          next.delete(cardId)
+          return next
+        })
+      }, 600)
+    }
+  }
 
   const handleZoneClick = (zoneId: string) => {
     // Zone click only for drag-drop, no selection mode
@@ -104,10 +270,18 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
           playCardToZone(touchDragCard.cardId, zoneId)
         }
       } else {
-        // Если сбросили не на зону - возвращаем карту в руку
+        // Если сбросили не на зону - возвращаем карту в руку с анимацией
         const isZoneCard = placedThisRound.some(p => p.cardId === touchDragCard.cardId)
         if (isZoneCard) {
-          recallCard(touchDragCard.cardId)
+          setRecallingCards(prev => new Set([...prev, touchDragCard.cardId]))
+          setTimeout(() => {
+            recallCard(touchDragCard.cardId)
+            setRecallingCards(prev => {
+              const newSet = new Set(prev)
+              newSet.delete(touchDragCard.cardId)
+              return newSet
+            })
+          }, 300)
         }
       }
     }
@@ -133,8 +307,16 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
     if (element) {
       const zoneElement = element.closest('[data-zone-id]')
       if (!zoneElement) {
-        // Если сбросили не на зону - возвращаем карту в руку
-        recallCard(draggedZoneCardId)
+        // Если сбросили не на зону - возвращаем карту в руку с анимацией
+        setRecallingCards(prev => new Set([...prev, draggedZoneCardId]))
+        setTimeout(() => {
+          recallCard(draggedZoneCardId)
+          setRecallingCards(prev => {
+            const newSet = new Set(prev)
+            newSet.delete(draggedZoneCardId)
+            return newSet
+          })
+        }, 300)
       }
     }
 
@@ -180,40 +362,75 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
     return { playerPower, aiPower }
   }
 
+  // Calculate overall match score
+  const getMatchScore = () => {
+    let playerZones = 0
+    let aiZones = 0
+    ccgState.zones.forEach(zone => {
+      if (zone.owner === "player") playerZones++
+      if (zone.owner === "ai") aiZones++
+    })
+    return { playerZones, aiZones }
+  }
+
+  const matchScore = getMatchScore()
+  const isPlayerLeading = matchScore.playerZones > matchScore.aiZones
+  const isAiLeading = matchScore.aiZones > matchScore.playerZones
+  const isTied = matchScore.playerZones === matchScore.aiZones
+
   return (
     <div className="w-full max-w-md mx-auto lg:max-w-4xl h-[100dvh] bg-[#05050a] text-white flex flex-col justify-between overflow-hidden relative select-none overscroll-none touch-none">
       {/* Декоративное космическое свечение на фоне */}
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_30%,rgba(99,102,241,0.08),transparent_70%)] pointer-events-none" />
 
       {/* ВЕРХНЯЯ ИНФО-ПАНЕЛЬ */}
-      <header className="px-4 py-3 bg-slate-950/60 border-b border-white/5 backdrop-blur-md flex items-center justify-between z-30 shrink-0">
-        <div className="flex items-center gap-3">
-          <div className="px-3 py-1.5 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center gap-1">
-            <span className="text-[9px] font-black uppercase text-indigo-400 tracking-wider">Раунд</span>
-            <span className="text-xs font-black text-white">{ccgState.round}</span>
-            <span className="text-[10px] text-slate-500">/ 3</span>
+      <header className="px-2.5 sm:px-4 py-2 sm:py-3 bg-slate-950/60 border-b border-white/5 backdrop-blur-md flex items-center justify-between z-30 shrink-0">
+        <div className="flex items-center gap-1.5 sm:gap-3">
+          <div className="px-1.5 sm:px-3 py-1 sm:py-1.5 rounded-xl sm:rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center gap-0.5 sm:gap-1">
+            <span className="text-[7px] sm:text-[9px] font-black uppercase text-indigo-400 tracking-wider">Раунд</span>
+            <span className="text-[9px] sm:text-xs font-black text-white">{ccgState.round}</span>
+            <span className="text-[8px] sm:text-[10px] text-slate-500">/3</span>
           </div>
-          <div className="text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5">
-            <span className="relative flex h-2 w-2">
+          
+          {/* MATCH SCORE INDICATOR */}
+          {(isReveal || ccgState.round > 1) && (
+            <div className={`px-1.5 sm:px-3 py-1 sm:py-1.5 rounded-xl sm:rounded-2xl border flex items-center gap-1 sm:gap-2 transition-all duration-300 ${
+              isPlayerLeading 
+                ? 'bg-emerald-500/10 border-emerald-500/30' 
+                : isAiLeading 
+                ? 'bg-rose-500/10 border-rose-500/30' 
+                : 'bg-slate-500/10 border-slate-500/30'
+            }`}>
+              {isPlayerLeading && <Crown className="w-2 h-2 sm:w-3 sm:h-3 text-emerald-400" />}
+              <span className="text-[7px] sm:text-[9px] font-black uppercase text-slate-400 tracking-wider">Счёт</span>
+              <span className={`text-[9px] sm:text-xs font-black ${isPlayerLeading ? 'text-emerald-400' : isAiLeading ? 'text-rose-400' : 'text-slate-300'}`}>
+                {matchScore.playerZones}:{matchScore.aiZones}
+              </span>
+              {isAiLeading && <Crown className="w-2 h-2 sm:w-3 sm:h-3 text-rose-400" />}
+            </div>
+          )}
+          
+          <div className="text-[7px] sm:text-[9px] font-black uppercase tracking-widest flex items-center gap-1 sm:gap-1.5">
+            <span className="relative flex h-1.5 w-1.5 sm:h-2 sm:w-2">
               <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${isPlacement ? 'bg-amber-400' : 'bg-indigo-400'}`}></span>
-              <span className={`relative inline-flex rounded-full h-2 w-2 ${isPlacement ? 'bg-amber-500' : 'bg-indigo-500'}`}></span>
+              <span className={`relative inline-flex rounded-full h-1.5 w-1.5 sm:h-2 sm:w-2 ${isPlacement ? 'bg-amber-500' : 'bg-indigo-500'}`}></span>
             </span>
-            <span className={isPlacement ? 'text-amber-400' : 'text-indigo-400'}>
-              {isPlacement ? 'Планирование' : 'Вскрытие!'}
+            <span className={`${isPlacement ? 'text-amber-400' : 'text-indigo-400'}`}>
+              {isPlacement ? 'План' : 'Вскр'}
             </span>
           </div>
         </div>
 
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1 sm:gap-1.5">
           <button
             onClick={() => setShowRules(!showRules)}
-            className="p-2 bg-white/5 active:scale-90 border border-white/5 rounded-xl transition-all"
+            className="p-1.5 sm:p-2 bg-white/5 active:scale-90 border border-white/5 rounded-lg sm:rounded-xl transition-all"
           >
-            <BookOpen className="w-4 h-4 text-slate-300" />
+            <BookOpen className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-300" />
           </button>
           <button
             onClick={() => setBattleState("idle")}
-            className="px-3 py-1.5 bg-rose-500/10 active:scale-90 text-rose-400 border border-rose-500/20 rounded-xl transition-all text-[10px] font-black uppercase"
+            className="px-1.5 sm:px-3 py-1 sm:py-1.5 bg-rose-500/10 active:scale-90 text-rose-400 border border-rose-500/20 rounded-lg sm:rounded-xl transition-all text-[8px] sm:text-[10px] font-black uppercase"
           >
             Сдаться
           </button>
@@ -259,13 +476,18 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
 
             const hasWon = zone.owner === "player"
             const hasLost = zone.owner === "ai"
+            const isAnimating = zoneAnimations.has(zone.id)
 
-            // Стилизованное свечение локаций
+            // Стилизованное свечение локаций с анимацией
             const statusGlow = 
               hasWon && isReveal
-                ? "border-emerald-500/50 bg-emerald-950/30"
+                ? `border-emerald-500/50 bg-emerald-950/30 ${isAnimating ? 'animate-pulse' : ''}`
                 : hasLost && isReveal
-                ? "border-rose-500/50 bg-rose-950/30"
+                ? `border-rose-500/50 bg-rose-950/30 ${isAnimating ? 'animate-pulse' : ''}`
+                : playerPower > aiPower
+                ? 'border-emerald-500/30 bg-emerald-950/10'
+                : aiPower > playerPower
+                ? 'border-rose-500/30 bg-rose-950/10'
                 : "border-white/10 bg-white/[0.02] hover:border-white/20"
 
             return (
@@ -283,28 +505,54 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
               >
                 {/* КАРТЫ ПРОТИВНИКА (Сверху локации) */}
                 <div className="flex-1 flex flex-col justify-start min-h-[80px] gap-1">
-                  <div className="flex justify-between items-center px-1.5 text-[9px] font-bold uppercase text-rose-400/70">
-                    <span>Враг</span>
-                    <span className="text-xs font-black text-rose-400">{aiPower}</span>
+                  <div className={`flex justify-between items-center px-1.5 text-[9px] font-bold uppercase transition-all duration-300 ${
+                    aiPower > playerPower ? 'text-rose-400 scale-105' : 'text-rose-400/70'
+                  }`}>
+                    <span className="flex items-center gap-1">
+                      {aiPower > playerPower && <TrendingUp className="w-3 h-3" />}
+                      Враг
+                    </span>
+                    <span className={`text-xs font-black ${aiPower > playerPower ? 'text-rose-400' : 'text-rose-400'}`}>
+                      {aiPower}
+                    </span>
                   </div>
                   <div className="grid grid-cols-2 gap-1 justify-items-center items-center">
                     {/* Карты из предыдущих раундов */}
-                    {zone.aiCards.map((zc, idx) => (
-                      <div key={idx} className="scale-[0.85] lg:scale-100">
-                        <BattleCard
-                          card={zc.card}
-                          size="sm"
-                          isSecret={zc.isSecret && (!isReveal || ccgState.round < 3)}
-                          isPlayerCard={false}
-                          powerValue={zc.powerAfterModifier}
-                          roleMatchupBonus={zc.roleMatchupBonus}
-                          synergyBonus={zc.synergyBonus}
-                          isInteractive={true}
-                          onClick={() => handleCardView(zc.card, false, zc.powerAfterModifier, zc.roleMatchupBonus, zc.isSecret && (!isReveal || ccgState.round < 3), zc.synergyBonus, zc.wasSecret, zone.modifier)}
-                          forceHidden={zone.modifier.id === "dark_zone"}
-                        />
-                      </div>
-                    ))}
+                    {zone.aiCards.map((zc, idx) => {
+                      const isRevealing = revealingCards.has(zc.card.uniqueId)
+                      const isDestroying = destroyingCards.has(zc.card.uniqueId)
+                      const cardEffect = cardEffects.get(zc.card.uniqueId)
+                      return (
+                        <div key={idx} className={`scale-[0.85] lg:scale-100 transition-all duration-500 ${
+                          isRevealing ? 'animate-[flipIn_0.6s_ease-out]' : ''
+                        } ${
+                          isDestroying ? 'animate-cardDestroy' : ''
+                        } ${
+                          cardEffect?.type === 'buff' ? 'animate-powerBuff' : ''
+                        } ${
+                          cardEffect?.type === 'debuff' ? 'animate-powerDebuff' : ''
+                        } ${
+                          cardEffect?.type === 'synergy' ? 'animate-synergyGlow' : ''
+                        } ${
+                          cardEffect?.type === 'knb-win' ? 'animate-knbWin' : ''
+                        } ${
+                          cardEffect?.type === 'knb-loss' ? 'animate-knbLoss' : ''
+                        }`}>
+                          <BattleCard
+                            card={zc.card}
+                            size="sm"
+                            isSecret={zc.isSecret && (!isReveal || ccgState.round < 3) && !isRevealing}
+                            isPlayerCard={false}
+                            powerValue={zc.powerAfterModifier}
+                            roleMatchupBonus={zc.roleMatchupBonus}
+                            synergyBonus={zc.synergyBonus}
+                            isInteractive={true}
+                            onClick={() => handleCardView(zc.card, false, zc.powerAfterModifier, zc.roleMatchupBonus, zc.isSecret && (!isReveal || ccgState.round < 3), zc.synergyBonus, zc.wasSecret, zone.modifier)}
+                            forceHidden={zone.modifier.id === "dark_zone"}
+                          />
+                        </div>
+                      )
+                    })}
                     {/* Карты размещенные в этом раунде */}
                     {aiPendingOnThisZone.map((p, idx) => {
                       if (!p.card) return null
@@ -332,7 +580,9 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
                       e.stopPropagation()
                       setActiveTerrain({ nameRu: zone.modifier.nameRu, description: zone.modifier.description })
                     }}
-                    className="relative w-full py-2 rounded-lg border border-white/10 bg-white/[0.02] hover:bg-white/[0.05] flex flex-col items-center justify-center transition-all active:scale-95"
+                    className={`relative w-full py-2 rounded-lg border border-white/10 bg-white/[0.02] hover:bg-white/[0.05] flex flex-col items-center justify-center transition-all active:scale-95 ${
+                      modifierActivations.has(zone.id) ? 'animate-modifierActivate' : ''
+                    }`}
                   >
                     <div className="text-center w-full px-1">
                       <span className="text-[9px] font-bold uppercase tracking-wide text-slate-300 block truncate">
@@ -345,48 +595,90 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
                 {/* КАРТЫ ИГРОКА (Снизу локации) */}
                 <div className="flex-1 flex flex-col justify-end min-h-[80px] gap-1 border-t border-white/5 pt-1.5">
                   <div className="grid grid-cols-2 gap-1 justify-items-center items-center">
-                    {zone.playerCards.map((zc, idx) => (
-                      <div key={idx} className="scale-[0.85] lg:scale-100">
-                        <BattleCard
-                          card={zc.card}
-                          size="sm"
-                          isSecret={zc.isSecret && (!isReveal || ccgState.round < 3)}
-                          powerValue={zc.powerAfterModifier}
-                          roleMatchupBonus={zc.roleMatchupBonus}
-                          synergyBonus={zc.synergyBonus}
-                          isInteractive={true}
-                          onClick={() => handleCardView(zc.card, true, zc.powerAfterModifier, zc.roleMatchupBonus, zc.isSecret && (!isReveal || ccgState.round < 3), zc.synergyBonus, zc.wasSecret, zone.modifier)}
-                          forceHidden={zone.modifier.id === "dark_zone"}
-                        />
-                      </div>
-                    ))}
+                    {zone.playerCards.map((zc, idx) => {
+                      const isRevealing = revealingCards.has(zc.card.uniqueId)
+                      const isDestroying = destroyingCards.has(zc.card.uniqueId)
+                      const cardEffect = cardEffects.get(zc.card.uniqueId)
+                      return (
+                        <div key={idx} className={`scale-[0.85] lg:scale-100 transition-all duration-500 ${
+                          isRevealing ? 'animate-[flipIn_0.6s_ease-out]' : ''
+                        } ${
+                          isDestroying ? 'animate-cardDestroy' : ''
+                        } ${
+                          cardEffect?.type === 'buff' ? 'animate-powerBuff' : ''
+                        } ${
+                          cardEffect?.type === 'debuff' ? 'animate-powerDebuff' : ''
+                        } ${
+                          cardEffect?.type === 'synergy' ? 'animate-synergyGlow' : ''
+                        } ${
+                          cardEffect?.type === 'knb-win' ? 'animate-knbWin' : ''
+                        } ${
+                          cardEffect?.type === 'knb-loss' ? 'animate-knbLoss' : ''
+                        }`}>
+                          <BattleCard
+                            card={zc.card}
+                            size="sm"
+                            isSecret={zc.isSecret && (!isReveal || ccgState.round < 3) && !isRevealing}
+                            powerValue={zc.powerAfterModifier}
+                            roleMatchupBonus={zc.roleMatchupBonus}
+                            synergyBonus={zc.synergyBonus}
+                            isInteractive={true}
+                            onClick={() => handleCardView(zc.card, true, zc.powerAfterModifier, zc.roleMatchupBonus, zc.isSecret && (!isReveal || ccgState.round < 3), zc.synergyBonus, zc.wasSecret, zone.modifier)}
+                            forceHidden={zone.modifier.id === "dark_zone"}
+                          />
+                        </div>
+                      )
+                    })}
 
                     {playerPendingOnThisZone.map((p, idx) => {
                       if (!p.card) return null
+                      const isAnimating = animatingCards.has(p.card.uniqueId)
+                      const isRecalling = recallingCards.has(p.card.uniqueId)
                       return (
-                        <div key={`pending-${idx}`} className="scale-[0.85] lg:scale-100">
+                        <div key={`pending-${idx}`} className={`scale-[0.85] lg:scale-100 transition-all duration-300 ${
+                          isAnimating ? 'animate-[cardPlace_0.4s_ease-out]' : ''
+                        } ${
+                          isRecalling ? 'animate-cardRecall' : ''
+                        }`}>
                           <BattleCard
                             card={p.card}
                             size="sm"
                             isSecret={p.isSecret && (!isReveal || ccgState.round < 3)}
                             isPlayerCard={true}
                             isPending={true}
-                            draggable={isPlacement}
+                            draggable={isPlacement && !isRecalling}
                             onDragStart={handleZoneCardDragStart}
                             onDragEnd={handleZoneCardDragEnd}
                             onTouchStart={handleZoneCardTouchStart}
                             onTouchMove={handleTouchMove}
                             onTouchEnd={handleTouchEnd}
-                            onRemove={() => recallCard(p.card!.uniqueId)}
+                            onRemove={() => {
+                              setRecallingCards(prev => new Set([...prev, p.card!.uniqueId]))
+                              setTimeout(() => {
+                                recallCard(p.card!.uniqueId)
+                                setRecallingCards(prev => {
+                                  const newSet = new Set(prev)
+                                  newSet.delete(p.card!.uniqueId)
+                                  return newSet
+                                })
+                              }, 300)
+                            }}
                             isInteractive={false}
                           />
                         </div>
                       )
                     })}
                   </div>
-                  <div className="flex justify-between items-center px-1.5 text-[9px] font-bold uppercase text-emerald-400/70">
-                    <span>Вы</span>
-                    <span className="text-xs font-black text-emerald-400">{playerPower}</span>
+                  <div className={`flex justify-between items-center px-1.5 text-[9px] font-bold uppercase transition-all duration-300 ${
+                    playerPower > aiPower ? 'text-emerald-400 scale-105' : 'text-emerald-400/70'
+                  }`}>
+                    <span className="flex items-center gap-1">
+                      {playerPower > aiPower && <TrendingUp className="w-3 h-3" />}
+                      Вы
+                    </span>
+                    <span className={`text-xs font-black ${playerPower > aiPower ? 'text-emerald-400' : 'text-emerald-400'}`}>
+                      {playerPower}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -396,7 +688,7 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
       </main>
 
       {/* ПЛАВАЮЩАЯ КНОПКА ЗАВЕРШЕНИЯ ХОДА СПРАВА */}
-      <div className="fixed right-4 bottom-40 z-50 lg:absolute lg:right-6 lg:bottom-40">
+      <div className="fixed right-4 bottom-30 z-50 lg:absolute lg:right-6 lg:bottom-40">
         {isPlacement ? (
           <button
             onClick={confirmRoundPlacement}
@@ -432,6 +724,7 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
           <div className="flex items-center justify-center gap-2 lg:gap-4 py-3 px-2 overflow-visible min-h-[130px] lg:min-h-[160px]">
             {ccgState.hand.map((card, idx) => {
               const isPlaced = placedThisRound.some(p => p.cardId === card.uniqueId)
+              const isDrawing = drawingCards.has(card.uniqueId)
 
               if (isPlaced) return null
 
@@ -442,7 +735,9 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
                     transform: "translateY(0) scale(1)",
                     zIndex: 10 + idx,
                   }}
-                  className="relative transition-all duration-300 ease-out shrink-0 hover:-translate-y-2"
+                  className={`relative transition-all duration-300 ease-out shrink-0 hover:-translate-y-2 ${
+                    isDrawing ? 'animate-cardDraw' : ''
+                  }`}
                 >
                   <BattleCard
                     card={card}
@@ -484,6 +779,20 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
           </div>
         )
       })()}
+
+      {/* ПЛАВАЮЩИЙ ТЕКСТ ДЛЯ ИЗМЕНЕНИЙ СИЛЫ */}
+      {floatingTexts.map(ft => (
+        <div
+          key={ft.id}
+          className={`fixed pointer-events-none z-40 font-black text-sm ${ft.color} ${ft.isPositive ? 'animate-floatUp' : 'animate-floatDown'}`}
+          style={{
+            left: ft.x,
+            top: ft.y,
+          }}
+        >
+          {ft.text}
+        </div>
+      ))}
 
       {/* ПОДРОБНОЕ МОДАЛЬНОЕ ОКНО ЛОКАЦИИ ДЛЯ СМАРТФОНОВ */}
       {activeTerrain && (
