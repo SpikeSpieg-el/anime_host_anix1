@@ -27,6 +27,13 @@ function extractPinterestUrls(html: string): string[] {
     // Exclude URLs with placeholder-like patterns
     if (url.includes('236x') && url.length < 80) return false; // Short 236x URLs are often placeholders
     
+    // Exclude URLs that look like Pinterest's gradient placeholders
+    // These often have specific patterns in the filename
+    if (url.match(/\/[a-f0-9]{32}\./i)) return false; // Hex hash filenames are often placeholders
+    
+    // Prefer originals over sized versions
+    if (!url.includes('/originals/') && url.includes('/236x/')) return false; // Prefer higher quality
+    
     return true;
   });
 

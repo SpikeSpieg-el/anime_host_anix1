@@ -425,6 +425,12 @@ const InteractiveCard = ({ card, forceFlipped = false }: { card: Card, forceFlip
   const[isTouching, setIsTouching] = useState(false)
   const[isImageLoading, setIsImageLoading] = useState(true)
   const animationFrameRef = useRef<number | undefined>(undefined)
+  const [showFlipHint, setShowFlipHint] = useState(false)
+  const [isHintExiting, setIsHintExiting] = useState(false)
+  const [isHintExpanded, setIsHintExpanded] = useState(false)
+  const hintTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const hideHintTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const [isRotating, setIsRotating] = useState(false)
 
   useEffect(() => {
     setIsFlipped(forceFlipped)
@@ -433,6 +439,59 @@ const InteractiveCard = ({ card, forceFlipped = false }: { card: Card, forceFlip
   useEffect(() => {
     setIsImageLoading(true)
   }, [card.imageUrl])
+
+  // Show flip hint after 2 seconds of viewing
+  useEffect(() => {
+    // Clear any existing timeouts
+    if (hintTimeoutRef.current) {
+      clearTimeout(hintTimeoutRef.current)
+      hintTimeoutRef.current = null
+    }
+    if (hideHintTimeoutRef.current) {
+      clearTimeout(hideHintTimeoutRef.current)
+      hideHintTimeoutRef.current = null
+    }
+
+    // Reset hint state
+    setShowFlipHint(false)
+    setIsHintExiting(false)
+    setIsHintExpanded(false)
+
+    // Start the 2-second timer to show hint
+    hintTimeoutRef.current = setTimeout(() => {
+      setShowFlipHint(true)
+      setIsHintExiting(false)
+      
+      // Expand block first, then show text
+      setTimeout(() => {
+        setIsHintExpanded(true)
+      }, 150)
+
+      // Start the 5-second timer to hide hint
+      hideHintTimeoutRef.current = setTimeout(() => {
+        // Hide text first
+        setIsHintExpanded(false)
+        
+        // Then collapse block and remove from DOM
+        setTimeout(() => {
+          setIsHintExiting(true)
+          setTimeout(() => {
+            setShowFlipHint(false)
+          }, 150)
+        }, 150)
+      }, 5000)
+    }, 2000)
+
+    // Cleanup on unmount
+    return () => {
+      if (hintTimeoutRef.current) {
+        clearTimeout(hintTimeoutRef.current)
+      }
+      if (hideHintTimeoutRef.current) {
+        clearTimeout(hideHintTimeoutRef.current)
+      }
+    }
+  }, [card.uniqueId]) // Restart when card changes
 
   useEffect(() => {
     const handleVisibilityChange = () => {
@@ -465,6 +524,8 @@ const InteractiveCard = ({ card, forceFlipped = false }: { card: Card, forceFlip
     if (!cardRef.current) return
     if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current)
 
+    setIsRotating(true)
+
     animationFrameRef.current = requestAnimationFrame(() => {
       const rect = cardRef.current?.getBoundingClientRect()
       if (!rect) return
@@ -486,6 +547,7 @@ const InteractiveCard = ({ card, forceFlipped = false }: { card: Card, forceFlip
     animationFrameRef.current = requestAnimationFrame(() => {
       setRotation({ x: 0, y: 0 })
       setIsHovered(false)
+      setIsRotating(false)
     })
   },[])
 
@@ -496,6 +558,8 @@ const InteractiveCard = ({ card, forceFlipped = false }: { card: Card, forceFlip
   const handleTouchMove = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
     if (!cardRef.current || !isTouching) return
     if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current)
+
+    setIsRotating(true)
 
     animationFrameRef.current = requestAnimationFrame(() => {
       const rect = cardRef.current?.getBoundingClientRect()
@@ -520,6 +584,7 @@ const InteractiveCard = ({ card, forceFlipped = false }: { card: Card, forceFlip
       setRotation({ x: 0, y: 0 })
       setIsHovered(false)
       setIsTouching(false)
+      setIsRotating(false)
     })
   },[])
 
@@ -586,7 +651,7 @@ const InteractiveCard = ({ card, forceFlipped = false }: { card: Card, forceFlip
         />
 
         {/* UI элементов - FRONT */}
-        <div className="absolute top-3 sm:top-4 md:top-5 inset-x-3 sm:inset-x-4 md:inset-x-5 flex justify-between items-start pointer-events-none z-10">
+        <div className={`absolute top-3 sm:top-4 md:top-5 inset-x-3 sm:inset-x-4 md:inset-x-5 flex justify-between items-start pointer-events-none z-10 transition-opacity duration-300 ${isRotating ? 'opacity-0' : 'opacity-100'}`}>
           <div className="flex flex-col gap-1.5 sm:gap-2">
             <div className={`px-2.5 sm:px-3 py-1 rounded-full text-[9px] sm:text-[10px] font-black uppercase tracking-widest backdrop-blur-md bg-black/40 border border-white/20 shadow-xl w-fit`}>
               <span className={`bg-gradient-to-r ${rarityConfig[card.rarity].color} bg-clip-text text-transparent`}>
@@ -618,7 +683,7 @@ const InteractiveCard = ({ card, forceFlipped = false }: { card: Card, forceFlip
           </div>
         </div>
 
-        <div className="absolute bottom-3 sm:bottom-4 md:bottom-5 inset-x-3 sm:inset-x-4 md:inset-x-5 pointer-events-none z-10">
+        <div className={`absolute bottom-3 sm:bottom-4 md:bottom-5 inset-x-3 sm:inset-x-4 md:inset-x-5 pointer-events-none z-10 transition-opacity duration-300 ${isRotating ? 'opacity-0' : 'opacity-100'}`}>
           <div className="backdrop-blur-xl bg-slate-900/40 border border-white/10 rounded-xl sm:rounded-2xl p-3 sm:p-4 shadow-2xl relative overflow-hidden">
             <div className={`absolute left-0 top-0 bottom-0 w-1.5 bg-gradient-to-b ${rarityConfig[card.rarity].color}`} />
             
@@ -642,6 +707,13 @@ const InteractiveCard = ({ card, forceFlipped = false }: { card: Card, forceFlip
                 <span className="text-[7px] sm:text-[8px] md:text-[9px] font-black text-indigo-300 uppercase tracking-widest truncate max-w-[60%] text-right">{card.packName}</span>
               )}
             </div>
+            {showFlipHint && (
+              <div className={`mt-1.5 overflow-hidden transition-all duration-150 ${isHintExiting ? 'max-h-0' : 'max-h-8'}`}>
+                <div className={`text-center transition-opacity duration-150 ${isHintExpanded ? 'opacity-100' : 'opacity-0'}`}>
+                  <p className="text-[7px] sm:text-[8px] font-black text-white/30 uppercase tracking-widest">Нажмите на карту чтобы перевернуть</p>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -674,17 +746,15 @@ const InteractiveCard = ({ card, forceFlipped = false }: { card: Card, forceFlip
         </div>
 
         <div className="relative z-10 text-center space-y-2 sm:space-y-3">
-          <div className="flex items-center justify-center gap-2 bg-black/30 backdrop-blur-sm rounded-xl px-4 py-2.5 border border-white/10 shadow-xl">
-            <Swords className="w-4 sm:w-5 h-4 sm:h-5 text-amber-400" />
-            <div className="flex flex-col items-start">
-              <span className="text-[7px] sm:text-[8px] font-bold text-slate-400 uppercase tracking-wider">Боевая сила</span>
-              <span className="text-sm sm:text-base font-black text-amber-300">{getCardBasePower(card)}</span>
-            </div>
+          <div className="flex items-center justify-center gap-2">
+            <Swords className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400" />
+            <span className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-wider">Общая сила</span>
+            <span className="text-sm sm:text-base font-black text-amber-300">{getCardBasePower(card)}</span>
           </div>
-           <div className="w-10 sm:w-14 h-10 sm:h-14 mx-auto rounded-full border-2 border-white/10 flex items-center justify-center bg-white/5 backdrop-blur-sm shadow-xl">
-              <RefreshCcw className="w-4 sm:w-6 h-4 sm:h-6 text-white/40" />
-           </div>
-           <p className="text-[7px] sm:text-[9px] font-black text-white/40 uppercase tracking-widest leading-tight">Нажмите чтобы перевернуть</p>
+          <div className="w-10 sm:w-14 h-10 sm:h-14 mx-auto rounded-full border-2 border-white/10 flex items-center justify-center bg-white/5 backdrop-blur-sm shadow-xl">
+            <RefreshCcw className="w-4 sm:w-6 h-4 sm:h-6 text-white/40" />
+          </div>
+          <p className="text-[7px] sm:text-[9px] font-black text-white/40 uppercase tracking-widest leading-tight">Нажмите чтобы перевернуть</p>
         </div>
       </div>
     </div>
@@ -2508,6 +2578,7 @@ useEffect(() => {
           <div 
             className="flex flex-col items-center justify-center min-h-full py-12 w-full"
             onClick={(e) => e.stopPropagation()}
+            style={{ touchAction: 'none' }}
           >
             <InteractiveCard card={viewedCard} />
             

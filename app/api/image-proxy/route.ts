@@ -65,7 +65,7 @@ export async function GET(req: NextRequest) {
 
     // Additional check: detect gradient placeholders by analyzing color variance
     // Gradient placeholders typically have very low color variance
-    if (contentType.includes('image/') && buffer.byteLength < 50000) {
+    if (contentType.includes('image/')) {
       let colorVariance = 0;
       const sampleSize = Math.min(1000, buffer.byteLength);
       for (let i = 0; i < sampleSize - 3; i += 4) {
@@ -78,8 +78,10 @@ export async function GET(req: NextRequest) {
       const avgVariance = colorVariance / (sampleSize / 4);
       
       // Very low variance suggests a gradient or solid color placeholder
-      if (avgVariance < 30) {
-        console.error('[image-proxy] Low color variance detected (likely gradient):', avgVariance);
+      // Increased threshold from 30 to 50 to catch more gradients
+      // Also check for small images which are more likely to be placeholders
+      if (avgVariance < 50 || (buffer.byteLength < 50000 && avgVariance < 80)) {
+        console.error('[image-proxy] Low color variance detected (likely gradient):', avgVariance, 'size:', buffer.byteLength);
         return NextResponse.json({ error: 'Gradient placeholder detected' }, { status: 502 });
       }
     }
