@@ -93,11 +93,37 @@ export function useBattleData() {
 
       setCollectedCards(mapped)
 
-      // Try to load saved deck from localStorage
-      const savedDeckIds = localStorage.getItem(`battle_deck_${DECK_SIZE}_${user.id}`)
-      if (savedDeckIds) {
-        const ids = JSON.parse(savedDeckIds) as string[]
-        const savedDeck = mapped.filter((c: Card) => ids.includes(c.uniqueId)).slice(0, DECK_SIZE)
+      // Try to load saved deck from API first, fallback to localStorage
+      let savedDeckIds: string[] | null = null
+      let savedLeaderId: string | null = null
+      let savedFormation: FormationId = 'balance'
+
+      try {
+        const deckRes = await fetch('/api/battle/deck', {
+          headers: { 'Authorization': `Bearer ${session?.access_token}` }
+        })
+        if (deckRes.ok) {
+          const deckData = await deckRes.json()
+          savedDeckIds = deckData.card_ids || []
+          savedLeaderId = deckData.leader_id || null
+          savedFormation = deckData.formation || 'balance'
+        }
+      } catch (err) {
+        console.error('[BattlePage] Error loading deck from API, using localStorage:', err)
+      }
+
+      // Fallback to localStorage if API failed
+      if (!savedDeckIds || savedDeckIds.length === 0) {
+        savedDeckIds = JSON.parse(localStorage.getItem(`battle_deck_${DECK_SIZE}_${user.id}`) || '[]')
+        savedLeaderId = localStorage.getItem(`battle_leader_${user.id}`)
+        const localFormation = localStorage.getItem(`battle_formation_${user.id}`) as FormationId
+        if (localFormation && ["aggression", "defense", "balance"].includes(localFormation)) {
+          savedFormation = localFormation
+        }
+      }
+
+      if (savedDeckIds && savedDeckIds.length > 0) {
+        const savedDeck = mapped.filter((c: Card) => savedDeckIds!.includes(c.uniqueId)).slice(0, DECK_SIZE)
         // Recalculate provision costs to ensure they're up to date
         savedDeck.forEach((c: Card) => {
           c.provisionCost = getCardProvision(c)
@@ -116,19 +142,15 @@ export function useBattleData() {
         }
       }
 
-      // Load saved leaderId and formation
-      const savedLeaderId = localStorage.getItem(`battle_leader_${user.id}`)
+      // Set leaderId and formation
       if (savedLeaderId) {
         setLeaderId(savedLeaderId)
       }
-      const savedFormation = localStorage.getItem(`battle_formation_${user.id}`) as FormationId
-      if (savedFormation && ["aggression", "defense", "balance"].includes(savedFormation)) {
-        setFormation(savedFormation)
-      }
+      setFormation(savedFormation)
     } catch (err) {
       console.error('[BattlePage] Error loading cards:', err)
     }
-  }, [user])
+  }, [user, session])
 
   useEffect(() => {
     if (user && !sessionLoading) {
@@ -137,22 +159,48 @@ export function useBattleData() {
     }
   }, [user, sessionLoading, loadBattleData, loadUserCards])
 
-  // Save leaderId and formation to localStorage when they change
+  // Save leaderId and formation to API when they change
+  const saveDeckToAPI = useCallback(async () => {
+    if (!user || !session) return
+    try {
+      await fetch('/api/battle/deck', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({
+          card_ids: selectedCards.map(c => c.uniqueId),
+          leader_id: leaderId,
+          formation
+        })
+      })
+    } catch (err) {
+      console.error('[BattlePage] Error saving deck to API:', err)
+    }
+  }, [user, session, selectedCards, leaderId, formation])
+
   useEffect(() => {
     if (user) {
+      // Save to localStorage as fallback
       if (leaderId) {
         localStorage.setItem(`battle_leader_${user.id}`, leaderId)
       } else {
         localStorage.removeItem(`battle_leader_${user.id}`)
       }
+      // Save to API
+      saveDeckToAPI()
     }
-  }, [leaderId, user])
+  }, [leaderId, user, saveDeckToAPI])
 
   useEffect(() => {
     if (user) {
+      // Save to localStorage as fallback
       localStorage.setItem(`battle_formation_${user.id}`, formation)
+      // Save to API
+      saveDeckToAPI()
     }
-  }, [formation, user])
+  }, [formation, user, saveDeckToAPI])
 
   // Timer for stamina recovery countdown
   useEffect(() => {
@@ -181,7 +229,11 @@ export function useBattleData() {
         } else {
           setError(null)
         }
-        if (user) localStorage.setItem(`battle_deck_${DECK_SIZE}_${user.id}`, JSON.stringify(next.map(c => c.uniqueId)))
+        if (user) {
+          localStorage.setItem(`battle_deck_${DECK_SIZE}_${user.id}`, JSON.stringify(next.map(c => c.uniqueId)))
+          // Save to API
+          saveDeckToAPI()
+        }
         return next
       }
       if (prev.length >= DECK_SIZE) return prev
@@ -194,7 +246,11 @@ export function useBattleData() {
         setError(null)
       }
       
-      if (user) localStorage.setItem(`battle_deck_${DECK_SIZE}_${user.id}`, JSON.stringify(next.map(c => c.uniqueId)))
+      if (user) {
+        localStorage.setItem(`battle_deck_${DECK_SIZE}_${user.id}`, JSON.stringify(next.map(c => c.uniqueId)))
+        // Save to API
+        saveDeckToAPI()
+      }
       return next
     })
   }
