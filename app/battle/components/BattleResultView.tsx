@@ -5,12 +5,14 @@ import { CCGBattleState } from "../types"
 interface BattleResultViewProps {
   ccgState: CCGBattleState | null
   finishBattle: () => Promise<void> | void
+  closeBattleResult: () => void
   isFinishing?: boolean
 }
 
 export const BattleResultView: React.FC<BattleResultViewProps> = ({
   ccgState,
   finishBattle,
+  closeBattleResult,
   isFinishing = false,
 }) => {
   if (!ccgState) return null
@@ -89,21 +91,11 @@ export const BattleResultView: React.FC<BattleResultViewProps> = ({
         )}
 
         <button
-          onClick={finishBattle}
-          disabled={isFinishing}
-          className="w-full max-w-sm py-4 bg-white text-black hover:bg-slate-200 disabled:bg-slate-400 disabled:cursor-not-allowed font-black uppercase tracking-widest rounded-2xl transition-all hover:scale-105 active:scale-95 disabled:hover:scale-100 disabled:active:scale-100 shadow-[0_0_20px_rgba(255,255,255,0.3)] flex items-center justify-center gap-2 relative"
+          onClick={closeBattleResult}
+          className="w-full max-w-sm py-4 bg-white text-black hover:bg-slate-200 font-black uppercase tracking-widest rounded-2xl transition-all hover:scale-105 active:scale-95 shadow-[0_0_20px_rgba(255,255,255,0.3)] flex items-center justify-center gap-2 relative"
         >
-          {isFinishing ? (
-            <>
-              <Loader2 className="w-5 h-5 animate-spin" />
-              Сохранение...
-            </>
-          ) : (
-            <>
-              <RotateCcw className="w-5 h-5" />
-              Продолжить
-            </>
-          )}
+          <RotateCcw className="w-5 h-5" />
+          Продолжить
         </button>
       </div>
     </div>

@@ -431,10 +431,10 @@ export const SelectedTeamPanel: React.FC<SelectedTeamPanelProps> = ({
         </div>
       </div>
 
-      {/* История логов */}
+      {/* История игр */}
       {logs.length > 0 && (
         <div className={`rounded-3xl p-5 lg:p-6 ${glassCard} border border-white/5 shadow-xl`}>
-          <h3 className="text-[10px] lg:text-sm font-black text-slate-400 uppercase tracking-widest mb-3 lg:mb-4">История операций</h3>
+          <h3 className="text-[10px] lg:text-sm font-black text-slate-400 uppercase tracking-widest mb-3 lg:mb-4">История игр</h3>
           <div className="space-y-2 lg:space-y-3">
             {logs.slice(0, 3).map((log) => (
               <div key={log.id} className="flex items-center justify-between p-2.5 lg:p-4 rounded-xl bg-black/40 border border-white/5">
@@ -444,15 +444,25 @@ export const SelectedTeamPanel: React.FC<SelectedTeamPanelProps> = ({
                   </div>
                   <div>
                     <div className="text-xs lg:text-base font-black text-white">{log.result === 'win' ? 'Победа' : 'Поражение'}</div>
-                    <div className="text-[9px] lg:text-sm text-slate-500">{log.battle_turns} ходов</div>
+                    <div className="text-[9px] lg:text-sm text-slate-500">{log.battle_turns} раундов</div>
                   </div>
                 </div>
-                {log.result === 'win' && (
-                  <div className="text-right space-y-1">
-                    <div className="text-[10px] lg:text-sm font-black text-yellow-400">+{log.coins_earned} 💰</div>
-                    <div className="text-[9px] lg:text-xs font-black text-blue-400">+{log.xp_earned} XP</div>
+                <div className="text-right space-y-1">
+                  {log.result === 'win' ? (
+                    <>
+                      <div className="text-[10px] lg:text-sm font-black text-yellow-400">+{log.coins_earned} 💰</div>
+                      {log.dust_earned > 0 && (
+                        <div className="text-[9px] lg:text-xs font-black text-amber-400">+{log.dust_earned} ✨</div>
+                      )}
+                      <div className="text-[9px] lg:text-xs font-black text-blue-400">+{log.xp_earned} XP</div>
+                    </>
+                  ) : (
+                    <div className="text-[9px] lg:text-xs font-black text-slate-500">Нет наград</div>
+                  )}
+                  <div className="text-[8px] lg:text-[10px] font-black text-orange-400/70">
+                    -{log.energy_cost || 1} ⚡
                   </div>
-                )}
+                </div>
               </div>
             ))}
           </div>

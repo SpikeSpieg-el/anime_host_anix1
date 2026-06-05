@@ -3,6 +3,7 @@ import { Swords, ArrowRight, BookOpen, Clock, Zap, X, TrendingUp, TrendingDown, 
 import { BattleZone, CCGBattleState, CardRole, Card, DeckContext } from "../types"
 import { getCardBasePower, getCardRole, getDeckPowerModifier, getTerritoryBuff } from "../utils"
 import { BattleCard } from "./BattleCard"
+import { rarityConfig } from "@/types/gacha"
 
 interface BattleArenaProps {
   ccgState: CCGBattleState | null
@@ -13,6 +14,7 @@ interface BattleArenaProps {
   recallCard: (cardId: string) => void
   confirmRoundPlacement: () => void
   nextRound: () => void
+  finishBattle: () => void
   setBattleState: (state: "idle" | "loading" | "battle" | "result") => void
   deckContext?: DeckContext
   onCardEffect?: (cardId: string, type: 'buff' | 'debuff' | 'synergy' | 'knb-win' | 'knb-loss') => void
@@ -30,6 +32,7 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
   recallCard,
   confirmRoundPlacement,
   nextRound,
+  finishBattle,
   setBattleState,
   deckContext,
   onCardEffect,
@@ -65,6 +68,7 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
 
   const isPlacement = ccgState.phase === "placement"
   const isReveal = ccgState.phase === "reveal"
+  const isFinalizing = ccgState.phase === "finalizing"
 
   // Trigger placement animation when cards are placed
   useEffect(() => {
@@ -689,7 +693,15 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
 
       {/* ПЛАВАЮЩАЯ КНОПКА ЗАВЕРШЕНИЯ ХОДА СПРАВА */}
       <div className="fixed right-4 bottom-30 z-50 lg:absolute lg:right-6 lg:bottom-40">
-        {isPlacement ? (
+        {isFinalizing ? (
+          <button
+            onClick={finishBattle}
+            className="w-14 h-14 rounded-full bg-amber-500 text-white font-black text-sm transition-all active:scale-100 flex flex-col items-center justify-center animate-pulse"
+          >
+            <Crown className="w-5 h-5" />
+            <span className="text-[9px] leading-none">Финиш</span>
+          </button>
+        ) : isPlacement ? (
           <button
             onClick={confirmRoundPlacement}
             disabled={placedThisRound.length < 2 || aiPlacedThisRound.length < 2}
@@ -870,6 +882,9 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
                 <div className="flex flex-col items-center">
                   <div className={`px-3 py-1.5 rounded-xl border text-xs font-black uppercase mb-3 ${roleColors[role]}`}>
                     {roleNames[role]}
+                  </div>
+                  <div className={`px-3 py-1.5 rounded-xl border text-xs font-black uppercase mb-3 bg-gradient-to-r ${rarityConfig[card.rarity as keyof typeof rarityConfig].color} text-white border-white/20`}>
+                    {rarityConfig[card.rarity as keyof typeof rarityConfig].label}
                   </div>
                   <div className="text-[10px] font-bold uppercase mb-3">
                     {viewedCard.isPlayer ? (

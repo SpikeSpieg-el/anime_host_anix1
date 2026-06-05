@@ -1,5 +1,5 @@
 import {
-  Mountain, Flame, Waves, Castle, FlameKindling, Swords, Timer, Skull, LucideIcon
+  Mountain, Flame, Waves, Castle, FlameKindling, Swords, Timer, Skull, TreePine, Flower2, LucideIcon
 } from "lucide-react"
 
 export interface ThemeItem {
@@ -11,6 +11,8 @@ export interface ThemeItem {
 }
 
 export const THEME_CONFIG: Record<string, ThemeItem> = {
+  tutorial_forest: { icon: TreePine, color: "text-green-300", bg: "bg-green-500/10", border: "border-green-500/20", gradient: "from-green-900/20 to-transparent" },
+  peaceful_meadow: { icon: Flower2, color: "text-lime-300", bg: "bg-lime-500/10", border: "border-lime-500/20", gradient: "from-lime-900/20 to-transparent" },
   dark_forest: { icon: Mountain, color: "text-emerald-400", bg: "bg-emerald-500/10", border: "border-emerald-500/20", gradient: "from-emerald-900/20 to-transparent" },
   volcano: { icon: Flame, color: "text-orange-400", bg: "bg-orange-500/10", border: "border-orange-500/20", gradient: "from-red-900/20 to-transparent" },
   ocean: { icon: Waves, color: "text-cyan-400", bg: "bg-cyan-500/10", border: "border-cyan-500/20", gradient: "from-blue-900/20 to-transparent" },

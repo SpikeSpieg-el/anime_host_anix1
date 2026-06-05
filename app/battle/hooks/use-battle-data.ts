@@ -7,7 +7,7 @@ import { getCardRole, getCardProvision, calculateCardPowerOnZone, getCardBasePow
 import { PROVISION_LIMIT, DECK_SIZE, TERRITORY_MODIFIERS, FormationId } from "../config"
 import { Rarity } from "@/types/gacha"
 import { getAIDeckForDungeon, getRandomMarketDeck } from "../ai-decks"
-import { AIStrategy, AIDecisionContext, createAIStrategy, AIDifficulty } from "../ai-strategy"
+import { createAI, createAIDecisionContext, AIConfig } from "../ai"
 
 export function useBattleData() {
   const { user, session, sessionLoading } = useAuth()
@@ -49,20 +49,8 @@ export function useBattleData() {
   const [staminaTime, setStaminaTime] = useState("")
   const [isFinishing, setIsFinishing] = useState(false)
 
-  // AI Strategy instance
-  const aiStrategyRef = useRef<AIStrategy | null>(null)
-  const [aiDifficulty, setAiDifficulty] = useState<AIDifficulty>("normal")
-
-  // Helper function to determine AI difficulty from dungeon
-  const getAIDifficultyFromDungeon = (dungeon: Dungeon | null): AIDifficulty => {
-    if (!dungeon) return "normal"
-    const diff = dungeon.difficulty
-    if (diff <= 2) return "easy"
-    if (diff <= 4) return "normal"
-    if (diff <= 6) return "hard"
-    if (diff <= 9) return "expert"
-    return "master"
-  }
+  // AI Engine instance
+  const aiEngineRef = useRef<ReturnType<typeof createAI> | null>(null)
 
   const loadBattleData = useCallback(async () => {
     if (!user) return
@@ -353,11 +341,6 @@ export function useBattleData() {
     setAiPlacedThisRound([])
     setIsRoundConfirmed(false)
 
-    // Initialize AI strategy based on dungeon difficulty
-    const difficulty = getAIDifficultyFromDungeon(selectedDungeon)
-    setAiDifficulty(difficulty)
-    aiStrategyRef.current = createAIStrategy(difficulty)
-
     try {
       const token = session?.access_token
       if (!token) return setError("Необходима авторизация")
@@ -390,6 +373,16 @@ export function useBattleData() {
         const dungeonTheme = selectedDungeon.is_daily ? 'daily' : selectedDungeon.theme
         predefinedDeck = getAIDeckForDungeon(dungeonTheme)
       }
+
+      // Initialize AI Engine with strategic strategy
+      aiEngineRef.current = createAI({
+        strategy: "strategic",
+        enableLogging: false, // Disable logging in production
+        logLevel: "none",
+        aggressiveness: 0.6,
+        defensiveness: 0.4,
+        bluffChance: 0.3
+      })
       
       const aiDeck = predefinedDeck
         .slice()
@@ -458,23 +451,29 @@ export function useBattleData() {
 
     setPlacedPlacedThisRound(prev => [...prev, { cardId, zoneId, isSecret }])
 
-    // AI responds using the new strategy system
-    if (aiPlacedThisRound.length < 2 && ccgState.aiHand.length > 0 && aiStrategyRef.current) {
-      const context: AIDecisionContext = {
-        aiHand: ccgState.aiHand,
-        zones: ccgState.zones,
-        currentRound: ccgState.round,
-        aiPlacedThisRound,
-        playerPlacedThisRound: placedThisRound,
-        difficulty: aiDifficulty,
-      }
+    // AI responds using new AI Engine
+    const aiCardIndex = aiPlacedThisRound.length
+    if (aiCardIndex < 2 && ccgState.aiHand.length > 0 && aiEngineRef.current) {
+      // Filter out already placed cards from AI hand
+      const placedCardIds = aiPlacedThisRound.map(p => p.cardId)
+      const availableAiHand = ccgState.aiHand.filter(c => !placedCardIds.includes(c.uniqueId))
+      
+      const context = createAIDecisionContext(
+        availableAiHand,
+        ccgState.aiDeck,
+        ccgState.zones,
+        ccgState.round,
+        aiEngineRef.current.getConfig()
+      )
+      context.cardsPlacedThisRound = aiCardIndex
+      context.opponentPlacements = placedThisRound.map(p => ({ zoneId: p.zoneId, isSecret: p.isSecret }))
 
-      const aiDecision = aiStrategyRef.current.decideCardPlacement(context)
-      if (aiDecision) {
-        setAiPlacedThisRound(prev => [...prev, {
-          cardId: aiDecision.cardId,
-          zoneId: aiDecision.zoneId,
-          isSecret: aiDecision.isSecret
+      const decision = aiEngineRef.current.decideCard(context)
+      if (decision) {
+        setAiPlacedThisRound(prev => [...prev, { 
+          cardId: decision.card.uniqueId, 
+          zoneId: decision.zoneId, 
+          isSecret: decision.isSecret 
         }])
       }
     }
@@ -588,6 +587,12 @@ export function useBattleData() {
     })
 
     const nextZones = ccgState.zones.map(zone => {
+      console.log(`[Battle Round ${ccgState.round}] Processing zone ${zone.id}:`, {
+        playerCardsBefore: zone.playerCards.length,
+        aiCardsBefore: zone.aiCards.length,
+        modifier: zone.modifier.id
+      })
+
       // Reveal all secret cards
       const playerCards = zone.playerCards.map(zc => ({ ...zc, isSecret: false }))
       const aiCards = zone.aiCards.map(zc => ({ ...zc, isSecret: false }))
@@ -617,6 +622,14 @@ export function useBattleData() {
         zc.powerAfterModifier = power
         zc.roleMatchupBonus = roleMatchupBonus
         zc.synergyBonus = synergyBonus
+        console.log(`[Battle Round ${ccgState.round}] Player card ${zc.card.name}:`, {
+          basePower: getCardBasePower(zc.card),
+          oldPower,
+          newPower: power,
+          roleMatchupBonus,
+          synergyBonus,
+          wasSecret: zc.wasSecret
+        })
 
         // Trigger animations based on changes
         if (roleMatchupBonus > 0) {
@@ -640,6 +653,14 @@ export function useBattleData() {
         zc.powerAfterModifier = power
         zc.roleMatchupBonus = roleMatchupBonus
         zc.synergyBonus = synergyBonus
+        console.log(`[Battle Round ${ccgState.round}] AI card ${zc.card.name}:`, {
+          basePower: getCardBasePower(zc.card),
+          oldPower,
+          newPower: power,
+          roleMatchupBonus,
+          synergyBonus,
+          wasSecret: zc.wasSecret
+        })
 
         // Trigger animations based on changes
         if (roleMatchupBonus > 0) {
@@ -741,6 +762,15 @@ export function useBattleData() {
         owner = playerScore > aiScore ? "player" : aiScore > playerScore ? "ai" : "none"
       }
 
+      console.log(`[Battle Round ${ccgState.round}] Zone ${zone.id} final result:`, {
+        playerSurvived: playerSurvived.length,
+        aiSurvived: aiSurvived.length,
+        playerScore,
+        aiScore,
+        owner,
+        modifier: zone.modifier.id
+      })
+
       return {
         ...zone,
         playerCards: playerSurvived,
@@ -752,17 +782,29 @@ export function useBattleData() {
     })
 
     // Cross-zone modifiers: gravity_well and overdrive
+    console.log(`[Battle Round ${ccgState.round}] Applying cross-zone modifiers...`)
     nextZones.forEach((zone, index) => {
       if (zone.modifier.id === "gravity_well") {
         let adjacentCards = 0
         if (index > 0) adjacentCards += nextZones[index - 1].playerCards.length + nextZones[index - 1].aiCards.length
         if (index < nextZones.length - 1) adjacentCards += nextZones[index + 1].playerCards.length + nextZones[index + 1].aiCards.length
         const penalty = adjacentCards * 50
+        console.log(`[Battle Round ${ccgState.round}] Gravity well on zone ${zone.id}:`, {
+          adjacentCards,
+          penalty,
+          beforePlayerScore: zone.playerScore,
+          beforeAiScore: zone.aiScore
+        })
         zone.playerCards.forEach(zc => { zc.powerAfterModifier -= penalty })
         zone.aiCards.forEach(zc => { zc.powerAfterModifier -= penalty })
         zone.playerScore = zone.playerCards.reduce((acc, c) => acc + c.powerAfterModifier, 0)
         zone.aiScore = zone.aiCards.reduce((acc, c) => acc + c.powerAfterModifier, 0)
         zone.owner = zone.playerScore > zone.aiScore ? "player" : zone.aiScore > zone.playerScore ? "ai" : "none"
+        console.log(`[Battle Round ${ccgState.round}] Gravity well after:`, {
+          afterPlayerScore: zone.playerScore,
+          afterAiScore: zone.aiScore,
+          owner: zone.owner
+        })
       }
 
       if (zone.modifier.id === "overdrive") {
@@ -771,8 +813,18 @@ export function useBattleData() {
           const strongest = allCards.reduce((max, zc) => zc.powerAfterModifier > max.powerAfterModifier ? zc : max, allCards[0])
           const damage = Math.round(strongest.powerAfterModifier * 0.5)
           const isPlayerStrongest = zone.playerCards.some(zc => zc.card.uniqueId === strongest.card.uniqueId)
+          console.log(`[Battle Round ${ccgState.round}] Overdrive on zone ${zone.id}:`, {
+            strongestCard: strongest.card.name,
+            strongestPower: strongest.powerAfterModifier,
+            damage,
+            isPlayerStrongest
+          })
           if (index > 0) {
             const adj = nextZones[index - 1]
+            console.log(`[Battle Round ${ccgState.round}] Overdrive damaging zone ${adj.id} (left):`, {
+              beforePlayerScore: adj.playerScore,
+              beforeAiScore: adj.aiScore
+            })
             if (isPlayerStrongest) {
               adj.aiCards.forEach(zc => { zc.powerAfterModifier = Math.max(0, zc.powerAfterModifier - damage) })
             } else {
@@ -786,9 +838,18 @@ export function useBattleData() {
             } else {
               adj.owner = adj.playerScore < adj.aiScore ? "player" : adj.aiScore < adj.playerScore ? "ai" : "none"
             }
+            console.log(`[Battle Round ${ccgState.round}] Overdrive after damaging zone ${adj.id}:`, {
+              afterPlayerScore: adj.playerScore,
+              afterAiScore: adj.aiScore,
+              owner: adj.owner
+            })
           }
           if (index < nextZones.length - 1) {
             const adj = nextZones[index + 1]
+            console.log(`[Battle Round ${ccgState.round}] Overdrive damaging zone ${adj.id} (right):`, {
+              beforePlayerScore: adj.playerScore,
+              beforeAiScore: adj.aiScore
+            })
             if (isPlayerStrongest) {
               adj.aiCards.forEach(zc => { zc.powerAfterModifier = Math.max(0, zc.powerAfterModifier - damage) })
             } else {
@@ -802,6 +863,11 @@ export function useBattleData() {
             } else {
               adj.owner = adj.playerScore < adj.aiScore ? "player" : adj.aiScore < adj.playerScore ? "ai" : "none"
             }
+            console.log(`[Battle Round ${ccgState.round}] Overdrive after damaging zone ${adj.id}:`, {
+              afterPlayerScore: adj.playerScore,
+              afterAiScore: adj.aiScore,
+              owner: adj.owner
+            })
           }
         }
       }
@@ -841,15 +907,6 @@ export function useBattleData() {
       setPlacedPlacedThisRound([])
       setAiPlacedThisRound([])
       setIsRoundConfirmed(false)
-
-      // Update AI memory with round results
-      if (aiStrategyRef.current) {
-        aiStrategyRef.current.updateMemory({
-          playerWon: false, // Will be determined at match end
-          playerActions: ccgState.roundHistory[ccgState.roundHistory.length - 1]?.playerActions || [],
-          aiActions: ccgState.roundHistory[ccgState.roundHistory.length - 1]?.aiActions || [],
-        })
-      }
     } else {
       // Determine match winner based on Zone ownership
       let playerZonesWon = 0
@@ -899,7 +956,7 @@ export function useBattleData() {
         return {
           ...prev,
           zones: nextZones,
-          phase: "ended",
+          phase: "finalizing",
           victory,
           coinsEarned,
           dustEarned,
@@ -915,6 +972,18 @@ export function useBattleData() {
   const finishBattle = async () => {
     setIsFinishing(true)
     try {
+      // Transition from finalizing to ended phase to show results modal
+      if (ccgState) {
+        setCcgState(prev => {
+          if (!prev) return null
+          return {
+            ...prev,
+            phase: "ended"
+          }
+        })
+      }
+
+      // Process rewards and API calls in background
       if (ccgState && ccgState.victory) {
         const token = session?.access_token
         if (token) {
@@ -941,11 +1010,14 @@ export function useBattleData() {
         await refreshDust()
       }
       await loadBattleData()
-      setBattleState("idle")
-      setCcgState(null)
     } finally {
       setIsFinishing(false)
     }
+  }
+
+  const closeBattleResult = () => {
+    setBattleState("idle")
+    setCcgState(null)
   }
 
   const teamPower = {
@@ -997,8 +1069,6 @@ export function useBattleData() {
     isRoundConfirmed,
     playCardToZone,
     recallCard,
-    aiDifficulty,
-    setAiDifficulty,
     confirmRoundPlacement,
     nextRound,
     showTeamBuilder,
@@ -1024,6 +1094,7 @@ export function useBattleData() {
     toggleCardSelection,
     startBattle,
     finishBattle,
+    closeBattleResult,
     isFinishing,
     teamPower,
     filteredCards,

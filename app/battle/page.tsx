@@ -327,6 +327,7 @@ export default function BattlePage() {
     toggleCardSelection,
     startBattle,
     finishBattle,
+    closeBattleResult,
     isFinishing,
     teamPower,
     filteredCards,
@@ -455,6 +456,7 @@ export default function BattlePage() {
             recallCard={recallCard}
             confirmRoundPlacement={confirmRoundPlacement}
             nextRound={nextRound}
+            finishBattle={finishBattle}
             setBattleState={setBattleState}
             deckContext={{ deck: selectedCards, leaderId, formation }}
             onCardEffect={triggerCardEffect}
@@ -471,6 +473,7 @@ export default function BattlePage() {
           <BattleResultView
             ccgState={ccgState}
             finishBattle={finishBattle}
+            closeBattleResult={closeBattleResult}
             isFinishing={isFinishing}
           />
         )}

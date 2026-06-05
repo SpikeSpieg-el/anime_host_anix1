@@ -293,12 +293,84 @@ export async function GET(request: NextRequest) {
         enemy_ids: []
       }
 
-      // Add daily dungeons to the beginning of the list if available
+      // Add beginner dungeons at the very beginning
+      const beginnerDungeons = [
+        {
+          id: 'tutorial_forest',
+          name: 'Tutorial Forest',
+          name_ru: 'Учебный Лес',
+          description: 'Самая легкая локация для новичков! Идеально для изучения механик боя.',
+          theme: 'tutorial_forest',
+          difficulty: 1,
+          required_level: 1,
+          energy_cost: 1,
+          coins_reward_base: 50,
+          dust_reward_base: 10,
+          xp_reward_base: 30,
+          image_url: null,
+          is_daily: false,
+          enemy_ids: []
+        },
+        {
+          id: 'peaceful_meadow',
+          name: 'Peaceful Meadow',
+          name_ru: 'Спокойная Поляна',
+          description: 'Легкая локация для тренировки. Враги используют простые колоды.',
+          theme: 'peaceful_meadow',
+          difficulty: 2,
+          required_level: 1,
+          energy_cost: 1,
+          coins_reward_base: 75,
+          dust_reward_base: 20,
+          xp_reward_base: 50,
+          image_url: null,
+          is_daily: false,
+          enemy_ids: []
+        }
+      ]
+
+      // Add daily dungeons after beginner dungeons
       const dailyDungeons = []
       if (dailyDungeon) dailyDungeons.push(dailyDungeon)
       if (dailyMarketDungeon) dailyDungeons.push(dailyMarketDungeon)
-      
-      allDungeons = dailyDungeons.length > 0 ? [...dailyDungeons, ...(dungeons || [])] : (dungeons || [])
+
+      // Filter out dark_forest from regular dungeons (it will be re-added later with higher level requirement)
+      const regularDungeons = (dungeons || []).filter((d: any) => d.theme !== 'dark_forest')
+
+      // Override level requirements for progression
+      const levelRequirements: Record<string, number> = {
+        'volcano': 7,
+        'ocean': 10,
+        'sky_castle': 13,
+        'demon_realm': 16,
+        'tournament': 20
+      }
+
+      // Apply level requirements to regular dungeons
+      const regularDungeonsWithLevels = regularDungeons.map((d: any) => ({
+        ...d,
+        required_level: levelRequirements[d.theme] || d.required_level
+      }))
+
+      // Add dark_forest as a mid-tier dungeon (level 6 required)
+      const darkForestDungeon = {
+        id: 'dark_forest',
+        name: 'Dark Forest',
+        name_ru: 'Тёмный Лес',
+        description: 'Средняя сложность. Враги используют сбалансированные колоды.',
+        theme: 'dark_forest',
+        difficulty: 3,
+        required_level: 6,
+        energy_cost: 2,
+        coins_reward_base: 100,
+        dust_reward_base: 30,
+        xp_reward_base: 80,
+        image_url: null,
+        is_daily: false,
+        enemy_ids: []
+      }
+
+      allDungeons = [...beginnerDungeons, ...dailyDungeons, darkForestDungeon, ...regularDungeonsWithLevels]
 
       // Get logs
       const { data: logs } = await supabaseAdmin
@@ -503,6 +575,27 @@ export async function POST(request: NextRequest) {
       }
 
       // Save battle log
+      // Get dungeon energy cost
+      let energyCost = 1
+      if (dungeonId === 'tutorial_forest' || dungeonId === 'peaceful_meadow') {
+        energyCost = 1
+      } else if (dungeonId === 'dark_forest') {
+        energyCost = 2
+      } else if (dungeonId.startsWith('daily-market-')) {
+        energyCost = 2
+      } else if (dungeonId.startsWith('daily-')) {
+        energyCost = 1
+      } else {
+        const { data: dungeonData } = await supabaseAdmin
+          .from('battle_dungeons')
+          .select('energy_cost')
+          .eq('id', dungeonId)
+          .single()
+        if (dungeonData) {
+          energyCost = dungeonData.energy_cost || 1
+        }
+      }
+
       await supabaseAdmin
         .from('battle_logs')
         .insert({
@@ -513,6 +606,7 @@ export async function POST(request: NextRequest) {
           dust_earned: dustEarned || 0,
           xp_earned: xpEarned || 0,
           battle_turns: turns || 3,
+          energy_cost: energyCost,
         })
 
       return NextResponse.json({ success: true })
@@ -561,8 +655,60 @@ export async function POST(request: NextRequest) {
 
       // Get dungeon info
       let dungeon = null
-      
-      if (dungeonId.startsWith('daily-market-')) {
+
+      // Handle beginner dungeons (virtual, not in database)
+      if (dungeonId === 'tutorial_forest') {
+        dungeon = {
+          id: 'tutorial_forest',
+          name: 'Tutorial Forest',
+          name_ru: 'Учебный Лес',
+          description: 'Самая легкая локация для новичков! Идеально для изучения механик боя.',
+          theme: 'tutorial_forest',
+          difficulty: 1,
+          required_level: 1,
+          energy_cost: 1,
+          coins_reward_base: 50,
+          dust_reward_base: 10,
+          xp_reward_base: 30,
+          image_url: null,
+          is_daily: false,
+          enemy_ids: []
+        }
+      } else if (dungeonId === 'peaceful_meadow') {
+        dungeon = {
+          id: 'peaceful_meadow',
+          name: 'Peaceful Meadow',
+          name_ru: 'Спокойная Поляна',
+          description: 'Легкая локация для тренировки. Враги используют простые колоды.',
+          theme: 'peaceful_meadow',
+          difficulty: 2,
+          required_level: 1,
+          energy_cost: 1,
+          coins_reward_base: 75,
+          dust_reward_base: 20,
+          xp_reward_base: 50,
+          image_url: null,
+          is_daily: false,
+          enemy_ids: []
+        }
+      } else if (dungeonId === 'dark_forest') {
+        dungeon = {
+          id: 'dark_forest',
+          name: 'Dark Forest',
+          name_ru: 'Тёмный Лес',
+          description: 'Средняя сложность. Враги используют сбалансированные колоды.',
+          theme: 'dark_forest',
+          difficulty: 3,
+          required_level: 6,
+          energy_cost: 2,
+          coins_reward_base: 100,
+          dust_reward_base: 30,
+          xp_reward_base: 80,
+          image_url: null,
+          is_daily: false,
+          enemy_ids: []
+        }
+      } else if (dungeonId.startsWith('daily-market-')) {
         // Daily market battle with random deck
         const today = new Date().toISOString().split('T')[0]
         dungeon = {
@@ -620,8 +766,20 @@ export async function POST(request: NextRequest) {
         if (!regularDungeon) {
           return NextResponse.json({ success: false, message: "Подземелье не найдено" }, { status: 404 })
         }
-        
-        dungeon = regularDungeon
+
+        // Override level requirements for progression
+        const levelRequirements: Record<string, number> = {
+          'volcano': 7,
+          'ocean': 10,
+          'sky_castle': 13,
+          'demon_realm': 16,
+          'tournament': 20
+        }
+
+        dungeon = {
+          ...regularDungeon,
+          required_level: levelRequirements[regularDungeon.theme] || regularDungeon.required_level
+        }
       }
 
       // Check stamina

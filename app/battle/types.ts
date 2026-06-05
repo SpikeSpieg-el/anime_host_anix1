@@ -95,6 +95,7 @@ export interface BattleLog {
   dust_earned: number
   xp_earned: number
   battle_turns: number
+  energy_cost: number
   created_at: string
   battle_data?: {
     mvp?: { name: string; totalDamageDealt: number; anime: string }
@@ -138,7 +139,7 @@ export interface CCGBattleState {
   deck: Card[]
   aiHand: Card[]
   aiDeck: Card[]
-  phase: "placement" | "reveal" | "ended"
+  phase: "placement" | "reveal" | "finalizing" | "ended"
   victory: boolean | null
   roundHistory: {
     round: number

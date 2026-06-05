@@ -1,5 +1,157 @@
 import { Card } from "./types"
 import { Rarity } from "@/types/gacha"
+import { RARITY_PROVISION_MAP, PROVISION_LIMIT, DECK_SIZE } from "./config"
+import { getCardRole } from "./utils"
+
+// ==========================================
+// AI DECK GENERATOR (Simulated Gacha Pulls)
+// ==========================================
+
+// Simulate gacha rarity roll (similar to gacha system)
+function simulateGachaRoll(difficultyModifier: number = 0): Rarity {
+  const rarityWeights = [
+    { rarity: "trash" as Rarity, weight: 35 },
+    { rarity: "common" as Rarity, weight: 30 },
+    { rarity: "uncommon" as Rarity, weight: 20 },
+    { rarity: "rare" as Rarity, weight: 10 },
+    { rarity: "super_rare" as Rarity, weight: 4 },
+    { rarity: "epic" as Rarity, weight: 1 },
+  ]
+
+  // Adjust weights based on difficulty
+  const adjustedWeights = rarityWeights.map(rw => {
+    if (difficultyModifier > 0 && ["rare", "super_rare", "epic"].includes(rw.rarity)) {
+      return { ...rw, weight: rw.weight + difficultyModifier }
+    }
+    return rw
+  })
+
+  const totalWeight = adjustedWeights.reduce((sum, rw) => sum + rw.weight, 0)
+  let random = Math.random() * totalWeight
+
+  for (const { rarity, weight } of adjustedWeights) {
+    random -= weight
+    if (random <= 0) return rarity
+  }
+
+  return "trash"
+}
+
+// Generate random stats based on rarity (similar to gacha actions.ts)
+function generateRandomStats(rarity: Rarity) {
+  const rarityIndex = ["trash", "common", "uncommon", "rare", "super_rare", "epic"].indexOf(rarity)
+  const baseMin = [5, 12, 19, 26, 33, 40][rarityIndex] || 5
+  const baseMax = [25, 32, 39, 46, 53, 60][rarityIndex] || 25
+
+  const roll = (min: number, max: number) => Math.min(Math.floor(Math.random() * (max - min + 1) + min), 100)
+
+  return {
+    hp: roll(baseMin, baseMax),
+    atk: roll(baseMin, baseMax),
+    def: roll(baseMin, baseMax),
+    spd: roll(baseMin, baseMax),
+    luck: roll(baseMin, baseMax)
+  }
+}
+
+// Sample anime names for generated cards
+const SAMPLE_ANIMES = [
+  "Naruto", "One Piece", "Bleach", "Attack on Titan", "My Hero Academia",
+  "Demon Slayer", "Jujutsu Kaisen", "Dragon Ball", "Black Clover", "Fairy Tail"
+]
+
+// Sample character names by anime
+const SAMPLE_CHARACTERS: Record<string, string[]> = {
+  "Naruto": ["Наруто Узумаки", "Саске Учиха", "Сакура Харуно", "Какаши Хатаке", "Рок Ли"],
+  "One Piece": ["Монки Д. Луффи", "Ророноа Зоро", "Нами", "Санжи", "Усопп"],
+  "Bleach": ["Ичиго Куросаки", "Рукия Кучики", "Ренджи Абарай", "Орихиме Иноуэ", "Бьюакуя"],
+  "Attack on Titan": ["Эрен Йегер", "Микаса Аккерман", "Леви Аккерман", "Армин Арлерт", "Саша"],
+  "My Hero Academia": ["Деку", "Бакуго", "Тодороки", "Уракака", "Иида"],
+  "Demon Slayer": ["Танджиро Камадо", "Незуко Камадо", "Дзэнитсу", "Иносаукэ", "Ренгоку"],
+  "Jujutsu Kaisen": ["Юдзи Итадори", "Мэгуми Фусигуро", "Нобара Кугисаки", "Сатору Годзё", "Годжо"],
+  "Dragon Ball": ["Гоку", "Веджета", "Гохан", "Пикколо", "Транкс"],
+  "Black Clover": ["Аста", "Юно", "Ноэль", "Юми", "Лаки"],
+  "Fairy Tail": ["Нацу", "Люси", "Грей", "Эрза", "Венди"]
+}
+
+// Generate a single random card
+function generateRandomCard(difficultyModifier: number = 0, cardIndex: number): Card {
+  const rarity = simulateGachaRoll(difficultyModifier)
+  const anime = SAMPLE_ANIMES[Math.floor(Math.random() * SAMPLE_ANIMES.length)]
+  const characters = SAMPLE_CHARACTERS[anime] || ["Персонаж"]
+  const name = characters[Math.floor(Math.random() * characters.length)]
+
+  const stats = generateRandomStats(rarity)
+  const role = getCardRole({ uniqueId: "", name, anime, rarity, imageUrl: "", stats } as Card)
+
+  return {
+    uniqueId: `ai-generated-${cardIndex}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+    name,
+    anime,
+    rarity,
+    imageUrl: `https://shikimori.one/system/characters/original/${1000 + cardIndex}.jpg`,
+    stats,
+    role,
+    provisionCost: RARITY_PROVISION_MAP[rarity]
+  }
+}
+
+// Generate a random deck from simulated gacha pulls
+export function generateRandomAIDeck(difficultyModifier: number = 0, targetProvision: number = PROVISION_LIMIT): Card[] {
+  const deck: Card[] = []
+  let totalProvision = 0
+  let attempts = 0
+  const maxAttempts = 100
+
+  // Simulate opening 20 packs and collecting cards
+  const cardPool: Card[] = []
+  for (let i = 0; i < 20; i++) {
+    const card = generateRandomCard(difficultyModifier, i)
+    cardPool.push(card)
+  }
+
+  // Sort by provision cost (higher rarity first) to try to fit best cards
+  cardPool.sort((a, b) => (b.provisionCost || 0) - (a.provisionCost || 0))
+
+  // Build deck from pool (greedy algorithm)
+  while (deck.length < DECK_SIZE && attempts < maxAttempts) {
+    attempts++
+
+    // Try to add highest provision card that fits
+    for (const card of cardPool) {
+      if (deck.some(c => c.uniqueId === card.uniqueId)) continue
+
+      const cardProvision = card.provisionCost || RARITY_PROVISION_MAP[card.rarity]
+      if (totalProvision + cardProvision <= targetProvision) {
+        deck.push(card)
+        totalProvision += cardProvision
+        break
+      }
+    }
+
+    // If we can't add more cards but have space, try with lower provision cards
+    if (deck.length < DECK_SIZE && attempts > maxAttempts / 2) {
+      for (const card of cardPool.reverse()) {
+        if (deck.some(c => c.uniqueId === card.uniqueId)) continue
+
+        const cardProvision = card.provisionCost || RARITY_PROVISION_MAP[card.rarity]
+        if (totalProvision + cardProvision <= targetProvision) {
+          deck.push(card)
+          totalProvision += cardProvision
+          break
+        }
+      }
+    }
+  }
+
+  // If we still don't have enough cards, fill with trash/common cards
+  while (deck.length < DECK_SIZE) {
+    const fillerCard = generateRandomCard(-2, deck.length + 100) // Very easy rolls
+    deck.push(fillerCard)
+  }
+
+  return deck
+}
 
 // Pre-defined AI decks for each dungeon
 // Each deck contains 6 cards with 30 provision total (matching daily decks)
@@ -123,10 +275,21 @@ export const AI_DECKS: Record<string, Card[]> = {
 
 // Get AI deck for a specific dungeon theme
 export function getAIDeckForDungeon(theme: string): Card[] {
+  // Use random generator for beginner dungeons
+  if (theme === "tutorial_forest" || theme === "peaceful_meadow") {
+    const difficultyModifier = theme === "tutorial_forest" ? -3 : -2
+    return generateRandomAIDeck(difficultyModifier, PROVISION_LIMIT)
+  }
+
+  // Use random generator for dark_forest as well (now it's a mid-tier dungeon)
+  if (theme === "dark_forest") {
+    return generateRandomAIDeck(0, PROVISION_LIMIT) // Normal difficulty
+  }
+
   const deck = AI_DECKS[theme]
   if (!deck) {
-    // Fallback to dark_forest deck if theme not found
-    return AI_DECKS["dark_forest"] || []
+    // Fallback to generated deck if theme not found
+    return generateRandomAIDeck(0, PROVISION_LIMIT)
   }
   return deck
 }
