@@ -706,9 +706,9 @@ export function useBattleData() {
     setAiPlacedThisRound([])
   }
 
-  // Evaluates end-of-round scores with actual matchups and transitions to next round/results
-  const nextRound = () => {
-    if (!ccgState) return
+  // Calculates card powers and zone scores without transitioning to next round
+  const calculateRoundScores = () => {
+    if (!ccgState) return null
 
     // Trigger modifier activation animations for all zones
     ccgState.zones.forEach(zone => {
@@ -1016,6 +1016,34 @@ export function useBattleData() {
       })
     })
 
+    // Return calculated zones without transitioning
+    return nextZones
+  }
+
+  // Updates state with calculated scores without transitioning to next round
+  const updateScores = useCallback(() => {
+    if (!ccgState) return
+
+    const nextZones = calculateRoundScores()
+    if (!nextZones) return
+
+    setCcgState(prev => {
+      if (!prev) return null
+      return {
+        ...prev,
+        zones: nextZones,
+      }
+    })
+  }, [ccgState])
+
+  // Evaluates end-of-round scores with actual matchups and transitions to next round/results
+  const nextRound = () => {
+    if (!ccgState) return
+
+    // Calculate scores first
+    const nextZones = calculateRoundScores()
+    if (!nextZones) return
+
     const isMatchEnded = ccgState.round === 3
 
     if (!isMatchEnded) {
@@ -1249,6 +1277,7 @@ export function useBattleData() {
     moveCardBetweenZones,
     confirmRoundPlacement,
     nextRound,
+    updateScores,
     showTeamBuilder,
     setShowTeamBuilder,
     teamSearch,

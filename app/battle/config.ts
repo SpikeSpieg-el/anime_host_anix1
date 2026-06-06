@@ -43,17 +43,17 @@ export const MAX_CARDS_PER_SIDE = 4
 
 export const RARITY_PROVISION_MAP: Record<string, number> = {
   trash: 0,
-  common: 2,
-  uncommon: 3,
-  rare: 4,
-  super_rare: 5,
-  epic: 6,
-  mythic: 8,
-  legendary: 9,
-  ancient: 10,
-  divine: 11,
-  transcendent: 13,
-  omnipotent: 15,
+  common: 1,
+  uncommon: 2,
+  rare: 3,
+  super_rare: 4,
+  epic: 5,
+  mythic: 6,
+  legendary: 7,
+  ancient: 8,
+  divine: 9,
+  transcendent: 10,
+  omnipotent: 11,
 }
 
 export const ROLE_CONFIG = {
@@ -74,8 +74,8 @@ export const SYNERGY_TOTAL_FLOOR = -15
 // Passive deck synergies. Tunable bonus values are kept here.
 // Computation of which synergies are active lives in utils.ts (computeDeckSynergies).
 export const SYNERGY_VALUES = {
-  brotherhood3: 6,   // 3+ cards from the same anime
-  brotherhood5: 12,   // 5+ cards from the same anime (replaces brotherhood3)
+  brotherhoodPerCard: 4,   // +4 per card from the same anime (2nd card: +4, 3rd: +8, etc.)
+  brotherhoodMinCards: 2,  // minimum cards to activate brotherhood
   roleHarmony: 8,    // all 3 roles present
   raritySpectrum: 5, // 5+ distinct rarities
   lightStep: 5,      // total provision weight <= lightStepThreshold
@@ -96,7 +96,7 @@ export interface SynergyMeta {
 }
 
 export const SYNERGY_DEFINITIONS: Record<string, SynergyMeta> = {
-  brotherhood: { nameRu: "Братство", description: "Несколько карт из одного аниме усиливают всю колоду.", color: "text-violet-300", bg: "bg-violet-500/10", border: "border-violet-500/20" },
+  brotherhood: { nameRu: "Братство", description: "Чем больше карт из одного аниме, тем сильнее бонус (+4 за каждую карту после первой).", color: "text-violet-300", bg: "bg-violet-500/10", border: "border-violet-500/20" },
   role_harmony: { nameRu: "Гармония ролей", description: "В колоде есть все три роли (Авангард, Страж, Плут).", color: "text-emerald-300", bg: "bg-emerald-500/10", border: "border-emerald-500/20" },
   rarity_spectrum: { nameRu: "Спектр редкостей", description: "5+ разных редкостей карт в колоде.", color: "text-cyan-300", bg: "bg-cyan-500/10", border: "border-cyan-500/20" },
   light_step: { nameRu: "Лёгкая поступь", description: `Общий вес колоды не превышает ${LIGHT_STEP_THRESHOLD} очков.`, color: "text-sky-300", bg: "bg-sky-500/10", border: "border-sky-500/20" },

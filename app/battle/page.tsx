@@ -315,6 +315,7 @@ export default function BattlePage() {
     moveCardBetweenZones,
     confirmRoundPlacement,
     nextRound,
+    updateScores,
     showTeamBuilder,
     setShowTeamBuilder,
     teamSearch,
@@ -460,6 +461,7 @@ export default function BattlePage() {
             moveCardBetweenZones={moveCardBetweenZones}
             confirmRoundPlacement={confirmRoundPlacement}
             nextRound={nextRound}
+            updateScores={updateScores}
             finishBattle={finishBattle}
             setBattleState={setBattleState}
             deckContext={{ deck: selectedCards, leaderId, formation }}

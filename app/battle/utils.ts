@@ -79,13 +79,11 @@ export const computeDeckSynergies = (deck: Card[]): DeckSynergyResult => {
   deck.forEach(c => { animeCounts[c.anime] = (animeCounts[c.anime] || 0) + 1 })
   const maxAnime = Math.max(0, ...Object.values(animeCounts))
 
-  // 1. Brotherhood
-  if (maxAnime >= 5) {
-    globalBonus += SYNERGY_VALUES.brotherhood5
-    active.push({ id: "brotherhood", ...SYNERGY_DEFINITIONS.brotherhood, value: SYNERGY_VALUES.brotherhood5 })
-  } else if (maxAnime >= 3) {
-    globalBonus += SYNERGY_VALUES.brotherhood3
-    active.push({ id: "brotherhood", ...SYNERGY_DEFINITIONS.brotherhood, value: SYNERGY_VALUES.brotherhood3 })
+  // 1. Brotherhood - proportional bonus per card
+  if (maxAnime >= SYNERGY_VALUES.brotherhoodMinCards) {
+    const brotherhoodBonus = SYNERGY_VALUES.brotherhoodPerCard * (maxAnime - 1)
+    globalBonus += brotherhoodBonus
+    active.push({ id: "brotherhood", ...SYNERGY_DEFINITIONS.brotherhood, value: brotherhoodBonus })
   }
 
   // 2. Role harmony (all 3 roles present)

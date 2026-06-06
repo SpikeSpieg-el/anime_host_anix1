@@ -190,6 +190,7 @@ interface BattleArenaProps {
   moveCardBetweenZones: (cardId: string, newZoneId: string) => void
   confirmRoundPlacement: () => void
   nextRound: () => void
+  updateScores: () => void
   finishBattle: () => void
   setBattleState: (state: "idle" | "loading" | "battle" | "result") => void
   deckContext?: DeckContext
@@ -210,6 +211,7 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
   moveCardBetweenZones,
   confirmRoundPlacement,
   nextRound,
+  updateScores,
   finishBattle,
   setBattleState,
   deckContext,
@@ -296,9 +298,22 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
       if (animationTimeoutRef.current) clearTimeout(animationTimeoutRef.current)
       animationTimeoutRef.current = setTimeout(() => {
         setZoneAnimations(new Set())
-      }, 1000)
+        
+        // Автоматический подсчёт после завершения анимации открытия
+        if (ccgState.round < 3) {
+          // Раунды 1-2: автоматический переход к следующему
+          setTimeout(() => {
+            nextRound()
+          }, 300)
+        } else {
+          // Раунд 3: только подсчёт очков, без перехода
+          setTimeout(() => {
+            updateScores()
+          }, 300)
+        }
+      }, 1200)
     }
-  }, [ccgState.zones, isReveal])
+  }, [ccgState.zones, isReveal, ccgState.round, nextRound, updateScores])
 
   useEffect(() => {
     return () => {
@@ -759,15 +774,15 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
               {placedThisRound.length}/{aiPlacedThisRound.length}
             </span>
           </button>
-        ) : (
+        ) : isReveal && ccgState.round === 3 ? (
           <button
             onClick={nextRound}
             className="w-14 h-14 sm:w-14 sm:h-14 rounded-full bg-indigo-500 text-white font-black text-sm sm:text-sm transition-all active:scale-100 flex flex-col items-center justify-center"
           >
             <ArrowRight className="w-5 h-5 sm:w-5 sm:h-5" />
-            <span className="text-[9px] sm:text-[9px] leading-none">Далее</span>
+            <span className="text-[9px] sm:text-[9px] leading-none">Финиш</span>
           </button>
-        )}
+        ) : null}
       </div>
 
       {/* ЗОНА РУКИ ИГРОКА */}
