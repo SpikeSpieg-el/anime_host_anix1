@@ -1,6 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const ALLOWED_HOSTS = ['i.pinimg.com', 'pinterest.com'];
+const ALLOWED_HOSTS = [
+  'i.pinimg.com',
+  'pinterest.com',
+  'konachan.net',
+  'safebooru.org',
+  'zerochan.net',
+  's3.zerochan.net',
+  'shikimori.one'
+];
 
 export async function GET(req: NextRequest) {
   const url = req.nextUrl.searchParams.get('url');
@@ -22,10 +30,22 @@ export async function GET(req: NextRequest) {
   }
 
   try {
+    // Set appropriate headers based on the domain
+    let referer = 'https://www.pinterest.com/'
+    if (parsed.hostname.includes('konachan.net')) {
+      referer = 'https://konachan.net/'
+    } else if (parsed.hostname.includes('safebooru.org')) {
+      referer = 'https://safebooru.org/'
+    } else if (parsed.hostname.includes('zerochan.net') || parsed.hostname.includes('s3.zerochan.net')) {
+      referer = 'https://www.zerochan.net/'
+    } else if (parsed.hostname.includes('shikimori.one')) {
+      referer = 'https://shikimori.one/'
+    }
+
     const res = await fetch(url, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Referer': 'https://www.pinterest.com/',
+        'Referer': referer,
         'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
         'Accept-Language': 'en-US,en;q=0.9',
         'Accept-Encoding': 'gzip, deflate, br',
@@ -54,9 +74,15 @@ export async function GET(req: NextRequest) {
     // Check for common Pinterest placeholder patterns in the buffer
     const uint8Array = new Uint8Array(buffer);
     const isLikelyPlaceholder = 
-      buffer.byteLength < 5000 || // Very small images are often placeholders
-      contentType.includes('text/html') || // Sometimes returns HTML instead of image
+      buffer.byteLength < 1000 || // Very small images are often placeholders
       contentType.includes('application/json'); // Sometimes returns JSON error
+
+    // Allow HTML responses for some domains that might return HTML with embedded images
+    // but reject if it's too small to be useful
+    if (contentType.includes('text/html') && buffer.byteLength < 10000) {
+      console.error('[image-proxy] HTML response too small:', contentType, buffer.byteLength);
+      return NextResponse.json({ error: 'HTML response too small' }, { status: 502 });
+    }
 
     if (isLikelyPlaceholder) {
       console.error('[image-proxy] Likely placeholder returned:', contentType, buffer.byteLength);

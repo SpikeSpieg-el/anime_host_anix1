@@ -10,6 +10,31 @@ import { Rarity } from "@/types/gacha"
 import { getAIDeckForDungeon, getRandomMarketDeck } from "../ai-decks"
 import { createAI, createAIDecisionContext, AIConfig } from "../ai"
 
+// Helper function to preload card images in background
+const preloadCardImages = (cards: Card[]) => {
+  const externalDomains = [
+    'i.pinimg.com',
+    'pinimg.com',
+    'konachan.net',
+    'safebooru.org',
+    'zerochan.net',
+    's3.zerochan.net',
+    'shikimori.one'
+  ]
+
+  cards.forEach(card => {
+    if (!card.imageUrl) return
+
+    const isExternal = externalDomains.some(domain => card.imageUrl.includes(domain))
+    const src = isExternal ? `/api/image-proxy?url=${encodeURIComponent(card.imageUrl)}` : card.imageUrl
+
+    // Preload image without blocking
+    const img = new Image()
+    img.src = src
+    // Don't wait for load - fire and forget
+  })
+}
+
 export function useBattleData() {
   const { user, session, sessionLoading } = useAuth()
   const { coins: userCoins, addCoins, refresh: refreshCoins } = useCoins()
@@ -104,6 +129,9 @@ export function useBattleData() {
       })
 
       setCollectedCards(mapped)
+
+      // Preload card images in background to avoid blocking drag/drop
+      preloadCardImages(mapped)
 
       // Try to load saved deck from API first, fallback to localStorage
       let savedDeckIds: string[] | null = null
