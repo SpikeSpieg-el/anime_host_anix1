@@ -5,7 +5,7 @@ import { useDust } from "@/hooks/use-dust"
 import { arrayMove } from "@dnd-kit/sortable"
 import { Card, Dungeon, Enemy, BattleProgress, BattleLog, CCGBattleState, BattleZone, ZoneCard, CardRole, DeckContext } from "../types"
 import { getCardRole, getCardProvision, calculateCardPowerOnZone, getCardBasePower, computeDeckSynergies } from "../utils"
-import { PROVISION_LIMIT, DECK_SIZE, TERRITORY_MODIFIERS, FormationId } from "../config"
+import { PROVISION_LIMIT, DECK_SIZE, TERRITORY_MODIFIERS, FormationId, MAX_CARDS_PER_SIDE } from "../config"
 import { Rarity } from "@/types/gacha"
 import { getAIDeckForDungeon, getRandomMarketDeck } from "../ai-decks"
 import { createAI, createAIDecisionContext, AIConfig } from "../ai"
@@ -473,6 +473,18 @@ export function useBattleData() {
 
     const card = ccgState.hand.find(c => c.uniqueId === cardId)
     if (!card) return
+
+    // Check max cards per side limit (4 cards per zone)
+    const zone = ccgState.zones.find(z => z.id === zoneId)
+    if (zone) {
+      const playerCardsInZone = zone.playerCards.length
+      const pendingInZone = placedThisRound.filter(p => p.zoneId === zoneId).length
+      const totalInZone = playerCardsInZone + pendingInZone
+      
+      if (totalInZone >= MAX_CARDS_PER_SIDE) {
+        return setError(`На этой зоне уже ${totalInZone}/${MAX_CARDS_PER_SIDE} карт!`)
+      }
+    }
 
     setError(null)
     // 1st card in the round is OPEN (false isSecret), 2nd card is SECRET (true isSecret)

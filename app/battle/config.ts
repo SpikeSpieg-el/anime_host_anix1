@@ -39,6 +39,7 @@ export const glassButton = "bg-white/[0.05] hover:bg-white/[0.1] backdrop-blur-m
 
 export const PROVISION_LIMIT = 35
 export const DECK_SIZE = 8
+export const MAX_CARDS_PER_SIDE = 4
 
 export const RARITY_PROVISION_MAP: Record<string, number> = {
   trash: 0,

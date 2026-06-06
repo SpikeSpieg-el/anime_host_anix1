@@ -1,5 +1,6 @@
 import { Card, BattleZone, CardRole } from "../types"
 import { getCardRole, getCardBasePower, calculateCardPowerOnZone } from "../utils"
+import { MAX_CARDS_PER_SIDE } from "../config"
 
 // ============================================================================
 // КОНФИГУРАЦИЯ AI
@@ -66,6 +67,12 @@ function evaluateZoneCardCombo(
   let reasons: string[] = []
 
   const modId = zone.modifier.id
+
+  // Проверка лимита карт на зоне
+  const aiCardsInZone = zone.aiCards.length
+  if (aiCardsInZone >= MAX_CARDS_PER_SIDE) {
+    return { score: -9999, reasoning: `Зона заполнена (${aiCardsInZone}/${MAX_CARDS_PER_SIDE} карт)` }
+  }
 
   // 1. УЧЕТ МОДИФИКАТОРОВ ЗОН
   
@@ -265,8 +272,12 @@ class RandomStrategy extends AIStrategy {
     
     if (context.hand.length === 0) return null
     
+    // Фильтруем зоны, которые не заполнены
+    const availableZones = context.zones.filter(zone => zone.aiCards.length < MAX_CARDS_PER_SIDE)
+    if (availableZones.length === 0) return null
+    
     const card = context.hand[Math.floor(Math.random() * context.hand.length)]
-    const zone = context.zones[Math.floor(Math.random() * context.zones.length)]
+    const zone = availableZones[Math.floor(Math.random() * availableZones.length)]
     const isSecret = context.cardsPlacedThisRound === 1
     
     return {
@@ -285,15 +296,19 @@ class PowerStrategy extends AIStrategy {
     
     if (context.hand.length === 0) return null
     
+    // Фильтруем зоны, которые не заполнены
+    const availableZones = context.zones.filter(zone => zone.aiCards.length < MAX_CARDS_PER_SIDE)
+    if (availableZones.length === 0) return null
+    
     const sortedHand = [...context.hand].sort((a, b) => getCardBasePower(b) - getCardBasePower(a))
     const card = sortedHand[0]
     
-    const zoneScores = context.zones.map(zone => ({
+    const zoneScores = availableZones.map(zone => ({
       zone,
       score: zone.playerCards.length + zone.aiCards.length
     }))
     zoneScores.sort((a, b) => a.score - b.score)
-    const zone = zoneScores[0]?.zone || context.zones[0]
+    const zone = zoneScores[0]?.zone || availableZones[0]
     
     const isSecret = context.cardsPlacedThisRound === 1
     
@@ -319,6 +334,8 @@ class StrategicStrategy extends AIStrategy {
     for (const card of context.hand) {
       for (const zone of context.zones) {
         const evalResult = evaluateZoneCardCombo(card, zone, isSecret, context)
+        // Пропускаем решения с отрицательным баллом (зона заполнена)
+        if (evalResult.score < 0) continue
         decisions.push({
           card,
           zoneId: zone.id,
@@ -388,12 +405,17 @@ class AdaptiveStrategy extends AIStrategy {
 
     this.log(`Анализ зон: Лидируем: ${winningZones.length}, Отстаем: ${losingZones.length}, Спорные: ${contestedZones.length}`, "detailed")
 
+    // Если уже лидируем в 1+ зонах, приоритизируем захват второй вместо укрепления первой
+    const alreadyHaveWinningZone = winningZones.length >= 1
+
     const candidates: Array<{ card: Card; zoneId: string; score: number; reasoning: string }> = []
     const isSecret = context.cardsPlacedThisRound === 1
 
     for (const card of context.hand) {
       for (const zoneState of zoneStates) {
         const evaluation = evaluateZoneCardCombo(card, zoneState.zone, isSecret, context)
+        // Пропускаем решения с отрицательным баллом (зона заполнена)
+        if (evaluation.score < 0) continue
         let finalScore = evaluation.score
 
         // Оцениваем потенциальную силу карты в этой зоне
@@ -417,11 +439,14 @@ class AdaptiveStrategy extends AIStrategy {
             finalScore += 50
           }
         } else if (zoneState.status === "winning") {
-          // Защищаем лидирующую зону картами Стража (Guard)
-          if (getCardRole(card) === "guard") {
-            finalScore += 40
-          } else if (getCardRole(card) === "vanguard") {
-            finalScore -= 15 // Придерживаем атакующие карты для трудных линий
+          // Если уже есть выигранная зона, штрафуем за укрепление ещё одной
+          // Нужно захватить 2 зоны, а не укреплять одну
+          if (alreadyHaveWinningZone) {
+            finalScore -= 60 // Сильный штраф за "жадность" к одной зоне
+            this.log(`Штраф за укрепление уже выигранной зоны ${zoneState.zone.nameRu} (нужна вторая зона)`, "detailed")
+          } else {
+            // Первую выигранную зону можно укреплять, но без бонусов за роль
+            // Все роли работают одинаково для защиты
           }
         } else {
           // Равный бой — повышаем значимость зоны для закрепления преимущества
