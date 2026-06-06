@@ -7,8 +7,9 @@ import { Card, Dungeon, Enemy, BattleProgress, BattleLog, CCGBattleState, Battle
 import { getCardRole, getCardProvision, calculateCardPowerOnZone, getCardBasePower, computeDeckSynergies } from "../utils"
 import { PROVISION_LIMIT, DECK_SIZE, TERRITORY_MODIFIERS, FormationId, MAX_CARDS_PER_SIDE } from "../config"
 import { Rarity } from "@/types/gacha"
-import { getAIDeckForDungeon, getRandomMarketDeck } from "../ai-decks"
+import { getAIDeckForDungeon, getRandomMarketDeck, generateAdaptiveAIDeck } from "../ai-decks"
 import { createAI, createAIDecisionContext, AIConfig } from "../ai"
+import { recordPlayerBattle, getAdaptiveLearning } from "../ai/adaptive-learning"
 
 // Helper function to preload card images in background
 const preloadCardImages = (cards: Card[]) => {
@@ -50,6 +51,7 @@ export function useBattleData() {
   const [selectedDungeon, setSelectedDungeon] = useState<Dungeon | null>(null)
   const [leaderId, setLeaderId] = useState<string | null>(null)
   const [formation, setFormation] = useState<FormationId>("balance")
+  const [isInitializing, setIsInitializing] = useState(true)
 
   const [battleState, setBattleState] = useState<"idle" | "loading" | "battle" | "result">("idle")
   
@@ -80,7 +82,7 @@ export function useBattleData() {
 
   const loadBattleData = useCallback(async () => {
     if (!user) return
-    
+
     try {
       const accessToken = session?.access_token
       if (!accessToken) return
@@ -92,10 +94,25 @@ export function useBattleData() {
         setDungeons(data.dungeons || [])
         setEnemies(data.enemies)
         setLogs(data.logs || [])
+      }
 
+      // Load saved deck
+      const deckRes = await fetch('/api/battle/deck', { headers: { 'Authorization': `Bearer ${accessToken}` } })
+      if (deckRes.ok) {
+        const deckData = await deckRes.json()
+        console.log('[BattlePage] Loaded deck from API:', deckData)
+        if (deckData.formation) {
+          setFormation(deckData.formation)
+        }
+        if (deckData.leader_id) {
+          setLeaderId(deckData.leader_id)
+        }
+        // Cards will be loaded separately and matched with saved IDs
       }
     } catch (err) {
       console.error('[BattlePage] Error loading battle data:', err)
+    } finally {
+      setIsInitializing(false)
     }
   }, [user, session])
 
@@ -207,47 +224,58 @@ export function useBattleData() {
   }, [user, sessionLoading, loadBattleData, loadUserCards])
 
   // Save leaderId and formation to API when they change
-  const saveDeckToAPI = useCallback(async () => {
-    if (!user || !session) return
+  const saveDeckToAPI = useCallback(async (cardIds?: string[], currentLeaderId?: string | null, currentFormation?: FormationId) => {
+    if (!user || !session || isInitializing) return
     try {
-      await fetch('/api/battle/deck', {
+      const cardsToSave = cardIds || selectedCards.map(c => c.uniqueId)
+      const leaderToSave = currentLeaderId !== undefined ? currentLeaderId : leaderId
+      const formationToSave = currentFormation !== undefined ? currentFormation : formation
+
+      console.log('[BattlePage] Saving deck to API:', { leaderId: leaderToSave, formation: formationToSave, cardCount: cardsToSave.length })
+      const res = await fetch('/api/battle/deck', {
         method: 'POST',
-        headers: { 
+        headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${session.access_token}`
         },
         body: JSON.stringify({
-          card_ids: selectedCards.map(c => c.uniqueId),
-          leader_id: leaderId,
-          formation
+          card_ids: cardsToSave,
+          leader_id: leaderToSave,
+          formation: formationToSave
         })
       })
+      if (!res.ok) {
+        const error = await res.json()
+        console.error('[BattlePage] API Error saving deck:', error)
+      } else {
+        console.log('[BattlePage] Deck saved successfully')
+      }
     } catch (err) {
       console.error('[BattlePage] Error saving deck to API:', err)
     }
-  }, [user, session, selectedCards, leaderId, formation])
+  }, [user, session, isInitializing, selectedCards, leaderId, formation])
 
   useEffect(() => {
-    if (user) {
+    if (user && !isInitializing) {
       // Save to localStorage as fallback
       if (leaderId) {
         localStorage.setItem(`battle_leader_${user.id}`, leaderId)
       } else {
         localStorage.removeItem(`battle_leader_${user.id}`)
       }
-      // Save to API
-      saveDeckToAPI()
+      // Save to API with current values
+      saveDeckToAPI(undefined, leaderId, undefined)
     }
-  }, [leaderId, user, saveDeckToAPI])
+  }, [leaderId, user, isInitializing, saveDeckToAPI])
 
   useEffect(() => {
-    if (user) {
+    if (user && !isInitializing) {
       // Save to localStorage as fallback
       localStorage.setItem(`battle_formation_${user.id}`, formation)
-      // Save to API
-      saveDeckToAPI()
+      // Save to API with current values
+      saveDeckToAPI(undefined, undefined, formation)
     }
-  }, [formation, user, saveDeckToAPI])
+  }, [formation, user, isInitializing, saveDeckToAPI])
 
   // Timer for stamina recovery countdown
   useEffect(() => {
@@ -322,13 +350,15 @@ export function useBattleData() {
         }
         if (user) {
           localStorage.setItem(`battle_deck_${DECK_SIZE}_${user.id}`, JSON.stringify(next.map(c => c.uniqueId)))
-          // Save to API
-          saveDeckToAPI()
+          // Save to API with current card IDs (only if deck is not empty)
+          if (next.length > 0) {
+            saveDeckToAPI(next.map(c => c.uniqueId))
+          }
         }
         return next
       }
       if (prev.length >= DECK_SIZE) return prev
-      
+
       const next = [...prev, card]
       const totalProv = next.reduce((acc: number, c: Card) => acc + (c.provisionCost || getCardProvision(c)), 0)
       if (totalProv > PROVISION_LIMIT) {
@@ -336,11 +366,11 @@ export function useBattleData() {
       } else {
         setError(null)
       }
-      
+
       if (user) {
         localStorage.setItem(`battle_deck_${DECK_SIZE}_${user.id}`, JSON.stringify(next.map(c => c.uniqueId)))
-        // Save to API
-        saveDeckToAPI()
+        // Save to API with current card IDs
+        saveDeckToAPI(next.map(c => c.uniqueId))
       }
       return next
     })
@@ -403,14 +433,35 @@ export function useBattleData() {
         predefinedDeck = getAIDeckForDungeon(dungeonTheme)
       }
 
-      // Initialize AI Engine with strategic strategy
+      // Apply adaptive deck generation if player has enough battle history
+      if (user) {
+        try {
+          const adaptiveLearning = getAdaptiveLearning(user.id)
+          const playstyleStats = adaptiveLearning.getPlaystyleStats()
+          
+          if (playstyleStats && playstyleStats.totalBattles >= 5) {
+            // Use adaptive deck with counter-picks against player's favorite cards
+            predefinedDeck = generateAdaptiveAIDeck(
+              playstyleStats.favoriteCards,
+              predefinedDeck,
+              PROVISION_LIMIT
+            )
+            console.log('[Battle] Using adaptive AI deck based on player playstyle')
+          }
+        } catch (err) {
+          console.error('[Battle] Error generating adaptive deck:', err)
+        }
+      }
+
+      // Initialize AI Engine with strategic strategy and adaptive learning
       aiEngineRef.current = createAI({
         strategy: "strategic",
         enableLogging: false, // Disable logging in production
         logLevel: "none",
         aggressiveness: 0.6,
         defensiveness: 0.4,
-        bluffChance: 0.3
+        bluffChance: 0.3,
+        userId: user?.id // Enable adaptive learning based on player's playstyle
       })
       
       const aiDeck = predefinedDeck
@@ -859,7 +910,7 @@ export function useBattleData() {
       }
     })
 
-    // Cross-zone modifiers: gravity_well and overdrive
+    // Cross-zone modifiers: gravity_well and overdrive (APPLIED BEFORE zone ownership calculation)
     console.log(`[Battle Round ${ccgState.round}] Applying cross-zone modifiers...`)
     nextZones.forEach((zone, index) => {
       if (zone.modifier.id === "gravity_well") {
@@ -875,13 +926,12 @@ export function useBattleData() {
         })
         zone.playerCards.forEach(zc => { zc.powerAfterModifier -= penalty })
         zone.aiCards.forEach(zc => { zc.powerAfterModifier -= penalty })
+        // Recalculate scores but DON'T set owner yet - will be calculated after all modifiers
         zone.playerScore = zone.playerCards.reduce((acc, c) => acc + c.powerAfterModifier, 0)
         zone.aiScore = zone.aiCards.reduce((acc, c) => acc + c.powerAfterModifier, 0)
-        zone.owner = zone.playerScore > zone.aiScore ? "player" : zone.aiScore > zone.playerScore ? "ai" : "none"
         console.log(`[Battle Round ${ccgState.round}] Gravity well after:`, {
           afterPlayerScore: zone.playerScore,
-          afterAiScore: zone.aiScore,
-          owner: zone.owner
+          afterAiScore: zone.aiScore
         })
       }
 
@@ -951,6 +1001,21 @@ export function useBattleData() {
       }
     })
 
+    // Final zone ownership calculation after all modifiers (including cross-zone)
+    console.log(`[Battle Round ${ccgState.round}] Final zone ownership calculation...`)
+    nextZones.forEach(zone => {
+      if (zone.modifier.id === "reversal_gate") {
+        zone.owner = zone.playerScore < zone.aiScore ? "player" : zone.aiScore < zone.playerScore ? "ai" : "none"
+      } else {
+        zone.owner = zone.playerScore > zone.aiScore ? "player" : zone.aiScore > zone.playerScore ? "ai" : "none"
+      }
+      console.log(`[Battle Round ${ccgState.round}] Zone ${zone.id} final ownership:`, {
+        playerScore: zone.playerScore,
+        aiScore: zone.aiScore,
+        owner: zone.owner
+      })
+    })
+
     const isMatchEnded = ccgState.round === 3
 
     if (!isMatchEnded) {
@@ -1010,12 +1075,45 @@ export function useBattleData() {
         victory = totalPlayerPower >= totalAIPower
       }
 
+      // Record battle statistics for adaptive AI learning (fire and forget)
+      if (user && selectedCards.length > 0) {
+        recordPlayerBattle(user.id, selectedCards, victory, selectedCards).catch(err => {
+          console.error('[Battle] Error recording battle for adaptive learning:', err)
+        })
+      }
+
       // Calculate MVP (Strongest Player card deployed on any zone)
       let mvpCard = { name: "Герой", power: 0 }
       nextZones.forEach(z => {
         z.playerCards.forEach(zc => {
           if (zc.powerAfterModifier > mvpCard.power) {
             mvpCard = { name: zc.card.name, power: zc.powerAfterModifier }
+          }
+        })
+      })
+
+      // Trigger animations for final round bonuses
+      console.log('[Battle Round 3] Triggering final round animations...')
+      nextZones.forEach(zone => {
+        triggerModifierActivation(zone.id)
+        zone.playerCards.forEach(zc => {
+          if ((zc.roleMatchupBonus || 0) > 0) {
+            triggerCardEffect(zc.card.uniqueId, 'knb-win')
+          } else if ((zc.roleMatchupBonus || 0) < 0) {
+            triggerCardEffect(zc.card.uniqueId, 'knb-loss')
+          }
+          if ((zc.synergyBonus || 0) > 0) {
+            triggerCardEffect(zc.card.uniqueId, 'synergy')
+          }
+        })
+        zone.aiCards.forEach(zc => {
+          if ((zc.roleMatchupBonus || 0) > 0) {
+            triggerCardEffect(zc.card.uniqueId, 'knb-win')
+          } else if ((zc.roleMatchupBonus || 0) < 0) {
+            triggerCardEffect(zc.card.uniqueId, 'knb-loss')
+          }
+          if ((zc.synergyBonus || 0) > 0) {
+            triggerCardEffect(zc.card.uniqueId, 'synergy')
           }
         })
       })

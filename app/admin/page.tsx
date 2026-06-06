@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState, useTransition } from "react"
-import { Users, Eye, Bookmark, User, Search, LogOut, Lock } from "lucide-react"
+import { Users, Eye, Bookmark, User, Search, LogOut, Lock, Brain, Sword, Shield } from "lucide-react"
 import Image from "next/image"
 import { ScrollToTop } from "@/components/layout/scroll-to-top"
 import { adminLogin, adminLogout, checkAdminAuth, getAdminUsers } from "./actions"
@@ -44,6 +44,16 @@ interface UserWithStats extends UserProfile {
   recentBookmarks: BookmarkItem[]
   allHistory: WatchHistoryItem[]
   allBookmarks: BookmarkItem[]
+  aiStats: {
+    total_battles: number
+    last_battle_date: string | null
+    favorite_cards: any[]
+    preferred_roles: Record<string, number>
+    preferred_rarities: Record<string, number>
+    avg_provision_cost: number
+    aggressive_rating: number
+    defensive_rating: number
+  } | null
 }
 
 export default function AdminPage() {
@@ -421,7 +431,130 @@ export default function AdminPage() {
                     </div>
                   )}
 
-                  {user.allHistory.length === 0 && user.allBookmarks.length === 0 && (
+                  {/* AI Learning Stats */}
+                  {user.aiStats && user.aiStats.total_battles > 0 && (
+                    <div>
+                      <h4 className="font-semibold text-foreground flex items-center gap-2 mb-3">
+                        <Brain size={16} />
+                        AI Learning Statistics
+                      </h4>
+                      <div className="bg-muted/50 rounded-lg p-4 space-y-4">
+                        {/* Basic Stats */}
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <p className="text-xs text-muted-foreground mb-1">Total Battles</p>
+                            <p className="text-lg font-semibold text-foreground">{user.aiStats.total_battles}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground mb-1">Last Battle</p>
+                            <p className="text-sm text-foreground">
+                              {user.aiStats.last_battle_date ? formatDate(user.aiStats.last_battle_date) : 'Never'}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Playstyle Ratings */}
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
+                              <Sword size={12} />
+                              Aggressive Rating
+                            </p>
+                            <div className="flex items-center gap-2">
+                              <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
+                                <div 
+                                  className="h-full bg-red-500 transition-all"
+                                  style={{ width: `${user.aiStats.aggressive_rating * 100}%` }}
+                                />
+                              </div>
+                              <span className="text-sm font-medium text-foreground">
+                                {(user.aiStats.aggressive_rating * 100).toFixed(0)}%
+                              </span>
+                            </div>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
+                              <Shield size={12} />
+                              Defensive Rating
+                            </p>
+                            <div className="flex items-center gap-2">
+                              <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
+                                <div 
+                                  className="h-full bg-blue-500 transition-all"
+                                  style={{ width: `${user.aiStats.defensive_rating * 100}%` }}
+                                />
+                              </div>
+                              <span className="text-sm font-medium text-foreground">
+                                {(user.aiStats.defensive_rating * 100).toFixed(0)}%
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Preferred Roles */}
+                        <div>
+                          <p className="text-xs text-muted-foreground mb-2">Preferred Roles</p>
+                          <div className="flex gap-2 flex-wrap">
+                            {Object.entries(user.aiStats.preferred_roles).map(([role, count]) => (
+                              count > 0 && (
+                                <span key={role} className="px-2 py-1 bg-primary/20 text-primary text-xs rounded capitalize">
+                                  {role}: {count}
+                                </span>
+                              )
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Preferred Rarities */}
+                        <div>
+                          <p className="text-xs text-muted-foreground mb-2">Preferred Rarities</p>
+                          <div className="flex gap-2 flex-wrap">
+                            {Object.entries(user.aiStats.preferred_rarities)
+                              .sort(([, a], [, b]) => b - a)
+                              .slice(0, 5)
+                              .map(([rarity, count]) => (
+                                <span key={rarity} className="px-2 py-1 bg-secondary/50 text-foreground text-xs rounded capitalize">
+                                  {rarity}: {count}
+                                </span>
+                              ))}
+                          </div>
+                        </div>
+
+                        {/* Favorite Cards */}
+                        {user.aiStats.favorite_cards.length > 0 && (
+                          <div>
+                            <p className="text-xs text-muted-foreground mb-2">Top Favorite Cards</p>
+                            <div className="space-y-2 max-h-48 overflow-y-auto">
+                              {user.aiStats.favorite_cards.slice(0, 5).map((card: any) => (
+                                <div key={card.cardId} className="flex items-center justify-between p-2 bg-muted rounded">
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium text-foreground truncate">{card.cardName}</p>
+                                    <p className="text-xs text-muted-foreground">
+                                      {card.anime} • {card.rarity} • {card.role}
+                                    </p>
+                                  </div>
+                                  <div className="text-right ml-2">
+                                    <p className="text-sm font-semibold text-foreground">{card.usageCount}x</p>
+                                    <p className="text-xs text-muted-foreground">
+                                      WR: {(card.winRate * 100).toFixed(0)}%
+                                    </p>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Avg Provision Cost */}
+                        <div>
+                          <p className="text-xs text-muted-foreground mb-1">Average Provision Cost</p>
+                          <p className="text-lg font-semibold text-foreground">{user.aiStats.avg_provision_cost.toFixed(1)}</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {user.allHistory.length === 0 && user.allBookmarks.length === 0 && (!user.aiStats || user.aiStats.total_battles === 0) && (
                     <p className="text-center text-muted-foreground py-4">
                       No recent activity
                     </p>

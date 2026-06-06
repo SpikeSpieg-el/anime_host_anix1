@@ -74,9 +74,19 @@ export async function getAdminUsers() {
 
   if (bookmarksError) throw bookmarksError
 
+  const { data: aiStats, error: aiStatsError } = await supabase
+    .from("ai_learning_stats")
+    .select("*")
+
+  if (aiStatsError) {
+    console.error("Error fetching AI stats:", aiStatsError)
+    // Don't throw - continue without AI stats if table doesn't exist yet
+  }
+
   const usersWithStats = profiles.map((profile) => {
     const userHistory = watchHistory.filter((item) => item.user_id === profile.id)
     const userBookmarks = bookmarks.filter((item) => item.user_id === profile.id)
+    const userAIStats = aiStats?.find((stat) => stat.user_id === profile.id) || null
 
     const lastActivity = [
       ...userHistory.map((h) => h.created_at),
@@ -95,6 +105,7 @@ export async function getAdminUsers() {
       recentBookmarks: userBookmarks.slice(0, 5),
       allHistory: userHistory,
       allBookmarks: userBookmarks,
+      aiStats: userAIStats,
     }
   })
 

@@ -176,6 +176,16 @@ export const SelectedTeamPanel: React.FC<SelectedTeamPanelProps> = ({
     }
   }
 
+  // Calculate formation bonus for deck power display
+  let formationBonus = 0
+  selectedCards.forEach(card => {
+    const cardRole = card.role || getCardRole(card)
+    const formationConfig = FORMATION_CONFIG[formation]
+    if (formationConfig) {
+      formationBonus += formationConfig[cardRole] || 0
+    }
+  })
+
   return (
     <div className="w-full flex flex-col gap-4 p-2 sm:p-4">
       {/* Основной контейнер колоды */}
@@ -285,11 +295,15 @@ export const SelectedTeamPanel: React.FC<SelectedTeamPanelProps> = ({
                           ? `${f.bg} ${f.color} ${f.border} shadow-[0_0_10px_rgba(255,255,255,0.05)]`
                           : "bg-white/5 text-slate-400 border-transparent hover:bg-white/10"
                       }`}
+                      title={f.description}
                     >
                       {f.nameRu}
                     </button>
                   )
                 })}
+              </div>
+              <div className="mt-2 text-[9px] lg:text-xs text-slate-400 font-medium leading-tight">
+                {FORMATION_CONFIG[formation].description}
               </div>
             </div>
 
@@ -385,7 +399,7 @@ export const SelectedTeamPanel: React.FC<SelectedTeamPanelProps> = ({
                   <div className="text-[8px] lg:text-xs text-slate-500 uppercase font-black tracking-widest mb-0.5">Сила колоды</div>
                   <div className="text-lg lg:text-3xl font-black text-white flex items-center gap-1">
                     <Zap className="w-4 h-4 lg:w-6 lg:h-6 text-emerald-400" />
-                    {(selectedCards.reduce((acc, c) => acc + getCardBasePower(c), 0) + totalBonus + leaderAuraBonus).toLocaleString()}
+                    {(selectedCards.reduce((acc, c) => acc + getCardBasePower(c), 0) + totalBonus + leaderAuraBonus + formationBonus).toLocaleString()}
                   </div>
                 </div>
                 <div className="text-right space-y-1">
@@ -402,6 +416,14 @@ export const SelectedTeamPanel: React.FC<SelectedTeamPanelProps> = ({
                       <div className="text-[8px] lg:text-xs text-slate-500 uppercase font-black tracking-widest mb-0.5">Аура лидера</div>
                       <div className="text-xs lg:text-sm font-black text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/20">
                         +{leaderAuraBonus}
+                      </div>
+                    </div>
+                  )}
+                  {formationBonus !== 0 && (
+                    <div>
+                      <div className="text-[8px] lg:text-xs text-slate-500 uppercase font-black tracking-widest mb-0.5">Формация</div>
+                      <div className={`text-xs lg:text-sm font-black ${formationBonus > 0 ? 'text-cyan-400 bg-cyan-500/10 border-cyan-500/20' : 'text-rose-400 bg-rose-500/10 border-rose-500/20'} px-2 py-0.5 rounded-md border`}>
+                        {formationBonus > 0 ? '+' : ''}{formationBonus}
                       </div>
                     </div>
                   )}
@@ -532,9 +554,10 @@ export const SelectedTeamPanel: React.FC<SelectedTeamPanelProps> = ({
                   if (leaderRole === "trickster") return LEADER_AURA_VALUE
                   return leaderRole === role ? LEADER_AURA_VALUE : 0
                 })() : 0
-                
-                // Calculate formation bonus
-                const formationBonus = getDeckPowerModifier(card, { deck: selectedCards, leaderId, formation }, false)
+
+                // Calculate formation bonus directly from config
+                const formationConfig = FORMATION_CONFIG[formation]
+                const formationBonus = formationConfig ? (formationConfig[role] || 0) : 0
                 const totalBonus = totalSynergyBonus + leaderBonus + formationBonus
                 const totalCardPower = basePower + totalBonus
 
@@ -580,7 +603,7 @@ export const SelectedTeamPanel: React.FC<SelectedTeamPanelProps> = ({
               <div className="flex justify-between items-center">
                 <span className="text-xs font-medium text-slate-400">Итого</span>
                 <span className="text-sm font-bold text-emerald-400">
-                  {(selectedCards.reduce((acc, c) => acc + getCardBasePower(c), 0) + totalBonus + leaderAuraBonus).toLocaleString()}
+                  {(selectedCards.reduce((acc, c) => acc + getCardBasePower(c), 0) + totalBonus + leaderAuraBonus + formationBonus).toLocaleString()}
                 </span>
               </div>
             </div>

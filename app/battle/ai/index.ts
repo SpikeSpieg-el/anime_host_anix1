@@ -1,6 +1,7 @@
 import { Card, BattleZone, CardRole } from "../types"
 import { getCardRole, getCardBasePower, calculateCardPowerOnZone } from "../utils"
 import { MAX_CARDS_PER_SIDE } from "../config"
+import { getAdaptedAIConfig } from "./adaptive-learning"
 
 // ============================================================================
 // КОНФИГУРАЦИЯ AI
@@ -13,6 +14,7 @@ export interface AIConfig {
   aggressiveness?: number // 0-1, выше = более агрессивный
   defensiveness?: number // 0-1, выше = более защитный
   bluffChance?: number // 0-1, шанс сыграть слабую карту секретно
+  userId?: string // ID пользователя для адаптивного обучения
 }
 
 export const DEFAULT_AI_CONFIG: AIConfig = {
@@ -505,6 +507,13 @@ export class AIEngine {
   
   constructor(config: Partial<AIConfig> = {}) {
     this.config = { ...DEFAULT_AI_CONFIG, ...config }
+    
+    // Применяем адаптивную конфигурацию если указан userId
+    if (this.config.userId) {
+      const adaptedConfig = getAdaptedAIConfig(this.config.userId)
+      this.config = { ...this.config, ...adaptedConfig }
+    }
+    
     this.strategy = this.createStrategy()
   }
   

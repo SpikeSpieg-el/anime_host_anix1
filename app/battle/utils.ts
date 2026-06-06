@@ -136,38 +136,32 @@ export const computeDeckSynergies = (deck: Card[]): DeckSynergyResult => {
 // Combines synergies + leader aura + formation, clamped to keep influence modest.
 export const getDeckPowerModifier = (card: Card, ctx: DeckContext, wasSecret: boolean): number => {
   const { deck, leaderId, formation } = ctx
-  const role = card.role || getCardRole(card)
+  const cardRole = card.role || getCardRole(card)
 
   const synergy = computeDeckSynergies(deck)
-  let bonus = synergy.globalBonus + (synergy.roleAdjust[role] || 0)
+  let bonus = synergy.globalBonus + (synergy.roleAdjust[cardRole] || 0)
 
-  // Leader aura (added separately, not clamped)
-  let leaderBonus = 0
+  // Leader aura (bonus only to cards of the same role as leader)
   if (leaderId) {
     const leader = deck.find(c => c.uniqueId === leaderId)
     if (leader) {
       const leaderRole = leader.role || getCardRole(leader)
-      if (leaderRole === "vanguard" && role === "vanguard") leaderBonus += LEADER_AURA_VALUE
-      else if (leaderRole === "guard" && role === "guard") leaderBonus += LEADER_AURA_VALUE
-      else if (leaderRole === "trickster" && wasSecret) leaderBonus += LEADER_AURA_VALUE
+      if (leaderRole === cardRole) {
+        bonus += LEADER_AURA_VALUE
+      }
     }
   }
 
-  // Formation
+  // Formation (role-specific bonus)
   if (formation && FORMATION_CONFIG[formation as FormationId]) {
-    const f = FORMATION_CONFIG[formation as FormationId]
-    bonus += f.all
-    if (wasSecret) bonus += f.secret
-    else bonus += f.open
-    if (role === "guard") bonus += f.guard
-    if (role === "trickster") bonus += f.trickster
+    const formationConfig = FORMATION_CONFIG[formation as FormationId]
+    bonus += formationConfig[cardRole] || 0
   }
 
-  // Clamp synergies + formation only (leader aura is always applied)
+  // Clamp total bonus
   bonus = Math.max(SYNERGY_TOTAL_FLOOR, Math.min(SYNERGY_TOTAL_CAP, bonus))
 
-  // Add leader aura on top (no clamp)
-  return bonus + leaderBonus
+  return bonus
 }
 
 // KNB (Rock-Paper-Scissors) Matchup calculation

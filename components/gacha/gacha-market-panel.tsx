@@ -2,12 +2,13 @@
 
 import { useCallback, useEffect, useState, useRef, useMemo } from "react"
 import Image from "next/image"
-import { Loader2, ShoppingCart, XCircle, Store, RefreshCcw, ZoomIn, ExternalLink, X, Trash, Crown, Star, Filter, ChevronDown, Search } from "lucide-react"
+import { Loader2, ShoppingCart, XCircle, Store, RefreshCcw, ZoomIn, ExternalLink, X, Trash, Crown, Star, Filter, ChevronDown, Search, Swords } from "lucide-react"
 import type { Card } from "@/app/gacha/page"
 import { rarityConfig, type Rarity } from "@/types/gacha"
 import { useAuth } from "@/components/auth/auth-provider"
 import { supabase } from "@/lib/supabase"
 import { frameNames, coatingNames, FrameOverlay, CoatingOverlay } from "@/components/gacha/card-modifiers"
+import { getCardBasePower, getCardProvision } from "@/app/battle/utils"
 
 type MarketListingApi = {
   listingId: string
@@ -23,6 +24,8 @@ type MarketFilters = {
   minPrice: number
   maxPrice: number
   minScore: number
+  minPower: number
+  maxWeight: number
   anime: string
   isMainCharacter: boolean | null
 }
@@ -296,16 +299,21 @@ const InteractiveCard = ({ card, forceFlipped = false }: { card: MarketListingAp
       </div>
 
       {/* BACK SIDE (STATS) */}
-      <div 
+      <div
         className={`absolute inset-0 rounded-[1.5rem] sm:rounded-[2rem] md:rounded-[2.5rem] p-5 sm:p-6 md:p-8 flex flex-col justify-between border-[3px] sm:border-4 ${rarityConfig[card.rarity].bg} ${rarityConfig[card.rarity].glow}`}
-        style={{ 
-          backfaceVisibility: "hidden", 
+        style={{
+          backfaceVisibility: "hidden",
           transform: "rotateY(180deg)",
           borderColor: `rgba(${rarityConfig[card.rarity].rgb}, 0.5)`
         }}
       >
+        <div className="absolute top-3 right-3 sm:top-4 sm:right-4 md:top-5 md:right-5 flex items-center gap-1.5 z-20">
+          <span className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-wider">вес</span>
+          <span className="text-sm sm:text-base font-black text-violet-400">{getCardProvision(card)}</span>
+        </div>
+
         <div className={`absolute inset-0 opacity-10 ${rarityConfig[card.rarity].fx}`} />
-        
+
         <div className="relative z-10 space-y-4 sm:space-y-6">
           <div className="text-center pb-3 sm:pb-4 border-b border-white/10">
             <p className={`text-[9px] sm:text-[10px] md:text-[11px] font-black uppercase tracking-widest bg-gradient-to-r ${rarityConfig[card.rarity].color} bg-clip-text text-transparent mb-1`}>
@@ -324,10 +332,15 @@ const InteractiveCard = ({ card, forceFlipped = false }: { card: MarketListingAp
         </div>
 
         <div className="relative z-10 text-center space-y-3">
-           <div className="w-12 sm:w-14 h-12 sm:h-14 mx-auto rounded-full border-2 border-white/10 flex items-center justify-center bg-white/5 backdrop-blur-sm shadow-xl">
-              <RefreshCcw className="w-5 sm:w-6 h-5 sm:h-6 text-white/40" />
-           </div>
-           <p className="text-[8px] sm:text-[9px] font-black text-white/40 uppercase tracking-widest leading-tight">Нажмите чтобы перевернуть</p>
+          <div className="flex items-center justify-center gap-2">
+            <Swords className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400" />
+            <span className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-wider">Общая сила</span>
+            <span className="text-sm sm:text-base font-black text-amber-300">{getCardBasePower(card)}</span>
+          </div>
+          <div className="w-12 sm:w-14 h-12 sm:h-14 mx-auto rounded-full border-2 border-white/10 flex items-center justify-center bg-white/5 backdrop-blur-sm shadow-xl">
+             <RefreshCcw className="w-5 sm:w-6 h-5 sm:h-6 text-white/40" />
+          </div>
+          <p className="text-[8px] sm:text-[9px] font-black text-white/40 uppercase tracking-widest leading-tight">Нажмите чтобы перевернуть</p>
         </div>
       </div>
     </div>
@@ -355,6 +368,8 @@ export function GachaMarketPanel({
     minPrice: 0,
     maxPrice: 10000000,
     minScore: 0,
+    minPower: 0,
+    maxWeight: 15,
     anime: "",
     isMainCharacter: null
   })
@@ -368,38 +383,48 @@ export function GachaMarketPanel({
   const filteredListings = useMemo(() => {
     return listings.filter(listing => {
       const card = listing.card
-      
+
       // Search filter
-      if (filters.search && !card.name.toLowerCase().includes(filters.search.toLowerCase()) && 
+      if (filters.search && !card.name.toLowerCase().includes(filters.search.toLowerCase()) &&
           !card.anime.toLowerCase().includes(filters.search.toLowerCase())) {
         return false
       }
-      
+
       // Rarity filter
       if (filters.rarity.length > 0 && !filters.rarity.includes(card.rarity)) {
         return false
       }
-      
+
       // Price filter
       if (listing.price < filters.minPrice || listing.price > filters.maxPrice) {
         return false
       }
-      
+
       // Score filter
       if (card.score < filters.minScore) {
         return false
       }
-      
+
+      // Power filter
+      if (getCardBasePower(card) < filters.minPower) {
+        return false
+      }
+
+      // Weight filter
+      if (getCardProvision(card) > filters.maxWeight) {
+        return false
+      }
+
       // Anime filter
       if (filters.anime && card.anime !== filters.anime) {
         return false
       }
-      
+
       // Main character filter
       if (filters.isMainCharacter !== null && card.isMainCharacter !== filters.isMainCharacter) {
         return false
       }
-      
+
       return true
     })
   }, [listings, filters])
@@ -444,6 +469,8 @@ export function GachaMarketPanel({
       minPrice: 0,
       maxPrice: 10000000,
       minScore: 0,
+      minPower: 0,
+      maxWeight: 15,
       anime: "",
       isMainCharacter: null
     })
@@ -458,12 +485,14 @@ export function GachaMarketPanel({
     }))
   }
 
-  const hasActiveFilters = filters.search || 
-    filters.rarity.length > 0 || 
-    filters.minPrice > 0 || 
-    filters.maxPrice < 10000000 || 
-    filters.minScore > 0 || 
-    filters.anime || 
+  const hasActiveFilters = filters.search ||
+    filters.rarity.length > 0 ||
+    filters.minPrice > 0 ||
+    filters.maxPrice < 10000000 ||
+    filters.minScore > 0 ||
+    filters.minPower > 0 ||
+    filters.maxWeight < 15 ||
+    filters.anime ||
     filters.isMainCharacter !== null
 
   const buy = async (listingId: string, price: number, name: string) => {
@@ -671,6 +700,33 @@ export function GachaMarketPanel({
               />
             </div>
 
+            {/* Min Power */}
+            <div className="space-y-2">
+              <label className="text-xs font-black text-slate-500 uppercase tracking-wider">Мин. сила</label>
+              <input
+                type="number"
+                placeholder="0"
+                min="0"
+                value={filters.minPower || ""}
+                onChange={(e) => setFilters(prev => ({ ...prev, minPower: parseInt(e.target.value) || 0 }))}
+                className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
+              />
+            </div>
+
+            {/* Max Weight */}
+            <div className="space-y-2">
+              <label className="text-xs font-black text-slate-500 uppercase tracking-wider">Макс. вес</label>
+              <input
+                type="number"
+                placeholder="15"
+                min="0"
+                max="15"
+                value={filters.maxWeight < 15 ? filters.maxWeight : ""}
+                onChange={(e) => setFilters(prev => ({ ...prev, maxWeight: parseInt(e.target.value) || 15 }))}
+                className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
+              />
+            </div>
+
             {/* Anime Filter */}
             <div className="space-y-2">
               <label className="text-xs font-black text-slate-500 uppercase tracking-wider">Аниме</label>
@@ -825,6 +881,13 @@ export function GachaMarketPanel({
                 <div className="p-3 flex-1 flex flex-col gap-2">
                   <p className="text-[10px] sm:text-xs font-bold text-slate-300 uppercase truncate mb-0.5">★{c.score.toFixed(1)} {c.anime}</p>
                   <p className="text-sm font-black text-white truncate leading-tight">{c.name}</p>
+                  <div className="flex items-center gap-2 text-[10px]">
+                    <span className="text-slate-400 font-bold uppercase">Сила:</span>
+                    <span className="text-amber-300 font-black">{getCardBasePower(c)}</span>
+                    <span className="text-slate-500">|</span>
+                    <span className="text-slate-400 font-bold uppercase">Вес:</span>
+                    <span className="text-violet-400 font-black">{getCardProvision(c)}</span>
+                  </div>
                   <div
                     className="inline-flex items-center gap-2 w-fit px-2.5 py-1 rounded-full text-[11px] font-black border"
                     style={{

@@ -2,6 +2,7 @@ import { Card } from "./types"
 import { Rarity } from "@/types/gacha"
 import { RARITY_PROVISION_MAP, PROVISION_LIMIT, DECK_SIZE } from "./config"
 import { getCardRole } from "./utils"
+import { PlayerCardUsage } from "./ai/adaptive-learning"
 
 // ==========================================
 // AI DECK GENERATOR (Simulated Gacha Pulls)
@@ -292,6 +293,77 @@ export function getAIDeckForDungeon(theme: string): Card[] {
     return generateRandomAIDeck(0, PROVISION_LIMIT)
   }
   return deck
+}
+
+// Generate adaptive AI deck based on player's favorite cards (counter-pick strategy)
+export function generateAdaptiveAIDeck(
+  playerFavoriteCards: PlayerCardUsage[],
+  baseDeck: Card[],
+  targetProvision: number = PROVISION_LIMIT
+): Card[] {
+  if (playerFavoriteCards.length === 0) {
+    return baseDeck.slice(0, DECK_SIZE)
+  }
+
+  // Get counter roles for player's favorite cards
+  const counterRoles: string[] = []
+  const topFavorites = playerFavoriteCards.slice(0, 3)
+  
+  topFavorites.forEach(fav => {
+    if (fav.role === 'vanguard') counterRoles.push('guard')
+    if (fav.role === 'guard') counterRoles.push('trickster')
+    if (fav.role === 'trickster') counterRoles.push('vanguard')
+  })
+
+  // Filter base deck for cards with counter roles
+  const counterCards = baseDeck.filter(card => {
+    const cardRole = getCardRole(card)
+    return counterRoles.includes(cardRole)
+  })
+
+  // If we have enough counter cards, prioritize them
+  if (counterCards.length >= DECK_SIZE) {
+    // Sort by provision to fit within limit
+    counterCards.sort((a, b) => (b.provisionCost || 0) - (a.provisionCost || 0))
+    
+    const adaptiveDeck: Card[] = []
+    let totalProvision = 0
+    
+    for (const card of counterCards) {
+      if (adaptiveDeck.length >= DECK_SIZE) break
+      const cardProvision = card.provisionCost || RARITY_PROVISION_MAP[card.rarity]
+      if (totalProvision + cardProvision <= targetProvision) {
+        adaptiveDeck.push(card)
+        totalProvision += cardProvision
+      }
+    }
+    
+    // Fill remaining slots with random cards from base deck
+    while (adaptiveDeck.length < DECK_SIZE) {
+      const remainingCards = baseDeck.filter(c => !adaptiveDeck.includes(c))
+      if (remainingCards.length === 0) break
+      const randomCard = remainingCards[Math.floor(Math.random() * remainingCards.length)]
+      const cardProvision = randomCard.provisionCost || RARITY_PROVISION_MAP[randomCard.rarity]
+      if (totalProvision + cardProvision <= targetProvision) {
+        adaptiveDeck.push(randomCard)
+        totalProvision += cardProvision
+      }
+    }
+    
+    return adaptiveDeck
+  }
+
+  // Fallback: return base deck with some counter cards mixed in
+  const mixedDeck = [...baseDeck]
+  const counterCount = Math.min(counterCards.length, 2)
+  
+  // Replace some cards with counter cards
+  for (let i = 0; i < counterCount; i++) {
+    const randomIndex = Math.floor(Math.random() * mixedDeck.length)
+    mixedDeck[randomIndex] = counterCards[i]
+  }
+  
+  return mixedDeck.slice(0, DECK_SIZE)
 }
 
 // Get random market deck for daily market battles

@@ -104,15 +104,15 @@ export const SYNERGY_DEFINITIONS: Record<string, SynergyMeta> = {
   specialization: { nameRu: "Специализация", description: "4+ карт одной роли: бонус этой роли, штраф остальным.", color: "text-rose-300", bg: "bg-rose-500/10", border: "border-rose-500/20" },
 }
 
-// Leader aura: choosing a leader grants a soft role-based buff to the whole deck.
-export const LEADER_AURA_VALUE = 8
+// Leader aura: choosing a leader grants a passive buff to cards of the same role.
+export const LEADER_AURA_VALUE = 10
 export const LEADER_AURA_CONFIG: Record<string, { nameRu: string; description: string }> = {
-  vanguard: { nameRu: "Аура Авангарда", description: "+8 силы всем картам Авангард." },
-  guard: { nameRu: "Аура Стража", description: "+8 силы всем картам Страж." },
-  trickster: { nameRu: "Аура Плута", description: "Скрытые карты получают +8 при раскрытии." },
+  vanguard: { nameRu: "Аура Авангарда", description: "+10 силы картам Авангард." },
+  guard: { nameRu: "Аура Стража", description: "+10 силы картам Страж." },
+  trickster: { nameRu: "Аура Плута", description: "+10 силы картам Плут." },
 }
 
-// Formation: tactical stance applied to the whole deck during a match.
+// Formation: passive buff applied to the whole deck during a match.
 export type FormationId = "aggression" | "defense" | "balance"
 export interface FormationMeta {
   nameRu: string
@@ -120,28 +120,32 @@ export interface FormationMeta {
   color: string
   bg: string
   border: string
-  open: number
-  secret: number
+  vanguard: number
   guard: number
   trickster: number
-  all: number
 }
 
 export const FORMATION_CONFIG: Record<FormationId, FormationMeta> = {
   aggression: {
-    nameRu: "Агрессия", description: "Открытые карты +10, скрытые -6.",
+    nameRu: "Агрессия", description: "Авангард +15, Страж -5, Плут +5",
     color: "text-rose-300", bg: "bg-rose-500/10", border: "border-rose-500/20",
-    open: 10, secret: -6, guard: 0, trickster: 0, all: 0,
+    vanguard: 15,
+    guard: -5,
+    trickster: 5,
   },
   defense: {
-    nameRu: "Оборона", description: "Стражи +10, Плуты -5.",
+    nameRu: "Оборона", description: "Авангард -5, Страж +15, Плут +5",
     color: "text-blue-300", bg: "bg-blue-500/10", border: "border-blue-500/20",
-    open: 0, secret: 0, guard: 10, trickster: -5, all: 0,
+    vanguard: -5,
+    guard: 15,
+    trickster: 5,
   },
   balance: {
-    nameRu: "Баланс", description: "Все карты +5 (ровный профиль).",
+    nameRu: "Баланс", description: "Авангард +5, Страж +5, Плут +10",
     color: "text-emerald-300", bg: "bg-emerald-500/10", border: "border-emerald-500/20",
-    open: 0, secret: 0, guard: 0, trickster: 0, all: 5,
+    vanguard: 5,
+    guard: 5,
+    trickster: 10,
   },
 }
 

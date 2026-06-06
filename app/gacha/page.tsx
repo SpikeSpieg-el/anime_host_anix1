@@ -27,7 +27,7 @@ import { GachaSellMarketModal } from "@/components/gacha/gacha-sell-market-modal
 import { ChangeArtModal } from "@/components/gacha/change-art-modal"
 import { useAuth } from "@/components/auth/auth-provider"
 import { frameNames, coatingNames, FrameOverlay, CoatingOverlay } from "@/components/gacha/card-modifiers"
-import { getCardBasePower } from "@/app/battle/utils"
+import { getCardBasePower, getCardProvision } from "@/app/battle/utils"
 
 export interface CardStats {
   hp: number
@@ -727,7 +727,11 @@ const InteractiveCard = ({ card, forceFlipped = false }: { card: Card, forceFlip
           borderColor: `rgba(${rarityConfig[card.rarity].rgb}, 0.5)`
         }}
       >
-                
+        <div className="absolute top-3 right-3 sm:top-4 sm:right-4 md:top-5 md:right-5 flex items-center gap-1.5 z-20">
+          <span className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-wider">вес</span>
+          <span className="text-sm sm:text-base font-black text-violet-400">{getCardProvision(card)}</span>
+        </div>
+
         <div className="relative z-10 space-y-3 sm:space-y-6">
           <div className="text-center pb-2.5 sm:pb-4 border-b border-white/10">
             <p className={`text-[8px] sm:text-[10px] md:text-[11px] font-black uppercase tracking-widest bg-gradient-to-r ${rarityConfig[card.rarity].color} bg-clip-text text-transparent mb-1`}>
