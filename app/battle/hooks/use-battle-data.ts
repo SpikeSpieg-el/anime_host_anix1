@@ -60,6 +60,11 @@ export function useBattleData() {
   const [placedThisRound, setPlacedPlacedThisRound] = useState<{ cardId: string; zoneId: string; isSecret: boolean }[]>([])
   const [aiPlacedThisRound, setAiPlacedThisRound] = useState<{ cardId: string; zoneId: string; isSecret: boolean }[]>([])
   const [isRoundConfirmed, setIsRoundConfirmed] = useState(false)
+  const [placementCounter, setPlacementCounter] = useState(0) // Track actual placement count
+  const usedCardIdsRef = useRef<Set<string>>(new Set()) // Track all cards used across all rounds (ref for immediate updates)
+  
+  // PvP opponent deck context for calculating formation/synergy bonuses
+  const [opponentDeckContext, setOpponentDeckContext] = useState<DeckContext | null>(null)
 
   // Animation states
   const [cardEffects, setCardEffects] = useState<Map<string, { type: 'buff' | 'debuff' | 'synergy' | 'knb-win' | 'knb-loss' }>>(new Map())
@@ -338,6 +343,184 @@ export function useBattleData() {
     }, 1000)
   }, [])
 
+  // Update PvP round with new cards from server
+  const updatePvPRound = useCallback((newDeck: Card[], newRound?: number) => {
+    if (!ccgState) return
+    
+    console.log('[Battle] Updating PvP round with new deck:', newDeck.length, 'round:', newRound)
+    console.log('[Battle] New deck cards:', newDeck.map(c => ({ id: c.uniqueId, name: c.name })))
+    console.log('[Battle] Current hand before update:', ccgState.hand.map(c => ({ id: c.uniqueId, name: c.name })))
+    console.log('[Battle] Used card IDs:', Array.from(usedCardIdsRef.current))
+    
+    // Exclude cards that have been used in previous rounds
+    const availableDeck = newDeck.filter(card => !usedCardIdsRef.current.has(card.uniqueId))
+    console.log('[Battle] Available deck after filtering:', availableDeck.map(c => ({ id: c.uniqueId, name: c.name })))
+    
+    // Draw 4 cards for hand, rest stays in deck
+    const newHand = availableDeck.slice(0, 4)
+    const remainingDeck = availableDeck.slice(4)
+    
+    console.log('[Battle] New hand:', newHand.map(c => ({ id: c.uniqueId, name: c.name })))
+    console.log('[Battle] Remaining deck:', remainingDeck.map(c => ({ id: c.uniqueId, name: c.name })))
+    
+    setCcgState(prev => {
+      if (!prev) return null
+      return {
+        ...prev,
+        round: newRound ?? prev.round,
+        hand: newHand,
+        deck: remainingDeck,
+        phase: 'placement'
+      }
+    })
+    
+    // Reset placements
+    setPlacedPlacedThisRound([])
+    setAiPlacedThisRound([])
+    setPlacementCounter(0)
+    setIsRoundConfirmed(false)
+  }, [ccgState])
+
+  // Resolve PvP round using results from server
+  const resolvePvPRound = useCallback((results: any, isPlayer1: boolean) => {
+    if (!ccgState) return
+
+    console.log('[Battle] Resolving PvP round with results:', results, 'isPlayer1:', isPlayer1)
+    console.log('[Battle] Current zones before resolve:', ccgState.zones.map(z => ({
+      id: z.id,
+      playerCards: z.playerCards.map(zc => ({ id: zc.card.uniqueId, name: zc.card.name })),
+      aiCards: z.aiCards.map(zc => ({ id: zc.card.uniqueId, name: zc.card.name }))
+    })))
+
+    const userPlacements = isPlayer1 ? results.player1Placements : results.player2Placements
+    const opponentPlacements = isPlayer1 ? results.player2Placements : results.player1Placements
+
+    console.log('[Battle] User placements this round:', userPlacements?.map((p: any) => ({ cardId: p.cardId, zoneId: p.zoneId, isSecret: p.isSecret })))
+    console.log('[Battle] Opponent placements this round:', opponentPlacements?.map((p: any) => ({ cardId: p.cardId, zoneId: p.zoneId, isSecret: p.isSecret })))
+
+    const currentRoundPlacedIds = (userPlacements || []).map((p: any) => p.cardId)
+    const currentRoundOpponentPlacedIds = (opponentPlacements || []).map((p: any) => p.cardId)
+
+    // Add only player's placed cards to usedCardIds set (not opponent's cards)
+    currentRoundPlacedIds.forEach((id: string) => usedCardIdsRef.current.add(id))
+
+    const nextZones = ccgState.zones.map((zone, idx) => {
+      const zoneResult = results.zoneResults[idx]
+      const serverPlayerCards = isPlayer1 ? zoneResult.player1Cards : zoneResult.player2Cards
+      const serverOpponentCards = isPlayer1 ? zoneResult.player2Cards : zoneResult.player1Cards
+
+      // Keep existing cards from previous rounds, add/update with server data
+      const existingPlayerCards = zone.playerCards.filter(zc => !currentRoundPlacedIds.includes(zc.card.uniqueId))
+      const existingOpponentCards = zone.aiCards.filter(zc => !currentRoundOpponentPlacedIds.includes(zc.card.uniqueId))
+
+      const newPlayerCards = (serverPlayerCards || []).map((item: any) => {
+        return {
+          card: item.card,
+          isSecret: false, // All cards are revealed after round resolution
+          wasSecret: item.wasSecret,
+          powerAfterModifier: item.powerAfterModifier,
+          placementOrder: item.placementOrder ?? 0,
+          isPlayer: true,
+          roleMatchupBonus: item.roleMatchupBonus,
+          synergyBonus: item.synergyBonus
+        }
+      })
+
+      const newOpponentCards = (serverOpponentCards || []).map((item: any) => {
+        return {
+          card: item.card,
+          isSecret: false, // All cards are revealed after round resolution
+          wasSecret: item.wasSecret,
+          powerAfterModifier: item.powerAfterModifier,
+          placementOrder: item.placementOrder ?? 0,
+          isPlayer: false,
+          roleMatchupBonus: item.roleMatchupBonus,
+          synergyBonus: item.synergyBonus
+        }
+      })
+
+      return {
+        ...zone,
+        playerCards: [...existingPlayerCards, ...newPlayerCards],
+        aiCards: [...existingOpponentCards, ...newOpponentCards]
+      }
+    })
+
+    // Determine zone owners from server scores
+    const nextZonesWithOwners = nextZones.map((zone, idx) => {
+      const zoneResult = results.zoneResults[idx]
+      const p1Power = zoneResult?.player1Power ?? 0
+      const p2Power = zoneResult?.player2Power ?? 0
+      const playerPower = isPlayer1 ? p1Power : p2Power
+      const opponentPower = isPlayer1 ? p2Power : p1Power
+      const owner: 'player' | 'ai' | 'none' = playerPower > opponentPower ? 'player' : opponentPower > playerPower ? 'ai' : 'none'
+      return {
+        ...zone,
+        playerScore: playerPower,
+        aiScore: opponentPower,
+        owner
+      }
+    })
+
+    console.log('[Battle] Zones after resolve with cards:', nextZonesWithOwners.map(z => ({
+      id: z.id,
+      playerCards: z.playerCards.map(zc => ({ id: zc.card.uniqueId, name: zc.card.name })),
+      aiCards: z.aiCards.map(zc => ({ id: zc.card.uniqueId, name: zc.card.name }))
+    })))
+
+    const placedIds = (userPlacements || []).map((p: any) => p.cardId)
+    const nextHand = ccgState.hand.filter(c => !placedIds.includes(c.uniqueId))
+
+    setCcgState(prev => {
+      if (!prev) return null
+      return {
+        ...prev,
+        zones: nextZonesWithOwners,
+        hand: nextHand,
+        phase: "reveal",
+        roundHistory: [
+          ...prev.roundHistory,
+          {
+            round: prev.round,
+            playerActions: (userPlacements || []).map((p: any) => {
+              const c = prev.hand.find(card => card.uniqueId === p.cardId)
+              return { zoneId: p.zoneId, cardName: c?.name || "Герой", isSecret: p.isSecret }
+            }),
+            aiActions: (opponentPlacements || []).map((p: any) => {
+              const zc = nextZones.find(z => z.id === p.zoneId)
+              const cardInZone = zc?.aiCards.find((ac: any) => ac.card.uniqueId === p.cardId)?.card
+              return { zoneId: p.zoneId, cardName: cardInZone?.name || "Противник", isSecret: p.isSecret }
+            })
+          }
+        ]
+      }
+    })
+
+    setPlacedPlacedThisRound([])
+    setAiPlacedThisRound([])
+    setPlacementCounter(0)
+    setIsRoundConfirmed(false)
+    setError(null)
+  }, [ccgState])
+
+  // Resolve PvP match end using winner from server
+  const resolvePvPMatchEnd = useCallback((winnerId: string) => {
+    if (!user) return
+    const isWinner = winnerId === user.id
+    console.log('[Battle] Resolving PvP match end, winner:', winnerId, 'isUserWinner:', isWinner)
+    
+    // Do NOT recalculate scores — server data already set correct powers/synergies in zones.
+    // Just set victory flag and transition to finalizing phase.
+    setCcgState(prev => {
+      if (!prev) return null
+      return {
+        ...prev,
+        victory: isWinner,
+        phase: "finalizing"
+      }
+    })
+  }, [user])
+
   const toggleCardSelection = (card: Card) => {
     setSelectedCards(prev => {
       if (prev.some(c => c.uniqueId === card.uniqueId)) {
@@ -377,6 +560,97 @@ export function useBattleData() {
   }
 
   // CCG GAMEPLAY ACTIONS
+  // Start PvP Battle with match data from server
+  const startPvPBattle = (matchData: any) => {
+    console.log('[Battle] Starting PvP battle with match data:', matchData)
+    
+    try {
+      setError(null)
+      setPlacedPlacedThisRound([])
+      setAiPlacedThisRound([])
+      setPlacementCounter(0)
+      setIsRoundConfirmed(false)
+      usedCardIdsRef.current = new Set() // Reset used cards for new match
+
+      // Store opponent deck context for formation/synergy calculations
+      if (matchData.opponentDeck) {
+        const opponentDeck = matchData.opponentDeck.map((c: any) => ({
+          ...c,
+          role: getCardRole(c),
+          provisionCost: getCardProvision(c)
+        }))
+        setOpponentDeckContext({
+          deck: opponentDeck,
+          leaderId: matchData.opponentLeaderId,
+          formation: matchData.opponentFormation
+        })
+        console.log('[Battle] Opponent deck context set:', matchData.opponentFormation, matchData.opponentLeaderId)
+      }
+
+      console.log('[Battle] Mapping territories...', matchData.territories)
+      // Use territories from server
+      const zones: BattleZone[] = matchData.territories.map((territory: any, idx: number) => {
+        // Ensure modifier has correct structure
+        const modifier = territory.modifier || { 
+          nameRu: 'Нейтральная Территория',
+          effect: 'none'
+        }
+        
+        return {
+          id: `zone-${idx + 1}`,
+          name: `Линия ${idx + 1}`,
+          nameRu: territory.nameRu || modifier.nameRu || `Линия ${idx + 1}`,
+          modifier: modifier,
+          playerCards: [],
+          aiCards: [],
+          playerScore: 0,
+          aiScore: 0,
+          owner: "none"
+        }
+      })
+      console.log('[Battle] Zones created:', zones)
+
+      console.log('[Battle] Processing player deck...', matchData.yourDeck)
+      // Use deck from match data
+      const playerDeck = matchData.yourDeck.map((c: any) => ({
+        ...c,
+        role: getCardRole(c),
+        provisionCost: getCardProvision(c)
+      }))
+      console.log('[Battle] Player deck processed:', playerDeck)
+
+      // Draw initial hands (4 cards each)
+      const shuffledDeck = playerDeck.slice().sort(() => Math.random() - 0.5)
+      const hand = shuffledDeck.slice(0, 4)
+      const deck = shuffledDeck.slice(4)
+      console.log('[Battle] Hand drawn:', hand.length, 'cards, Deck remaining:', deck.length)
+
+      // Opponent's deck will be synchronized via WebSocket
+      // For now, initialize with empty arrays
+      const newCcgState = {
+        round: 1,
+        zones,
+        hand,
+        deck,
+        aiHand: [], // Will be hidden in PvP
+        aiDeck: [],
+        phase: "placement" as const,
+        victory: null,
+        roundHistory: []
+      }
+      console.log('[Battle] Setting CCG state:', newCcgState)
+      setCcgState(newCcgState)
+
+      console.log('[Battle] Setting battle state to "battle"')
+      setBattleState("battle")
+      console.log('[Battle] PvP battle initialization complete!')
+    } catch (error) {
+      console.error('[Battle] Error in startPvPBattle:', error)
+      setError('Ошибка инициализации PvP боя')
+      setBattleState("idle")
+    }
+  }
+
   const startBattle = async () => {
     if (selectedCards.length !== DECK_SIZE) {
       return setError(`Колода должна содержать ровно ${DECK_SIZE} карт! Сейчас: ${selectedCards.length}`)
@@ -398,6 +672,7 @@ export function useBattleData() {
     setBattleState("loading")
     setPlacedPlacedThisRound([])
     setAiPlacedThisRound([])
+    setPlacementCounter(0)
     setIsRoundConfirmed(false)
 
     try {
@@ -539,9 +814,11 @@ export function useBattleData() {
 
     setError(null)
     // 1st card in the round is OPEN (false isSecret), 2nd card is SECRET (true isSecret)
-    const isSecret = placedThisRound.length === 1
+    // Use placementCounter to track actual placement order, not array length
+    const isSecret = placementCounter === 1
 
     setPlacedPlacedThisRound(prev => [...prev, { cardId, zoneId, isSecret }])
+    setPlacementCounter(prev => prev + 1)
 
     // AI responds using new AI Engine
     const aiCardIndex = aiPlacedThisRound.length
@@ -615,14 +892,42 @@ export function useBattleData() {
   }
 
   // Confirm round placement, trigger reveal phase
-  const confirmRoundPlacement = () => {
-    if (!ccgState || placedThisRound.length < 2 || aiPlacedThisRound.length < 2) {
+  const confirmRoundPlacement = (isPvP?: boolean, pvpMatchId?: string, placeCards?: (matchId: string, placements: any[]) => void) => {
+    if (!ccgState || placedThisRound.length < 2) {
+      return setError("Вы должны разместить 2 карты!")
+    }
+
+    // In PvP mode, validate cards haven't been used before sending to server
+    if (isPvP) {
+      const duplicateCards = placedThisRound.filter(p => usedCardIdsRef.current.has(p.cardId))
+      if (duplicateCards.length > 0) {
+        return setError("Эти карты уже были использованы в предыдущих раундах!")
+      }
+    }
+
+    // In PvP mode, send placements to server and wait for opponent
+    if (isPvP && pvpMatchId && placeCards) {
+      console.log('[Battle] Sending PvP placements to server:', placedThisRound.map(p => ({ cardId: p.cardId, zoneId: p.zoneId, isSecret: p.isSecret })))
+      console.log('[Battle] Placement counter:', placementCounter)
+      placeCards(pvpMatchId, placedThisRound)
+      setIsRoundConfirmed(true)
+      setError("Ожидание хода противника...")
+      return
+    }
+
+    // PvE mode - check AI placements
+    if (aiPlacedThisRound.length < 2) {
       return setError("Оба игрока должны разместить по 2 карты!")
     }
 
     setError(null)
     setIsRoundConfirmed(true) // Блокируем изменения после подтверждения
-    const nextZones = ccgState.zones.map(z => ({ ...z, playerCards: [...z.playerCards], aiCards: [...z.aiCards] }))
+    // Deep copy zones to prevent mutation of original state
+    const nextZones = ccgState.zones.map(z => ({ 
+      ...z, 
+      playerCards: z.playerCards.map(zc => ({ ...zc, card: { ...zc.card } })),
+      aiCards: z.aiCards.map(zc => ({ ...zc, card: { ...zc.card } }))
+    }))
 
     // Track placement order per zone
     const zoneCardCounts: Record<string, number> = {}
@@ -642,7 +947,8 @@ export function useBattleData() {
             isSecret: p.isSecret,
             wasSecret: p.isSecret,
             powerAfterModifier: getCardBasePower(card), // temporary before reveal logic
-            placementOrder: currentOrder
+            placementOrder: currentOrder,
+            isPlayer: true
           })
           zoneCardCounts[p.zoneId] = currentOrder + 1
         }
@@ -665,7 +971,8 @@ export function useBattleData() {
             isSecret: p.isSecret,
             wasSecret: p.isSecret,
             powerAfterModifier: getCardBasePower(card),
-            placementOrder: currentOrder
+            placementOrder: currentOrder,
+            isPlayer: false
           })
           zoneCardCounts[p.zoneId] = currentOrder + 1
         }
@@ -704,6 +1011,7 @@ export function useBattleData() {
 
     setPlacedPlacedThisRound([])
     setAiPlacedThisRound([])
+    setPlacementCounter(0)
   }
 
   // Calculates card powers and zone scores without transitioning to next round
@@ -722,9 +1030,17 @@ export function useBattleData() {
         modifier: zone.modifier.id
       })
 
-      // Reveal all secret cards
-      const playerCards = zone.playerCards.map(zc => ({ ...zc, isSecret: false }))
-      const aiCards = zone.aiCards.map(zc => ({ ...zc, isSecret: false }))
+      // Reveal all secret cards - deep copy to prevent mutation of original state
+      const playerCards = zone.playerCards.map(zc => ({ 
+        ...zc, 
+        isSecret: false,
+        card: { ...zc.card } // deep copy card object
+      }))
+      const aiCards = zone.aiCards.map(zc => ({ 
+        ...zc, 
+        isSecret: false,
+        card: { ...zc.card } // deep copy card object
+      }))
 
       // Provocation Point: Guard secret cards force-reveal enemy secret cards on the same zone
       if (zone.modifier.id === "provocation_point") {
@@ -1053,10 +1369,12 @@ export function useBattleData() {
 
       const drawnPlayerCards = ccgState.deck.slice(0, cardsToDraw)
       const remainingDeck = ccgState.deck.slice(cardsToDraw)
+      // Add new cards to remaining hand (2 cards left + 2 new = 4 cards total)
       const nextHand = [...ccgState.hand, ...drawnPlayerCards]
 
       const drawnAICards = ccgState.aiDeck.slice(0, cardsToDraw)
       const remainingAIDeck = ccgState.aiDeck.slice(cardsToDraw)
+      // Add new cards to remaining AI hand (2 cards left + 2 new = 4 cards total)
       const nextAIHand = [...ccgState.aiHand, ...drawnAICards]
 
       setCcgState(prev => {
@@ -1077,7 +1395,9 @@ export function useBattleData() {
       // Reset placement tracking for new round
       setPlacedPlacedThisRound([])
       setAiPlacedThisRound([])
+      setPlacementCounter(0)
       setIsRoundConfirmed(false)
+      setError(null)
     } else {
       // Determine match winner based on Zone ownership
       let playerZonesWon = 0
@@ -1173,7 +1493,7 @@ export function useBattleData() {
     }
   }
 
-  const finishBattle = async () => {
+  const finishBattle = async (isPvPMode: boolean = false) => {
     setIsFinishing(true)
     try {
       // Transition from finalizing to ended phase to show results modal
@@ -1187,8 +1507,13 @@ export function useBattleData() {
         })
       }
 
-      // Process rewards and API calls in background
-      if (ccgState && ccgState.victory) {
+      // In PvP mode, transition to result state immediately
+      if (isPvPMode) {
+        setBattleState("result")
+      }
+
+      // Process rewards and API calls in background (PvE only)
+      if (!isPvPMode && ccgState && ccgState.victory) {
         const token = session?.access_token
         if (token) {
           try {
@@ -1285,6 +1610,7 @@ export function useBattleData() {
     selectedRole,
     setSelectedRole,
     sortBy,
+    opponentDeckContext,
     // Animation states and functions
     cardEffects,
     destroyingCards,
@@ -1300,10 +1626,14 @@ export function useBattleData() {
     staminaTime,
     toggleCardSelection,
     startBattle,
+    startPvPBattle,
     finishBattle,
     closeBattleResult,
     isFinishing,
     teamPower,
     filteredCards,
+    updatePvPRound,
+    resolvePvPRound,
+    resolvePvPMatchEnd,
   }
 }

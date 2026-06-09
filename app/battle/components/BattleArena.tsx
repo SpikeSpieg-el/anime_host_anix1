@@ -3,7 +3,7 @@ import { Swords, ArrowRight, BookOpen, Clock, Zap, X, TrendingUp, Crown } from "
 import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, DragMoveEvent, useDraggable, useDroppable, pointerWithin, PointerSensor, useSensor, useSensors } from "@dnd-kit/core"
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable"
 import { BattleZone, CCGBattleState, CardRole, Card, DeckContext } from "../types"
-import { getCardBasePower, getCardRole, getDeckPowerModifier, getTerritoryBuff } from "../utils"
+import { getCardBasePower, getCardRole, getDeckPowerModifier, getTerritoryBuff, calculateCardPowerOnZone } from "../utils"
 import { BattleCard } from "./BattleCard"
 import { rarityConfig } from "@/types/gacha"
 
@@ -188,16 +188,20 @@ interface BattleArenaProps {
   recallCard: (cardId: string) => void
   reorganizeHand: (oldIndex: number, newIndex: number) => void
   moveCardBetweenZones: (cardId: string, newZoneId: string) => void
-  confirmRoundPlacement: () => void
+  confirmRoundPlacement: (isPvP?: boolean, pvpMatchId?: string, placeCards?: (matchId: string, placements: any[]) => void) => void
   nextRound: () => void
   updateScores: () => void
-  finishBattle: () => void
+  finishBattle: (isPvPMode?: boolean) => void
   setBattleState: (state: "idle" | "loading" | "battle" | "result") => void
   deckContext?: DeckContext
+  opponentDeckContext?: DeckContext | null
   onCardEffect?: (cardId: string, type: 'buff' | 'debuff' | 'synergy' | 'knb-win' | 'knb-loss') => void
   onCardDestroy?: (cardId: string) => void
   onModifierActivate?: (zoneId: string) => void
   onFloatingText?: (text: string, x: number, y: number, isPositive: boolean) => void
+  isPvPMode?: boolean
+  pvpMatchId?: string
+  placeCards?: (matchId: string, placements: any[]) => void
 }
 
 export const BattleArena: React.FC<BattleArenaProps> = ({
@@ -215,10 +219,14 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
   finishBattle,
   setBattleState,
   deckContext,
+  opponentDeckContext,
   onCardEffect,
   onCardDestroy,
   onModifierActivate,
   onFloatingText,
+  isPvPMode,
+  pvpMatchId,
+  placeCards,
 }) => {
   const [showRules, setShowRules] = useState(false)
   const [activeTerrain, setActiveTerrain] = useState<{ nameRu: string; description: string } | null>(null)
@@ -299,6 +307,10 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
       animationTimeoutRef.current = setTimeout(() => {
         setZoneAnimations(new Set())
         
+        // In PvP mode, round transitions and score calculation are driven by the server.
+        // Client must NOT recalculate powers here — it would overwrite correct server values.
+        if (isPvPMode) return
+
         // Автоматический подсчёт после завершения анимации открытия
         if (ccgState.round < 3) {
           // Раунды 1-2: автоматический переход к следующему
@@ -396,15 +408,51 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
     }
   }
 
-  const handleCardView = (card: any, isPlayer: boolean, power?: number, bonus?: number, isSecret?: boolean, synergyBonus?: number, wasSecret?: boolean, zoneModifier?: any) => {
+  const handleCardView = (card: any, isPlayer: boolean, power?: number, bonus?: number, isSecret?: boolean, synergyBonus?: number, wasSecret?: boolean, zoneModifier?: any, zoneCards?: any[], isHandCard?: boolean) => {
     if (isSecret) return 
     
+    // Use correct deck context based on card ownership
+    // Player cards use player's deck context, opponent cards use opponent's deck context
+    const cardDeckContext = isPlayer ? deckContext : opponentDeckContext
+    
+    // In PvP mode, server already includes synergy+leader+formation inside synergyBonus.
+    // Don't recalculate formationBonus client-side to avoid double-counting and desync.
     let formationBonus = 0
-    if (isPlayer && deckContext) {
-      formationBonus = getDeckPowerModifier(card, deckContext, wasSecret || false)
+    if (cardDeckContext && !isPvPMode) {
+      formationBonus = getDeckPowerModifier(card, cardDeckContext, wasSecret || false)
+    }
+
+    // Calculate full power with territory modifier if zone context is available
+    // In PvP mode, use server-calculated values for zone cards (not hand cards)
+    // to avoid desync between what player sees and what enemy sees
+    let calculatedPower = power
+    let calculatedBonus = bonus
+    let calculatedSynergy = synergyBonus
+
+    if (zoneModifier && zoneCards && !isHandCard && !isPvPMode) {
+      // Only recalculate in PvE mode - PvP uses server values
+      const enemyCards = isPlayer ? zoneCards.filter((zc: any) => zc.isPlayer === false) : zoneCards.filter((zc: any) => zc.isPlayer === true)
+      const playerCards = isPlayer ? zoneCards.filter((zc: any) => zc.isPlayer === true) : zoneCards.filter((zc: any) => zc.isPlayer === false)
+      
+      const result = calculateCardPowerOnZone(
+        card,
+        zoneModifier.id,
+        enemyCards,
+        playerCards,
+        true,
+        wasSecret || false,
+        isPlayer,
+        0,
+        100,
+        cardDeckContext || undefined
+      )
+      
+      calculatedPower = result.power
+      calculatedBonus = result.roleMatchupBonus
+      calculatedSynergy = result.synergyBonus
     }
     
-    setViewedCard({ card, isPlayer, power, bonus, synergyBonus, formationBonus, zoneModifier })
+    setViewedCard({ card, isPlayer, power: calculatedPower, bonus: calculatedBonus, synergyBonus: calculatedSynergy, formationBonus, zoneModifier })
   }
 
   const getZoneLiveScores = (zone: BattleZone) => {
@@ -620,7 +668,7 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
                             roleMatchupBonus={zc.roleMatchupBonus}
                             synergyBonus={zc.synergyBonus}
                             isInteractive={true}
-                            onClick={() => handleCardView(zc.card, false, zc.powerAfterModifier, zc.roleMatchupBonus, zc.isSecret && (!isReveal || ccgState.round < 3), zc.synergyBonus, zc.wasSecret, zone.modifier)}
+                            onClick={() => handleCardView(zc.card, false, zc.powerAfterModifier, zc.roleMatchupBonus, zc.isSecret && (!isReveal || ccgState.round < 3), zc.synergyBonus, zc.wasSecret, zone.modifier, [...zone.playerCards, ...zone.aiCards])}
                             forceHidden={zone.modifier.id === "dark_zone"}
                           />
                         </div>
@@ -695,7 +743,7 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
                             roleMatchupBonus={zc.roleMatchupBonus}
                             synergyBonus={zc.synergyBonus}
                             isInteractive={true}
-                            onClick={() => handleCardView(zc.card, true, zc.powerAfterModifier, zc.roleMatchupBonus, zc.isSecret && (!isReveal || ccgState.round < 3), zc.synergyBonus, zc.wasSecret, zone.modifier)}
+                            onClick={() => handleCardView(zc.card, true, zc.powerAfterModifier, zc.roleMatchupBonus, zc.isSecret && (!isReveal || ccgState.round < 3), zc.synergyBonus, zc.wasSecret, zone.modifier, [...zone.playerCards, ...zone.aiCards])}
                             forceHidden={zone.modifier.id === "dark_zone"}
                           />
                         </div>
@@ -757,23 +805,33 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
       <div className="fixed right-4 bottom-28 sm:right-4 sm:bottom-30 z-50 lg:absolute lg:right-6 lg:bottom-40">
         {isFinalizing ? (
           <button
-            onClick={finishBattle}
+            onClick={() => finishBattle(isPvPMode || false)}
             className="w-14 h-14 sm:w-14 sm:h-14 rounded-full bg-amber-500 text-white font-black text-sm sm:text-sm transition-all active:scale-100 flex flex-col items-center justify-center animate-pulse"
           >
             <Crown className="w-5 h-5 sm:w-5 sm:h-5" />
             <span className="text-[9px] sm:text-[9px] leading-none">Финиш</span>
           </button>
         ) : isPlacement ? (
-          <button
-            onClick={confirmRoundPlacement}
-            disabled={placedThisRound.length < 2 || aiPlacedThisRound.length < 2}
-            className="w-14 h-14 sm:w-14 sm:h-14 rounded-full bg-emerald-500 disabled:bg-slate-700 text-white disabled:text-slate-500 font-black text-sm sm:text-sm transition-all active:scale-100 flex flex-col items-center justify-center"
-          >
-            <Swords className="w-5 h-5 sm:w-5 sm:h-5" />
-            <span className="text-[9px] sm:text-[9px] leading-none">
-              {placedThisRound.length}/{aiPlacedThisRound.length}
-            </span>
-          </button>
+          isRoundConfirmed && isPvPMode ? (
+            <button
+              disabled={true}
+              className="w-14 h-14 sm:w-14 sm:h-14 rounded-full bg-slate-800 text-slate-400 font-black text-sm sm:text-sm flex flex-col items-center justify-center animate-pulse"
+            >
+              <div className="w-5 h-5 border-2 border-slate-400 border-t-transparent rounded-full animate-spin mb-0.5" />
+              <span className="text-[8px] sm:text-[8px] leading-none">Ожидание</span>
+            </button>
+          ) : (
+            <button
+              onClick={() => confirmRoundPlacement(isPvPMode, pvpMatchId, placeCards)}
+              disabled={placedThisRound.length < 2 || (!isPvPMode && aiPlacedThisRound.length < 2)}
+              className="w-14 h-14 sm:w-14 sm:h-14 rounded-full bg-emerald-500 disabled:bg-slate-700 text-white disabled:text-slate-500 font-black text-sm sm:text-sm transition-all active:scale-100 flex flex-col items-center justify-center"
+            >
+              <Swords className="w-5 h-5 sm:w-5 sm:h-5" />
+              <span className="text-[9px] sm:text-[9px] leading-none">
+                {isPvPMode ? "Готово" : `${placedThisRound.length}/${aiPlacedThisRound.length}`}
+              </span>
+            </button>
+          )
         ) : isReveal && ccgState.round === 3 ? (
           <button
             onClick={nextRound}
@@ -811,7 +869,7 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
                     cardId={card.uniqueId}
                     size="sm"
                     isPlacement={isPlacement && !isRoundConfirmed}
-                    onClick={() => handleCardView(card, true, getCardBasePower(card), 0, false, 0, false)}
+                    onClick={() => handleCardView(card, true, getCardBasePower(card), 0, false, 0, false, undefined, undefined, true)}
                     isInteractive={true}
                     idx={idx}
                     fanStyle={getHandCardStyle(activeIdx, currentTotal)}
@@ -917,11 +975,6 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
           trickster: "text-amber-400 bg-amber-500/10 border-amber-500/20"
         }
         
-        let territoryBuff = null
-        if (viewedCard.zoneModifier) {
-          territoryBuff = getTerritoryBuff(card, viewedCard.zoneModifier.id, false, 0)
-        }
-        
         return (
           <div
             className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200"
@@ -985,28 +1038,16 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
                           <span className="text-emerald-300 font-black text-xs sm:text-sm">+{Math.round((viewedCard.bonus ?? 0) * 100)}%</span>
                         </div>
                       )}
-                      {(viewedCard.synergyBonus ?? 0) > 0 && (
+                      {(viewedCard.synergyBonus ?? 0) !== 0 && (
                         <div className="flex flex-col items-center p-1.5 sm:p-2 rounded-lg bg-violet-500/10 border border-violet-500/20">
-                          <span className="text-violet-400 font-bold text-[9px] sm:text-[10px] uppercase">Синергия</span>
-                          <span className="text-violet-300 font-black text-xs sm:text-sm">+{viewedCard.synergyBonus}</span>
+                          <span className="text-violet-400 font-bold text-[9px] sm:text-[10px] uppercase">{isPvPMode ? "Колода" : "Синергия"}</span>
+                          <span className="text-violet-300 font-black text-xs sm:text-sm">{(viewedCard.synergyBonus ?? 0) > 0 ? '+' : ''}{viewedCard.synergyBonus}</span>
                         </div>
                       )}
-                      {(viewedCard.formationBonus ?? 0) !== 0 && (
+                      {!isPvPMode && (viewedCard.formationBonus ?? 0) !== 0 && (
                         <div className="flex flex-col items-center p-1.5 sm:p-2 rounded-lg bg-cyan-500/10 border border-cyan-500/20">
                           <span className="text-cyan-400 font-bold text-[9px] sm:text-[10px] uppercase">Формация</span>
                           <span className="text-cyan-300 font-black text-xs sm:text-sm">{(viewedCard.formationBonus ?? 0) > 0 ? '+' : ''}{viewedCard.formationBonus}</span>
-                        </div>
-                      )}
-                      {territoryBuff && territoryBuff.value !== 0 && (
-                        <div className="flex flex-col items-center p-1.5 sm:p-2 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
-                          <span className="text-yellow-400 font-bold text-[9px] sm:text-[10px] uppercase">Локация</span>
-                          <span className="text-yellow-300 font-black text-xs sm:text-sm">{territoryBuff.value > 0 ? '+' : ''}{territoryBuff.value}</span>
-                        </div>
-                      )}
-                      {territoryBuff && territoryBuff.description && territoryBuff.description !== "0" && (
-                        <div className="flex flex-col items-center p-1.5 sm:p-2 rounded-lg bg-orange-500/10 border border-orange-500/20 col-span-2">
-                          <span className="text-orange-400 font-bold text-[9px] sm:text-[10px] uppercase">Эффект локации</span>
-                          <span className="text-orange-300 font-black text-xs sm:text-sm">{territoryBuff.description}</span>
                         </div>
                       )}
                     </div>

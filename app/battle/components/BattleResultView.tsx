@@ -7,6 +7,8 @@ interface BattleResultViewProps {
   finishBattle: () => Promise<void> | void
   closeBattleResult: () => void
   isFinishing?: boolean
+  isPvP?: boolean
+  mmrChange?: number | null
 }
 
 export const BattleResultView: React.FC<BattleResultViewProps> = ({
@@ -14,6 +16,8 @@ export const BattleResultView: React.FC<BattleResultViewProps> = ({
   finishBattle,
   closeBattleResult,
   isFinishing = false,
+  isPvP = false,
+  mmrChange = null,
 }) => {
   if (!ccgState) return null
 
@@ -35,7 +39,7 @@ export const BattleResultView: React.FC<BattleResultViewProps> = ({
             : "bg-rose-950/40 border-rose-500/30"
         )}
       >
-        <div className="mb-8">
+        <div className="mb-8 flex flex-col items-center">
           <div
             className={"inline-flex items-center justify-center w-24 h-24 rounded-full mb-6 shadow-2xl " + (
               isVictory
@@ -53,10 +57,19 @@ export const BattleResultView: React.FC<BattleResultViewProps> = ({
             {isVictory ? "Победа" : "Поражение"}
           </h2>
           <p className="text-slate-400 mt-2 font-medium">Сражение завершено за 3 тактических раунда</p>
+
+          {isPvP && mmrChange !== null && (
+            <div className="mt-6 flex flex-col items-center justify-center bg-black/40 border border-white/10 px-6 py-4 rounded-2xl min-w-[200px] shadow-inner backdrop-blur-md animate-in zoom-in-95 duration-500">
+              <span className="text-[10px] text-slate-400 uppercase font-black tracking-widest mb-1">Рейтинг MMR</span>
+              <span className={`text-3xl font-black tracking-wider flex items-center gap-1.5 drop-shadow-md ${mmrChange >= 0 ? "text-emerald-400 animate-pulse" : "text-rose-400"}`}>
+                {mmrChange >= 0 ? `+${mmrChange}` : mmrChange}
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Rewards */}
-        {isVictory && (
+        {!isPvP && isVictory && (
           <div className="grid grid-cols-3 gap-3 md:gap-6 w-full max-w-md mb-10">
             <div className="flex flex-col items-center justify-center p-4 rounded-2xl bg-black/40 border border-yellow-500/20 shadow-inner animate-in slide-in-from-bottom-4 duration-500 delay-100">
               <Coins className="w-6 h-6 text-yellow-400 mb-2 drop-shadow-md animate-bounce" style={{ animationDuration: '2s' }} />

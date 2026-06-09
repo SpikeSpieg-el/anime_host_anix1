@@ -10,10 +10,13 @@ import { useAuth } from "@/components/auth/auth-provider"
 import { AuthModal } from "@/components/auth/auth-modal"
 import { StatsPanel, StatsPanelSkeleton } from "./components/StatsPanel"
 import { DungeonSelector } from "./components/DungeonSelector"
+import { ModeSelector } from "./components/ModeSelector"
 import { SelectedTeamPanel, SelectedTeamPanelSkeleton } from "./components/SelectedTeamPanel"
 import { BattleArena } from "./components/BattleArena"
 import { BattleResultView } from "./components/BattleResultView"
 import { TeamBuilderModal } from "./components/TeamBuilderModal"
+import { PvPArena } from "./components/PvPArena"
+import { usePvPBattle } from "./hooks/use-pvp-battle"
 import { glassCard } from "./config"
 import { computeDeckSynergies } from "./utils"
 import { Card } from "./types"
@@ -287,7 +290,11 @@ export default function BattlePage() {
   const { user, sessionLoading } = useAuth()
   const [showAuthModal, setShowAuthModal] = useState(false)
   const [showLocationSelector, setShowLocationSelector] = useState(false)
+  const [showModeSelector, setShowModeSelector] = useState(false)
+  const [showPvPArena, setShowPvPArena] = useState(false)
   const [viewedCard, setViewedCard] = useState<Card | null>(null)
+  const [isPvPMode, setIsPvPMode] = useState(false)
+  const prevRoundResultsRef = useRef<any>(null)
   const {
     sessionLoading: battleSessionLoading,
     userCoins,
@@ -329,11 +336,13 @@ export default function BattlePage() {
     staminaTime,
     toggleCardSelection,
     startBattle,
+    startPvPBattle,
     finishBattle,
     closeBattleResult,
     isFinishing,
     teamPower,
     filteredCards,
+    opponentDeckContext,
     // Animation states and functions
     cardEffects,
     destroyingCards,
@@ -343,7 +352,65 @@ export default function BattlePage() {
     triggerCardDestruction,
     triggerModifierActivation,
     addFloatingText,
+    updatePvPRound,
+    resolvePvPRound,
+    resolvePvPMatchEnd,
   } = useBattleData()
+
+  const isPlayer1Ref = useRef<boolean>(false)
+
+  const { pvpState, resetPvP, joinQueue, leaveQueue, isConnected, placeCards } = usePvPBattle({
+    onRoundResolved: (results) => {
+      console.log('[PvP Direct Callback] Round resolved event received:', results)
+      resolvePvPRound(results, isPlayer1Ref.current)
+    },
+    onStartNewRound: (data) => {
+      console.log('[PvP Direct Callback] Starting new round:', data.round)
+      updatePvPRound(data.yourDeck, data.round)
+    },
+    onMatchEnded: (data) => {
+      console.log('[PvP Direct Callback] Match ended event received:', data)
+      resolvePvPMatchEnd(data.winner)
+    }
+  })
+
+  // Synchronize isPlayer1Ref with matchData
+  useEffect(() => {
+    if (pvpState.matchData) {
+      isPlayer1Ref.current = pvpState.matchData.isPlayer1
+    }
+  }, [pvpState.matchData])
+
+  // Handle PvP match found - transition to battle
+  useEffect(() => {
+    console.log('[PvP Debug] Effect triggered:', {
+      status: pvpState.status,
+      hasMatchData: !!pvpState.matchData,
+      battleState,
+      willTransition: pvpState.status === 'matched' && pvpState.matchData && battleState === 'idle'
+    })
+    
+    if (pvpState.status === 'matched' && pvpState.matchData && battleState === 'idle') {
+      console.log('[PvP] Match found, starting battle...', pvpState.matchData)
+      setShowPvPArena(false)
+      setIsPvPMode(true)
+      
+      // Start battle immediately - startPvPBattle will handle state transitions
+      console.log('[PvP] Calling startPvPBattle immediately')
+      startPvPBattle(pvpState.matchData)
+    }
+  }, [pvpState.status, pvpState.matchData, battleState, startPvPBattle])
+
+  // Reset PvP mode when battle ends
+  useEffect(() => {
+    if (battleState === 'idle' && isPvPMode) {
+      setIsPvPMode(false)
+      resetPvP()
+    }
+  }, [battleState, isPvPMode, resetPvP])
+
+  // Handle PvP match ended - manual transition via button only
+  // Removed automatic transition to require user to press "Финиш" button
 
   const handleCardClick = (card: Card) => {
     setViewedCard(card)
@@ -441,8 +508,15 @@ export default function BattlePage() {
               <div className="absolute inset-0 border-4 border-rose-500 border-t-transparent rounded-full animate-spin"></div>
               <Swords className="absolute inset-0 m-auto w-8 h-8 text-rose-400 animate-pulse" />
             </div>
-            <h3 className="text-xl font-black text-white uppercase tracking-wider mb-2">Запуск Тактического Матча</h3>
-            <p className="text-sm text-slate-400">Формирование модификаторов территорий и подготовка ИИ...</p>
+            <h3 className="text-xl font-black text-white uppercase tracking-wider mb-2">
+              {isPvPMode ? 'Подключение к PvP Матчу' : 'Запуск Тактического Матча'}
+            </h3>
+            <p className="text-sm text-slate-400">
+              {isPvPMode 
+                ? 'Синхронизация с противником и подготовка арены...'
+                : 'Формирование модификаторов территорий и подготовка ИИ...'
+              }
+            </p>
           </div>
         )}
 
@@ -465,10 +539,14 @@ export default function BattlePage() {
             finishBattle={finishBattle}
             setBattleState={setBattleState}
             deckContext={{ deck: selectedCards, leaderId, formation }}
+            opponentDeckContext={opponentDeckContext}
             onCardEffect={triggerCardEffect}
             onCardDestroy={triggerCardDestruction}
             onModifierActivate={triggerModifierActivation}
             onFloatingText={addFloatingText}
+            isPvPMode={isPvPMode}
+            pvpMatchId={pvpState.matchData?.matchId}
+            placeCards={placeCards}
           />
         )}
 
@@ -481,6 +559,8 @@ export default function BattlePage() {
             finishBattle={finishBattle}
             closeBattleResult={closeBattleResult}
             isFinishing={isFinishing}
+            isPvP={isPvPMode}
+            mmrChange={isPvPMode ? pvpState.mmrChange : null}
           />
         )}
 
@@ -508,7 +588,7 @@ export default function BattlePage() {
                   formation={formation}
                   setFormation={setFormation}
                   onCardClick={handleCardClick}
-                  onOpenLocationSelector={() => setShowLocationSelector(true)}
+                  onOpenLocationSelector={() => setShowModeSelector(true)}
                 />
               )}
             </div>
@@ -521,7 +601,42 @@ export default function BattlePage() {
       {battleState === "idle" && <Footer />}
 
       {/* ==========================================
-          5. LOCATION SELECTOR MODAL
+          5. MODE SELECTOR MODAL
+      ========================================== */}
+      {showModeSelector && (
+        <div 
+          className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200"
+          onClick={() => setShowModeSelector(false)}
+        >
+          <div 
+            className="bg-[#0b0b14]/95 border border-white/10 rounded-3xl p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-2xl relative animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                setShowModeSelector(false)
+              }}
+              className="absolute top-4 right-4 z-10 p-2 rounded-full bg-white/5 text-slate-400 hover:text-white transition-colors border border-white/10"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <ModeSelector
+              onPvEMode={() => {
+                setShowModeSelector(false)
+                setShowLocationSelector(true)
+              }}
+              onPvPMode={() => {
+                setShowModeSelector(false)
+                setShowPvPArena(true)
+              }}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* ==========================================
+          6. LOCATION SELECTOR MODAL
       ========================================== */}
       {showLocationSelector && (
         <div 
@@ -553,7 +668,42 @@ export default function BattlePage() {
       )}
 
       {/* ==========================================
-          6. BARRACKS HERO SELECT DIALOG
+          7. PVP ARENA MODAL
+      ========================================== */}
+      {showPvPArena && (
+        <div 
+          className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200"
+          onClick={() => setShowPvPArena(false)}
+        >
+          <div 
+            className="bg-[#0b0b14]/95 border border-white/10 rounded-3xl p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-2xl relative animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                setShowPvPArena(false)
+              }}
+              className="absolute top-4 right-4 z-10 p-2 rounded-full bg-white/5 text-slate-400 hover:text-white transition-colors border border-white/10"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <PvPArena
+              selectedCards={selectedCards}
+              leaderId={leaderId}
+              formation={formation}
+              onClose={() => setShowPvPArena(false)}
+              pvpState={pvpState}
+              joinQueue={joinQueue}
+              leaveQueue={leaveQueue}
+              isConnected={isConnected}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* ==========================================
+          8. BARRACKS HERO SELECT DIALOG
       ========================================== */}
       <TeamBuilderModal
         showTeamBuilder={showTeamBuilder}

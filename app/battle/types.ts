@@ -118,6 +118,7 @@ export interface ZoneCard {
   roleMatchupBonus?: number // +50% etc.
   synergyBonus?: number // deck synergy bonus
   placementOrder?: number // 0 = first on zone, 1 = second on zone
+  isPlayer?: boolean // true if player's card, false if AI's card
 }
 
 export interface BattleZone {
