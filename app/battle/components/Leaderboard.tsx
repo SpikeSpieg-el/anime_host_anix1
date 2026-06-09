@@ -17,13 +17,13 @@ interface LeaderboardProps {
 }
 
 const RANK_TIERS = {
-  grandmaster: { name: 'Грандмастер', color: 'from-red-500 to-orange-500', icon: Crown },
-  master: { name: 'Мастер', color: 'from-purple-500 to-pink-500', icon: Trophy },
-  diamond: { name: 'Алмаз', color: 'from-cyan-400 to-blue-500', icon: Medal },
-  platinum: { name: 'Платина', color: 'from-slate-300 to-slate-400', icon: Medal },
-  gold: { name: 'Золото', color: 'from-yellow-400 to-yellow-600', icon: Medal },
-  silver: { name: 'Серебро', color: 'from-slate-400 to-slate-500', icon: Medal },
-  bronze: { name: 'Бронза', color: 'from-amber-700 to-amber-900', icon: Medal },
+  grandmaster: { name: 'Грандмастер', color: 'from-red-500 to-orange-500', solidColor: 'text-red-500', icon: Crown },
+  master: { name: 'Мастер', color: 'from-purple-500 to-pink-500', solidColor: 'text-purple-500', icon: Trophy },
+  diamond: { name: 'Алмаз', color: 'from-cyan-400 to-blue-500', solidColor: 'text-cyan-400', icon: Medal },
+  platinum: { name: 'Платина', color: 'from-slate-300 to-slate-400', solidColor: 'text-slate-300', icon: Medal },
+  gold: { name: 'Золото', color: 'from-yellow-400 to-yellow-600', solidColor: 'text-yellow-400', icon: Medal },
+  silver: { name: 'Серебро', color: 'from-slate-400 to-slate-500', solidColor: 'text-slate-400', icon: Medal },
+  bronze: { name: 'Бронза', color: 'from-amber-700 to-amber-900', solidColor: 'text-amber-700', icon: Medal },
 }
 
 export const Leaderboard: React.FC<LeaderboardProps> = ({ onClose }) => {
@@ -189,7 +189,7 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ onClose }) => {
                       {/* Tier */}
                       <td className="px-3 py-3 hidden sm:table-cell">
                         <div className="flex items-center gap-2">
-                          <RankIcon className={`w-3 h-3 bg-gradient-to-r ${rankInfo.color} bg-clip-text text-transparent`} />
+                          <RankIcon className={`w-3 h-3 ${rankInfo.solidColor}`} />
                           <span className={`text-[10px] font-bold bg-gradient-to-r ${rankInfo.color} bg-clip-text text-transparent`}>
                             {rankInfo.name}
                           </span>

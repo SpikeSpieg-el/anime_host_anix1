@@ -18,13 +18,13 @@ interface PvPArenaProps {
 }
 
 const RANK_TIERS = {
-  grandmaster: { name: 'Грандмастер', color: 'from-red-500 to-orange-500', icon: Crown },
-  master: { name: 'Мастер', color: 'from-purple-500 to-pink-500', icon: Trophy },
-  diamond: { name: 'Алмаз', color: 'from-cyan-400 to-blue-500', icon: Medal },
-  platinum: { name: 'Платина', color: 'from-slate-300 to-slate-400', icon: Medal },
-  gold: { name: 'Золото', color: 'from-yellow-400 to-yellow-600', icon: Medal },
-  silver: { name: 'Серебро', color: 'from-slate-400 to-slate-500', icon: Medal },
-  bronze: { name: 'Бронза', color: 'from-amber-700 to-amber-900', icon: Medal },
+  grandmaster: { name: 'GRANDMASTER', color: 'from-red-500 to-orange-500', icon: Crown },
+  master: { name: 'MASTER', color: 'from-purple-500 to-pink-500', icon: Trophy },
+  diamond: { name: 'DIAMOND', color: 'from-cyan-400 to-blue-500', icon: Medal },
+  platinum: { name: 'PLATINUM', color: 'from-slate-300 to-slate-400', icon: Medal },
+  gold: { name: 'GOLD', color: 'from-yellow-400 to-yellow-600', icon: Medal },
+  silver: { name: 'SILVER', color: 'from-slate-400 to-slate-500', icon: Medal },
+  bronze: { name: 'BRONZE', color: 'from-amber-700 to-amber-900', icon: Medal },
 }
 
 interface LeaderboardEntry {
@@ -285,7 +285,7 @@ export const PvPArena: React.FC<PvPArenaProps> = ({
               </div>
             </div>
 
-            {/* Rank Tier Badge - Clean Display */}
+            {/* Rank Tier Badge - Stylized Minimalist Display */}
             <div className="w-full md:w-auto">
               {(() => {
                 const rankInfo = getRankInfo(ladderData.rank_tier)
@@ -311,53 +311,78 @@ export const PvPArena: React.FC<PvPArenaProps> = ({
                 const currentThreshold = mmrThresholds[ladderData.rank_tier as keyof typeof mmrThresholds] || mmrThresholds.bronze
                 const progress = isMaxRank ? 100 : Math.min(100, Math.max(0, ((ladderData.mmr - currentThreshold.min) / (currentThreshold.max - currentThreshold.min)) * 100))
                 
-                // Extract solid color from gradient
-                const colorMap: Record<string, string> = {
-                  'from-red-500 to-orange-500': 'text-red-500',
-                  'from-purple-500 to-pink-500': 'text-purple-500',
-                  'from-cyan-400 to-blue-500': 'text-cyan-400',
-                  'from-slate-300 to-slate-400': 'text-slate-300',
-                  'from-yellow-400 to-yellow-600': 'text-yellow-400',
-                  'from-slate-400 to-slate-500': 'text-slate-400',
-                  'from-amber-700 to-amber-900': 'text-amber-700',
-                }
-                const solidColor = colorMap[rankInfo.color] || 'text-zinc-400'
-                
-                const bgMap: Record<string, string> = {
-                  'from-red-500 to-orange-500': 'bg-red-500',
-                  'from-purple-500 to-pink-500': 'bg-purple-500',
-                  'from-cyan-400 to-blue-500': 'bg-cyan-400',
-                  'from-slate-300 to-slate-400': 'bg-slate-300',
-                  'from-yellow-400 to-yellow-600': 'bg-yellow-400',
-                  'from-slate-400 to-slate-500': 'bg-slate-400',
-                  'from-amber-700 to-amber-900': 'bg-amber-700',
-                }
-                const solidBg = bgMap[rankInfo.color] || 'bg-zinc-400'
-                
                 return (
-                  <div className="bg-zinc-900/80 border border-white/[0.1] rounded-2xl p-4">
-                    <div className="flex items-center gap-3">
-                      {/* Icon */}
-                      <div className={`p-3 rounded-xl ${solidBg}`}>
-                        <RankIcon className="w-6 h-6 text-white" />
+                  <div className="bg-zinc-950/40 border border-white/[0.05] rounded-2xl p-4 min-w-[210px] relative overflow-hidden group">
+                    {/* Subtle glow matching the rank tier gradient */}
+                    <div className={`absolute -right-6 -top-6 w-20 h-20 rounded-full bg-gradient-to-br ${rankInfo.color} opacity-[0.06] blur-lg pointer-events-none`} />
+                    
+                    <div className="flex items-center gap-3 relative z-10">
+                      {/* Minimalist Glass-like Icon Wrapper */}
+                      <div className="relative flex items-center justify-center w-11 h-11 rounded-xl bg-zinc-900 border border-white/[0.06] shadow-[inset_0_1px_1px_rgba(255,255,255,0.05)] overflow-hidden">
+                        <div className={`absolute inset-0 bg-gradient-to-br ${rankInfo.color} opacity-[0.04]`} />
+                        <RankIcon 
+                          className="w-5 h-5 relative z-10 stroke-[1.8] transition-transform group-hover:scale-105 duration-300" 
+                          style={{
+                            stroke: `url(#rankGradient-${ladderData.rank_tier})`
+                          }}
+                        />
+                        {/* Inline definition for dynamic SVG stroke gradient */}
+                        <svg className="absolute w-0 h-0 pointer-events-none" aria-hidden="true">
+                          <defs>
+                            <linearGradient id={`rankGradient-${ladderData.rank_tier}`} x1="0%" y1="0%" x2="100%" y2="100%">
+                              {(() => {
+                                const colors: Record<string, [string, string]> = {
+                                  grandmaster: ['#ef4444', '#f97316'],
+                                  master: ['#a855f7', '#ec4899'],
+                                  diamond: ['#22d3ee', '#3b82f6'],
+                                  platinum: ['#cbd5e1', '#94a3b8'],
+                                  gold: ['#facc15', '#ca8a04'],
+                                  silver: ['#94a3b8', '#64748b'],
+                                  bronze: ['#b45309', '#78350f'],
+                                }
+                                const [start, stop] = colors[ladderData.rank_tier as keyof typeof colors] || colors.bronze
+                                return (
+                                  <>
+                                    <stop offset="0%" stopColor={start} />
+                                    <stop offset="100%" stopColor={stop} />
+                                  </>
+                                )
+                              })()}
+                            </linearGradient>
+                          </defs>
+                        </svg>
                       </div>
                       
-                      {/* Rank name and tier */}
-                      <div className="flex-1">
+                      {/* Rank info text */}
+                      <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <span className={`text-sm font-black ${solidColor} uppercase tracking-wider`}>
+                          <span
+                            className={`text-[11px] font-black bg-gradient-to-r ${rankInfo.color} bg-clip-text text-transparent uppercase tracking-[0.2em] leading-none`}
+                            style={{
+                              fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+                              textShadow: `
+                                0 0 10px rgba(255,255,255,0.3),
+                                0 0 20px rgba(255,255,255,0.2),
+                                0 0 30px rgba(255,255,255,0.1),
+                                0 0 40px rgba(255,255,255,0.05)
+                              `,
+                              filter: 'drop-shadow(0 0 8px rgba(255,255,255,0.2))',
+                              WebkitBackgroundClip: 'text',
+                              WebkitTextFillColor: 'transparent'
+                            }}
+                          >
                             {rankInfo.name}
                           </span>
                           {!isMaxRank && (
-                            <span className="text-[9px] text-zinc-500 font-medium">
+                            <span className="text-[9px] text-zinc-500 font-medium whitespace-nowrap tracking-wider">
                               → {RANK_TIERS[nextTier as keyof typeof RANK_TIERS]?.name}
                             </span>
                           )}
                         </div>
-                        <div className="flex items-center gap-2 mt-1">
-                          <span className="text-[10px] text-zinc-400 font-mono">{ladderData.mmr} MMR</span>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <span className="text-[10px] text-zinc-300 font-mono font-bold tracking-wide">{ladderData.mmr} MMR</span>
                           {!isMaxRank && (
-                            <span className="text-[9px] text-zinc-500">
+                            <span className="text-[9px] text-zinc-500 font-medium">
                               до {currentThreshold.max}
                             </span>
                           )}
@@ -365,27 +390,27 @@ export const PvPArena: React.FC<PvPArenaProps> = ({
                       </div>
                     </div>
                     
-                    {/* Progress bar */}
+                    {/* Minimalist Progress bar */}
                     {!isMaxRank && (
-                      <div className="mt-3">
-                        <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+                      <div className="mt-3 relative z-10">
+                        <div className="h-1 bg-zinc-800/80 rounded-full overflow-hidden">
                           <div 
-                            className={`h-full ${solidBg} transition-all duration-500 ease-out rounded-full`}
+                            className={`h-full bg-gradient-to-r ${rankInfo.color} transition-all duration-500 ease-out rounded-full`}
                             style={{ width: `${progress}%` }}
                           />
                         </div>
-                        <div className="flex justify-between mt-1">
-                          <span className="text-[8px] text-zinc-500 font-mono">{currentThreshold.min}</span>
-                          <span className="text-[8px] text-zinc-500 font-mono">{currentThreshold.max}</span>
+                        <div className="flex justify-between mt-1 px-0.5">
+                          <span className="text-[8px] text-zinc-500 font-mono font-medium">{currentThreshold.min}</span>
+                          <span className="text-[8px] text-zinc-500 font-mono font-medium">{currentThreshold.max}</span>
                         </div>
                       </div>
                     )}
                     
                     {/* Max rank indicator */}
                     {isMaxRank && (
-                      <div className="mt-3 flex items-center justify-center gap-1.5 py-1.5 bg-amber-500/10 border border-amber-500/20 rounded-lg">
-                        <Crown className="w-3 h-3 text-amber-400" />
-                        <span className="text-[9px] font-bold text-amber-400 uppercase tracking-wider">Максимальный ранг</span>
+                      <div className="mt-3 flex items-center justify-center gap-1.5 py-1.5 bg-amber-500/[0.04] border border-amber-500/10 rounded-xl">
+                        <Crown className="w-3 h-3 text-amber-500/80" />
+                        <span className="text-[9px] font-bold text-amber-500/80 uppercase tracking-wider">Максимальный ранг</span>
                       </div>
                     )}
                   </div>
