@@ -188,7 +188,52 @@ export const PvPArena: React.FC<PvPArenaProps> = ({
       )}
 
       {/* Player Dashboard Card */}
-      {ladderData && (
+      {ladderLoading ? (
+        <div className="bg-zinc-900/40 backdrop-blur-xl border border-white/[0.06] rounded-2xl p-4 md:p-5 shadow-[inset_0_1px_1px_rgba(255,255,255,0.02)]">
+          <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
+            {/* Profile Info Skeleton */}
+            <div className="flex items-center gap-3.5 w-full md:w-auto">
+              <div className="w-12 h-12 rounded-xl bg-zinc-800/50 animate-pulse" />
+              <div className="space-y-2">
+                <div className="h-4 w-24 bg-zinc-800/50 rounded animate-pulse" />
+                <div className="h-3 w-16 bg-zinc-800/50 rounded animate-pulse" />
+              </div>
+            </div>
+
+            {/* Performance Stats Skeleton */}
+            <div className="flex items-center gap-4 md:gap-6 w-full md:w-auto border-t md:border-t-0 border-white/[0.04] pt-3 md:pt-0 justify-center md:justify-end">
+              <div className="text-center md:text-right space-y-2">
+                <div className="h-4 w-8 bg-zinc-800/50 rounded animate-pulse mx-auto md:mx-0" />
+                <div className="h-2 w-12 bg-zinc-800/50 rounded animate-pulse mx-auto md:mx-0" />
+              </div>
+              <div className="text-center md:text-right border-l border-white/[0.04] pl-4 md:pl-6 space-y-2">
+                <div className="h-4 w-8 bg-zinc-800/50 rounded animate-pulse mx-auto md:mx-0" />
+                <div className="h-2 w-14 bg-zinc-800/50 rounded animate-pulse mx-auto md:mx-0" />
+              </div>
+              <div className="text-center md:text-right border-l border-white/[0.04] pl-4 md:pl-6 space-y-2">
+                <div className="h-4 w-8 bg-zinc-800/50 rounded animate-pulse mx-auto md:mx-0" />
+                <div className="h-2 w-10 bg-zinc-800/50 rounded animate-pulse mx-auto md:mx-0" />
+              </div>
+            </div>
+
+            {/* Rank Badge Skeleton */}
+            <div className="w-full md:w-auto">
+              <div className="bg-zinc-900/80 border border-white/[0.1] rounded-2xl p-4 space-y-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-xl bg-zinc-800/50 animate-pulse" />
+                  <div className="flex-1 space-y-2">
+                    <div className="h-4 w-20 bg-zinc-800/50 rounded animate-pulse" />
+                    <div className="h-3 w-16 bg-zinc-800/50 rounded animate-pulse" />
+                  </div>
+                </div>
+                <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+                  <div className="h-full w-1/2 bg-zinc-700/50 rounded-full animate-pulse" />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : ladderData && (
         <div className="bg-zinc-900/40 backdrop-blur-xl border border-white/[0.06] rounded-2xl p-4 md:p-5 shadow-[inset_0_1px_1px_rgba(255,255,255,0.02)]">
           <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
             
@@ -207,7 +252,7 @@ export const PvPArena: React.FC<PvPArenaProps> = ({
             </div>
 
             {/* Performance Stats */}
-            <div className="grid grid-cols-3 md:flex md:items-center gap-3 md:gap-6 w-full md:w-auto border-t md:border-t-0 border-white/[0.04] pt-3 md:pt-0">
+            <div className="flex items-center gap-4 md:gap-6 w-full md:w-auto border-t md:border-t-0 border-white/[0.04] pt-3 md:pt-0 justify-center md:justify-end">
               <div className="text-center md:text-right">
                 <div className="flex items-center justify-center md:justify-end gap-1 text-emerald-400 font-bold">
                   <TrendingUp className="w-3.5 h-3.5" />
@@ -216,7 +261,7 @@ export const PvPArena: React.FC<PvPArenaProps> = ({
                 <p className="text-[9px] text-zinc-500 uppercase tracking-widest mt-0.5 font-bold">Победы</p>
               </div>
 
-              <div className="text-center md:text-right border-x border-white/[0.04] md:border-x-0 md:px-0">
+              <div className="text-center md:text-right border-l border-white/[0.04] pl-4 md:pl-6">
                 <div className="flex items-center justify-center md:justify-end gap-1 text-rose-400 font-bold">
                   <TrendingDown className="w-3.5 h-3.5" />
                   <span className="text-xs tracking-wide">{ladderData.losses}</span>
@@ -224,31 +269,125 @@ export const PvPArena: React.FC<PvPArenaProps> = ({
                 <p className="text-[9px] text-zinc-500 uppercase tracking-widest mt-0.5 font-bold">Поражения</p>
               </div>
 
-              <div className="text-center md:text-right">
-                <span className={`text-xs font-bold ${
-                  getWinRate(ladderData.wins, ladderData.losses) >= 60 
-                    ? 'text-emerald-400' 
-                    : getWinRate(ladderData.wins, ladderData.losses) >= 50 
-                    ? 'text-yellow-500' 
-                    : 'text-zinc-400'
-                }`}>
-                  {getWinRate(ladderData.wins, ladderData.losses)}%
-                </span>
+              <div className="text-center md:text-right border-l border-white/[0.04] pl-4 md:pl-6">
+                <div className="flex items-center justify-center md:justify-end gap-1 font-bold">
+                  <span className={`text-xs tracking-wide ${
+                    getWinRate(ladderData.wins, ladderData.losses) >= 60 
+                      ? 'text-emerald-400' 
+                      : getWinRate(ladderData.wins, ladderData.losses) >= 50 
+                      ? 'text-yellow-500' 
+                      : 'text-zinc-400'
+                  }`}>
+                    {getWinRate(ladderData.wins, ladderData.losses)}%
+                  </span>
+                </div>
                 <p className="text-[9px] text-zinc-500 uppercase tracking-widest mt-0.5 font-bold">Винрейт</p>
               </div>
             </div>
 
-            {/* Rank Tier Badge */}
+            {/* Rank Tier Badge - Clean Display */}
             <div className="w-full md:w-auto">
               {(() => {
                 const rankInfo = getRankInfo(ladderData.rank_tier)
                 const RankIcon = rankInfo.icon
+                
+                // Calculate progress to next rank
+                const tierOrder = ['bronze', 'silver', 'gold', 'platinum', 'diamond', 'master', 'grandmaster']
+                const currentIndex = tierOrder.indexOf(ladderData.rank_tier)
+                const nextTier = tierOrder[currentIndex + 1]
+                const isMaxRank = currentIndex === tierOrder.length - 1
+                
+                // MMR thresholds for each tier
+                const mmrThresholds = {
+                  bronze: { min: 800, max: 1200 },
+                  silver: { min: 1200, max: 1600 },
+                  gold: { min: 1600, max: 2000 },
+                  platinum: { min: 2000, max: 2400 },
+                  diamond: { min: 2400, max: 2800 },
+                  master: { min: 2800, max: 3200 },
+                  grandmaster: { min: 3200, max: 9999 }
+                }
+                
+                const currentThreshold = mmrThresholds[ladderData.rank_tier as keyof typeof mmrThresholds] || mmrThresholds.bronze
+                const progress = isMaxRank ? 100 : Math.min(100, Math.max(0, ((ladderData.mmr - currentThreshold.min) / (currentThreshold.max - currentThreshold.min)) * 100))
+                
+                // Extract solid color from gradient
+                const colorMap: Record<string, string> = {
+                  'from-red-500 to-orange-500': 'text-red-500',
+                  'from-purple-500 to-pink-500': 'text-purple-500',
+                  'from-cyan-400 to-blue-500': 'text-cyan-400',
+                  'from-slate-300 to-slate-400': 'text-slate-300',
+                  'from-yellow-400 to-yellow-600': 'text-yellow-400',
+                  'from-slate-400 to-slate-500': 'text-slate-400',
+                  'from-amber-700 to-amber-900': 'text-amber-700',
+                }
+                const solidColor = colorMap[rankInfo.color] || 'text-zinc-400'
+                
+                const bgMap: Record<string, string> = {
+                  'from-red-500 to-orange-500': 'bg-red-500',
+                  'from-purple-500 to-pink-500': 'bg-purple-500',
+                  'from-cyan-400 to-blue-500': 'bg-cyan-400',
+                  'from-slate-300 to-slate-400': 'bg-slate-300',
+                  'from-yellow-400 to-yellow-600': 'bg-yellow-400',
+                  'from-slate-400 to-slate-500': 'bg-slate-400',
+                  'from-amber-700 to-amber-900': 'bg-amber-700',
+                }
+                const solidBg = bgMap[rankInfo.color] || 'bg-zinc-400'
+                
                 return (
-                  <div className="flex items-center justify-center gap-2 px-3.5 py-1.5 rounded-xl bg-white/[0.02] border border-white/[0.06] shadow-sm">
-                    <RankIcon className={`w-4 h-4 bg-gradient-to-r ${rankInfo.color} bg-clip-text text-transparent`} />
-                    <span className={`text-xs font-bold bg-gradient-to-r ${rankInfo.color} bg-clip-text text-transparent uppercase tracking-wider`}>
-                      {rankInfo.name}
-                    </span>
+                  <div className="bg-zinc-900/80 border border-white/[0.1] rounded-2xl p-4">
+                    <div className="flex items-center gap-3">
+                      {/* Icon */}
+                      <div className={`p-3 rounded-xl ${solidBg}`}>
+                        <RankIcon className="w-6 h-6 text-white" />
+                      </div>
+                      
+                      {/* Rank name and tier */}
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className={`text-sm font-black ${solidColor} uppercase tracking-wider`}>
+                            {rankInfo.name}
+                          </span>
+                          {!isMaxRank && (
+                            <span className="text-[9px] text-zinc-500 font-medium">
+                              → {RANK_TIERS[nextTier as keyof typeof RANK_TIERS]?.name}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="text-[10px] text-zinc-400 font-mono">{ladderData.mmr} MMR</span>
+                          {!isMaxRank && (
+                            <span className="text-[9px] text-zinc-500">
+                              до {currentThreshold.max}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Progress bar */}
+                    {!isMaxRank && (
+                      <div className="mt-3">
+                        <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+                          <div 
+                            className={`h-full ${solidBg} transition-all duration-500 ease-out rounded-full`}
+                            style={{ width: `${progress}%` }}
+                          />
+                        </div>
+                        <div className="flex justify-between mt-1">
+                          <span className="text-[8px] text-zinc-500 font-mono">{currentThreshold.min}</span>
+                          <span className="text-[8px] text-zinc-500 font-mono">{currentThreshold.max}</span>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Max rank indicator */}
+                    {isMaxRank && (
+                      <div className="mt-3 flex items-center justify-center gap-1.5 py-1.5 bg-amber-500/10 border border-amber-500/20 rounded-lg">
+                        <Crown className="w-3 h-3 text-amber-400" />
+                        <span className="text-[9px] font-bold text-amber-400 uppercase tracking-wider">Максимальный ранг</span>
+                      </div>
+                    )}
                   </div>
                 )
               })()}
