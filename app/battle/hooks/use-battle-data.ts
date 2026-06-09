@@ -589,18 +589,24 @@ export function useBattleData() {
       }
 
       console.log('[Battle] Mapping territories...', matchData.territories)
-      // Use territories from server
-      const zones: BattleZone[] = matchData.territories.map((territory: any, idx: number) => {
+      // Use territories from server, or fallback to random modifiers if not provided
+      const shuffledModifiers = TERRITORY_MODIFIERS.slice().sort(() => Math.random() - 0.5)
+      const zones: BattleZone[] = (matchData.territories && matchData.territories.length > 0 
+        ? matchData.territories 
+        : Array(3).fill(null)
+      ).map((territory: any, idx: number) => {
         // Ensure modifier has correct structure
-        const modifier = territory.modifier || { 
+        const modifier = territory?.modifier || shuffledModifiers[idx] || { 
+          id: 'neutral',
+          name: 'Нейтральная Территория',
           nameRu: 'Нейтральная Территория',
-          effect: 'none'
+          description: 'Нет специальных эффектов'
         }
         
         return {
           id: `zone-${idx + 1}`,
           name: `Линия ${idx + 1}`,
-          nameRu: territory.nameRu || modifier.nameRu || `Линия ${idx + 1}`,
+          nameRu: territory?.nameRu || modifier.nameRu || `Линия ${idx + 1}`,
           modifier: modifier,
           playerCards: [],
           aiCards: [],
