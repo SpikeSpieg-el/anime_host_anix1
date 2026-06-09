@@ -56,7 +56,11 @@ export const BattleResultView: React.FC<BattleResultViewProps> = ({
           >
             {isVictory ? "Победа" : "Поражение"}
           </h2>
-          <p className="text-slate-400 mt-2 font-medium">Сражение завершено за 3 тактических раунда</p>
+          <p className="text-slate-400 mt-2 font-medium">
+            {ccgState.endReason === 'opponent_disconnect' 
+              ? 'Противник покинул матч' 
+              : 'Сражение завершено за 3 тактических раунда'}
+          </p>
 
           {isPvP && mmrChange !== null && (
             <div className="mt-6 flex flex-col items-center justify-center bg-black/40 border border-white/10 px-6 py-4 rounded-2xl min-w-[200px] shadow-inner backdrop-blur-md animate-in zoom-in-95 duration-500">

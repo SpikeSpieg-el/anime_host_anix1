@@ -142,6 +142,7 @@ export interface CCGBattleState {
   aiDeck: Card[]
   phase: "placement" | "reveal" | "finalizing" | "ended"
   victory: boolean | null
+  endReason?: string // 'normal' | 'opponent_disconnect' | 'surrender'
   roundHistory: {
     round: number
     playerActions: { zoneId: string; cardName: string; isSecret: boolean }[]

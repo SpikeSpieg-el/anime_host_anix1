@@ -306,15 +306,14 @@ export const calculateCardPowerOnZone = (
   const noRPS = zoneModifierId === "no_rps"
   const doubleRPS = zoneModifierId === "double_rps"
 
-  // Passive KNB bonus: always applies when facing revealed enemy cards
+  // Passive KNB bonus: applies to ALL enemy cards on zone, regardless of when they were placed
+  // This ensures KNB works between cards from different rounds
   if (!noRPS && allEnemyCardsOnZone.length > 0) {
     allEnemyCardsOnZone.forEach(opposingZoneCard => {
-      if (!opposingZoneCard.isSecret) {
-        const opposingRole = opposingZoneCard.card.role || getCardRole(opposingZoneCard.card)
-        let bonus = getKNBBonusMultiplier(role, opposingRole, reverseRPS)
-        if (doubleRPS) bonus *= 2
-        matchupBonusPercent += bonus
-      }
+      const opposingRole = opposingZoneCard.card.role || getCardRole(opposingZoneCard.card)
+      let bonus = getKNBBonusMultiplier(role, opposingRole, reverseRPS)
+      if (doubleRPS) bonus *= 2
+      matchupBonusPercent += bonus
     })
   }
 

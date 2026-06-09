@@ -504,10 +504,10 @@ export function useBattleData() {
   }, [ccgState])
 
   // Resolve PvP match end using winner from server
-  const resolvePvPMatchEnd = useCallback((winnerId: string) => {
+  const resolvePvPMatchEnd = useCallback((winnerId: string, reason?: string) => {
     if (!user) return
     const isWinner = winnerId === user.id
-    console.log('[Battle] Resolving PvP match end, winner:', winnerId, 'isUserWinner:', isWinner)
+    console.log('[Battle] Resolving PvP match end, winner:', winnerId, 'isUserWinner:', isWinner, 'reason:', reason)
     
     // Do NOT recalculate scores — server data already set correct powers/synergies in zones.
     // Just set victory flag and transition to finalizing phase.
@@ -516,7 +516,8 @@ export function useBattleData() {
       return {
         ...prev,
         victory: isWinner,
-        phase: "finalizing"
+        phase: "finalizing",
+        endReason: reason || 'normal'
       }
     })
   }, [user])

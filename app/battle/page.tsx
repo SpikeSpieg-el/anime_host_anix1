@@ -370,7 +370,7 @@ export default function BattlePage() {
     },
     onMatchEnded: (data) => {
       console.log('[PvP Direct Callback] Match ended event received:', data)
-      resolvePvPMatchEnd(data.winner)
+      resolvePvPMatchEnd(data.winner, data.reason)
     }
   })
 

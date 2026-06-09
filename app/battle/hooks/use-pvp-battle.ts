@@ -167,6 +167,22 @@ export function usePvPBattle(options?: {
       }
     })
 
+    socket.on('opponent_disconnect', (data) => {
+      console.log('[PvP] Opponent disconnected, auto-win for current player')
+      setPvpState(prev => ({ 
+        ...prev, 
+        status: 'ended', 
+        mmrChange: data.mmrChange || 10 
+      }))
+      if (optionsRef.current?.onMatchEnded) {
+        optionsRef.current.onMatchEnded({ 
+          winner: session?.user?.id, 
+          mmrChange: data.mmrChange || 10,
+          reason: 'opponent_disconnect' 
+        })
+      }
+    })
+
     socket.on('error', (data) => {
       console.error('[PvP] Server error:', data.message)
       setPvpState(prev => ({ 
