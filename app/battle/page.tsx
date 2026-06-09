@@ -16,6 +16,7 @@ import { BattleArena } from "./components/BattleArena"
 import { BattleResultView } from "./components/BattleResultView"
 import { TeamBuilderModal } from "./components/TeamBuilderModal"
 import { PvPArena } from "./components/PvPArena"
+import { Leaderboard } from "./components/Leaderboard"
 import { usePvPBattle } from "./hooks/use-pvp-battle"
 import { glassCard } from "./config"
 import { computeDeckSynergies } from "./utils"
@@ -292,6 +293,7 @@ export default function BattlePage() {
   const [showLocationSelector, setShowLocationSelector] = useState(false)
   const [showModeSelector, setShowModeSelector] = useState(false)
   const [showPvPArena, setShowPvPArena] = useState(false)
+  const [showLeaderboard, setShowLeaderboard] = useState(false)
   const [viewedCard, setViewedCard] = useState<Card | null>(null)
   const [isPvPMode, setIsPvPMode] = useState(false)
   const prevRoundResultsRef = useRef<any>(null)
@@ -671,20 +673,23 @@ export default function BattlePage() {
           7. PVP ARENA MODAL
       ========================================== */}
       {showPvPArena && (
-        <div 
+        <div
           className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200"
-          onClick={() => setShowPvPArena(false)}
         >
-          <div 
+          <div
             className="bg-[#0b0b14]/95 border border-white/10 rounded-3xl p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-2xl relative animate-in zoom-in-95 duration-200"
             onClick={(e) => e.stopPropagation()}
           >
             <button
-              onClick={(e) => {
-                e.stopPropagation()
-                setShowPvPArena(false)
+              onClick={() => {
+                if (pvpState.status !== 'in_queue' && pvpState.status !== 'connecting') {
+                  setShowPvPArena(false)
+                }
               }}
-              className="absolute top-4 right-4 z-10 p-2 rounded-full bg-white/5 text-slate-400 hover:text-white transition-colors border border-white/10"
+              className={`absolute top-4 right-4 z-10 p-2 rounded-full bg-white/5 text-slate-400 hover:text-white transition-colors border border-white/10 ${
+                pvpState.status === 'in_queue' || pvpState.status === 'connecting' ? 'opacity-50 cursor-not-allowed' : ''
+              }`}
+              disabled={pvpState.status === 'in_queue' || pvpState.status === 'connecting'}
             >
               <X className="w-5 h-5" />
             </button>
@@ -692,18 +697,45 @@ export default function BattlePage() {
               selectedCards={selectedCards}
               leaderId={leaderId}
               formation={formation}
-              onClose={() => setShowPvPArena(false)}
+              onClose={() => {
+                if (pvpState.status !== 'in_queue' && pvpState.status !== 'connecting') {
+                  setShowPvPArena(false)
+                }
+              }}
               pvpState={pvpState}
               joinQueue={joinQueue}
               leaveQueue={leaveQueue}
               isConnected={isConnected}
+              onShowLeaderboard={() => setShowLeaderboard(true)}
             />
           </div>
         </div>
       )}
 
       {/* ==========================================
-          8. BARRACKS HERO SELECT DIALOG
+          8. LEADERBOARD MODAL
+      ========================================== */}
+      {showLeaderboard && (
+        <div
+          className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200"
+        >
+          <div
+            className="bg-[#0b0b14]/95 border border-white/10 rounded-3xl p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-2xl relative animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setShowLeaderboard(false)}
+              className="absolute top-4 right-4 z-10 p-2 rounded-full bg-white/5 text-slate-400 hover:text-white transition-colors border border-white/10"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <Leaderboard onClose={() => setShowLeaderboard(false)} />
+          </div>
+        </div>
+      )}
+
+      {/* ==========================================
+          9. BARRACKS HERO SELECT DIALOG
       ========================================== */}
       <TeamBuilderModal
         showTeamBuilder={showTeamBuilder}

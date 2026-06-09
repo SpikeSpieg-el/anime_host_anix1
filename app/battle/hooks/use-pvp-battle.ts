@@ -83,11 +83,11 @@ export function usePvPBattle(options?: {
     })
 
     socket.on('connect_error', (err) => {
-      console.error('[PvP] Connection error:', err.message)
-      setPvpState(prev => ({ 
-        ...prev, 
-        status: 'idle', 
-        error: 'Не удалось подключиться к PvP серверу' 
+      console.log('[PvP] Connection failed, will retry automatically')
+      setPvpState(prev => ({
+        ...prev,
+        status: 'idle',
+        error: 'Не удалось подключиться к PvP серверу'
       }))
     })
 
@@ -184,10 +184,10 @@ export function usePvPBattle(options?: {
     })
 
     socket.on('error', (data) => {
-      console.error('[PvP] Server error:', data.message)
-      setPvpState(prev => ({ 
-        ...prev, 
-        error: data.message 
+      console.log('[PvP] Server error received')
+      setPvpState(prev => ({
+        ...prev,
+        error: data.message || 'Ошибка PvP сервера'
       }))
     })
 

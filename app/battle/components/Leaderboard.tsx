@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react'
-import { Trophy, Medal, Crown, Swords, TrendingUp, TrendingDown } from 'lucide-react'
+import React, { useState, useEffect, useRef } from 'react'
+import { Trophy, Medal, Crown, Swords, TrendingUp, TrendingDown, User, ChevronLeft } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { useAuth } from '@/components/auth/auth-provider'
 
 interface LeaderboardEntry {
   user_id: string
@@ -8,7 +9,11 @@ interface LeaderboardEntry {
   wins: number
   losses: number
   rank_tier: string
-  email?: string
+  username?: string
+}
+
+interface LeaderboardProps {
+  onClose: () => void
 }
 
 const RANK_TIERS = {
@@ -21,31 +26,50 @@ const RANK_TIERS = {
   bronze: { name: 'Бронза', color: 'from-amber-700 to-amber-900', icon: Medal },
 }
 
-export const Leaderboard: React.FC = () => {
+export const Leaderboard: React.FC<LeaderboardProps> = ({ onClose }) => {
+  const { user, profile } = useAuth()
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([])
   const [loading, setLoading] = useState(true)
-  const [filter, setFilter] = useState<'all' | 'top100'>('top100')
+  const [userRank, setUserRank] = useState<number | null>(null)
+  const userRowRef = useRef<HTMLTableRowElement>(null)
 
   useEffect(() => {
     loadLeaderboard()
-  }, [filter])
+  }, [])
+
+  useEffect(() => {
+    if (userRowRef.current && userRank) {
+      userRowRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }
+  }, [userRank])
 
   const loadLeaderboard = async () => {
     setLoading(true)
     try {
-      const limit = filter === 'top100' ? 100 : 1000
       const { data, error } = await supabase
         .from('user_ladder')
         .select('user_id, mmr, wins, losses, rank_tier')
         .order('mmr', { ascending: false })
-        .limit(limit)
+        .limit(100)
 
       if (error) throw error
       setLeaderboard(data || [])
+      
+      // Find user rank
+      if (user && data) {
+        const userIndex = data.findIndex((entry: LeaderboardEntry) => entry.user_id === user.id)
+        setUserRank(userIndex >= 0 ? userIndex + 1 : null)
+      }
     } catch (err) {
       console.error('[Leaderboard] Error loading:', err)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const scrollToUser = () => {
+    if (userRowRef.current) {
+      userRowRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' })
     }
   }
 
@@ -60,43 +84,33 @@ export const Leaderboard: React.FC = () => {
   }
 
   return (
-    <div className="flex flex-col gap-4 p-4">
-      {/* Header */}
+    <div className="flex flex-col gap-4 max-w-4xl mx-auto">
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-black text-white flex items-center gap-3">
-          <span className="p-2 rounded-xl bg-purple-500/20 text-purple-400 border border-purple-500/30">
-            <Trophy className="w-5 h-5" />
-          </span>
-          Таблица Лидеров
-        </h2>
-        <div className="flex gap-2">
+        <button
+          onClick={onClose}
+          className="px-4 py-2 bg-zinc-900/60 hover:bg-zinc-800/80 rounded-xl text-xs font-bold text-zinc-300 transition-all border border-white/[0.06] active:scale-95 flex items-center gap-2"
+        >
+          <ChevronLeft className="w-4 h-4" />
+          Вернуться на арену
+        </button>
+        {userRank && (
           <button
-            onClick={() => setFilter('top100')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-              filter === 'top100'
-                ? 'bg-purple-500 text-white'
-                : 'bg-white/5 text-slate-400 hover:bg-white/10'
-            }`}
+            onClick={scrollToUser}
+            className="px-4 py-2 bg-purple-500/20 hover:bg-purple-500/30 rounded-xl text-xs font-bold text-purple-300 transition-all border border-purple-500/30 active:scale-95 flex items-center gap-2"
           >
-            Топ 100
+            <User className="w-4 h-4" />
+            Моя позиция: #{userRank}
           </button>
-          <button
-            onClick={() => setFilter('all')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-              filter === 'all'
-                ? 'bg-purple-500 text-white'
-                : 'bg-white/5 text-slate-400 hover:bg-white/10'
-            }`}
-          >
-            Все
-          </button>
-        </div>
+        )}
       </div>
-
+      
       {/* Leaderboard Table */}
       <div className="bg-white/[0.02] border border-white/10 rounded-2xl overflow-hidden backdrop-blur-md">
         {loading ? (
-          <div className="p-8 text-center text-slate-400">Загрузка...</div>
+          <div className="p-8 text-center text-slate-400 flex items-center justify-center gap-2">
+            <Swords className="w-5 h-5 animate-spin" />
+            Загрузка таблицы лидеров...
+          </div>
         ) : leaderboard.length === 0 ? (
           <div className="p-8 text-center text-slate-400">Нет данных</div>
         ) : (
@@ -104,25 +118,25 @@ export const Leaderboard: React.FC = () => {
             <table className="w-full">
               <thead className="bg-white/5 border-b border-white/10">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-bold text-slate-400 uppercase tracking-wider">
+                  <th className="px-3 py-3 text-left text-[10px] md:text-xs font-bold text-slate-400 uppercase tracking-wider">
                     Место
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-bold text-slate-400 uppercase tracking-wider">
+                  <th className="px-3 py-3 text-left text-[10px] md:text-xs font-bold text-slate-400 uppercase tracking-wider">
                     Игрок
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-bold text-slate-400 uppercase tracking-wider">
+                  <th className="px-3 py-3 text-left text-[10px] md:text-xs font-bold text-slate-400 uppercase tracking-wider hidden sm:table-cell">
                     Ранг
                   </th>
-                  <th className="px-4 py-3 text-center text-xs font-bold text-slate-400 uppercase tracking-wider">
+                  <th className="px-3 py-3 text-center text-[10px] md:text-xs font-bold text-slate-400 uppercase tracking-wider">
                     MMR
                   </th>
-                  <th className="px-4 py-3 text-center text-xs font-bold text-slate-400 uppercase tracking-wider">
+                  <th className="px-3 py-3 text-center text-[10px] md:text-xs font-bold text-slate-400 uppercase tracking-wider hidden md:table-cell">
                     Побед
                   </th>
-                  <th className="px-4 py-3 text-center text-xs font-bold text-slate-400 uppercase tracking-wider">
+                  <th className="px-3 py-3 text-center text-[10px] md:text-xs font-bold text-slate-400 uppercase tracking-wider hidden md:table-cell">
                     Поражений
                   </th>
-                  <th className="px-4 py-3 text-center text-xs font-bold text-slate-400 uppercase tracking-wider">
+                  <th className="px-3 py-3 text-center text-[10px] md:text-xs font-bold text-slate-400 uppercase tracking-wider">
                     Винрейт
                   </th>
                 </tr>
@@ -132,78 +146,87 @@ export const Leaderboard: React.FC = () => {
                   const rankInfo = getRankInfo(entry.rank_tier)
                   const RankIcon = rankInfo.icon
                   const winRate = getWinRate(entry.wins, entry.losses)
+                  const isCurrentUser = user && entry.user_id === user.id
 
                   return (
                     <tr
                       key={entry.user_id}
-                      className="hover:bg-white/5 transition-colors"
+                      ref={isCurrentUser ? userRowRef : null}
+                      className={`hover:bg-white/5 transition-colors ${
+                        isCurrentUser ? 'bg-purple-500/10 border-l-2 border-l-purple-500' : ''
+                      }`}
                     >
                       {/* Rank */}
-                      <td className="px-4 py-3">
+                      <td className="px-3 py-3">
                         <div className="flex items-center gap-2">
                           {index === 0 && (
-                            <Crown className="w-5 h-5 text-yellow-400" />
+                            <Crown className="w-4 h-4 text-yellow-400" />
                           )}
                           {index === 1 && (
-                            <Medal className="w-5 h-5 text-slate-300" />
+                            <Medal className="w-4 h-4 text-slate-300" />
                           )}
                           {index === 2 && (
-                            <Medal className="w-5 h-5 text-amber-700" />
+                            <Medal className="w-4 h-4 text-amber-700" />
                           )}
-                          <span className="text-sm font-bold text-white">
+                          <span className="text-xs md:text-sm font-bold text-white">
                             #{index + 1}
                           </span>
                         </div>
                       </td>
 
                       {/* Player */}
-                      <td className="px-4 py-3">
-                        <span className="text-sm text-slate-300">
-                          Игрок {entry.user_id.slice(0, 8)}
-                        </span>
+                      <td className="px-3 py-3">
+                        <div className="flex items-center gap-2">
+                          {isCurrentUser && (
+                            <User className="w-3 h-3 text-purple-400" />
+                          )}
+                          <span className="text-xs md:text-sm text-slate-300">
+                            {isCurrentUser ? (profile?.username || 'Вы') : `Игрок ${entry.user_id.slice(0, 8)}`}
+                          </span>
+                        </div>
                       </td>
 
                       {/* Tier */}
-                      <td className="px-4 py-3">
+                      <td className="px-3 py-3 hidden sm:table-cell">
                         <div className="flex items-center gap-2">
-                          <RankIcon className={`w-4 h-4 bg-gradient-to-r ${rankInfo.color} bg-clip-text text-transparent`} />
-                          <span className={`text-xs font-bold bg-gradient-to-r ${rankInfo.color} bg-clip-text text-transparent`}>
+                          <RankIcon className={`w-3 h-3 bg-gradient-to-r ${rankInfo.color} bg-clip-text text-transparent`} />
+                          <span className={`text-[10px] font-bold bg-gradient-to-r ${rankInfo.color} bg-clip-text text-transparent`}>
                             {rankInfo.name}
                           </span>
                         </div>
                       </td>
 
                       {/* MMR */}
-                      <td className="px-4 py-3 text-center">
-                        <span className="text-sm font-bold text-purple-400">
+                      <td className="px-3 py-3 text-center">
+                        <span className="text-xs md:text-sm font-bold text-purple-400">
                           {entry.mmr}
                         </span>
                       </td>
 
                       {/* Wins */}
-                      <td className="px-4 py-3 text-center">
+                      <td className="px-3 py-3 text-center hidden md:table-cell">
                         <div className="flex items-center justify-center gap-1">
                           <TrendingUp className="w-3 h-3 text-emerald-400" />
-                          <span className="text-sm text-emerald-400">
+                          <span className="text-xs md:text-sm text-emerald-400">
                             {entry.wins}
                           </span>
                         </div>
                       </td>
 
                       {/* Losses */}
-                      <td className="px-4 py-3 text-center">
+                      <td className="px-3 py-3 text-center hidden md:table-cell">
                         <div className="flex items-center justify-center gap-1">
                           <TrendingDown className="w-3 h-3 text-rose-400" />
-                          <span className="text-sm text-rose-400">
+                          <span className="text-xs md:text-sm text-rose-400">
                             {entry.losses}
                           </span>
                         </div>
                       </td>
 
                       {/* Win Rate */}
-                      <td className="px-4 py-3 text-center">
+                      <td className="px-3 py-3 text-center">
                         <span
-                          className={`text-sm font-bold ${
+                          className={`text-xs md:text-sm font-bold ${
                             winRate >= 60
                               ? 'text-emerald-400'
                               : winRate >= 50
@@ -222,6 +245,12 @@ export const Leaderboard: React.FC = () => {
           </div>
         )}
       </div>
+      
+      {userRank === null && (
+        <div className="text-center text-xs text-zinc-500 py-2">
+          Вы не в топ-100. Продолжайте побеждать, чтобы попасть в таблицу лидеров!
+        </div>
+      )}
     </div>
   )
 }

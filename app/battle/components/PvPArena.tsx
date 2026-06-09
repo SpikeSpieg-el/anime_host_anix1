@@ -1,8 +1,9 @@
-import React, { useState } from 'react'
-import { Swords, Users, Trophy, Loader2, X, AlertCircle } from 'lucide-react'
+import React, { useState, useEffect, useRef } from 'react'
+import { Swords, Users, Trophy, Loader2, X, AlertCircle, Crown, Medal, TrendingUp, TrendingDown, ChevronLeft, ChevronRight, ChevronDown, User } from 'lucide-react'
 import { Card } from '../types'
-import { Leaderboard } from './Leaderboard'
 import { glassCard, DECK_SIZE } from '../config'
+import { supabase } from '@/lib/supabase'
+import { useAuth } from '@/components/auth/auth-provider'
 
 interface PvPArenaProps {
   selectedCards: Card[]
@@ -13,6 +14,26 @@ interface PvPArenaProps {
   joinQueue: (deck: Card[], leaderId: string | null, formation: string) => void
   leaveQueue: () => void
   isConnected: boolean
+  onShowLeaderboard: () => void
+}
+
+const RANK_TIERS = {
+  grandmaster: { name: 'Грандмастер', color: 'from-red-500 to-orange-500', icon: Crown },
+  master: { name: 'Мастер', color: 'from-purple-500 to-pink-500', icon: Trophy },
+  diamond: { name: 'Алмаз', color: 'from-cyan-400 to-blue-500', icon: Medal },
+  platinum: { name: 'Платина', color: 'from-slate-300 to-slate-400', icon: Medal },
+  gold: { name: 'Золото', color: 'from-yellow-400 to-yellow-600', icon: Medal },
+  silver: { name: 'Серебро', color: 'from-slate-400 to-slate-500', icon: Medal },
+  bronze: { name: 'Бронза', color: 'from-amber-700 to-amber-900', icon: Medal },
+}
+
+interface LeaderboardEntry {
+  user_id: string
+  mmr: number
+  wins: number
+  losses: number
+  rank_tier: string
+  username?: string
 }
 
 export const PvPArena: React.FC<PvPArenaProps> = ({
@@ -23,9 +44,64 @@ export const PvPArena: React.FC<PvPArenaProps> = ({
   pvpState,
   joinQueue,
   leaveQueue,
-  isConnected
+  isConnected,
+  onShowLeaderboard
 }) => {
-  const [showLeaderboard, setShowLeaderboard] = useState(false)
+  const { user, profile } = useAuth()
+  const [ladderData, setLadderData] = useState<any>(null)
+  const [ladderLoading, setLadderLoading] = useState(true)
+  const [ladderError, setLadderError] = useState<string | null>(null)
+  const [currentIndex, setCurrentIndex] = useState(0)
+  const touchStartX = useRef<number>(0)
+  const touchEndX = useRef<number>(0)
+
+  useEffect(() => {
+    const loadLadderData = async () => {
+      if (!user) return
+      setLadderLoading(true)
+      setLadderError(null)
+
+      const maxRetries = 3
+      const retryDelay = 10000 // 10 seconds
+
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+          console.log(`[PvPArena] Loading ladder data, attempt ${attempt}/${maxRetries}...`)
+          const { data, error } = await supabase
+            .from('user_ladder')
+            .select('*')
+            .eq('user_id', user.id)
+            .single()
+
+          if (error) throw error
+          setLadderData(data)
+          setLadderLoading(false)
+          return // Success, exit retry loop
+        } catch (err) {
+          console.error(`[PvPArena] Error loading ladder data (attempt ${attempt}/${maxRetries}):`, err)
+
+          if (attempt === maxRetries) {
+            setLadderError('Технические работы, PvP временно недоступно')
+            setLadderLoading(false)
+          } else {
+            await new Promise(resolve => setTimeout(resolve, retryDelay))
+          }
+        }
+      }
+    }
+
+    loadLadderData()
+  }, [user])
+
+  const getRankInfo = (tier: string) => {
+    return RANK_TIERS[tier as keyof typeof RANK_TIERS] || RANK_TIERS.bronze
+  }
+
+  const getWinRate = (wins: number, losses: number) => {
+    const total = wins + losses
+    if (total === 0) return 0
+    return Math.round((wins / total) * 100)
+  }
 
   const handleJoinQueue = () => {
     if (selectedCards.length !== DECK_SIZE) {
@@ -39,211 +115,353 @@ export const PvPArena: React.FC<PvPArenaProps> = ({
     leaveQueue()
   }
 
-  if (showLeaderboard) {
-    return (
-      <div className="flex flex-col gap-4">
-        <button
-          onClick={() => setShowLeaderboard(false)}
-          className="self-start px-4 py-2 bg-white/5 hover:bg-white/10 rounded-xl text-sm font-bold text-slate-300 transition-colors border border-white/10"
-        >
-          ← Назад в Арену
-        </button>
-        <Leaderboard />
-      </div>
-    )
+  const navigateDeck = (direction: 'left' | 'right') => {
+    if (selectedCards.length === 0) return
+    
+    if (direction === 'left') {
+      setCurrentIndex(prev => (prev - 1 + selectedCards.length) % selectedCards.length)
+    } else {
+      setCurrentIndex(prev => (prev + 1) % selectedCards.length)
+    }
+  }
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.changedTouches[0].screenX
+  }
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    touchEndX.current = e.changedTouches[0].screenX
+    handleSwipe()
+  }
+
+  const handleSwipe = () => {
+    const swipeThreshold = 50
+    const diff = touchStartX.current - touchEndX.current
+    
+    if (Math.abs(diff) > swipeThreshold) {
+      if (diff > 0) {
+        navigateDeck('right')
+      } else {
+        navigateDeck('left')
+      }
+    }
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      {/* Header */}
-      <div className="text-center">
-        <h2 className="text-3xl font-black text-white flex items-center justify-center gap-3 drop-shadow-sm mb-2">
-          <span className="p-2 rounded-xl bg-purple-500/20 text-purple-400 border border-purple-500/30">
-            <Swords className="w-6 h-6" />
-          </span>
-          Арена PvP
-        </h2>
-        <p className="text-sm text-slate-400">
-          Сразитесь с реальными игроками в рейтинговом матче
-        </p>
+    <div className="relative flex flex-col gap-5 max-w-4xl mx-auto p-1 text-slate-100 selection:bg-purple-500/30">
+      
+      {/* Top Bar / Header */}
+      <div className="flex items-center justify-between border-b border-white/[0.06] pb-4">
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 rounded-xl bg-purple-500/10 text-purple-400 border border-purple-500/20 shadow-[0_0_15px_rgba(168,85,247,0.1)]">
+            <Swords className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="text-xl md:text-2xl font-black tracking-wide text-white uppercase">Арена PvP</h2>
+              {/* Online indicator */}
+              <span className={`flex h-2 w-2 relative rounded-full ${isConnected ? 'bg-emerald-500' : 'bg-amber-500'}`}>
+                {isConnected && <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>}
+              </span>
+            </div>
+            <p className="text-xs text-zinc-400 hidden sm:block">Сражения в реальном времени за рейтинг MMR</p>
+          </div>
+        </div>
       </div>
 
-      {/* Connection Status */}
+      {/* Connection & Error Messages */}
       {!isConnected && (
-        <div className={`${glassCard} p-4 flex items-center gap-3 border-l-4 border-orange-500`}>
-          <AlertCircle className="w-5 h-5 text-orange-400 shrink-0" />
-          <div className="flex-1">
-            <p className="text-sm font-bold text-orange-400">Подключение к PvP серверу...</p>
-            <p className="text-xs text-slate-400 mt-1">Проверьте, что PvP сервер запущен</p>
+        <div className="bg-amber-950/20 border border-amber-500/20 rounded-xl p-3.5 flex items-start gap-3 animate-in slide-in-from-top-2 duration-200">
+          <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+          <div>
+            <p className="text-xs font-bold text-amber-400">Подключение к серверу...</p>
+            <p className="text-[10px] text-zinc-400 mt-0.5">Пожалуйста, убедитесь, что соединение стабильно.</p>
           </div>
         </div>
       )}
 
-      {/* Error Display */}
-      {pvpState.error && (
-        <div className={`${glassCard} p-4 flex items-center gap-3 border-l-4 border-red-500`}>
-          <AlertCircle className="w-5 h-5 text-red-400 shrink-0" />
-          <div className="flex-1">
-            <p className="text-sm font-bold text-red-400">{pvpState.error}</p>
-          </div>
-          <button
-            onClick={() => window.location.reload()}
-            className="px-3 py-1.5 bg-red-500/20 hover:bg-red-500/30 rounded-lg text-xs font-bold text-red-400 transition-colors"
-          >
-            Перезагрузить
-          </button>
+      {(pvpState.error || ladderError) && (
+        <div className="bg-red-950/20 border border-red-500/20 rounded-xl p-3.5 flex items-start gap-3 animate-in slide-in-from-top-2 duration-200">
+          <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+          <p className="text-xs text-red-300 font-medium">{pvpState.error || ladderError}</p>
         </div>
       )}
 
-      {/* Main Content */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Queue Status Card */}
-        <div className={`${glassCard} p-6 flex flex-col gap-4`}>
-          <div className="flex items-center gap-3">
-            <div className="p-3 rounded-xl bg-purple-500/20 border border-purple-500/30">
-              <Users className="w-6 h-6 text-purple-400" />
+      {/* Player Dashboard Card */}
+      {ladderData && (
+        <div className="bg-zinc-900/40 backdrop-blur-xl border border-white/[0.06] rounded-2xl p-4 md:p-5 shadow-[inset_0_1px_1px_rgba(255,255,255,0.02)]">
+          <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
+            
+            {/* Profile Info */}
+            <div className="flex items-center gap-3.5 w-full md:w-auto">
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-tr from-purple-600 to-pink-600 flex items-center justify-center text-white font-extrabold text-lg shadow-lg shadow-purple-500/10">
+                {profile?.username ? profile.username.charAt(0).toUpperCase() : 'U'}
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-white tracking-wide">{profile?.username || 'Игрок'}</h3>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <span className="text-[10px] text-zinc-500 font-mono tracking-wider uppercase">Рейтинг:</span>
+                  <span className="text-xs font-black text-purple-400">{ladderData.mmr} MMR</span>
+                </div>
+              </div>
             </div>
-            <div>
-              <h3 className="text-lg font-black text-white">Поиск Матча</h3>
-              <p className="text-xs text-slate-400">
-                {pvpState.status === 'idle' && 'Готов к поиску'}
-                {pvpState.status === 'connecting' && 'Подключение...'}
-                {pvpState.status === 'in_queue' && `В очереди (${pvpState.queueSize} игроков)`}
-                {pvpState.status === 'matched' && 'Матч найден!'}
-                {pvpState.status === 'in_battle' && 'В бою'}
-                {pvpState.status === 'ended' && 'Матч завершён'}
-              </p>
+
+            {/* Performance Stats */}
+            <div className="grid grid-cols-3 md:flex md:items-center gap-3 md:gap-6 w-full md:w-auto border-t md:border-t-0 border-white/[0.04] pt-3 md:pt-0">
+              <div className="text-center md:text-right">
+                <div className="flex items-center justify-center md:justify-end gap-1 text-emerald-400 font-bold">
+                  <TrendingUp className="w-3.5 h-3.5" />
+                  <span className="text-xs tracking-wide">{ladderData.wins}</span>
+                </div>
+                <p className="text-[9px] text-zinc-500 uppercase tracking-widest mt-0.5 font-bold">Победы</p>
+              </div>
+
+              <div className="text-center md:text-right border-x border-white/[0.04] md:border-x-0 md:px-0">
+                <div className="flex items-center justify-center md:justify-end gap-1 text-rose-400 font-bold">
+                  <TrendingDown className="w-3.5 h-3.5" />
+                  <span className="text-xs tracking-wide">{ladderData.losses}</span>
+                </div>
+                <p className="text-[9px] text-zinc-500 uppercase tracking-widest mt-0.5 font-bold">Поражения</p>
+              </div>
+
+              <div className="text-center md:text-right">
+                <span className={`text-xs font-bold ${
+                  getWinRate(ladderData.wins, ladderData.losses) >= 60 
+                    ? 'text-emerald-400' 
+                    : getWinRate(ladderData.wins, ladderData.losses) >= 50 
+                    ? 'text-yellow-500' 
+                    : 'text-zinc-400'
+                }`}>
+                  {getWinRate(ladderData.wins, ladderData.losses)}%
+                </span>
+                <p className="text-[9px] text-zinc-500 uppercase tracking-widest mt-0.5 font-bold">Винрейт</p>
+              </div>
             </div>
+
+            {/* Rank Tier Badge */}
+            <div className="w-full md:w-auto">
+              {(() => {
+                const rankInfo = getRankInfo(ladderData.rank_tier)
+                const RankIcon = rankInfo.icon
+                return (
+                  <div className="flex items-center justify-center gap-2 px-3.5 py-1.5 rounded-xl bg-white/[0.02] border border-white/[0.06] shadow-sm">
+                    <RankIcon className={`w-4 h-4 bg-gradient-to-r ${rankInfo.color} bg-clip-text text-transparent`} />
+                    <span className={`text-xs font-bold bg-gradient-to-r ${rankInfo.color} bg-clip-text text-transparent uppercase tracking-wider`}>
+                      {rankInfo.name}
+                    </span>
+                  </div>
+                )
+              })()}
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* Interactive Main Panels */}
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-5">
+        
+        {/* Left Panel: Search and matchmaking */}
+        <div className="md:col-span-5 flex flex-col justify-between bg-zinc-900/40 backdrop-blur-xl border border-white/[0.06] rounded-2xl p-5 relative overflow-hidden shadow-[inset_0_1px_1px_rgba(255,255,255,0.02)]">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-lg bg-zinc-800/50 text-zinc-400 border border-white/[0.04]">
+                <Users className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-white uppercase tracking-wide">Подбор соперника</h3>
+                <p className="text-[10px] text-zinc-400 mt-0.5">
+                  {pvpState.status === 'idle' && 'Готов к поиску'}
+                  {pvpState.status === 'connecting' && 'Инициализация...'}
+                  {pvpState.status === 'in_queue' && `В поиске (${pvpState.queueSize || 0} в очереди)`}
+                  {pvpState.status === 'matched' && 'Противник найден!'}
+                  {pvpState.status === 'in_battle' && 'Вы в бою'}
+                </p>
+              </div>
+            </div>
+
+            {/* Active search radar style indicator */}
+            {pvpState.status === 'in_queue' && (
+              <span className="flex h-3 w-3 relative">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-3 w-3 bg-purple-500"></span>
+              </span>
+            )}
           </div>
 
-          {/* Queue Actions */}
-          <div className="flex flex-col gap-3">
+          <div className="mt-8 flex flex-col gap-3">
+            {/* Main Action Button */}
             {pvpState.status === 'idle' && (
               <button
                 onClick={handleJoinQueue}
                 disabled={!isConnected || selectedCards.length !== DECK_SIZE}
-                className="w-full py-3 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 disabled:from-slate-700 disabled:to-slate-800 disabled:cursor-not-allowed text-white font-black rounded-xl transition-all shadow-lg disabled:shadow-none flex items-center justify-center gap-2"
+                className="w-full py-3.5 px-4 bg-white text-zinc-950 disabled:bg-zinc-800 disabled:text-zinc-500 disabled:cursor-not-allowed hover:bg-zinc-100 font-extrabold text-xs uppercase tracking-wider rounded-xl transition-all active:scale-[0.98] shadow-md flex items-center justify-center gap-2"
               >
-                <Swords className="w-5 h-5" />
-                Начать Поиск
+                <Swords className="w-4 h-4" />
+                Найти Битву
               </button>
             )}
 
             {pvpState.status === 'in_queue' && (
               <button
                 onClick={handleLeaveQueue}
-                className="w-full py-3 bg-red-500/20 hover:bg-red-500/30 text-red-400 font-black rounded-xl transition-all border border-red-500/30 flex items-center justify-center gap-2"
+                className="w-full py-3.5 px-4 bg-red-950/20 hover:bg-red-950/40 text-red-400 font-extrabold text-xs uppercase tracking-wider rounded-xl transition-all border border-red-500/20 active:scale-[0.98] flex items-center justify-center gap-2"
               >
-                <X className="w-5 h-5" />
+                <X className="w-4 h-4" />
                 Отменить Поиск
               </button>
             )}
 
+            {/* Loading queue status anim */}
             {(pvpState.status === 'connecting' || pvpState.status === 'in_queue') && (
               <div className="flex items-center justify-center gap-2 py-2">
-                <Loader2 className="w-5 h-5 text-purple-400 animate-spin" />
-                <span className="text-sm text-slate-400">
-                  {pvpState.status === 'connecting' ? 'Подключение...' : 'Поиск противника...'}
-                </span>
+                <Loader2 className="w-4 h-4 text-purple-400 animate-spin" />
+                <span className="text-xs text-zinc-400 font-medium">Ожидание оппонента...</span>
               </div>
             )}
 
+            {/* Match found state */}
             {pvpState.status === 'matched' && (
-              <div className="bg-gradient-to-r from-green-500/20 to-emerald-500/20 border border-green-500/30 rounded-xl p-4 animate-in fade-in zoom-in-95">
-                <div className="flex items-center justify-center gap-2 mb-2">
-                  <Swords className="w-5 h-5 text-green-400" />
-                  <span className="text-lg font-black text-green-400">Матч Найден!</span>
+              <div className="bg-emerald-950/10 border border-emerald-500/20 rounded-xl p-4 text-center animate-in zoom-in-95 duration-200">
+                <div className="flex items-center justify-center gap-2 mb-1">
+                  <Swords className="w-4 h-4 text-emerald-400 animate-bounce" />
+                  <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider">Матч найден!</span>
                 </div>
-                <p className="text-sm text-center text-slate-300">
-                  Противник: <span className="font-bold text-white">{pvpState.matchData?.opponentId.slice(0, 8)}...</span>
-                </p>
-                <p className="text-xs text-center text-slate-400 mt-2">
-                  Переход на арену...
+                <p className="text-[10px] text-zinc-400">
+                  Оппонент ID: <span className="font-mono text-zinc-300">{pvpState.matchData?.opponentId?.slice(0, 8)}...</span>
                 </p>
               </div>
             )}
 
+            {/* Deck warning if not completed */}
             {selectedCards.length !== DECK_SIZE && pvpState.status === 'idle' && (
-              <p className="text-xs text-center text-orange-400 bg-orange-500/10 px-3 py-2 rounded-lg border border-orange-500/20">
-                Выберите ровно {DECK_SIZE} карт для участия в PvP
-              </p>
+              <div className="text-[11px] leading-relaxed text-amber-400/90 bg-amber-500/[0.03] border border-amber-500/10 px-3 py-2.5 rounded-xl">
+                Для участия требуется собрать колоду ровно из {DECK_SIZE} карт (сейчас: {selectedCards.length}).
+              </div>
             )}
           </div>
         </div>
 
-        {/* Deck Info Card */}
-        <div className={`${glassCard} p-6 flex flex-col gap-4`}>
-          <div className="flex items-center gap-3">
-            <div className="p-3 rounded-xl bg-indigo-500/20 border border-indigo-500/30">
-              <Trophy className="w-6 h-6 text-indigo-400" />
+        {/* Right Panel: Deck selection & horizontal slider */}
+        <div className="md:col-span-7 bg-zinc-900/40 backdrop-blur-xl border border-white/[0.06] rounded-2xl p-5 relative flex flex-col justify-between shadow-[inset_0_1px_1px_rgba(255,255,255,0.02)]">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-lg bg-zinc-800/50 text-zinc-400 border border-white/[0.04]">
+                <Trophy className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-white uppercase tracking-wide">Ваша Боевая Колода</h3>
+                <p className="text-[10px] text-zinc-400 mt-0.5">Выбрано карт: {selectedCards.length} из {DECK_SIZE}</p>
+              </div>
             </div>
-            <div>
-              <h3 className="text-lg font-black text-white">Ваша Колода</h3>
-              <p className="text-xs text-slate-400">
-                {selectedCards.length}/{DECK_SIZE} карт выбрано
-              </p>
-            </div>
+
+            {/* Navigation buttons for carousel */}
+            {selectedCards.length > 0 && (
+              <div className="flex items-center gap-1.5">
+                <button 
+                  onClick={() => navigateDeck('left')}
+                  className="p-1.5 rounded-lg bg-white/[0.02] hover:bg-white/[0.06] border border-white/[0.04] text-zinc-400 hover:text-white transition-all"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" />
+                </button>
+                <button 
+                  onClick={() => navigateDeck('right')}
+                  className="p-1.5 rounded-lg bg-white/[0.02] hover:bg-white/[0.06] border border-white/[0.04] text-zinc-400 hover:text-white transition-all"
+                >
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
           </div>
 
-          {/* Deck Preview */}
-          <div className="grid grid-cols-3 gap-2">
-            {selectedCards.map((card, idx) => (
-              <div
-                key={card.uniqueId}
-                className="aspect-[2/3] rounded-lg overflow-hidden border border-white/10 bg-slate-900/50 relative group"
+          {/* Cards carousel - infinite cycling */}
+          <div className="relative mt-2">
+            {selectedCards.length > 0 ? (
+              <div 
+                className="relative h-[200px] flex items-center justify-center"
+                onTouchStart={handleTouchStart}
+                onTouchEnd={handleTouchEnd}
               >
-                <img
-                  src={card.imageUrl}
-                  alt={card.name}
-                  className="w-full h-full object-cover"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
-                  <div className="absolute bottom-0 left-0 right-0 p-2">
-                    <p className="text-[10px] font-bold text-white truncate">{card.name}</p>
-                  </div>
+                {selectedCards.map((card, idx) => {
+                  const isVisible = idx === currentIndex
+                  const isLeft = idx === (currentIndex - 1 + selectedCards.length) % selectedCards.length
+                  const isRight = idx === (currentIndex + 1) % selectedCards.length
+                  
+                  return (
+                    <div
+                      key={card.uniqueId}
+                      className="absolute transition-all duration-300 ease-out cursor-pointer"
+                      style={{
+                        left: isVisible ? '50%' : isLeft ? 'calc(50% - 100px)' : isRight ? 'calc(50% + 100px)' : '50%',
+                        transform: isVisible ? 'translateX(-50%) scale(1.05)' : isLeft ? 'translateX(-50%) scale(0.85)' : isRight ? 'translateX(-50%) scale(0.85)' : 'translateX(-50%) scale(0)',
+                        width: isVisible ? '120px' : isLeft || isRight ? '80px' : '0px',
+                        opacity: isVisible ? 1 : isLeft || isRight ? 0.5 : 0,
+                        pointerEvents: isVisible || isLeft || isRight ? 'auto' : 'none',
+                        zIndex: isVisible ? 10 : isLeft || isRight ? 5 : 1,
+                      }}
+                      onClick={() => {
+                        if (isLeft) navigateDeck('left')
+                        if (isRight) navigateDeck('right')
+                      }}
+                    >
+                      <div className="relative aspect-[2/3] rounded-xl overflow-hidden border border-white/[0.08] bg-zinc-950 shadow-lg">
+                        <img
+                          src={card.imageUrl}
+                          alt={card.name}
+                          className="w-full h-full object-cover select-none pointer-events-none"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent">
+                          <div className="absolute bottom-0 left-0 right-0 p-2">
+                            <p className="text-[9px] font-bold text-white truncate text-center">{card.name}</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            ) : (
+              <div className="aspect-[4/2] rounded-xl border border-dashed border-white/[0.08] bg-white/[0.01] flex items-center justify-center">
+                <div className="text-center p-4">
+                  <p className="text-xs text-zinc-500 font-medium">Нет выбранных карт в колоде</p>
+                  <p className="text-[10px] text-zinc-600 mt-1">Вернитесь на экран выбора карт и подготовьте состав.</p>
                 </div>
               </div>
-            ))}
-            {Array.from({ length: DECK_SIZE - selectedCards.length }).map((_, idx) => (
-              <div
-                key={`empty-${idx}`}
-                className="aspect-[2/3] rounded-lg border-2 border-dashed border-white/10 bg-white/5 flex items-center justify-center"
-              >
-                <span className="text-2xl text-white/20">?</span>
-              </div>
-            ))}
+            )}
           </div>
         </div>
+
       </div>
 
-      {/* Leaderboard Button */}
+      {/* Leaderboard Fast-Link */}
       <button
-        onClick={() => setShowLeaderboard(true)}
-        className={`${glassCard} p-4 hover:bg-white/[0.06] transition-all flex items-center justify-between group`}
+        onClick={onShowLeaderboard}
+        className="w-full bg-zinc-900/30 hover:bg-zinc-800/40 border border-white/[0.05] p-3.5 rounded-2xl transition-all flex items-center justify-between group active:scale-[0.99] shadow-sm"
       >
         <div className="flex items-center gap-3">
-          <div className="p-2 rounded-xl bg-yellow-500/20 border border-yellow-500/30">
-            <Trophy className="w-5 h-5 text-yellow-400" />
+          <div className="p-2 rounded-lg bg-yellow-500/10 border border-yellow-500/20 text-yellow-500 shadow-[0_0_10px_rgba(234,179,8,0.1)]">
+            <Trophy className="w-4 h-4" />
           </div>
           <div className="text-left">
-            <h3 className="text-sm font-black text-white">Таблица Лидеров</h3>
-            <p className="text-xs text-slate-400">Посмотреть рейтинг игроков</p>
+            <h3 className="text-xs font-bold text-white uppercase tracking-wider">Таблица Лидеров</h3>
+            <p className="text-[10px] text-zinc-400 mt-0.5">
+              Взгляните на текущую вершину рейтинга и лучших воинов
+            </p>
           </div>
         </div>
-        <div className="text-slate-400 group-hover:text-white transition-colors">→</div>
+        <div className="text-zinc-500 group-hover:text-white group-hover:translate-x-0.5 transition-all text-sm font-bold">→</div>
       </button>
 
-      {/* Info Section */}
-      <div className={`${glassCard} p-4`}>
-        <h4 className="text-sm font-bold text-white mb-2">Как работает PvP?</h4>
-        <ul className="text-xs text-slate-400 space-y-1">
-          <li>• Соберите колоду из {DECK_SIZE} карт</li>
-          <li>• Нажмите "Начать Поиск" для поиска противника</li>
-          <li>• Система подберёт игрока с похожим рейтингом (MMR)</li>
-          <li>• Побеждайте и повышайте свой ранг!</li>
-          <li>• За победу: +MMR, за поражение: -MMR</li>
+      {/* Informational Rules Section */}
+      <div className="bg-white/[0.01] border border-white/[0.04] rounded-2xl p-4">
+        <h4 className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-2.5">Основные правила Арены</h4>
+        <ul className="text-[10px] text-zinc-500 space-y-1.5 leading-relaxed">
+          <li className="flex items-start gap-1.5">• <span className="text-zinc-400">Сформируйте колоду:</span> ровно {DECK_SIZE} боевых карт обязательны для начала поиска.</li>
+          <li className="flex items-start gap-1.5">• <span className="text-zinc-400">Подбор по MMR:</span> система подбирает максимально близких по силе оппонентов.</li>
+          <li className="flex items-start gap-1.5">• <span className="text-zinc-400">Изменение рейтинга:</span> победа добавляет очки MMR, поражение снижает ваш текущий ранг.</li>
         </ul>
       </div>
+
     </div>
   )
 }
