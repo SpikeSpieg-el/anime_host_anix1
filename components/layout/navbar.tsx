@@ -57,6 +57,7 @@ export function Navbar() {
   
   // Mobile specific states
   const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false)
+  const [isMobileDropdownOpen, setIsMobileDropdownOpen] = useState(false)
   const [showBottomNav, setShowBottomNav] = useState(true)
   const lastScrollY = useRef(0)
 
@@ -352,11 +353,11 @@ export function Navbar() {
           </Link>
 
           {/* 5. Ещё (Меню) */}
-          <DropdownMenu onOpenChange={setIsDropdownOpen}>
+          <DropdownMenu onOpenChange={setIsMobileDropdownOpen}>
             <DropdownMenuTrigger asChild>
               <button className={navIconClass(false)}>
                 {/* мигает если открыто */}
-                <Settings size={20} className={isDropdownOpen ? "animate-pulse" : ""} />
+                <Settings size={20} className={isMobileDropdownOpen ? "animate-pulse" : ""} />
                 <span className="text-[10px] font-medium">Ещё</span>
               </button>
             </DropdownMenuTrigger>
