@@ -388,7 +388,7 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCo
           >
             {/* Фон-постер */}
             <img 
-              src={poster} 
+              src={poster || undefined} 
               className="absolute inset-0 w-full h-full object-cover opacity-30 blur-sm transition-opacity group-hover:opacity-40" 
               alt="" 
             />
@@ -529,7 +529,7 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCo
              </div>
           ) : (
             <iframe
-              src={playerSrc}
+              src={playerSrc || undefined}
               className={`h-full w-full transition-opacity duration-700 ${isLoading ? 'opacity-0' : 'opacity-100'}`}
               allowFullScreen
               // ВАЖНО: Оптимизированные разрешения для работы Kodik плеера

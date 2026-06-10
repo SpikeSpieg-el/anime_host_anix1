@@ -134,7 +134,7 @@ export function BackupPlayer({ title, episode, isActive, embedSrc, poster, onSta
             {/* Фон-постер или градиент */}
             {poster ? (
               <img
-                src={poster}
+                src={poster || undefined}
                 className="absolute inset-0 w-full h-full object-cover opacity-30 blur-sm transition-opacity group-hover:opacity-40"
                 alt=""
               />
@@ -214,7 +214,7 @@ export function BackupPlayer({ title, episode, isActive, embedSrc, poster, onSta
             return (
             <iframe
               id="backup-player"
-              src={src}
+              src={src || undefined}
               className={`w-full h-full border-0 transition-opacity duration-700 ${isLoading ? 'opacity-0' : 'opacity-100'}`}
               allow="autoplay; encrypted-media; fullscreen; picture-in-picture; screen-wake-lock;"
               allowFullScreen

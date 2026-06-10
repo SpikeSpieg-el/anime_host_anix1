@@ -41,6 +41,7 @@ export async function GET(request: Request) {
         name: row.name,
         anime: row.anime,
         rarity: row.rarity as Rarity,
+        imageUrl: row.image_url,
         characterId: row.character_id || 0,
         stats: {
           hp: row.stats_hp,

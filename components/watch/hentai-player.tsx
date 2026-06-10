@@ -252,7 +252,7 @@ style={{ background: 'radial-gradient(circle at center, #fb923c 0%, transparent 
   {currentFile && (
     <video
       ref={videoRef}
-      src={currentFile.url}
+      src={currentFile.url || undefined}
       key={currentFile.url}
       className={cn(
         "h-full w-full object-contain",

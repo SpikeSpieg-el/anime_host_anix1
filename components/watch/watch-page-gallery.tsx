@@ -227,7 +227,7 @@ export function WatchPageGallery({ anime }: WatchPageGalleryProps) {
                     className="relative aspect-[2/3] rounded-lg overflow-hidden bg-muted border border-border/50 hover:border-primary/50 transition-all group cursor-pointer shadow-sm hover:shadow-md"
                   >
                     <Image
-                      src={cover}
+                      src={cover || ""}
                       alt={`Art ${index + 1}`}
                       fill
                       className="object-cover group-hover:scale-110 transition-transform duration-500 ease-out"
@@ -266,7 +266,7 @@ export function WatchPageGallery({ anime }: WatchPageGalleryProps) {
                     className="group relative aspect-video rounded-xl overflow-hidden bg-muted cursor-pointer border border-border/50 hover:border-primary/50 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300"
                   >
                     <Image
-                      src={src}
+                      src={src || ""}
                       alt={`Screenshot ${index + 1}`}
                       fill
                       className="object-cover group-hover:scale-105 transition-transform duration-500"
@@ -309,7 +309,7 @@ export function WatchPageGallery({ anime }: WatchPageGalleryProps) {
                   >
                     <div className="relative w-20 h-20 md:w-24 md:h-24 rounded-full overflow-hidden shadow-inner ring-2 ring-border/50 group-hover:ring-primary/40 transition-all">
                       <Image
-                        src={char.avatar}
+                        src={char.avatar || ""}
                         alt={char.name}
                         fill
                         className="object-cover group-hover:scale-110 transition-transform duration-500"
@@ -385,7 +385,7 @@ export function WatchPageGallery({ anime }: WatchPageGalleryProps) {
             {selectedScreenshot && (
               <div className="relative w-full h-full max-h-[80vh] md:max-h-full">
                 <Image
-                  src={selectedScreenshot}
+                  src={selectedScreenshot || ""}
                   alt="Fullscreen view"
                   fill
                   className="object-contain"
@@ -413,7 +413,7 @@ export function WatchPageGallery({ anime }: WatchPageGalleryProps) {
                 )}
               >
                 <Image
-                  src={shot}
+                  src={shot || ""}
                   alt={`Thumb ${idx}`}
                   fill
                   className="object-cover"
