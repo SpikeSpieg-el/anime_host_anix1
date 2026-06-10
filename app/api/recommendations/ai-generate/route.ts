@@ -1,5 +1,44 @@
 import { NextRequest, NextResponse } from 'next/server'
 
+const API_BASE_URL = 'http://localhost:3264'
+const API_KEY = 'Bearer sk-lm-mPGLv8PX:qSqGZHg7U0dZ9Ocg0KAR'
+
+// Fetch available models from the API
+async function getAvailableModel(): Promise<string> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/models`, {
+      headers: {
+        'Authorization': API_KEY
+      }
+    })
+    
+    if (!response.ok || response.status === 404) {
+      console.log('[AI Generate] Models endpoint not available (404), using default model')
+      return 'qwen3.5-plus'
+    }
+    
+    const data = await response.json()
+    const models = data.data || data.models || []
+    
+    if (models.length === 0) {
+      console.log('[AI Generate] No models found, using default')
+      return 'qwen3.5-plus'
+    }
+    
+    // Prefer qwen models
+    const preferredModel = models.find((m: any) => 
+      m.id?.includes('qwen3.5-plus') || 
+      m.id?.includes('qwen3.7-plus') ||
+      m.id?.includes('qwen-max')
+    )
+    
+    return preferredModel?.id || models[0]?.id || models[0] || 'qwen3.5-plus'
+  } catch (error) {
+    console.log('[AI Generate] Error fetching models, using default:', error)
+    return 'qwen3.5-plus'
+  }
+}
+
 // Tool definitions for the AI model
 const TOOLS = [
   {
@@ -126,36 +165,40 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { prompt, surveyData, userData } = body
 
+    // Fetch available model from API
+    const model = await getAvailableModel()
+    console.log('[AI Generate] Using model:', model)
+
     // Отправляем запрос в LM Studio с таймаутом
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 300000) // 5 минут таймаут
+    const timeoutId = setTimeout(() => controller.abort(), 300000) // 5 минут таймаута
 
     try {
       // First message with tools
       let messages = [
         {
           role: 'system',
-          content: prompt + '\n\nУ тебя есть доступ к инструментам поиска. Используй их для проверки актуальных данных об аниме перед рекомендацией.'
+          content: 'ТЫ ОБЯЗАН ОТВЕЧАТЬ ТОЛЬКО В ФОРМАТЕ JSON. Никакого текста вне JSON. Никаких объяснений, никаких вступлений, никаких завершающих фраз. Только чистый JSON объект.\n\n' + prompt + '\n\nУ тебя есть доступ к инструментам поиска. Используй их для проверки актуальных данных об аниме перед рекомендацией.'
         },
         {
           role: 'user',
-          content: 'Порекомендуй аниме на основе моего профиля. Учитывай все детали из анкеты, истории и предпочтений. Сначала используй инструменты поиска для проверки актуальных данных.'
+          content: 'Порекомендуй аниме на основе моего профиля. Учитывай все детали из анкеты, истории и предпочтений. Сначала используй инструменты поиска для проверки актуальных данных. ОТВЕТЬ ТОЛЬКО JSON.'
         }
       ]
 
-      let response = await fetch('http://127.0.0.1:1234/v1/chat/completions', {
+      let response = await fetch(`${API_BASE_URL}/api/chat/completions`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer sk-lm-mPGLv8PX:qSqGZHg7U0dZ9Ocg0KAR'
+          'Authorization': API_KEY
         },
         body: JSON.stringify({
-          model: 'google/gemma-4-e4b',
+          model,
           messages,
           tools: TOOLS,
           tool_choice: 'auto',
           temperature: 0.7,
-          max_tokens: 1500
+          max_tokens: 128000
         }),
         signal: controller.signal
       })
@@ -168,7 +211,7 @@ export async function POST(request: NextRequest) {
       let assistantMessage = responseData.choices?.[0]?.message
 
       // Handle tool calls
-      let maxIterations = 5
+      let maxIterations = 3
       while (assistantMessage?.tool_calls && maxIterations > 0) {
         console.log('[AI Generate] Tool calls detected:', assistantMessage.tool_calls.length)
 
@@ -189,19 +232,19 @@ export async function POST(request: NextRequest) {
         messages.push(...toolResults)
 
         // Get next response
-        response = await fetch('http://127.0.0.1:1234/v1/chat/completions', {
+        response = await fetch(`${API_BASE_URL}/api/chat/completions`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': 'Bearer sk-lm-mPGLv8PX:qSqGZHg7U0dZ9Ocg0KAR'
+            'Authorization': API_KEY
           },
           body: JSON.stringify({
-            model: 'google/gemma-4-e4b',
+            model,
             messages,
             tools: TOOLS,
             tool_choice: 'auto',
             temperature: 0.7,
-            max_tokens: 1500
+            max_tokens: 128000
           }),
           signal: controller.signal
         })
@@ -220,22 +263,22 @@ export async function POST(request: NextRequest) {
         console.log('[AI Generate] Max iterations reached, forcing final response')
         messages.push({
           role: 'user',
-          content: 'Ты использовал все доступные инструменты. Теперь сделай финальную рекомендацию в формате JSON без дополнительных вызовов инструментов.'
+          content: 'Ты использовал все доступные инструменты. Теперь сделай финальную рекомендацию. ОТВЕТЬ ТОЛЬКО ЧИСТЫЙ JSON без текста, без объяснений, без markdown. Только JSON объект с полями title, reason, year, episodes.'
         })
 
-        response = await fetch('http://127.0.0.1:1234/v1/chat/completions', {
+        response = await fetch(`${API_BASE_URL}/api/chat/completions`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': 'Bearer sk-lm-mPGLv8PX:qSqGZHg7U0dZ9Ocg0KAR'
+            'Authorization': API_KEY
           },
           body: JSON.stringify({
-            model: 'google/gemma-4-e4b',
+            model,
             messages,
             tools: TOOLS,
             tool_choice: 'none', // Force no tool calls
             temperature: 0.7,
-            max_tokens: 1500
+            max_tokens: 128000
           }),
           signal: controller.signal
         })
@@ -258,11 +301,20 @@ export async function POST(request: NextRequest) {
 
       console.log('[AI Generate] Raw response from LM Studio:', content)
 
-      // Извлекаем JSON из ответа (иногда модель может добавить текст вокруг)
-      let jsonMatch = content.match(/\{[\s\S]*\}/)
+      // Извлекаем JSON из ответа - убираем markdown и лишний текст
+      let jsonContent = content
+      
+      // Убираем markdown code blocks
+      jsonContent = jsonContent.replace(/```json\s*/g, '').replace(/```\s*/g, '')
+      
+      // Убираем возможные префиксы/суффиксы текста
+      jsonContent = jsonContent.trim()
+      
+      // Находим JSON объект в тексте
+      let jsonMatch = jsonContent.match(/\{[\s\S]*\}/)
       if (!jsonMatch) {
-        // Пробуем найти JSON с помощью более гибкого regex
-        jsonMatch = content.match(/\[\s*\{[\s\S]*\}\s*\]/)
+        // Пробуем найти JSON массив
+        jsonMatch = jsonContent.match(/\[\s*\{[\s\S]*\}\s*\]/)
       }
       
       if (!jsonMatch) {
@@ -270,7 +322,7 @@ export async function POST(request: NextRequest) {
         throw new Error("Не удалось найти JSON в ответе нейросети. Ответ: " + content.substring(0, 200) + "...")
       }
 
-      const jsonContent = jsonMatch[0]
+      jsonContent = jsonMatch[0]
       console.log('[AI Generate] Extracted JSON:', jsonContent)
 
       let data: any
@@ -286,6 +338,16 @@ export async function POST(request: NextRequest) {
       if (!data || typeof data !== 'object' || !data.title) {
         console.error('[AI Generate] Invalid data structure:', data)
         throw new Error("Неверный формат ответа от нейросети. Ожидался объект с полем 'title'")
+      }
+
+      // Проверка, что аниме не в списке уже просмотренных
+      const watchedTitles = userData?.history?.map((h: any) => h.title.toLowerCase()) || []
+      const bookmarkTitles = userData?.bookmarks?.map((b: any) => b.title.toLowerCase()) || []
+      const forbiddenTitles = [...watchedTitles, ...bookmarkTitles]
+      
+      if (forbiddenTitles.includes(data.title.toLowerCase())) {
+        console.error('[AI Generate] Recommended anime is already watched/bookmarked:', data.title)
+        throw new Error(`Нейросеть рекомендовала уже просмотренное аниме: ${data.title}. Попробуйте снова.`)
       }
 
       return NextResponse.json({

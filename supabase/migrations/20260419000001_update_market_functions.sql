@@ -106,11 +106,13 @@ BEGIN
   -- Записываем продажу в историю
   INSERT INTO public.market_sales_history (
     listing_id, seller_id, buyer_id, price, unique_id, serial_id, name, anime, rarity,
+    character_id,
     stats_hp, stats_atk, stats_def, stats_spd, stats_luck,
     is_main_character, frame_modifier, coating_modifier
   )
   SELECT
     id, seller_id, p_buyer_id, price, unique_id, serial_id, name, anime, rarity,
+    character_id,
     stats_hp, stats_atk, stats_def, stats_spd, stats_luck,
     COALESCE(is_main_character, false), frame_modifier, coating_modifier
   FROM public.market_listings

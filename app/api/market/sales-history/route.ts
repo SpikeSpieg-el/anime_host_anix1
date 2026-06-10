@@ -41,6 +41,7 @@ export async function GET(request: Request) {
         name: row.name,
         anime: row.anime,
         rarity: row.rarity as Rarity,
+        characterId: row.character_id || 0,
         stats: {
           hp: row.stats_hp,
           atk: row.stats_atk,

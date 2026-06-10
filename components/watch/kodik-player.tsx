@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect, useMemo, useRef } from "react"
 import { PlayerLoading } from "@/components/watch/player-loading"
 import { AlertCircle } from "lucide-react"
 import { RegionDetector } from "@/components/providers/region-detector"
@@ -40,6 +40,9 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCo
   const [selectedCountry, setSelectedCountry] = useState<string>('RU') // По умолчанию Россия
   const [errorMessage, setErrorMessage] = useState<string>('')
   const [currentDomain, setCurrentDomain] = useState<number>(0) // Индекс текущего домена
+  const [showFullscreenHint, setShowFullscreenHint] = useState(false)
+  const playerContainerRef = useRef<HTMLDivElement>(null)
+  const lastTapRef = useRef<number>(0)
 
   // Таймаут для загрузки плеера
   const [loadTimeout, setLoadTimeout] = useState<NodeJS.Timeout | null>(null)
@@ -85,6 +88,51 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCo
   const handleCountryChange = (countryCode: string) => {
     setSelectedCountry(countryCode)
     onCountryChange?.(countryCode)
+  }
+
+  const handleDoubleTap = () => {
+    const now = Date.now()
+    const DOUBLE_TAP_DELAY = 300
+    
+    if (now - lastTapRef.current < DOUBLE_TAP_DELAY) {
+      // Прячем подсказку если она была
+      setShowFullscreenHint(false)
+      
+      if (playerContainerRef.current) {
+        const element = playerContainerRef.current as any
+        
+        if (!document.fullscreenElement && 
+            !(document as any).webkitFullscreenElement && 
+            !(document as any).mozFullScreenElement && 
+            !(document as any).msFullscreenElement) {
+          
+          const requestMethod = element.requestFullscreen || 
+                               element.webkitRequestFullscreen || 
+                               element.webkitRequestFullScreen || 
+                               element.mozRequestFullScreen || 
+                               element.msRequestFullscreen;
+
+          if (requestMethod) {
+            requestMethod.call(element).catch((err: any) => {
+              console.error(`Fullscreen error: ${err.message}`)
+            })
+          }
+        } else {
+          // Выход из полноэкранного режима через стандартный API
+          if (document.exitFullscreen) document.exitFullscreen().catch(() => {})
+          else if ((document as any).webkitExitFullscreen) (document as any).webkitExitFullscreen();
+          else if ((document as any).mozCancelFullScreen) (document as any).mozCancelFullScreen();
+          else if ((document as any).msExitFullscreen) (document as any).msExitFullscreen();
+        }
+      }
+      return true
+    } else {
+      // Если это одиночный тап по боковой зоне, показываем подсказку
+      setShowFullscreenHint(true)
+      setTimeout(() => setShowFullscreenHint(false), 3000)
+    }
+    lastTapRef.current = now
+    return false
   }
 
   const tryNextDomain = () => {
@@ -324,7 +372,10 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCo
   }, [isStarted, episode, onEpisodeChange, currentDomain])
 
   return (
-    <div className="relative aspect-video w-full overflow-hidden rounded-2xl bg-zinc-950 border border-white/5 shadow-2xl">
+    <div 
+      ref={playerContainerRef}
+      className="relative aspect-video w-full overflow-hidden rounded-2xl bg-zinc-950 border border-white/5 shadow-2xl"
+    >
       {!isStarted ? (
         <div className="absolute inset-0 flex flex-col items-center justify-center">
           {/* Детектор региона в углу */}
@@ -356,6 +407,71 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCo
         </div>
       ) : (
         <>
+          {/* Узкие боковые зоны (30px) для двойного тапа */}
+          {/* Они находятся по самым краям и не мешают кнопкам в центре или панелям управления */}
+          <div 
+            className="absolute left-0 top-0 w-[40px] h-full z-10 cursor-pointer pointer-events-auto touch-none"
+            onClick={(e) => {
+              const isDouble = handleDoubleTap()
+              if (isDouble) e.stopPropagation()
+            }}
+          >
+            {showFullscreenHint && (
+              <div className="absolute inset-0 bg-orange-500/20 animate-pulse border-r border-orange-500/50 flex items-center justify-center">
+                <div className="rotate-[-90deg] whitespace-nowrap text-[10px] font-bold text-orange-400 uppercase tracking-widest">
+                  Тапни дважды
+                </div>
+              </div>
+            )}
+          </div>
+          <div 
+            className="absolute right-0 top-0 w-[40px] h-full z-10 cursor-pointer pointer-events-auto touch-none"
+            onClick={(e) => {
+              const isDouble = handleDoubleTap()
+              if (isDouble) e.stopPropagation()
+            }}
+          >
+            {showFullscreenHint && (
+              <div className="absolute inset-0 bg-orange-500/20 animate-pulse border-l border-orange-500/50 flex items-center justify-center">
+                <div className="rotate-[90deg] whitespace-nowrap text-[10px] font-bold text-orange-400 uppercase tracking-widest">
+                  Тапни дважды
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Центральная подсказка при первом одиночном тапе по бокам */}
+          {showFullscreenHint && (
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20 pointer-events-none">
+              <style>{`
+                @keyframes ripple-wave {
+                  0% { transform: scale(0.8); opacity: 0; }
+                  20% { transform: scale(1); opacity: 1; }
+                  100% { transform: scale(2.5); opacity: 0; }
+                }
+                @keyframes tap-indicator {
+                  0%, 10%, 45%, 55%, 100% { transform: scale(1); opacity: 0; }
+                  5%, 50% { transform: scale(1.1); opacity: 1; }
+                }
+              `}</style>
+              <div className="bg-black/80 backdrop-blur-md border border-white/10 px-4 py-2 rounded-full flex items-center gap-4 shadow-2xl animate-in fade-in zoom-in duration-300">
+                <div className="flex gap-2 items-center">
+                  <div className="relative w-8 h-8 flex items-center justify-center">
+                    {/* Волна (Ripple Effect) */}
+                    <div 
+                      className="absolute w-full h-full rounded-full bg-orange-500/40" 
+                      style={{ animation: 'ripple-wave 1.5s cubic-bezier(0, 0.2, 0.8, 1) infinite' }}
+                    />
+                    <div 
+                      className="absolute w-full h-full rounded-full bg-orange-500/20" 
+                      style={{ animation: 'ripple-wave 1.5s cubic-bezier(0, 0.2, 0.8, 1) infinite 0.2s' }}
+                    />
+                  </div>
+                </div>
+                <span className="text-white text-xs font-medium">Полноэкранный режим</span>
+              </div>
+            </div>
+          )}
           {isLoading && !hasError && (
             <div className="absolute inset-0 flex flex-col items-center justify-center">
               <PlayerLoading />
