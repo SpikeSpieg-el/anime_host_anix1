@@ -843,6 +843,27 @@ export function useBattleData() {
       )
       context.cardsPlacedThisRound = aiCardIndex
       context.opponentPlacements = placedThisRound.map(p => ({ zoneId: p.zoneId, isSecret: p.isSecret }))
+      
+      // Inject already placed AI cards in this round into the context zones for the evaluation logic
+      context.zones = context.zones.map(zone => {
+        const pendingForZone = aiPlacedThisRound.filter(p => p.zoneId === zone.id)
+        if (pendingForZone.length > 0) {
+          const pendingCards: ZoneCard[] = pendingForZone.map(p => {
+            const card = ccgState.aiHand.find(c => c.uniqueId === p.cardId)
+            const basePower = getCardBasePower(card!)
+            return {
+              card: card!,
+              isSecret: p.isSecret,
+              powerAfterModifier: basePower, // Evaluation logic uses basePower internally if it needs to
+            }
+          })
+          return {
+            ...zone,
+            aiCards: [...zone.aiCards, ...pendingCards]
+          }
+        }
+        return zone
+      })
 
       const decision = aiEngineRef.current.decideCard(context)
       if (decision) {

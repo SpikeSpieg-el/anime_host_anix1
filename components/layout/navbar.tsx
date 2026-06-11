@@ -6,7 +6,7 @@ import { useState, useEffect, useMemo, useRef } from "react"
 import {
   Flame, Tv, Compass, Home, BookMarked, History, Calendar,
   Settings, GraduationCap, LogOut, Search, MoreHorizontal, X, ArrowUp,
-  Sparkles, Swords
+  Sparkles, Swords, Wrench
 } from "lucide-react"
 import { SearchSuggestions } from "@/components/catalog/search-suggestions"
 import { EpisodeUpdateBadge } from "@/components/watch/episode-update-badge"
@@ -49,6 +49,8 @@ export function Navbar() {
   const pathname = usePathname()
   const { user, signOut, profile, sessionLoading } = useAuth()
   const { updates, clearUpdate, clearAllUpdates } = useEpisodeUpdates()
+
+  const isDev = process.env.NODE_ENV === 'development'
 
   // Состояния
   const [searchValue, setSearchValue] = useState("")
@@ -292,6 +294,13 @@ export function Navbar() {
                       <Swords size={14} /> PVE Бои
                     </Link>
                   </DropdownMenuItem>
+                  {isDev && (
+                    <DropdownMenuItem asChild>
+                      <Link href="/admin/card-editor" className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-accent transition text-sm font-medium text-amber-500 hover:text-amber-600">
+                        <Wrench size={14} /> Редактор карт
+                      </Link>
+                    </DropdownMenuItem>
+                  )}
                   <DropdownMenuSeparator />
                   <div className="px-2 py-1.5 flex items-center justify-between">
                      <span className="text-sm">Тема</span>

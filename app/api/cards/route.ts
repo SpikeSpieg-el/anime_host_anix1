@@ -126,7 +126,8 @@ async function getCardsData(request: Request): Promise<NextResponse> {
       packName: row.pack_name || undefined,
       frameModifier: row.frame_modifier || undefined,
       coatingModifier: row.coating_modifier || undefined,
-      isArtBlacklisted: row.is_art_blacklisted || false
+      isArtBlacklisted: row.is_art_blacklisted || false,
+      imageLayers: row.image_layers || undefined
     }))
 
     return NextResponse.json({ cards })
@@ -277,7 +278,8 @@ async function saveCardData(request: Request): Promise<NextResponse> {
         pack_name: card.packName || null,
         frame_modifier: card.frameModifier || null,
         coating_modifier: card.coatingModifier || null,
-        is_art_blacklisted: card.isArtBlacklisted || false
+        is_art_blacklisted: card.isArtBlacklisted || false,
+        image_layers: card.imageLayers || null
       })
       .select()
       .single()

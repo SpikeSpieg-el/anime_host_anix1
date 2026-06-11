@@ -1,15 +1,18 @@
 "use client"
 
+import { useRouter, usePathname } from "next/navigation"
 import { useState, useRef, MouseEvent, useCallback, useEffect, useMemo } from "react"
 import { flushSync } from "react-dom"
 import Image from "next/image"
 import { Navbar } from "@/components/layout/navbar"
-import { Sparkles, Star, Heart, Loader2, X, ZoomIn, ExternalLink, RefreshCcw, Trash, Trash2, Crown, Package, Coins, Search, Database, Store, Share, Swords } from "lucide-react"
+import { Sparkles, Star, Heart, Loader2, X, ZoomIn, ExternalLink, RefreshCcw, Trash, Trash2, Crown, Package, Coins, Search, Database, Store, Share, Swords, Wrench } from "lucide-react"
+import { CanvasImage } from "@/components/gacha/canvas-image"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { rollAnimeCharacter, rollFromAnimePack, searchGachaPacks, createCustomGachaPack, checkPackAvailability, updateUserPityAfterRoll } from "./actions"
 import { saveCardToDatabase, loadUserCards, deleteCardFromDatabase, queueCardForSync, syncQueuedCards } from "./client-actions"
 import { loadUserPity, updateUserPity, type PityData } from "./pity-actions"
 import { ANIME_PACKS, AnimePack, CustomAnimePack, createCustomPack, loadYearBasedPacks } from "@/lib/gacha-packs"
+import { ModifierStyles } from "@/components/gacha/card-modifiers"
 import { useCoins } from "@/hooks/use-coins"
 import { useDust } from "@/hooks/use-dust"
 import { GachaLoading } from "@/components/gacha/gacha-loading"
@@ -59,6 +62,7 @@ export interface Card {
   coatingModifier?: string;
   isArtBlacklisted?: boolean
   orderIndex?: number // Индекс порядка добавления в коллекцию
+  imageLayers?: [string, string, string] // PNG layers for 3D effect
 }
 
 function generateCardUniqueId(characterId: number, packId?: string): string {
@@ -432,14 +436,51 @@ const InteractiveCard = ({ card, forceFlipped = false }: { card: Card, forceFlip
   const hintTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const hideHintTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const [isRotating, setIsRotating] = useState(false)
+  
+  // Track loading state for each 3D layer
+  const [layersLoaded, setLayersLoaded] = useState({ bg: false, char: false, vfx: false })
+  const [imageStartedLoading, setImageStartedLoading] = useState(false)
 
   useEffect(() => {
     setIsFlipped(forceFlipped)
   }, [forceFlipped])
 
   useEffect(() => {
-    setIsImageLoading(true)
-  }, [card.imageUrl])
+    // Небольшая задержка чтобы избежать мерцания для кэшированных изображений
+    setImageStartedLoading(false)
+    const timer = setTimeout(() => {
+      setIsImageLoading(true)
+      setImageStartedLoading(true)
+    }, 50)
+    
+    // Reset layers loaded state when card changes
+    setLayersLoaded({ bg: false, char: false, vfx: false })
+    
+    return () => clearTimeout(timer)
+  }, [card.imageUrl, card.uniqueId])
+  
+  // Check if all required layers are loaded
+  useEffect(() => {
+    if (!card.imageLayers || !card.imageLayers.some(l => l)) {
+      // No 3D layers, single image mode - will be handled by onLoad on main image
+      return
+    }
+    
+    // Determine which layers exist
+    const hasBg = !!card.imageLayers[0]
+    const hasChar = !!card.imageLayers[1]
+    const hasVfx = !!card.imageLayers[2]
+    
+    // Check if all existing layers are loaded
+    const allLoaded = 
+      (!hasBg || layersLoaded.bg) &&
+      (!hasChar || layersLoaded.char) &&
+      (!hasVfx || layersLoaded.vfx)
+    
+    if (allLoaded) {
+      setIsImageLoading(false)
+    }
+  }, [layersLoaded, card.imageLayers])
 
   // Show flip hint after 2 seconds of viewing
   useEffect(() => {
@@ -536,8 +577,8 @@ const InteractiveCard = ({ card, forceFlipped = false }: { card: Card, forceFlip
       const centerY = rect.height / 2
 
       setRotation({
-        x: ((y - centerY) / centerY) * -12,
-        y: ((x - centerX) / centerX) * 12
+        x: ((y - centerY) / centerY) * -8,
+        y: ((x - centerX) / centerX) * 8
       })
       setIsHovered(true)
     })
@@ -572,8 +613,8 @@ const InteractiveCard = ({ card, forceFlipped = false }: { card: Card, forceFlip
       const centerY = rect.height / 2
 
       setRotation({
-        x: ((y - centerY) / centerY) * -12,
-        y: ((x - centerX) / centerX) * 12
+        x: ((y - centerY) / centerY) * -8,
+        y: ((x - centerX) / centerX) * 8
       })
       setIsHovered(true)
     })
@@ -592,6 +633,13 @@ const InteractiveCard = ({ card, forceFlipped = false }: { card: Card, forceFlip
   const highlightX = -rotation.y * 1.2; 
   const highlightY = rotation.x * 1.2;
 
+  // 3D Parallax layers logic
+  const layerOffsets = [
+    { x: rotation.y * 1.0, y: -rotation.x * 1.0 }, // Background (further)
+    { x: rotation.y * 2.5, y: -rotation.x * 2.5 }, // Character (closer)
+    { x: rotation.y * 4.0, y: -rotation.x * 4.0 }, // Foreground (closest)
+  ];
+
   return (
     <div 
       ref={cardRef}
@@ -601,34 +649,125 @@ const InteractiveCard = ({ card, forceFlipped = false }: { card: Card, forceFlip
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
       onClick={() => setIsFlipped(!isFlipped)}
-      className="relative w-[260px] sm:w-72 md:w-80 h-[380px] sm:h-[440px] md:h-[480px] max-w-[calc(100vw-2rem)] transition-transform duration-500 ease-out cursor-pointer"
+      className="relative w-[260px] sm:w-72 md:w-80 h-[380px] sm:h-[440px] md:h-[480px] max-w-[calc(100vw-2rem)] transition-transform duration-700 ease-out cursor-pointer"
       style={{
-        transform: `perspective(1000px) rotateX(${rotation.x}deg) rotateY(${rotation.y + (isFlipped ? 180 : 0)}deg)`,
+        transform: `perspective(1200px) rotateX(${rotation.x}deg) rotateY(${rotation.y + (isFlipped ? 180 : 0)}deg)`,
         transformStyle: "preserve-3d",
-        touchAction: isTouching ? 'none' : 'auto'
+        touchAction: isTouching ? 'none' : 'auto',
+        willChange: 'transform'
       }}
     >
       {/* FRONT SIDE */}
       <div 
-        className={`absolute inset-0 rounded-[1.5rem] sm:rounded-[2rem] md:rounded-[2.5rem] overflow-hidden ${rarityConfig[card.rarity].bg} ${rarityConfig[card.rarity].glow} border-2 border-white/10`}
-        style={{ backfaceVisibility: "hidden" }}
+        className={`absolute inset-0 rounded-[1.5rem] sm:rounded-[2rem] md:rounded-[2.5rem] ${rarityConfig[card.rarity].bg} ${rarityConfig[card.rarity].glow} border-2 border-white/10`}
+        style={{ 
+          backfaceVisibility: "hidden",
+          transformStyle: "preserve-3d",
+          willChange: "transform"
+        }}
       >
-        <Image 
-          src={getProxiedSrc(card.imageUrl)} 
-          alt={card.name}
-          unoptimized={true}
-          className="absolute inset-0 w-full h-full object-cover scale-[1.02]"
-          fill
-          sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 40vw"
-          quality={80}
-          priority={true}
-          referrerPolicy="no-referrer"
-          onError={(e) => handleImageError(e, card, false)}
-          onLoad={() => setIsImageLoading(false)}
-        />
+        {/* Render 3D layers if present, otherwise fallback to main image */}
+        {card.imageLayers && card.imageLayers.some(l => l) ? (
+          <>
+            {/* Clipped Background Area */}
+            <div className="absolute inset-0 rounded-[1.4rem] sm:rounded-[1.9rem] md:rounded-[2.4rem] overflow-hidden">
+               <div className="absolute inset-0 scale-[1.1]">
+                  {/* Background Layer */}
+                  {card.imageLayers[0] && (
+                    <div 
+                      className="absolute inset-0 w-full h-full transition-transform duration-100 ease-out"
+                      style={{ 
+                        transform: `translate3d(${layerOffsets[0].x}px, ${layerOffsets[0].y}px, 0) scale(1.05)`,
+                        willChange: "transform"
+                      }}
+                    >
+                      <CanvasImage 
+                        src={getProxiedSrc(card.imageLayers[0])} 
+                        alt={`${card.name} bg`}
+                        className="w-full h-full"
+                        style={{ willChange: 'transform', transform: 'translateZ(0)' }}
+                        objectFit="cover"
+                        onLoad={() => setLayersLoaded(prev => ({ ...prev, bg: true }))}
+                      />
+                    </div>
+                  )}
+                  
+                  {/* Fallback/Main image as base if background missing */}
+                  {!card.imageLayers[0] && (
+                    <CanvasImage 
+                      src={getProxiedSrc(card.imageUrl)} 
+                      alt={card.name}
+                      className="absolute inset-0 w-full h-full"
+                      style={{ willChange: 'transform', transform: 'translateZ(0)', filter: 'blur(4px)' }}
+                      objectFit="cover"
+                      opacity={0.5}
+                      onLoad={() => setLayersLoaded(prev => ({ ...prev, bg: true }))}
+                    />
+                  )}
+               </div>
+            </div>
+
+            {/* Non-Clipped Layers (Pop out effect) */}
+            <div className="absolute inset-0 pointer-events-none" style={{ transformStyle: "preserve-3d" }}>
+               {/* Character Layer - Pushes forward slightly out of the card */}
+               {card.imageLayers[1] && (
+                 <div 
+                   className="absolute inset-0 w-full h-full transition-transform duration-100 ease-out z-10"
+                   style={{ 
+                     transform: `translate3d(${layerOffsets[1].x}px, ${layerOffsets[1].y}px, 50px) scale(1.08)`,
+                     filter: "drop-shadow(0 20px 30px rgba(0,0,0,0.5))",
+                     willChange: "transform"
+                   }}
+                 >
+                   <CanvasImage 
+                     src={getProxiedSrc(card.imageLayers[1])} 
+                     alt={`${card.name} char`}
+                     className="w-full h-full"
+                     style={{ willChange: 'transform', transform: 'translateZ(0)' }}
+                     objectFit="contain"
+                     onLoad={() => setLayersLoaded(prev => ({ ...prev, char: true }))}
+                   />
+                 </div>
+               )}
+
+               {/* Foreground/VFX Layer - Pushes even further forward */}
+               {card.imageLayers[2] && (
+                 <div 
+                   className="absolute inset-0 w-full h-full transition-transform duration-100 ease-out z-20"
+                   style={{ 
+                     transform: `translate3d(${layerOffsets[2].x}px, ${layerOffsets[2].y}px, 80px) scale(1.15)`,
+                     willChange: "transform"
+                   }}
+                 >
+                   <CanvasImage 
+                     src={getProxiedSrc(card.imageLayers[2])} 
+                     alt={`${card.name} vfx`}
+                     className="w-full h-full"
+                     style={{ willChange: 'transform', transform: 'translateZ(0)' }}
+                     objectFit="cover"
+                     opacity={0.8}
+                     onLoad={() => setLayersLoaded(prev => ({ ...prev, vfx: true }))}
+                   />
+                 </div>
+               )}
+            </div>
+          </>
+        ) : (
+          <div className="absolute inset-0 rounded-[1.4rem] sm:rounded-[1.9rem] md:rounded-[2.4rem] overflow-hidden">
+            <CanvasImage 
+              src={getProxiedSrc(card.imageUrl)} 
+              alt={card.name}
+              className="absolute inset-0 w-full h-full scale-[1.02]"
+              style={{ willChange: 'transform', transform: 'translateZ(0)' }}
+              objectFit="cover"
+              onError={(e) => handleImageError(e, card, false)}
+              onLoad={() => setIsImageLoading(false)}
+            />
+          </div>
+        )}
         
         {/* Загрузчик поверх изображения */}
-        {isImageLoading && (
+        {isImageLoading && imageStartedLoading && (
           <div className="absolute inset-0 flex items-center justify-center bg-slate-900/80 backdrop-blur-sm z-20">
             <div className="flex flex-col items-center gap-3">
               <Loader2 className="w-8 h-8 sm:w-10 sm:h-10 text-white/80 animate-spin" />
@@ -725,7 +864,8 @@ const InteractiveCard = ({ card, forceFlipped = false }: { card: Card, forceFlip
         style={{ 
           backfaceVisibility: "hidden", 
           transform: "rotateY(180deg)",
-          borderColor: `rgba(${rarityConfig[card.rarity].rgb}, 0.5)`
+          borderColor: `rgba(${rarityConfig[card.rarity].rgb}, 0.5)`,
+          willChange: "transform"
         }}
       >
         <div className="absolute top-3 right-3 sm:top-4 sm:right-4 md:top-5 md:right-5 flex items-center gap-1.5 z-20">
@@ -767,6 +907,7 @@ const InteractiveCard = ({ card, forceFlipped = false }: { card: Card, forceFlip
 }
 
 export default function GachaPage() {
+  const router = useRouter()
   const[isRolling, setIsRolling] = useState(false)
   const[isPackLoading, setIsPackLoading] = useState(true)
   const[isCustomPackLoading, setIsCustomPackLoading] = useState(false)
@@ -779,6 +920,8 @@ export default function GachaPage() {
   
   const { user: authUser, session, sessionLoading } = useAuth()
   const { coins: userCoins, loading: coinsLoading, spendCoins, addCoins, forceSync, fixOverflow, refresh: refreshCoins } = useCoins()
+
+  const isDev = process.env.NODE_ENV === 'development'
   const { dust, loading: dustLoading, addDust, refresh: refreshDust } = useDust()
   const[selectedPack, setSelectedPack] = useState<AnimePack | CustomAnimePack | null>(null)
   const[showPacks, setShowPacks] = useState(false)
@@ -2039,6 +2182,7 @@ useEffect(() => {
 
   return (
     <div className="min-h-screen bg-[#020617] relative text-slate-100 selection:bg-indigo-500/30 font-sans pb-24 overflow-x-hidden">
+      <ModifierStyles />
       {/* Background decorations */}
       <div className="fixed top-[-20%] left-[-10%] w-[50%] h-[50%] rounded-full bg-indigo-900/20 blur-[120px] pointer-events-none" />
       <div className="fixed bottom-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-purple-900/10 blur-[120px] pointer-events-none" />
@@ -2645,6 +2789,20 @@ useEffect(() => {
                 >
                   <Sparkles className="w-4 h-4 shrink-0" />
                   <span className="truncate">Сменить арт</span>
+                </button>
+              )}
+
+              {isDev && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    sessionStorage.setItem('edit-card-data', JSON.stringify(viewedCard));
+                    router.push('/admin/card-editor');
+                  }}
+                  className="px-4 py-3 sm:px-5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 font-bold text-xs sm:text-sm flex items-center justify-center sm:justify-start gap-2 transition-colors border border-amber-500/30 w-full sm:w-auto"
+                >
+                  <Wrench className="w-4 h-4 shrink-0" />
+                  <span className="truncate">Редактировать (Dev)</span>
                 </button>
               )}
               

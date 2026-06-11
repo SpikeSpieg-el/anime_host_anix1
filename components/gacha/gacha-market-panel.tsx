@@ -9,6 +9,7 @@ import { useAuth } from "@/components/auth/auth-provider"
 import { supabase } from "@/lib/supabase"
 import { frameNames, coatingNames, FrameOverlay, CoatingOverlay } from "@/components/gacha/card-modifiers"
 import { getCardBasePower, getCardProvision } from "@/app/battle/utils"
+import { CanvasImage } from "@/components/gacha/canvas-image"
 
 type MarketListingApi = {
   listingId: string
@@ -23,7 +24,6 @@ type MarketFilters = {
   rarity: Rarity[]
   minPrice: number
   maxPrice: number
-  minScore: number
   minPower: number
   maxWeight: number
   anime: string
@@ -96,12 +96,17 @@ const InteractiveCard = ({ card, forceFlipped = false }: { card: MarketListingAp
   const [rotation, setRotation] = useState({ x: 0, y: 0 })
   const [isHovered, setIsHovered] = useState(false)
   const [isFlipped, setIsFlipped] = useState(false)
-  const[isTouching, setIsTouching] = useState(false)
+  const [isTouching, setIsTouching] = useState(false)
+  const [isImageLoading, setIsImageLoading] = useState(true)
   const animationFrameRef = useRef<number | undefined>(undefined)
 
   useEffect(() => {
     setIsFlipped(forceFlipped)
   }, [forceFlipped])
+
+  useEffect(() => {
+    setIsImageLoading(true)
+  }, [card.imageUrl, card.uniqueId])
 
   // Handle page visibility change to reset animation state when tab is switched/minimized
   useEffect(() => {
@@ -211,26 +216,39 @@ const InteractiveCard = ({ card, forceFlipped = false }: { card: MarketListingAp
       style={{
         transform: `perspective(1000px) rotateX(${rotation.x}deg) rotateY(${rotation.y + (isFlipped ? 180 : 0)}deg)`,
         transformStyle: "preserve-3d",
-        touchAction: isTouching ? 'none' : 'auto'
+        touchAction: isTouching ? 'none' : 'auto',
+        willChange: 'transform'
       }}
     >
       {/* FRONT SIDE */}
       <div 
         className={`absolute inset-0 rounded-[1.5rem] sm:rounded-[2rem] md:rounded-[2.5rem] overflow-hidden ${rarityConfig[card.rarity].bg} ${rarityConfig[card.rarity].glow} border-2 border-white/10`}
-        style={{ backfaceVisibility: "hidden" }}
+        style={{ backfaceVisibility: "hidden", willChange: "transform" }}
       >
-        <Image 
+        <CanvasImage 
           src={getProxiedSrc(card.imageUrl)} 
           alt={card.name}
-          unoptimized={true}
-          className="absolute inset-0 w-full h-full object-cover scale-[1.02]"
-          fill
-          sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 40vw"
-          quality={80}
-          priority={true}
-          referrerPolicy="no-referrer"
-          onError={(e) => handleListingImageError(e, card)}
+          className="absolute inset-0 w-full h-full scale-[1.02]"
+          style={{ willChange: 'transform', transform: 'translateZ(0)' }}
+          objectFit="cover"
+          onLoad={() => setIsImageLoading(false)}
+          onError={(e) => {
+            handleListingImageError(e, card)
+            setIsImageLoading(false)
+          }}
         />
+
+        {/* Loader for InteractiveCard */}
+        {isImageLoading && (
+          <div className="absolute inset-0 flex items-center justify-center bg-slate-900/80 backdrop-blur-sm z-20">
+            <div className="flex flex-col items-center gap-3">
+              <Loader2 className="w-8 h-8 sm:w-10 sm:h-10 text-white/80 animate-spin" />
+              <span className="text-[10px] sm:text-xs font-black text-white/60 uppercase tracking-widest">
+                Загрузка арта...
+              </span>
+            </div>
+          </div>
+        )}
 
         <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/20 to-slate-950/20 pointer-events-none" />
 
@@ -360,6 +378,7 @@ export function GachaMarketPanel({
   const [loading, setLoading] = useState(true)
   const [actionId, setActionId] = useState<string | null>(null)
   const [viewedCard, setViewedCard] = useState<MarketListingApi | null>(null)
+  const [loadingImages, setLoadingImages] = useState<Record<string, boolean>>({})
   const [buyPreview, setBuyPreview] = useState<{ listing: MarketListingApi } | null>(null)
   const [showFilters, setShowFilters] = useState(false)
   const [filters, setFilters] = useState<MarketFilters>({
@@ -367,7 +386,6 @@ export function GachaMarketPanel({
     rarity: [],
     minPrice: 0,
     maxPrice: 10000000,
-    minScore: 0,
     minPower: 0,
     maxWeight: 15,
     anime: "",
@@ -397,11 +415,6 @@ export function GachaMarketPanel({
 
       // Price filter
       if (listing.price < filters.minPrice || listing.price > filters.maxPrice) {
-        return false
-      }
-
-      // Score filter
-      if (card.score < filters.minScore) {
         return false
       }
 
@@ -468,7 +481,6 @@ export function GachaMarketPanel({
       rarity: [],
       minPrice: 0,
       maxPrice: 10000000,
-      minScore: 0,
       minPower: 0,
       maxWeight: 15,
       anime: "",
@@ -489,7 +501,6 @@ export function GachaMarketPanel({
     filters.rarity.length > 0 ||
     filters.minPrice > 0 ||
     filters.maxPrice < 10000000 ||
-    filters.minScore > 0 ||
     filters.minPower > 0 ||
     filters.maxWeight < 15 ||
     filters.anime ||
@@ -685,21 +696,6 @@ export function GachaMarketPanel({
               </div>
             </div>
 
-            {/* Min Score */}
-            <div className="space-y-2">
-              <label className="text-xs font-black text-slate-500 uppercase tracking-wider">Мин. рейтинг ★</label>
-              <input
-                type="number"
-                placeholder="0"
-                min="0"
-                max="10"
-                step="0.1"
-                value={filters.minScore || ""}
-                onChange={(e) => setFilters(prev => ({ ...prev, minScore: parseFloat(e.target.value) || 0 }))}
-                className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
-              />
-            </div>
-
             {/* Min Power */}
             <div className="space-y-2">
               <label className="text-xs font-black text-slate-500 uppercase tracking-wider">Мин. сила</label>
@@ -849,9 +845,19 @@ export function GachaMarketPanel({
                     quality={50}
                     loading="lazy"
                     referrerPolicy="no-referrer"
-                    onError={(e) => handleListingImageError(e, c)}
+                    onLoad={() => setLoadingImages(prev => ({ ...prev, [L.listingId]: false }))}
+                    onError={(e) => {
+                      handleListingImageError(e, c)
+                      setLoadingImages(prev => ({ ...prev, [L.listingId]: false }))
+                    }}
                   />
                  
+                  {/* Grid Item Loader */}
+                  {(loadingImages[L.listingId] ?? true) && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm z-10">
+                      <Loader2 className="w-6 h-6 text-white/40 animate-spin" />
+                    </div>
+                  )}
                   <div
                     className="absolute inset-x-0 top-0 h-1.5"
                     style={{
