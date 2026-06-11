@@ -4,7 +4,7 @@ import { useState, useRef, useCallback, useEffect } from "react"
 import Image from "next/image"
 import { Navbar } from "@/components/layout/navbar"
 import { Footer } from "@/components/layout/footer"
-import { Swords, AlertCircle, X, RefreshCcw, Star, Crown, Lock, LogIn } from "lucide-react"
+import { Swords, AlertCircle, X, RefreshCcw, Star, Crown, Lock, LogIn, Share } from "lucide-react"
 import { useBattleData } from "./hooks/use-battle-data"
 import { useAuth } from "@/components/auth/auth-provider"
 import { AuthModal } from "@/components/auth/auth-modal"
@@ -361,7 +361,7 @@ export default function BattlePage() {
 
   const isPlayer1Ref = useRef<boolean>(false)
 
-  const { pvpState, resetPvP, joinQueue, leaveQueue, isConnected, placeCards } = usePvPBattle({
+  const { pvpState, resetPvP, joinQueue, leaveQueue, isConnected, placeCards, isPvPAvailable } = usePvPBattle({
     onRoundResolved: (results) => {
       console.log('[PvP Direct Callback] Round resolved event received:', results)
       resolvePvPRound(results, isPlayer1Ref.current)
@@ -416,6 +416,33 @@ export default function BattlePage() {
 
   const handleCardClick = (card: Card) => {
     setViewedCard(card)
+  }
+
+  const handleSharePage = async () => {
+    const shareText = isPvPMode
+      ? `⚔️ WEEB.X PVP - Сражайся с реальными игроками в онлайн-арене! Поднимайся в рейтинге и докажи своё мастерство! Зарегистрируй аккаунт и начни бой! За первую регистрацию получи 10,000 монет бесплатно.`
+      : `⚔️ WEEB.X PVE - Сражайся с ИИ в различных локациях! Собери колоду, сочетай КНБ роли и получай награды! Зарегистрируй аккаунт и начни коллекцию! За первую регистрацию получи 10,000 монет бесплатно.`
+    const shareUrl = typeof window !== 'undefined' ? window.location.href : ''
+
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'WEEB.X Битвы',
+          text: shareText,
+          url: shareUrl
+        })
+      } catch (error) {
+        console.error('[Share] Error sharing:', error)
+      }
+    } else {
+      try {
+        await navigator.clipboard.writeText(`${shareText}\n${shareUrl}`)
+        alert('Ссылка скопирована в буфер обмена!')
+      } catch (error) {
+        console.error('[Share] Error copying to clipboard:', error)
+        alert('Не удалось скопировать ссылку')
+      }
+    }
   }
 
   const activeSynergies = computeDeckSynergies(selectedCards).active
@@ -477,9 +504,18 @@ export default function BattlePage() {
               </span>
               <span className="text-[10px] font-bold tracking-widest text-slate-300 uppercase">Арена</span>
             </div>
-            <h1 className="text-2xl md:text-4xl lg:text-5xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-br from-white via-slate-200 to-slate-500 uppercase drop-shadow-sm">
-              Битвы <span className="text-transparent bg-clip-text bg-gradient-to-r from-rose-400 to-orange-500">PVE</span>
-            </h1>
+            <div className="flex items-center justify-center gap-3 mb-3">
+              <h1 className="text-2xl md:text-4xl lg:text-5xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-br from-white via-slate-200 to-slate-500 uppercase drop-shadow-sm">
+                Битвы <span className="text-transparent bg-clip-text bg-gradient-to-r from-rose-400 to-orange-500">PVE</span>
+              </h1>
+              <button
+                onClick={handleSharePage}
+                className="p-2 rounded-full bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-colors border border-white/10"
+                title="Поделиться"
+              >
+                <Share className="w-5 h-5" />
+              </button>
+            </div>
             <p className="mt-2 text-slate-400 text-xs md:text-sm max-w-xl mx-auto font-medium">
               Собери колоду, сочетай КНБ роли и побеждай на 3-х линиях!
             </p>
@@ -632,6 +668,7 @@ export default function BattlePage() {
                 setShowModeSelector(false)
                 setShowPvPArena(true)
               }}
+              isPvPAvailable={isPvPAvailable}
             />
           </div>
         </div>

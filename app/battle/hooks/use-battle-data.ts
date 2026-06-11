@@ -589,25 +589,20 @@ export function useBattleData() {
       }
 
       console.log('[Battle] Mapping territories...', matchData.territories)
-      // Use territories from server, or fallback to random modifiers if not provided
-      const shuffledModifiers = TERRITORY_MODIFIERS.slice().sort(() => Math.random() - 0.5)
-      const zones: BattleZone[] = (matchData.territories && matchData.territories.length > 0 
-        ? matchData.territories 
-        : Array(3).fill(null)
-      ).map((territory: any, idx: number) => {
-        // Ensure modifier has correct structure
-        const modifier = territory?.modifier || shuffledModifiers[idx] || { 
-          id: 'neutral',
-          name: 'Нейтральная Территория',
-          nameRu: 'Нейтральная Территория',
-          description: 'Нет специальных эффектов'
-        }
-        
+      // TODO: Починить синхронизацию локаций для PvP - сейчас модификаторы отключены
+      // Временно отключаем модификаторы локации в PvP для стабильности
+      const neutralModifier = {
+        id: 'neutral',
+        name: 'Нейтральная Территория',
+        nameRu: 'Нейтральная Территория',
+        description: 'Нет специальных эффектов'
+      }
+      const zones: BattleZone[] = Array(3).fill(null).map((_, idx: number) => {
         return {
           id: `zone-${idx + 1}`,
           name: `Линия ${idx + 1}`,
-          nameRu: territory?.nameRu || modifier.nameRu || `Линия ${idx + 1}`,
-          modifier: modifier,
+          nameRu: `Линия ${idx + 1}`,
+          modifier: neutralModifier,
           playerCards: [],
           aiCards: [],
           playerScore: 0,
@@ -659,22 +654,35 @@ export function useBattleData() {
   }
 
   const startBattle = async () => {
+    console.log('[Battle] startBattle called')
+    console.log('[Battle] selectedCards length:', selectedCards.length)
+    console.log('[Battle] selectedDungeon:', selectedDungeon?.id)
+    console.log('[Battle] progress stamina:', progress?.current_stamina)
+    
     if (selectedCards.length !== DECK_SIZE) {
+      console.log('[Battle] Deck size validation failed')
       return setError(`Колода должна содержать ровно ${DECK_SIZE} карт! Сейчас: ${selectedCards.length}`)
     }
     const totalProv = selectedCards.reduce((acc: number, c: Card) => acc + (c.provisionCost || getCardProvision(c)), 0)
     if (totalProv > PROVISION_LIMIT) {
+      console.log('[Battle] Provision limit validation failed')
       return setError(`Превышен лимит веса колоды (${totalProv}/${PROVISION_LIMIT} очков)!`)
     }
-    if (!selectedDungeon) return setError("Выберите подземелье!")
+    if (!selectedDungeon) {
+      console.log('[Battle] No dungeon selected')
+      return setError("Выберите подземелье!")
+    }
     if (progress && progress.current_stamina < selectedDungeon.energy_cost) {
+      console.log('[Battle] Insufficient stamina')
       return setError("Недостаточно энергии!")
     }
     // Validate leader is in deck
     if (leaderId && !selectedCards.some(c => c.uniqueId === leaderId)) {
+      console.log('[Battle] Leader not in deck')
       return setError("Лидер должен быть в колоде!")
     }
 
+    console.log('[Battle] All validations passed, setting battleState to loading')
     setError(null)
     setBattleState("loading")
     setPlacedPlacedThisRound([])
@@ -683,9 +691,26 @@ export function useBattleData() {
     setIsRoundConfirmed(false)
 
     try {
+      console.log('[Battle] Entering try block')
       const token = session?.access_token
+      console.log('[Battle] Token check:', !!token)
       if (!token) return setError("Необходима авторизация")
 
+      console.log('[Battle] Creating AbortController')
+      // Create AbortController for timeout
+      const abortController = new AbortController()
+      const timeoutId = setTimeout(() => {
+        abortController.abort()
+        console.error('[Battle] API request timeout after 10 seconds')
+      }, 10000)
+
+      console.log('[Battle] About to call API /api/battle')
+      console.log('[Battle] Request body:', {
+        action: 'start_battle',
+        dungeonId: selectedDungeon.id,
+        playerCardsCount: selectedCards.length
+      })
+      
       // Call API to spend stamina and register battle
       const spendRes = await fetch('/api/battle', {
         method: 'POST',
@@ -695,7 +720,11 @@ export function useBattleData() {
           dungeonId: selectedDungeon.id,
           playerCards: selectedCards.slice(0, 3).map(c => ({ uniqueId: c.uniqueId, name: c.name, stats: c.stats, rarity: c.rarity })) // Old payload compatibility
         }),
+        signal: abortController.signal
       })
+
+      console.log('[Battle] API call completed, response status:', spendRes.status)
+      clearTimeout(timeoutId)
 
       if (!spendRes.ok) {
         const data = await spendRes.json()
@@ -705,15 +734,27 @@ export function useBattleData() {
         return
       }
 
+      // Check for abort (timeout)
+      if (abortController.signal.aborted) {
+        console.error('[Battle] Request was aborted (timeout)')
+        setError("Превышено время ожидания ответа сервера. Проверьте соединение.")
+        setBattleState("idle")
+        return
+      }
+
       // Generate AI Deck from pre-defined deck for this dungeon
+      console.log('[Battle] Generating AI deck for dungeon:', selectedDungeon.id)
       let predefinedDeck: Card[]
       if (selectedDungeon.id?.startsWith('daily-market-')) {
         // Use random market deck for daily market battles
+        console.log('[Battle] Using random market deck')
         predefinedDeck = getRandomMarketDeck()
       } else {
         const dungeonTheme = selectedDungeon.is_daily ? 'daily' : selectedDungeon.theme
+        console.log('[Battle] Getting AI deck for theme:', dungeonTheme)
         predefinedDeck = getAIDeckForDungeon(dungeonTheme)
       }
+      console.log('[Battle] AI deck generated, size:', predefinedDeck.length)
 
       // Apply adaptive deck generation if player has enough battle history
       if (user) {
@@ -736,6 +777,7 @@ export function useBattleData() {
       }
 
       // Initialize AI Engine with strategic strategy and adaptive learning
+      console.log('[Battle] Initializing AI engine')
       aiEngineRef.current = createAI({
         strategy: "strategic",
         enableLogging: false, // Disable logging in production
@@ -745,7 +787,9 @@ export function useBattleData() {
         bluffChance: 0.3,
         userId: user?.id // Enable adaptive learning based on player's playstyle
       })
+      console.log('[Battle] AI engine initialized')
       
+      console.log('[Battle] Processing AI deck')
       const aiDeck = predefinedDeck
         .slice()
         .sort(() => Math.random() - 0.5)
@@ -756,6 +800,7 @@ export function useBattleData() {
           role: getCardRole(c),
           provisionCost: getCardProvision(c)
         }))
+      console.log('[Battle] AI deck processed, size:', aiDeck.length)
 
       // Prepare 3 Battle Zones with random modifiers
       const shuffledModifiers = TERRITORY_MODIFIERS.slice().sort(() => Math.random() - 0.5)
@@ -773,7 +818,9 @@ export function useBattleData() {
       const shuffledAIDeck = aiDeck.slice().sort(() => Math.random() - 0.5)
       const aiHand = shuffledAIDeck.slice(0, 4)
       const aiDeckLeft = shuffledAIDeck.slice(4)
+      console.log('[Battle] Hands drawn, player hand:', hand.length, 'AI hand:', aiHand.length)
 
+      console.log('[Battle] Setting CCG state')
       setCcgState({
         round: 1,
         zones,
@@ -785,10 +832,19 @@ export function useBattleData() {
         victory: null,
         roundHistory: []
       })
+      console.log('[Battle] CCG state set')
 
+      console.log('[Battle] Setting battleState to "battle"')
       setBattleState("battle")
-    } catch (err) {
-      setError("Ошибка соединения")
+      console.log('[Battle] Battle state set to "battle"')
+    } catch (err: any) {
+      console.error('[Battle] Error in startBattle:', err)
+      
+      if (err.name === 'AbortError') {
+        setError("Превышено время ожидания ответа сервера. Проверьте соединение.")
+      } else {
+        setError(err.message || "Ошибка соединения с сервером")
+      }
       setBattleState("idle")
     }
   }

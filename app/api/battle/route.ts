@@ -235,27 +235,27 @@ export async function GET(request: NextRequest) {
 
         const enemyIds = eliteEnemies ? eliteEnemies.map((e: any) => e.id) : []
 
-        if (enemyIds.length > 0) {
-          const { data: newDaily } = await supabaseAdmin
-            .from('battle_daily')
-            .insert({
-              date: today,
-              enemy_ids: enemyIds,
-              coins_reward: 200,
-              dust_reward: 50,
-              xp_reward: 100,
-              energy_cost: 1,
-              is_active: true
-            })
-            .select('*')
-            .single()
+        // Create daily battle even if no elite enemies exist (fallback to empty array)
+        const { data: newDaily } = await supabaseAdmin
+          .from('battle_daily')
+          .insert({
+            date: today,
+            enemy_ids: enemyIds.length > 0 ? enemyIds : [],
+            coins_reward: 200,
+            dust_reward: 50,
+            xp_reward: 100,
+            energy_cost: 1,
+            is_active: true
+          })
+          .select('*')
+          .single()
 
-          dailyBattle = newDaily
-        }
+        dailyBattle = newDaily
       }
 
       let dailyDungeon = null
-      if (dailyBattle && dailyBattle.enemy_ids && dailyBattle.enemy_ids.length > 0) {
+      // Always create daily dungeon if dailyBattle exists (CCG system uses AI decks, not enemy_ids)
+      if (dailyBattle) {
         // Create a virtual daily dungeon from today's configuration
         dailyDungeon = {
           id: 'daily-' + today,
@@ -271,7 +271,7 @@ export async function GET(request: NextRequest) {
           xp_reward_base: dailyBattle.xp_reward,
           image_url: null,
           is_daily: true,
-          enemy_ids: dailyBattle.enemy_ids
+          enemy_ids: dailyBattle.enemy_ids || []
         }
       }
 
@@ -736,7 +736,7 @@ export async function POST(request: NextRequest) {
           .eq('is_active', true)
           .single()
 
-        if (!dailyBattle || dailyBattle.enemy_ids.length === 0) {
+        if (!dailyBattle) {
           return NextResponse.json({ success: false, message: "Ежедневный бой не найден" }, { status: 404 })
         }
 
@@ -754,7 +754,7 @@ export async function POST(request: NextRequest) {
           xp_reward_base: dailyBattle.xp_reward,
           image_url: null,
           is_daily: true,
-          enemy_ids: dailyBattle.enemy_ids
+          enemy_ids: dailyBattle.enemy_ids || []
         }
       } else {
         const { data: regularDungeon } = await supabaseAdmin

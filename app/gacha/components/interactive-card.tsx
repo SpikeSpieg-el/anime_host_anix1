@@ -7,6 +7,7 @@ import { Card } from "../types"
 import { rarityConfig } from "@/types/gacha"
 import { getProxiedSrc, handleImageError } from "../utils"
 import { statLabels } from "../config"
+import Image from "next/image"
 
 const StatBar = ({ label, value, color }: { label: string; value: number; color: string }) => (
   <div className="w-full space-y-1">
@@ -56,11 +57,16 @@ export const InteractiveCard = ({ card, forceFlipped = false }: InteractiveCardP
       setIsImageLoading(true)
       setImageStartedLoading(true)
     }, 50)
-    
-    setLayersLoaded({ bg: false, char: false, vfx: false })
-    
+
+    // Initialize layers loaded state - mark missing layers as already loaded
+    setLayersLoaded({
+      bg: !card.imageLayers?.[0],
+      char: !card.imageLayers?.[1],
+      vfx: !card.imageLayers?.[2]
+    })
+
     return () => clearTimeout(timer)
-  }, [card.imageUrl, card.uniqueId])
+  }, [card.imageUrl, card.uniqueId, card.imageLayers])
   
   useEffect(() => {
     if (!card.imageLayers || !card.imageLayers.some(l => l)) {
@@ -267,67 +273,66 @@ export const InteractiveCard = ({ card, forceFlipped = false }: InteractiveCardP
                         willChange: "transform"
                       }}
                     >
-                      <CanvasImage 
-                        src={getProxiedSrc(card.imageLayers[0])} 
+                      <Image
+                        src={getProxiedSrc(card.imageLayers[0])}
                         alt={`${card.name} bg`}
-                        className="w-full h-full"
-                        style={{ willChange: 'transform', transform: 'translateZ(0)' }}
-                        objectFit="cover"
+                        fill
+                        className="object-cover"
+                        sizes="(max-width: 768px) 260px, (max-width: 1024px) 288px, 320px"
                         onLoad={() => setLayersLoaded(prev => ({ ...prev, bg: true }))}
                       />
                     </div>
                   )}
                   
-                  {!card.imageLayers[0] && (
-                    <CanvasImage 
-                      src={getProxiedSrc(card.imageUrl)} 
-                      alt={card.name}
-                      className="absolute inset-0 w-full h-full"
-                      style={{ willChange: 'transform', transform: 'translateZ(0)', filter: 'blur(4px)' }}
-                      objectFit="cover"
-                      opacity={0.5}
-                      onLoad={() => setLayersLoaded(prev => ({ ...prev, bg: true }))}
-                    />
-                  )}
                </div>
             </div>
 
             <div className="absolute inset-0 pointer-events-none" style={{ transformStyle: "preserve-3d" }}>
                {card.imageLayers[1] && (
+                 /* Контейнер-ограничитель для персонажа: снизу обрезает по форме карты, сверху разрешает выход за границы */
                  <div 
-                   className="absolute inset-0 w-full h-full transition-transform duration-100 ease-out z-10"
-                   style={{ 
-                     transform: `translate3d(${layerOffsets[1].x}px, ${layerOffsets[1].y}px, 50px) scale(1.08)`,
-                     filter: "drop-shadow(0 20px 30px rgba(0,0,0,0.5))",
-                     willChange: "transform"
-                   }}
+                   className="absolute inset-x-0 bottom-0 top-[-200px] overflow-hidden rounded-b-[1.4rem] sm:rounded-b-[1.9rem] md:rounded-b-[2.4rem]"
+                   style={{ transformStyle: "preserve-3d" }}
                  >
-                   <CanvasImage 
-                     src={getProxiedSrc(card.imageLayers[1])} 
-                     alt={`${card.name} char`}
-                     className="w-full h-full"
-                     style={{ willChange: 'transform', transform: 'translateZ(0)' }}
-                     objectFit="contain"
-                     onLoad={() => setLayersLoaded(prev => ({ ...prev, char: true }))}
-                   />
+                   <div
+                     className="absolute bottom-0 left-0 right-0 h-[380px] sm:h-[440px] md:h-[480px] transition-transform duration-100 ease-out z-30"
+                     style={{
+                       transform: `translate3d(${layerOffsets[1].x}px, ${layerOffsets[1].y}px, 50px) scale(1.08)`,
+                       filter: "drop-shadow(0 20px 30px rgba(0,0,0,0.5))",
+                       willChange: "transform",
+                       /* Примечание: если вы хотите, чтобы низ обрезался резко по границе без плавного исчезновения, 
+                          вы можете убрать или закомментировать свойства maskImage ниже */
+                       maskImage: 'linear-gradient(to bottom, black 0%, black 70%, transparent 100%)',
+                       WebkitMaskImage: 'linear-gradient(to bottom, black 0%, black 70%, transparent 100%)'
+                     }}
+                   >
+                     <Image
+                       src={getProxiedSrc(card.imageLayers[1])}
+                       alt={`${card.name} char`}
+                       fill
+                       className="object-contain"
+                       sizes="(max-width: 768px) 260px, (max-width: 1024px) 288px, 320px"
+                       onLoad={() => setLayersLoaded(prev => ({ ...prev, char: true }))}
+                     />
+                   </div>
                  </div>
                )}
 
                {card.imageLayers[2] && (
-                 <div 
-                   className="absolute inset-0 w-full h-full transition-transform duration-100 ease-out z-20"
-                   style={{ 
+                 <div
+                   className="absolute inset-0 w-full h-full transition-transform duration-100 ease-out z-20 overflow-visible"
+                   style={{
                      transform: `translate3d(${layerOffsets[2].x}px, ${layerOffsets[2].y}px, 80px) scale(1.15)`,
-                     willChange: "transform"
+                     willChange: "transform",
+                     opacity: 0.8
                    }}
                  >
-                   <CanvasImage 
-                     src={getProxiedSrc(card.imageLayers[2])} 
+                   <Image
+                     src={getProxiedSrc(card.imageLayers[2])}
                      alt={`${card.name} vfx`}
-                     className="w-full h-full"
-                     style={{ willChange: 'transform', transform: 'translateZ(0)' }}
-                     objectFit="cover"
-                     opacity={0.8}
+                     fill
+                     className="object-cover"
+                     sizes="(max-width: 768px) 260px, (max-width: 1024px) 288px, 320px"
                      onLoad={() => setLayersLoaded(prev => ({ ...prev, vfx: true }))}
                    />
                  </div>
@@ -421,7 +426,7 @@ export const InteractiveCard = ({ card, forceFlipped = false }: InteractiveCardP
             </p>
             
             <div className="mt-2.5 sm:mt-3 flex items-center justify-between border-t border-white/10 pt-2">
-              <span className="text-[7px] sm:text-[8px] md:text-[9px] font-mono text-white/40 tracking-wider">ID: {card.shikiId}</span>
+              <span className="text-[7px] sm:text-[8px] md:text-[9px] font-mono text-white/40 tracking-wider">ID: {card.uniqueId}</span>
               {card.packName && (
                 <span className="text-[7px] sm:text-[8px] md:text-[9px] font-black text-indigo-300 uppercase tracking-widest truncate max-w-[60%] text-right">{card.packName}</span>
               )}

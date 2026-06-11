@@ -6,6 +6,7 @@ import { LineChart, Line, BarChart, Bar, PieChart, Pie, XAxis, YAxis, CartesianG
 import type { Rarity } from "@/types/gacha"
 import { frameNames, coatingNames } from "@/components/gacha/card-modifiers"
 import { Footer } from "@/components/layout/footer"
+import { MarketDashboardSkeleton } from "@/components/gacha/market-dashboard-skeleton"
 
 interface MarketListing {
   listingId: string
@@ -222,14 +223,7 @@ export default function MarketDashboardPage() {
   }
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="w-12 h-12 text-cyan-400 animate-spin mx-auto mb-4" />
-          <p className="text-slate-400">Загрузка данных рынка...</p>
-        </div>
-      </div>
-    )
+    return <MarketDashboardSkeleton />
   }
 
   if (error) {

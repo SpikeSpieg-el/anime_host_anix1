@@ -12,6 +12,7 @@ import { supabase } from "@/lib/supabase"
 import { frameNames, coatingNames, FrameOverlay, CoatingOverlay } from "@/components/gacha/card-modifiers"
 import { getCardBasePower, getCardProvision } from "@/app/battle/utils"
 import { CanvasImage } from "@/components/gacha/canvas-image"
+import { MarketCardSkeleton } from "@/components/gacha/market-card-skeleton"
 
 type MarketListingApi = {
   listingId: string
@@ -788,8 +789,8 @@ export function GachaMarketPanel({
       )}
 
       {loading ? (
-        <div className="flex justify-center py-20">
-          <Loader2 className="w-10 h-10 text-cyan-400 animate-spin" />
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4">
+          <MarketCardSkeleton count={12} />
         </div>
       ) : filteredListings.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 border border-dashed border-slate-800 rounded-3xl bg-slate-900/30">

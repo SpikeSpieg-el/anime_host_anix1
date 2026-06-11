@@ -26,8 +26,8 @@ function generateStats(rarity: string) {
   
   const roll = (min: number, max: number) => Math.min(Math.floor(Math.random() * (max - min + 1) + min), 100);
 
-  // Шанс на все нулевые статы (2%)
-  const allZeroChance = 0.02;
+  // Шанс на все нулевые статы (1/100 000 = 0.001%)
+  const allZeroChance = 0.00001;
   if (Math.random() < allZeroChance) {
     return {
       hp: 0,
@@ -53,8 +53,8 @@ function generateStats(rarity: string) {
   const archetype = archetypes[Math.floor(Math.random() * archetypes.length)];
   const boost = archetype.boost;
 
-  // Шанс на 0 для отдельного стата (12%)
-  const zeroChance = 0.12;
+  // Шанс на 0 для отдельного стата (5%)
+  const zeroChance = 0.05;
   
   const applyBoost = (base: number, multiplier: number) => {
     if (Math.random() < zeroChance) return 0;

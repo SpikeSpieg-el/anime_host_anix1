@@ -265,6 +265,9 @@ export default function CardEditorPage() {
                     )}
                   </div>
                   <p className="text-[10px] text-white/60 font-bold uppercase tracking-wider truncate">{card.anime}</p>
+                  <div className="mt-2 flex items-center justify-between border-t border-white/10 pt-2">
+                    <span className="text-[8px] font-mono text-white/40 tracking-wider">ID: custom</span>
+                  </div>
                 </div>
               </div>
             </div>

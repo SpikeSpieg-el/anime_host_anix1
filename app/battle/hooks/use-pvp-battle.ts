@@ -35,6 +35,7 @@ interface PvPState {
   error: string | null
   mmrChange: number | null
   roundResults: RoundResults | null
+  isPvPAvailable: boolean
 }
 
 export function usePvPBattle(options?: {
@@ -49,7 +50,8 @@ export function usePvPBattle(options?: {
     matchData: null,
     error: null,
     mmrChange: null,
-    roundResults: null
+    roundResults: null,
+    isPvPAvailable: true
   })
 
   const socketRef = useRef<Socket | null>(null)
@@ -79,15 +81,27 @@ export function usePvPBattle(options?: {
 
     socket.on('connect', () => {
       console.log('[PvP] Connected to server')
-      setPvpState(prev => ({ ...prev, status: 'idle', error: null }))
+      setPvpState(prev => ({ 
+        ...prev, 
+        status: 'idle', 
+        error: null,
+        isPvPAvailable: true 
+      }))
     })
 
     socket.on('connect_error', (err) => {
-      console.log('[PvP] Connection failed, will retry automatically')
+      console.log('[PvP] Connection failed:', err)
+      // Check if it's a CORS error
+      const isCorsError = err.message?.includes('CORS') || err.message?.includes('Access-Control-Allow-Origin')
+      const errorMessage = isCorsError 
+        ? 'PvP сервер недоступен. Ведутся технические работы.'
+        : 'Не удалось подключиться к PvP серверу'
+      
       setPvpState(prev => ({
         ...prev,
         status: 'idle',
-        error: 'Не удалось подключиться к PvP серверу'
+        error: errorMessage,
+        isPvPAvailable: false
       }))
     })
 
@@ -253,7 +267,8 @@ export function usePvPBattle(options?: {
       matchData: null,
       error: null,
       mmrChange: null,
-      roundResults: null
+      roundResults: null,
+      isPvPAvailable: true
     })
   }, [])
 
@@ -263,6 +278,7 @@ export function usePvPBattle(options?: {
     leaveQueue,
     placeCards,
     resetPvP,
-    isConnected: socketRef.current?.connected || false
+    isConnected: socketRef.current?.connected || false,
+    isPvPAvailable: pvpState.isPvPAvailable
   }
 }

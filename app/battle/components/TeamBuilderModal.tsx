@@ -472,60 +472,61 @@ export const TeamBuilderModal: React.FC<TeamBuilderModalProps> = ({
                   Система веса (Provision)
                 </h3>
                 <p className="text-sm leading-relaxed mb-3">
-                  Каждая карта имеет <span className="text-indigo-400 font-bold">вес</span> в очках. Общий вес вашей колоды не может превышать <span className="text-emerald-400 font-bold">{PROVISION_LIMIT} очков</span>.
+                  Каждая карта имеет <span className="text-indigo-400 font-bold">динамический вес</span> в очках, который рассчитывается на основе её реальных статов из гачи. Общий вес вашей колоды не может превышать <span className="text-emerald-400 font-bold">{PROVISION_LIMIT} очков</span>.
                 </p>
-                <div className="text-xs space-y-1.5 bg-black/30 rounded-xl p-3 border border-white/5">
-                  <p className="font-bold text-slate-400 mb-2">Вес по редкости:</p>
+                <div className="text-xs space-y-2 bg-black/30 rounded-xl p-3 border border-white/5">
+                  <p className="font-bold text-slate-400 mb-2">Базовый вес по редкости (с вариацией ±2):</p>
                   <div className="grid grid-cols-2 gap-1.5">
                     <div className="flex items-center justify-between bg-gradient-to-r from-stone-500/20 to-stone-700/20 border border-stone-500/30 rounded-lg px-2 py-1">
                       <span className="bg-gradient-to-r from-stone-500 to-stone-700 bg-clip-text text-transparent font-bold text-[10px]">Мусор</span>
-                      <span className="text-slate-400 font-bold">0</span>
+                      <span className="text-slate-400 font-bold">0±2</span>
                     </div>
                     <div className="flex items-center justify-between bg-gradient-to-r from-slate-400/20 to-slate-500/20 border border-slate-400/30 rounded-lg px-2 py-1">
                       <span className="bg-gradient-to-r from-slate-400 to-slate-500 bg-clip-text text-transparent font-bold text-[10px]">Обычная</span>
-                      <span className="text-slate-400 font-bold">2</span>
+                      <span className="text-slate-400 font-bold">1±2</span>
                     </div>
                     <div className="flex items-center justify-between bg-gradient-to-r from-emerald-400/20 to-teal-500/20 border border-emerald-500/30 rounded-lg px-2 py-1">
                       <span className="bg-gradient-to-r from-emerald-400 to-teal-500 bg-clip-text text-transparent font-bold text-[10px]">Необычная</span>
-                      <span className="text-slate-400 font-bold">3</span>
+                      <span className="text-slate-400 font-bold">2±2</span>
                     </div>
                     <div className="flex items-center justify-between bg-gradient-to-r from-blue-400/20 to-cyan-500/20 border border-blue-500/30 rounded-lg px-2 py-1">
                       <span className="bg-gradient-to-r from-blue-400 to-cyan-500 bg-clip-text text-transparent font-bold text-[10px]">Редкая</span>
-                      <span className="text-slate-400 font-bold">4</span>
+                      <span className="text-slate-400 font-bold">3±2</span>
                     </div>
                     <div className="flex items-center justify-between bg-gradient-to-r from-indigo-400/20 to-blue-600/20 border border-indigo-500/30 rounded-lg px-2 py-1">
                       <span className="bg-gradient-to-r from-indigo-400 to-blue-600 bg-clip-text text-transparent font-bold text-[10px]">Супер Редкая</span>
-                      <span className="text-slate-400 font-bold">5</span>
+                      <span className="text-slate-400 font-bold">4±2</span>
                     </div>
                     <div className="flex items-center justify-between bg-gradient-to-r from-purple-500/20 to-pink-500/20 border border-purple-500/30 rounded-lg px-2 py-1">
                       <span className="bg-gradient-to-r from-purple-500 to-pink-500 bg-clip-text text-transparent font-bold text-[10px]">Эпическая</span>
-                      <span className="text-slate-400 font-bold">6</span>
+                      <span className="text-slate-400 font-bold">5±2</span>
                     </div>
                     <div className="flex items-center justify-between bg-gradient-to-r from-fuchsia-400/20 to-rose-500/20 border border-fuchsia-500/30 rounded-lg px-2 py-1">
                       <span className="bg-gradient-to-r from-fuchsia-400 to-rose-500 bg-clip-text text-transparent font-bold text-[10px]">Мифическая</span>
-                      <span className="text-slate-400 font-bold">8</span>
+                      <span className="text-slate-400 font-bold">6±2</span>
                     </div>
                     <div className="flex items-center justify-between bg-gradient-to-r from-pink-400/20 to-rose-600/20 border border-pink-500/30 rounded-lg px-2 py-1">
                       <span className="bg-gradient-to-r from-pink-400 to-rose-600 bg-clip-text text-transparent font-bold text-[10px]">Легендарная</span>
-                      <span className="text-slate-400 font-bold">9</span>
+                      <span className="text-slate-400 font-bold">7±2</span>
                     </div>
                     <div className="flex items-center justify-between bg-gradient-to-r from-amber-400/20 to-orange-500/20 border border-amber-500/30 rounded-lg px-2 py-1">
                       <span className="bg-gradient-to-r from-amber-400 to-orange-500 bg-clip-text text-transparent font-bold text-[10px]">Древняя</span>
-                      <span className="text-slate-400 font-bold">10</span>
+                      <span className="text-slate-400 font-bold">8±2</span>
                     </div>
                     <div className="flex items-center justify-between bg-gradient-to-r from-orange-400/20 to-red-500/20 border border-orange-500/30 rounded-lg px-2 py-1">
                       <span className="bg-gradient-to-r from-orange-400 to-red-500 bg-clip-text text-transparent font-bold text-[10px]">Божественная</span>
-                      <span className="text-slate-400 font-bold">11</span>
+                      <span className="text-slate-400 font-bold">9±2</span>
                     </div>
                     <div className="flex items-center justify-between bg-gradient-to-r from-red-500/20 to-rose-700/20 border border-red-500/30 rounded-lg px-2 py-1">
                       <span className="bg-gradient-to-r from-red-500 to-rose-700 bg-clip-text text-transparent font-bold text-[10px]">Трансцендентная</span>
-                      <span className="text-slate-400 font-bold">13</span>
+                      <span className="text-slate-400 font-bold">10±2</span>
                     </div>
                     <div className="flex items-center justify-between col-span-2 bg-gradient-to-r from-white/20 via-yellow-200/20 to-amber-500/20 border border-white/30 rounded-lg px-2 py-1">
                       <span className="bg-gradient-to-r from-white via-yellow-200 to-amber-500 bg-clip-text text-transparent font-bold text-[10px]">Всемогущая</span>
-                      <span className="text-slate-400 font-bold">15</span>
+                      <span className="text-slate-400 font-bold">11±2</span>
                     </div>
                   </div>
+                  <p className="text-slate-500 mt-2 italic">* Вес может меняться на ±2 в зависимости от реальных статов карты</p>
                 </div>
               </div>
 
@@ -575,9 +576,79 @@ export const TeamBuilderModal: React.FC<TeamBuilderModalProps> = ({
                   <Crown className="w-5 h-5 text-amber-400" />
                   Лидер колоды
                 </h3>
-                <p className="text-sm leading-relaxed">
-                  После выбора карты вы можете назначить её <span className="text-amber-400 font-bold">лидером</span>, нажав на иконку короны. Лидер даёт дополнительные бонусы в бою.
+                <p className="text-sm leading-relaxed mb-3">
+                  После выбора карты вы можете назначить её <span className="text-amber-400 font-bold">лидером</span>, нажав на иконку короны. Лидер даёт <span className="text-amber-300 font-bold">+10 силы</span> всем картам той же роли в бою.
                 </p>
+                <div className="text-xs space-y-1.5 bg-black/30 rounded-xl p-3 border border-white/5">
+                  <p className="font-bold text-slate-400 mb-2">Бонусы лидера:</p>
+                  <div className="flex items-center justify-between bg-rose-500/10 border border-rose-500/20 rounded-lg px-2 py-1">
+                    <span className="text-rose-400 font-bold text-[10px]">Авангард</span>
+                    <span className="text-slate-400 font-bold">+10 Vanguard</span>
+                  </div>
+                  <div className="flex items-center justify-between bg-blue-500/10 border border-blue-500/20 rounded-lg px-2 py-1">
+                    <span className="text-blue-400 font-bold text-[10px]">Страж</span>
+                    <span className="text-slate-400 font-bold">+10 Guard</span>
+                  </div>
+                  <div className="flex items-center justify-between bg-amber-500/10 border border-amber-500/20 rounded-lg px-2 py-1">
+                    <span className="text-amber-400 font-bold text-[10px]">Плут</span>
+                    <span className="text-slate-400 font-bold">+10 Trickster</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Synergies */}
+              <div className="bg-white/[0.02] border border-white/5 rounded-2xl p-5">
+                <h3 className="text-lg font-black text-white mb-3 flex items-center gap-2">
+                  <Sparkles className="w-5 h-5 text-amber-400" />
+                  Синергии колоды
+                </h3>
+                <p className="text-sm leading-relaxed mb-3">
+                  Состав колоды активирует пассивные бонусы к силе карт. Комбинируйте карты для максимального эффекта.
+                </p>
+                <div className="text-xs space-y-2 bg-black/30 rounded-xl p-3 border border-white/5">
+                  <div className="flex items-start gap-2">
+                    <span className="text-violet-400 font-bold">•</span>
+                    <div>
+                      <span className="text-violet-300 font-bold">Братство:</span>
+                      <span className="text-slate-400"> +4 силы за каждую карту из одного аниме (после первой)</span>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="text-emerald-400 font-bold">•</span>
+                    <div>
+                      <span className="text-emerald-300 font-bold">Гармония ролей:</span>
+                      <span className="text-slate-400"> +8 силы если все 3 роли присутствуют</span>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="text-cyan-400 font-bold">•</span>
+                    <div>
+                      <span className="text-cyan-300 font-bold">Спектр редкостей:</span>
+                      <span className="text-slate-400"> +5 силы если 5+ разных редкостей</span>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="text-sky-400 font-bold">•</span>
+                    <div>
+                      <span className="text-sky-300 font-bold">Лёгкая поступь:</span>
+                      <span className="text-slate-400"> +5 силы если вес колоды ≤ 28</span>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="text-amber-400 font-bold">•</span>
+                    <div>
+                      <span className="text-amber-300 font-bold">Элита:</span>
+                      <span className="text-slate-400"> +6 силы если 4+ карт Epic+ редкости</span>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="text-rose-400 font-bold">•</span>
+                    <div>
+                      <span className="text-rose-300 font-bold">Специализация:</span>
+                      <span className="text-slate-400"> +6 одной роли, -3 другим (если 4+ карт одной роли)</span>
+                    </div>
+                  </div>
+                </div>
               </div>
 
               {/* Tips */}
@@ -589,11 +660,23 @@ export const TeamBuilderModal: React.FC<TeamBuilderModalProps> = ({
                 <ul className="text-sm space-y-2 leading-relaxed">
                   <li className="flex items-start gap-2">
                     <span className="text-indigo-400 mt-1">•</span>
-                    <span>Балансируйте роли: включите карты всех трёх типов для тактического разнообразия</span>
+                    <span><span className="text-violet-300 font-bold">Братство</span> - собирайте карты из одного аниме для максимального бонуса (+28 силы)</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="text-indigo-400 mt-1">•</span>
-                    <span>Следите за весом: редкие карты сильнее, но занимают больше очков provisions</span>
+                    <span><span className="text-emerald-300 font-bold">Гармония ролей</span> - включите все 3 роли для +8 силы</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-indigo-400 mt-1">•</span>
+                    <span><span className="text-amber-300 font-bold">Динамический вес</span> - карты с хорошими статами могут весить больше, выбирайте мудро</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-indigo-400 mt-1">•</span>
+                    <span><span className="text-rose-300 font-bold">Специализация</span> - 4+ карт одной роли дают +6, но -3 другим</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-indigo-400 mt-1">•</span>
+                    <span><span className="text-sky-300 font-bold">Лёгкая поступь</span> - вес ≤ 28 даёт +5 силы, но слабее база</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="text-indigo-400 mt-1">•</span>

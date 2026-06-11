@@ -86,9 +86,8 @@ export function CanvasImage({
       // Очищаем canvas
       ctx.clearRect(0, 0, canvasWidth, canvasHeight)
       
-      // Включаем сглаживание для качества
-      ctx.imageSmoothingEnabled = true
-      ctx.imageSmoothingQuality = 'high'
+      // Отключаем сглаживание для чёткости
+      ctx.imageSmoothingEnabled = false
       
       // Устанавливаем прозрачность
       ctx.globalAlpha = opacity
@@ -169,7 +168,7 @@ export function CanvasImage({
         imageRef.current.onerror = null
       }
     }
-  }, [src, objectFit, opacity, onLoad, onError, isGif])
+  }, [src, objectFit, opacity, isGif])
 
   return (
     <canvas
