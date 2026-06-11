@@ -743,21 +743,23 @@ export default function GachaPage() {
               )}
             </div>
             
-            <div className="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center justify-center gap-2.5 sm:gap-4 mt-6 sm:mt-10 w-full max-w-[260px] sm:max-w-3xl mx-auto">
+            <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3 mt-4 sm:mt-10 w-full max-w-[260px] sm:max-w-3xl mx-auto">
               <button
                 onClick={() => setShowDeleteConfirm(true)}
-                className="px-4 py-3 sm:px-5 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 font-bold text-xs sm:text-sm flex items-center justify-center sm:justify-start gap-2 transition-colors border border-red-500/20 w-full sm:w-auto"
+                className="px-3 py-2 sm:px-4 sm:py-2.5 rounded-lg sm:rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 font-bold text-[10px] sm:text-xs flex items-center justify-center gap-1.5 sm:gap-2 transition-colors border border-red-500/20"
+                title="Удалить из коллекции"
               >
-                <Trash className="w-4 h-4 shrink-0" /> 
-                <span className="truncate">Удалить из коллекции</span>
+                <Trash className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                <span className="truncate">Удалить</span>
               </button>
-              
+
               <button
                 onClick={() => dismantleCard(viewedCard)}
-                className="px-4 py-3 sm:px-5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 font-bold text-xs sm:text-sm flex items-center justify-center sm:justify-start gap-2 transition-colors border border-amber-500/20 w-full sm:w-auto"
+                className="px-3 py-2 sm:px-4 sm:py-2.5 rounded-lg sm:rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 font-bold text-[10px] sm:text-xs flex items-center justify-center gap-1.5 sm:gap-2 transition-colors border border-amber-500/20"
+                title={`Распылить (+${getDismantleValue(viewedCard.rarity)} пыли)`}
               >
-                <RefreshCcw className="w-4 h-4 shrink-0" />
-                <span className="truncate">Распылить (+{getDismantleValue(viewedCard.rarity)} пыли)</span>
+                <RefreshCcw className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                <span className="truncate">Распылить</span>
               </button>
 
               {session?.user && (
@@ -766,10 +768,11 @@ export default function GachaPage() {
                   onClick={() => {
                     setCardToSell(viewedCard)
                   }}
-                  className="px-4 py-3 sm:px-5 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 font-bold text-xs sm:text-sm flex items-center justify-center sm:justify-start gap-2 transition-colors border border-cyan-500/30 w-full sm:w-auto"
+                  className="px-3 py-2 sm:px-4 sm:py-2.5 rounded-lg sm:rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 font-bold text-[10px] sm:text-xs flex items-center justify-center gap-1.5 sm:gap-2 transition-colors border border-cyan-500/30"
+                  title="Продать на маркете"
                 >
-                  <Store className="w-4 h-4 shrink-0" />
-                  <span className="truncate">Продать на маркете</span>
+                  <Store className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                  <span className="truncate">Продать</span>
                 </button>
               )}
 
@@ -780,10 +783,11 @@ export default function GachaPage() {
                     setCardToChangeArt(viewedCard)
                     setViewedCard(null)
                   }}
-                  className="px-4 py-3 sm:px-5 rounded-xl bg-purple-500/10 hover:bg-purple-500/20 text-purple-300 font-bold text-xs sm:text-sm flex items-center justify-center sm:justify-start gap-2 transition-colors border border-purple-500/30 w-full sm:w-auto"
+                  className="px-3 py-2 sm:px-4 sm:py-2.5 rounded-lg sm:rounded-xl bg-purple-500/10 hover:bg-purple-500/20 text-purple-300 font-bold text-[10px] sm:text-xs flex items-center justify-center gap-1.5 sm:gap-2 transition-colors border border-purple-500/30"
+                  title="Сменить арт"
                 >
-                  <Sparkles className="w-4 h-4 shrink-0" />
-                  <span className="truncate">Сменить арт</span>
+                  <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                  <span className="truncate">Арт</span>
                 </button>
               )}
 
@@ -794,34 +798,24 @@ export default function GachaPage() {
                     sessionStorage.setItem('edit-card-data', JSON.stringify(viewedCard));
                     router.push('/admin/card-editor');
                   }}
-                  className="px-4 py-3 sm:px-5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 font-bold text-xs sm:text-sm flex items-center justify-center sm:justify-start gap-2 transition-colors border border-amber-500/30 w-full sm:w-auto"
+                  className="px-3 py-2 sm:px-4 sm:py-2.5 rounded-lg sm:rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 font-bold text-[10px] sm:text-xs flex items-center justify-center gap-1.5 sm:gap-2 transition-colors border border-amber-500/30"
+                  title="Редактировать (Dev)"
                 >
-                  <Wrench className="w-4 h-4 shrink-0" />
-                  <span className="truncate">Редактировать (Dev)</span>
+                  <Wrench className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                  <span className="truncate">Ред.</span>
                 </button>
               )}
-              
+
               {viewedCard.isMainCharacter && viewedCard.isArtBlacklisted && (
-                <button 
+                <button
                   onClick={() => unblacklistArt(viewedCard)}
-                  className="px-4 py-3 sm:px-5 rounded-xl bg-green-500/10 hover:bg-green-500/20 text-green-400 font-bold text-xs sm:text-sm flex items-center justify-center sm:justify-start gap-2 transition-colors border border-green-500/20 w-full sm:w-auto"
+                  className="px-3 py-2 sm:px-4 sm:py-2.5 rounded-lg sm:rounded-xl bg-green-500/10 hover:bg-green-500/20 text-green-400 font-bold text-[10px] sm:text-xs flex items-center justify-center gap-1.5 sm:gap-2 transition-colors border border-green-500/20"
+                  title="Разблокировать арт"
                 >
-                  <RefreshCcw className="w-4 h-4 shrink-0" /> 
-                  <span className="truncate">Разблокировать арт</span>
+                  <RefreshCcw className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                  <span className="truncate">Разбл.</span>
                 </button>
               )}
-              
-              <div className="grid grid-cols-2 gap-2 w-full sm:w-auto sm:flex sm:gap-4">
-                <a href={viewedCard.originalUrl} target="_blank" rel="noreferrer" className="px-3 py-3 sm:px-5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-colors border border-slate-700 w-full">
-                  <ZoomIn className="w-4 h-4 shrink-0" /> 
-                  <span className="truncate">Оригинал</span>
-                </a>
-                
-                <a href={`https://shikimori.one/animes/${viewedCard.shikiId}`} target="_blank" rel="noreferrer" className="px-3 py-3 sm:px-5 rounded-xl bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-colors border border-blue-500/20 w-full">
-                  <ExternalLink className="w-4 h-4 shrink-0" /> 
-                  <span className="truncate">Шикимори</span>
-                </a>
-              </div>
             </div>
           </div>
         </div>
