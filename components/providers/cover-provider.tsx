@@ -1,7 +1,6 @@
 "use client"
 
 import React, { createContext, useContext, useCallback, useEffect, useState, useRef } from "react"
-import { resolveBestPoster, getAnimeBackdrop } from "@/lib/shikimori/images"
 
 interface CoverCache {
   [animeId: string]: {
@@ -114,13 +113,23 @@ export function CoverProvider({ children }: { children: React.ReactNode }) {
       try {
         console.log(`[CoverProvider] Fetching poster for ${animeId} (${russianName || romajiName})`)
         
-        const poster = await resolveBestPoster(
-          shikimoriUrl,
-          romajiName,
-          russianName,
-          animeId,
-          disableExternalAPIs
-        )
+        const response = await fetch('/api/posters', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            animes: [{
+              id: animeId,
+              shikimoriUrl,
+              romajiName,
+              russianName
+            }]
+          })
+        });
+
+        if (!response.ok) throw new Error('API response not ok');
+        const data = await response.json();
+        const poster = data.posters?.[0]?.poster;
+        if (!poster) throw new Error('No poster in response');
 
         // Определяем источник
         const sources: string[] = []
@@ -194,7 +203,11 @@ export function CoverProvider({ children }: { children: React.ReactNode }) {
       try {
         console.log(`[CoverProvider] Fetching backdrop for ${animeId}`)
         
-        const backdrop = await getAnimeBackdrop(animeId, disableExternalAPIs)
+        const response = await fetch(`/api/backdrops?shikimoriId=${animeId}&disableExternalAPIs=${disableExternalAPIs}`)
+        if (!response.ok) throw new Error('API response not ok');
+        
+        const data = await response.json()
+        const backdrop = data.backdrop
 
         console.log(`[CoverProvider] Backdrop for ${animeId}: ${backdrop ? 'found' : 'not found'}`)
 
@@ -237,31 +250,98 @@ export function CoverProvider({ children }: { children: React.ReactNode }) {
   const preloadBatch = useCallback(async (
     animes: Array<{ id: string; shikimoriUrl: string; romajiName: string; russianName: string }>
   ) => {
-    console.log(`[CoverProvider] Preloading batch of ${animes.length} posters`)
-    setIsLoading(true)
+    // Фильтруем те, которых нет в кэше и нет в активных запросах
+    const toFetch = animes.filter(anime => {
+      const cached = cache[anime.id];
+      if (cached && cached.poster) return false;
+      if (pendingRequestsRef.current.has(anime.id)) return false;
+      return true;
+    });
+
+    if (toFetch.length === 0) return;
+
+    console.log(`[CoverProvider] Preloading batch of ${toFetch.length} posters (out of ${animes.length})`);
+    setIsLoading(true);
+
+    const deferredResolvers = new Map<string, (url: string) => void>();
 
     try {
-      // Загружаем с ограничением параллелизма
-      const concurrencyLimit = 5
-      const results: string[] = []
+      // Создаем promise для каждого anime, чтобы другие getPoster запросы во время загрузки могли его переиспользовать
 
-      for (let i = 0; i < animes.length; i += concurrencyLimit) {
-        const chunk = animes.slice(i, i + concurrencyLimit)
-        const chunkPromises = chunk.map(anime =>
-          getPoster(anime.id, anime.shikimoriUrl, anime.romajiName, anime.russianName)
-        )
-        
-        const chunkResults = await Promise.all(chunkPromises)
-        results.push(...chunkResults)
-      }
+      toFetch.forEach(anime => {
+        const promise = new Promise<string>((resolve) => {
+          deferredResolvers.set(anime.id, resolve);
+        });
+        pendingRequestsRef.current.set(anime.id, promise);
+      });
 
-      console.log(`[CoverProvider] Batch preload complete: ${results.length} posters`)
+      // Отправляем батч-запрос на сервер
+      const response = await fetch('/api/posters', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ animes: toFetch })
+      });
+
+      if (!response.ok) throw new Error('API response not ok');
+      const data = await response.json();
+      const results: Array<{ id: string; poster: string }> = data.posters || [];
+
+      // Обновляем кэш одной пачкой
+      const newCacheEntries: CoverCache = {};
+      results.forEach(res => {
+        const poster = res.poster;
+        const sources: string[] = [];
+        if (poster.includes('shikimori')) sources.push('shikimori');
+        else if (poster.includes('kodik')) sources.push('kodik');
+        else if (poster.includes('anilist')) sources.push('anilist');
+        else if (poster.includes('myanimelist') || poster.includes('jikan')) sources.push('mal');
+        else sources.push('fallback');
+
+        newCacheEntries[res.id] = {
+          poster,
+          backdrop: cache[res.id]?.backdrop || null,
+          timestamp: Date.now(),
+          sources
+        };
+
+        // Разрешаем promise
+        deferredResolvers.get(res.id)?.(poster);
+      });
+
+      // Если какие-то ID не вернулись в ответе, разрешаем их заглушкой
+      toFetch.forEach(anime => {
+        if (!newCacheEntries[anime.id]) {
+          const fallback = generateFallbackPoster(anime.russianName || anime.romajiName || "Anime");
+          newCacheEntries[anime.id] = {
+            poster: fallback,
+            backdrop: cache[anime.id]?.backdrop || null,
+            timestamp: Date.now(),
+            sources: ['fallback']
+          };
+          deferredResolvers.get(anime.id)?.(fallback);
+        }
+      });
+
+      setCache(prev => ({
+        ...prev,
+        ...newCacheEntries
+      }));
+
     } catch (error) {
-      console.error('[CoverProvider] Error in batch preload:', error)
+      console.error('[CoverProvider] Error in batch preload:', error);
+      // При ошибке разрешаем все ожидающие заглушками
+      toFetch.forEach(anime => {
+        const fallback = generateFallbackPoster(anime.russianName || anime.romajiName || "Anime");
+        deferredResolvers.get(anime.id)?.(fallback);
+      });
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
+      // Очищаем pending
+      toFetch.forEach(anime => {
+        pendingRequestsRef.current.delete(anime.id);
+      });
     }
-  }, [getPoster])
+  }, [cache])
 
   const getFromCache = useCallback((animeId: string) => {
     const entry = cache[animeId]

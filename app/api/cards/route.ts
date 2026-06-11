@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
-import type { Card } from '@/app/gacha/page'
+import type { Card } from '@/app/gacha/types'
 
 async function getAuthenticatedUser(request: Request) {
   const authHeader = request.headers.get('authorization')

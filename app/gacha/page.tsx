@@ -1,20 +1,12 @@
 "use client"
 
-import { useRouter, usePathname } from "next/navigation"
-import { useState, useRef, MouseEvent, useCallback, useEffect, useMemo } from "react"
-import { flushSync } from "react-dom"
-import Image from "next/image"
+import { useRouter } from "next/navigation"
+import { useState } from "react"
 import { Navbar } from "@/components/layout/navbar"
 import { Sparkles, Star, Heart, Loader2, X, ZoomIn, ExternalLink, RefreshCcw, Trash, Trash2, Crown, Package, Coins, Search, Database, Store, Share, Swords, Wrench } from "lucide-react"
-import { CanvasImage } from "@/components/gacha/canvas-image"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
-import { rollAnimeCharacter, rollFromAnimePack, searchGachaPacks, createCustomGachaPack, checkPackAvailability, updateUserPityAfterRoll } from "./actions"
-import { saveCardToDatabase, loadUserCards, deleteCardFromDatabase, queueCardForSync, syncQueuedCards } from "./client-actions"
-import { loadUserPity, updateUserPity, type PityData } from "./pity-actions"
-import { ANIME_PACKS, AnimePack, CustomAnimePack, createCustomPack, loadYearBasedPacks } from "@/lib/gacha-packs"
-import { ModifierStyles } from "@/components/gacha/card-modifiers"
-import { useCoins } from "@/hooks/use-coins"
-import { useDust } from "@/hooks/use-dust"
+import { ANIME_PACKS } from "@/lib/gacha-packs"
+import { ModifierStyles, frameNames, coatingNames } from "@/components/gacha/card-modifiers"
 import { GachaLoading } from "@/components/gacha/gacha-loading"
 import { GachaAnimation } from "@/components/gacha/gacha-animation"
 import { CollectionCardSkeleton } from "@/components/gacha/collection-skeleton"
@@ -25,150 +17,20 @@ import { DismantleSuccessPopup } from "@/components/gacha/dismantle-success-popu
 import { BulkDismantleFilterPopup } from "@/components/gacha/bulk-dismantle-filter-popup"
 import { BulkDismantleConfirmPopup } from "@/components/gacha/bulk-dismantle-confirm-popup"
 import { BulkDismantleSuccessPopup } from "@/components/gacha/bulk-dismantle-success-popup"
-import { Rarity, rarityConfig, getDismantleValue } from "@/types/gacha"
+import { rarityConfig, getDismantleValue } from "@/types/gacha"
 import { GachaMarketPanel } from "@/components/gacha/gacha-market-panel"
 import { GachaSellMarketModal } from "@/components/gacha/gacha-sell-market-modal"
 import { ChangeArtModal } from "@/components/gacha/change-art-modal"
-import { useAuth } from "@/components/auth/auth-provider"
-import { frameNames, coatingNames, FrameOverlay, CoatingOverlay } from "@/components/gacha/card-modifiers"
-import { getCardBasePower, getCardProvision } from "@/app/battle/utils"
 
-export interface CardStats {
-  hp: number
-  atk: number
-  def: number
-  spd: number
-  luck: number
-}
-
-export interface Card {
-  id: number
-  uniqueId: string
-  serialId: string
-  name: string
-  anime: string
-  rarity: Rarity
-  imageUrl: string
-  originalUrl: string
-  fallbackUrls?: string[] 
-  score: number
-  shikiId: number
-  characterId: number
-  stats: CardStats
-  isMainCharacter?: boolean
-  packId?: string
-  packName?: string
-  frameModifier?: string;
-  coatingModifier?: string;
-  isArtBlacklisted?: boolean
-  orderIndex?: number // Индекс порядка добавления в коллекцию
-  imageLayers?: [string, string, string] // PNG layers for 3D effect
-}
-
-function generateCardUniqueId(characterId: number, packId?: string): string {
-  // Use crypto.randomUUID() for guaranteed uniqueness
-  const uuid = crypto.randomUUID();
-  const packPrefix = packId ? `pack-${packId}` : 'random';
-  return `${packPrefix}-${characterId}-${uuid}`;
-}
-
-const RARITY_ORDER =["trash", "common", "uncommon", "rare", "super_rare", "epic", "mythic", "legendary", "ancient", "divine", "transcendent", "omnipotent"] as const
-
-interface CollectionRating {
-  overallScore: number
-  grade: string
-  gradeColor: string
-  totalPower: number
-  avgRarity: number
-  powerScore: number
-  rarityDistribution: Record<Rarity, number>
-  topCards: Card[]
-  stats: {
-    avgHp: number
-    avgAtk: number
-    avgDef: number
-    avgSpd: number
-    avgLuck: number
-  }
-}
-
-function calculateCollectionRating(cards: Card[]): CollectionRating {
-  if (cards.length === 0) {
-    return {
-      overallScore: 0,
-      grade: "F",
-      gradeColor: "text-stone-400",
-      totalPower: 0,
-      avgRarity: 0,
-      powerScore: 0,
-      rarityDistribution: {} as Record<Rarity, number>,
-      topCards:[],
-      stats: { avgHp: 0, avgAtk: 0, avgDef: 0, avgSpd: 0, avgLuck: 0 }
-    }
-  }
-
-  const rarityScoreByRarity: Record<Rarity, number> = {
-    trash: 0, common: 10, uncommon: 20, rare: 32, super_rare: 45, epic: 60,
-    mythic: 72, legendary: 82, ancient: 90, divine: 95, transcendent: 98, omnipotent: 100,
-  }
-
-  const rarityDistribution: Record<Rarity, number> = {
-    trash: 0, common: 0, uncommon: 0, rare: 0, super_rare: 0, epic: 0,
-    mythic: 0, legendary: 0, ancient: 0, divine: 0, transcendent: 0, omnipotent: 0
-  }
-  
-  let totalPower = 0
-  let totalStats = { hp: 0, atk: 0, def: 0, spd: 0, luck: 0 }
-
-  cards.forEach(card => {
-    rarityDistribution[card.rarity] = (rarityDistribution[card.rarity] || 0) + 1
-    const cardPower = card.stats.hp + card.stats.atk + card.stats.def + card.stats.spd + card.stats.luck
-    totalPower += cardPower
-    totalStats.hp += card.stats.hp
-    totalStats.atk += card.stats.atk
-    totalStats.def += card.stats.def
-    totalStats.spd += card.stats.spd
-    totalStats.luck += card.stats.luck
-  })
-
-  const numCards = cards.length
-  
-  const avgStats = {
-    avgHp: Math.round(totalStats.hp / numCards),
-    avgAtk: Math.round(totalStats.atk / numCards),
-    avgDef: Math.round(totalStats.def / numCards),
-    avgSpd: Math.round(totalStats.spd / numCards),
-    avgLuck: Math.round(totalStats.luck / numCards)
-  }
-  
-  const avgRarity = Math.round(
-    cards.reduce((acc, c) => acc + (rarityScoreByRarity[c.rarity] ?? 0), 0) / numCards
-  )
-  
-  const avgPower = totalPower / numCards
-  const powerScore = Math.max(0, Math.min(Math.round((avgPower / 500) * 100), 100))
-  const overallScore = Math.round((avgRarity * 0.55) + (powerScore * 0.45))
-  
-  let grade: string, gradeColor: string
-  
-  if (overallScore >= 90) { grade = "S+"; gradeColor = "from-amber-400 to-orange-500" }
-  else if (overallScore >= 80) { grade = "S"; gradeColor = "from-amber-500 to-yellow-500" }
-  else if (overallScore >= 70) { grade = "A"; gradeColor = "from-purple-400 to-pink-500" }
-  else if (overallScore >= 60) { grade = "B"; gradeColor = "from-blue-400 to-cyan-500" }
-  else if (overallScore >= 50) { grade = "C"; gradeColor = "from-emerald-400 to-teal-500" }
-  else if (overallScore >= 40) { grade = "D"; gradeColor = "from-slate-400 to-slate-500" }
-  else { grade = "F"; gradeColor = "from-stone-500 to-stone-700" }
-  
-  const topCards = [...cards]
-    .sort((a, b) => {
-      const aScore = rarityConfig[a.rarity].weight + (a.stats.hp + a.stats.atk + a.stats.def + a.stats.spd + a.stats.luck) * 0.1
-      const bScore = rarityConfig[b.rarity].weight + (b.stats.hp + b.stats.atk + b.stats.def + b.stats.spd + b.stats.luck) * 0.1
-      return bScore - aScore
-    })
-    .slice(0, 5)
-  
-  return { overallScore, grade, gradeColor, totalPower, avgRarity, powerScore, rarityDistribution, topCards, stats: avgStats }
-}
+// Newly created/extracted modular helpers
+import { useGachaState } from "./hooks/use-gacha-state"
+import { PackCard } from "./components/pack-card"
+import { TopCard } from "./components/top-card"
+import { CollectionCard } from "./components/collection-card"
+import { InteractiveCard } from "./components/interactive-card"
+import { statLabels } from "./config"
+import { getOptimizedThumbSrc } from "./utils"
+import { Card, Rarity } from "./types"
 
 const StatBar = ({ label, value, color }: { label: string; value: number; color: string }) => (
   <div className="w-full space-y-1">
@@ -184,2001 +46,139 @@ const StatBar = ({ label, value, color }: { label: string; value: number; color:
   </div>
 )
 
-const statLabels = { hp: "Очки Здоровья", atk: "Сила Атаки", def: "Защита", spd: "Скорость", luck: "Удача" } as const
-
-const isPinterestUrl = (url: string) => url.includes('i.pinimg.com') || url.includes('pinimg.com');
-
-const getProxiedSrc = (url: string) => {
-  if (!url) return url;
-  if (isPinterestUrl(url)) return `/api/image-proxy?url=${encodeURIComponent(url)}`;
-  return url;
-}
-
-const getOptimizedThumbSrc = (url: string, width: number = 384, quality: number = 60) => {
-  if (!url) return url;
-  if (isPinterestUrl(url)) return `/api/image-proxy?url=${encodeURIComponent(url)}`;
-  return `/_next/image?url=${encodeURIComponent(url)}&w=${width}&q=${quality}`;
-}
-
-const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>, card: Card, isCollection: boolean = false) => {
-  const target = e.target as HTMLImageElement;
-  
-  // КРИТИЧЕСКИ ВАЖНО: Очищаем srcset! Иначе Next.js заставляет браузер 
-  // бесконечно пытаться загрузить битые ссылки разных размеров из srcset
-  target.srcset = "";
-  
-  // Если это проксированный URL от Pinterest и он не сработал, пробуем оригинал напрямую
-  if (!target.dataset.triedBypassProxy && target.src.includes('/api/image-proxy')) {
-    console.log(`[${card.name}] Pinterest proxy failed, trying direct URL`);
-    target.dataset.triedBypassProxy = "true";
-    // Извлекаем оригинальный URL из прокси
-    const urlMatch = target.src.match(/url=([^&]+)/);
-    if (urlMatch) {
-      const originalUrl = decodeURIComponent(urlMatch[1]);
-      target.src = originalUrl;
-      return;
-    }
-  }
-  
-  if (!target.dataset.triedOriginal && card.originalUrl) {
-    target.dataset.triedOriginal = "true";
-    const cleanUrl = card.originalUrl.split('?')[0];
-    target.src = cleanUrl;
-    return;
-  }
-
-  if (!target.dataset.triedMirror) {
-    target.dataset.triedMirror = "true";
-    target.src = `https://shikimori.one/system/characters/original/${card.characterId}.jpg`;
-    return;
-  }
-
-  if (!target.dataset.triedShikiPng) {
-    console.log(`[${card.name}] Попытка Shikimori PNG`);
-    target.dataset.triedShikiPng = "true";
-    target.src = `https://shikimori.one/system/characters/original/${card.characterId}.png`;
-  } else if (!target.dataset.triedShikiWebp) {
-    console.log(`[${card.name}] Попытка Shikimori WebP`);
-    target.dataset.triedShikiWebp = "true";
-    target.src = `https://shikimori.one/system/characters/webp/original/${card.characterId}.webp`;
-  } else if (!target.dataset.triedJikan) {
-    console.log(`[${card.name}] Попытка Jikan API (MyAnimeList)`);
-    target.dataset.triedJikan = "true";
-    fetch(`https://api.jikan.moe/v4/characters/${card.characterId}/pictures`)
-      .then(res => res.json())
-      .then(data => {
-        if (data?.data && data.data.length > 0) {
-          const pic = data.data.find((p: any) => p.jpg?.image_url) || data.data[0];
-          target.src = pic.jpg?.image_url || pic.webp?.image_url;
-        } else {
-          target.src = 'https://picsum.photos/seed/force-error/1/1';
-        }
-      })
-      .catch(() => {
-        target.src = 'https://picsum.photos/seed/force-error/1/1';
-      });
-  } else if (!target.dataset.triedPlaceholder) {
-    console.log(`[${card.name}] Все попытки исчерпаны, используем картинку-заглушку`);
-    target.dataset.triedPlaceholder = "true";
-    const seed = card.anime.replace(/[^a-z0-9]/gi, '') + card.characterId;
-    target.src = `https://picsum.photos/seed/anime-${seed}/${isCollection ? '200/300' : '400/600'}.jpg`;
-  } else {
-    console.log(`[${card.name}] Картинка-заглушка не загрузилась, показываем UI-заглушку`);
-    target.style.display = 'none';
-    const containerClass = isCollection ? 'collection-placeholder' : 'image-placeholder';
-    const placeholder = target.parentElement?.querySelector(`.${containerClass}`);
-    if (!placeholder) {
-      const div = document.createElement('div');
-      div.className = `${containerClass} absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-slate-800 to-slate-950 text-white p-2`;
-      if (isCollection) {
-        div.innerHTML = `
-          <div class="text-2xl sm:text-3xl mb-1">🎌</div>
-          <div class="text-[10px] sm:text-xs font-bold text-center mt-1 truncate w-full px-2">${card.name}</div>
-        `;
-      } else {
-        div.innerHTML = `
-          <div class="text-4xl sm:text-5xl mb-3">🎌</div>
-          <div class="text-sm sm:text-base font-bold text-center mb-1 px-4">${card.name}</div>
-          <div class="text-xs text-slate-400 text-center px-4">${card.anime}</div>
-          <div class="text-[10px] sm:text-xs px-3 py-1 bg-red-500/20 text-red-300 rounded-full mt-3">Арт недоступен</div>
-        `;
-      }
-      target.parentElement?.appendChild(div);
-    }
-  }
-};
-
-const PackCard = ({ pack, onSelect, userCoins }: { pack: AnimePack; onSelect: (pack: AnimePack) => void; userCoins: number }) => (
-  <div 
-    onClick={() => onSelect(pack)}
-    className={`relative group cursor-pointer rounded-2xl sm:rounded-3xl overflow-hidden border border-white/10 p-5 sm:p-6 transition-all duration-300 hover:scale-[1.03] hover:border-indigo-500/50 hover:shadow-2xl hover:shadow-indigo-500/20 ${userCoins < pack.price ? 'opacity-50 cursor-not-allowed grayscale-[0.5]' : ''}`}
-    style={{
-      backgroundImage: pack.bgImage ? `linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.8)), url(${pack.bgImage})` : undefined,
-      backgroundSize: 'cover',
-      backgroundPosition: 'center',
-    }}
-  >
-    {!pack.bgImage && (
-      <div className={`absolute inset-0 bg-gradient-to-br ${pack.color} opacity-80 group-hover:opacity-100 transition-opacity`} />
-    )}
-    <div className="absolute inset-0 bg-black/20 group-hover:bg-transparent transition-colors duration-300" />
-    
-    <div className="relative z-10 h-full flex flex-col">
-      <div className="flex items-start justify-between mb-4">
-        <div className="p-2 sm:p-2.5 bg-white/10 backdrop-blur-md rounded-xl border border-white/20">
-          <Package className="w-6 h-6 sm:w-7 sm:h-7 text-white" />
-        </div>
-        <div className="flex items-center gap-1.5 bg-slate-900/80 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10 shadow-lg">
-          <Coins className="w-4 h-4 text-yellow-400" />
-          <span className="text-sm font-black text-white">{pack.price}</span>
-        </div>
-      </div>
-      
-      <div className="mt-auto">
-        <h3 className="text-xl sm:text-2xl font-black text-white mb-2 leading-tight">{pack.name}</h3>
-        <p className="text-sm text-white/70 mb-4 line-clamp-2">{pack.description}</p>
-        
-        {pack.guaranteedRarity && (
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-indigo-500/20 backdrop-blur-md border border-indigo-500/30">
-            <Star className="w-3.5 h-3.5 text-indigo-300" />
-            <span className="text-xs font-bold text-indigo-200 tracking-wide uppercase">
-              Гарант: {rarityConfig[pack.guaranteedRarity as Rarity].label} <span className="text-indigo-300/70 font-normal">(1 из 10)</span>
-            </span>
-          </div>
-        )}
-        
-        {userCoins < pack.price && (
-          <div className="mt-4 text-xs bg-red-500/20 text-red-300 px-3 py-1.5 rounded-lg border border-red-500/30 font-bold inline-block">Недостаточно монет</div>
-        )}
-      </div>
-    </div>
-  </div>
-)
-
-const TopCard = ({ card, onClick }: { card: Card; onClick: (card: Card) => void }) => {
-  const [isImageLoading, setIsImageLoading] = useState(true)
-
-  return (
-    <div
-      className="aspect-[2/3] rounded-xl overflow-hidden border border-white/10 relative group bg-slate-900 cursor-pointer transition-all hover:scale-105 hover:shadow-xl hover:shadow-indigo-500/20"
-      onClick={() => onClick(card)}
-    >
-      <img
-        src={getOptimizedThumbSrc(card.imageUrl, 384, 60)}
-        className="absolute inset-0 w-full h-full object-cover"
-        alt={card.name}
-        referrerPolicy="no-referrer"
-        onError={(e) => handleImageError(e, card, true)}
-        onLoad={() => setIsImageLoading(false)}
-      />
-      
-      {/* Загрузчик для лучших карт */}
-      {isImageLoading && (
-        <div className="absolute inset-0 flex items-center justify-center bg-slate-900/80 backdrop-blur-sm z-20">
-          <Loader2 className="w-5 h-5 text-white/60 animate-spin" />
-        </div>
-      )}
-      
-      <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/30 to-transparent" />
-      <div className={`absolute top-2 right-2 w-3 h-3 rounded-full bg-gradient-to-r ${rarityConfig[card.rarity].color} shadow-lg border border-white/20`} />
-      <div className="absolute bottom-0 inset-x-0 p-2 sm:p-3">
-        <p className="text-[8px] sm:text-[9px] font-bold text-slate-300 uppercase truncate mb-1">{card.anime}</p>
-        <p className="text-xs sm:text-sm font-black text-white truncate leading-tight">{card.name}</p>
-      </div>
-    </div>
-  )
-}
-
-const CollectionCard = ({ card, onClick }: { card: Card; onClick: (card: Card) => void }) => {
-  const [isImageLoading, setIsImageLoading] = useState(true)
-
-  return (
-    <div
-      onClick={() => onClick(card)}
-      className={`aspect-[2/3] rounded-2xl overflow-hidden border border-white/10 relative group bg-slate-900 cursor-pointer transition-all duration-300 hover:-translate-y-1.5 hover:shadow-2xl hover:shadow-indigo-500/20 ${rarityConfig[card.rarity].glow}`}
-    >
-      <Image
-        src={getProxiedSrc(card.imageUrl)}
-        className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ease-out"
-        alt={card.name}
-        fill
-        unoptimized={isPinterestUrl(card.imageUrl)}
-        sizes="(max-width: 640px) 33vw, (max-width: 1024px) 20vw, 15vw"
-        quality={50}
-        loading="lazy"
-        referrerPolicy="no-referrer"
-        onError={(e) => handleImageError(e, card, true)}
-        onLoad={() => setIsImageLoading(false)}
-      />
-      
-      {/* Загрузчик для карточки коллекции */}
-      {isImageLoading && (
-        <div className="absolute inset-0 flex items-center justify-center bg-slate-900/80 backdrop-blur-sm z-20">
-          <Loader2 className="w-6 h-6 text-white/60 animate-spin" />
-        </div>
-      )}
-      
-      <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/30 to-transparent opacity-90 group-hover:opacity-100 transition-opacity duration-300" />
-      
-      <div className={`absolute top-2.5 right-2.5 w-3 h-3 rounded-full bg-gradient-to-r ${rarityConfig[card.rarity].color} shadow-lg border border-white/20`} />
-      
-      {card.isMainCharacter && (
-        <div className="absolute top-2.5 left-2.5 w-6 h-6 rounded-full bg-gradient-to-r from-yellow-400 to-amber-500 shadow-lg flex items-center justify-center border border-yellow-200">
-          <Crown className="w-3.5 h-3.5 text-amber-950" />
-        </div>
-      )}
-      
-      {card.isMainCharacter && card.isArtBlacklisted && (
-        <div className="absolute top-10 left-2.5 w-6 h-6 rounded-full bg-red-500/80 border border-red-300 flex items-center justify-center backdrop-blur-sm">
-          <RefreshCcw className="w-3 h-3 text-white" />
-        </div>
-      )}
-      
-      <div className="absolute bottom-0 inset-x-0 p-3 sm:p-4 transition-transform duration-300 group-hover:translate-y-[-4px]">
-        <p className="text-[10px] sm:text-xs font-bold text-slate-300 uppercase truncate mb-0.5">★{card.score.toFixed(1)} {card.anime}</p>
-        <p className="text-sm sm:text-base font-black text-white truncate leading-tight drop-shadow-md">{card.name}</p>
-      </div>
-    </div>
-  )
-}
-
-const InteractiveCard = ({ card, forceFlipped = false }: { card: Card, forceFlipped?: boolean }) => {
-  const cardRef = useRef<HTMLDivElement>(null)
-  const [rotation, setRotation] = useState({ x: 0, y: 0 })
-  const [isHovered, setIsHovered] = useState(false)
-  const [isFlipped, setIsFlipped] = useState(false)
-  const[isTouching, setIsTouching] = useState(false)
-  const[isImageLoading, setIsImageLoading] = useState(true)
-  const animationFrameRef = useRef<number | undefined>(undefined)
-  const [showFlipHint, setShowFlipHint] = useState(false)
-  const [isHintExiting, setIsHintExiting] = useState(false)
-  const [isHintExpanded, setIsHintExpanded] = useState(false)
-  const hintTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-  const hideHintTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-  const [isRotating, setIsRotating] = useState(false)
-  
-  // Track loading state for each 3D layer
-  const [layersLoaded, setLayersLoaded] = useState({ bg: false, char: false, vfx: false })
-  const [imageStartedLoading, setImageStartedLoading] = useState(false)
-
-  useEffect(() => {
-    setIsFlipped(forceFlipped)
-  }, [forceFlipped])
-
-  useEffect(() => {
-    // Небольшая задержка чтобы избежать мерцания для кэшированных изображений
-    setImageStartedLoading(false)
-    const timer = setTimeout(() => {
-      setIsImageLoading(true)
-      setImageStartedLoading(true)
-    }, 50)
-    
-    // Reset layers loaded state when card changes
-    setLayersLoaded({ bg: false, char: false, vfx: false })
-    
-    return () => clearTimeout(timer)
-  }, [card.imageUrl, card.uniqueId])
-  
-  // Check if all required layers are loaded
-  useEffect(() => {
-    if (!card.imageLayers || !card.imageLayers.some(l => l)) {
-      // No 3D layers, single image mode - will be handled by onLoad on main image
-      return
-    }
-    
-    // Determine which layers exist
-    const hasBg = !!card.imageLayers[0]
-    const hasChar = !!card.imageLayers[1]
-    const hasVfx = !!card.imageLayers[2]
-    
-    // Check if all existing layers are loaded
-    const allLoaded = 
-      (!hasBg || layersLoaded.bg) &&
-      (!hasChar || layersLoaded.char) &&
-      (!hasVfx || layersLoaded.vfx)
-    
-    if (allLoaded) {
-      setIsImageLoading(false)
-    }
-  }, [layersLoaded, card.imageLayers])
-
-  // Show flip hint after 2 seconds of viewing
-  useEffect(() => {
-    // Clear any existing timeouts
-    if (hintTimeoutRef.current) {
-      clearTimeout(hintTimeoutRef.current)
-      hintTimeoutRef.current = null
-    }
-    if (hideHintTimeoutRef.current) {
-      clearTimeout(hideHintTimeoutRef.current)
-      hideHintTimeoutRef.current = null
-    }
-
-    // Reset hint state
-    setShowFlipHint(false)
-    setIsHintExiting(false)
-    setIsHintExpanded(false)
-
-    // Start the 2-second timer to show hint
-    hintTimeoutRef.current = setTimeout(() => {
-      setShowFlipHint(true)
-      setIsHintExiting(false)
-      
-      // Expand block first, then show text
-      setTimeout(() => {
-        setIsHintExpanded(true)
-      }, 150)
-
-      // Start the 5-second timer to hide hint
-      hideHintTimeoutRef.current = setTimeout(() => {
-        // Hide text first
-        setIsHintExpanded(false)
-        
-        // Then collapse block and remove from DOM
-        setTimeout(() => {
-          setIsHintExiting(true)
-          setTimeout(() => {
-            setShowFlipHint(false)
-          }, 150)
-        }, 150)
-      }, 5000)
-    }, 2000)
-
-    // Cleanup on unmount
-    return () => {
-      if (hintTimeoutRef.current) {
-        clearTimeout(hintTimeoutRef.current)
-      }
-      if (hideHintTimeoutRef.current) {
-        clearTimeout(hideHintTimeoutRef.current)
-      }
-    }
-  }, [card.uniqueId]) // Restart when card changes
-
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.hidden) {
-        if (animationFrameRef.current) {
-          cancelAnimationFrame(animationFrameRef.current)
-          animationFrameRef.current = undefined
-        }
-        setRotation({ x: 0, y: 0 })
-        setIsHovered(false)
-      }
-    }
-
-    document.addEventListener('visibilitychange', handleVisibilityChange)
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange)
-    }
-  },[])
-
-  useEffect(() => {
-    return () => {
-      if (animationFrameRef.current) {
-        cancelAnimationFrame(animationFrameRef.current)
-        animationFrameRef.current = undefined
-      }
-    }
-  },[])
-
-  const handleMouseMove = useCallback((e: MouseEvent<HTMLDivElement>) => {
-    if (!cardRef.current) return
-    if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current)
-
-    setIsRotating(true)
-
-    animationFrameRef.current = requestAnimationFrame(() => {
-      const rect = cardRef.current?.getBoundingClientRect()
-      if (!rect) return
-      const x = e.clientX - rect.left
-      const y = e.clientY - rect.top
-      const centerX = rect.width / 2
-      const centerY = rect.height / 2
-
-      setRotation({
-        x: ((y - centerY) / centerY) * -8,
-        y: ((x - centerX) / centerX) * 8
-      })
-      setIsHovered(true)
-    })
-  },[])
-
-  const handleMouseLeave = useCallback(() => {
-    if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current)
-    animationFrameRef.current = requestAnimationFrame(() => {
-      setRotation({ x: 0, y: 0 })
-      setIsHovered(false)
-      setIsRotating(false)
-    })
-  },[])
-
-  const handleTouchStart = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
-    setIsTouching(true)
-  },[])
-
-  const handleTouchMove = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
-    if (!cardRef.current || !isTouching) return
-    if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current)
-
-    setIsRotating(true)
-
-    animationFrameRef.current = requestAnimationFrame(() => {
-      const rect = cardRef.current?.getBoundingClientRect()
-      if (!rect) return
-      const touch = e.touches[0]
-      const x = touch.clientX - rect.left
-      const y = touch.clientY - rect.top
-      const centerX = rect.width / 2
-      const centerY = rect.height / 2
-
-      setRotation({
-        x: ((y - centerY) / centerY) * -8,
-        y: ((x - centerX) / centerX) * 8
-      })
-      setIsHovered(true)
-    })
-  }, [isTouching])
-
-  const handleTouchEnd = useCallback(() => {
-    if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current)
-    animationFrameRef.current = requestAnimationFrame(() => {
-      setRotation({ x: 0, y: 0 })
-      setIsHovered(false)
-      setIsTouching(false)
-      setIsRotating(false)
-    })
-  },[])
-
-  const highlightX = -rotation.y * 1.2; 
-  const highlightY = rotation.x * 1.2;
-
-  // 3D Parallax layers logic
-  const layerOffsets = [
-    { x: rotation.y * 1.0, y: -rotation.x * 1.0 }, // Background (further)
-    { x: rotation.y * 2.5, y: -rotation.x * 2.5 }, // Character (closer)
-    { x: rotation.y * 4.0, y: -rotation.x * 4.0 }, // Foreground (closest)
-  ];
-
-  return (
-    <div 
-      ref={cardRef}
-      onMouseMove={handleMouseMove}
-      onMouseLeave={handleMouseLeave}
-      onTouchStart={handleTouchStart}
-      onTouchMove={handleTouchMove}
-      onTouchEnd={handleTouchEnd}
-      onClick={() => setIsFlipped(!isFlipped)}
-      className="relative w-[260px] sm:w-72 md:w-80 h-[380px] sm:h-[440px] md:h-[480px] max-w-[calc(100vw-2rem)] transition-transform duration-700 ease-out cursor-pointer"
-      style={{
-        transform: `perspective(1200px) rotateX(${rotation.x}deg) rotateY(${rotation.y + (isFlipped ? 180 : 0)}deg)`,
-        transformStyle: "preserve-3d",
-        touchAction: isTouching ? 'none' : 'auto',
-        willChange: 'transform'
-      }}
-    >
-      {/* FRONT SIDE */}
-      <div 
-        className={`absolute inset-0 rounded-[1.5rem] sm:rounded-[2rem] md:rounded-[2.5rem] ${rarityConfig[card.rarity].bg} ${rarityConfig[card.rarity].glow} border-2 border-white/10`}
-        style={{ 
-          backfaceVisibility: "hidden",
-          transformStyle: "preserve-3d",
-          willChange: "transform"
-        }}
-      >
-        {/* Render 3D layers if present, otherwise fallback to main image */}
-        {card.imageLayers && card.imageLayers.some(l => l) ? (
-          <>
-            {/* Clipped Background Area */}
-            <div className="absolute inset-0 rounded-[1.4rem] sm:rounded-[1.9rem] md:rounded-[2.4rem] overflow-hidden">
-               <div className="absolute inset-0 scale-[1.1]">
-                  {/* Background Layer */}
-                  {card.imageLayers[0] && (
-                    <div 
-                      className="absolute inset-0 w-full h-full transition-transform duration-100 ease-out"
-                      style={{ 
-                        transform: `translate3d(${layerOffsets[0].x}px, ${layerOffsets[0].y}px, 0) scale(1.05)`,
-                        willChange: "transform"
-                      }}
-                    >
-                      <CanvasImage 
-                        src={getProxiedSrc(card.imageLayers[0])} 
-                        alt={`${card.name} bg`}
-                        className="w-full h-full"
-                        style={{ willChange: 'transform', transform: 'translateZ(0)' }}
-                        objectFit="cover"
-                        onLoad={() => setLayersLoaded(prev => ({ ...prev, bg: true }))}
-                      />
-                    </div>
-                  )}
-                  
-                  {/* Fallback/Main image as base if background missing */}
-                  {!card.imageLayers[0] && (
-                    <CanvasImage 
-                      src={getProxiedSrc(card.imageUrl)} 
-                      alt={card.name}
-                      className="absolute inset-0 w-full h-full"
-                      style={{ willChange: 'transform', transform: 'translateZ(0)', filter: 'blur(4px)' }}
-                      objectFit="cover"
-                      opacity={0.5}
-                      onLoad={() => setLayersLoaded(prev => ({ ...prev, bg: true }))}
-                    />
-                  )}
-               </div>
-            </div>
-
-            {/* Non-Clipped Layers (Pop out effect) */}
-            <div className="absolute inset-0 pointer-events-none" style={{ transformStyle: "preserve-3d" }}>
-               {/* Character Layer - Pushes forward slightly out of the card */}
-               {card.imageLayers[1] && (
-                 <div 
-                   className="absolute inset-0 w-full h-full transition-transform duration-100 ease-out z-10"
-                   style={{ 
-                     transform: `translate3d(${layerOffsets[1].x}px, ${layerOffsets[1].y}px, 50px) scale(1.08)`,
-                     filter: "drop-shadow(0 20px 30px rgba(0,0,0,0.5))",
-                     willChange: "transform"
-                   }}
-                 >
-                   <CanvasImage 
-                     src={getProxiedSrc(card.imageLayers[1])} 
-                     alt={`${card.name} char`}
-                     className="w-full h-full"
-                     style={{ willChange: 'transform', transform: 'translateZ(0)' }}
-                     objectFit="contain"
-                     onLoad={() => setLayersLoaded(prev => ({ ...prev, char: true }))}
-                   />
-                 </div>
-               )}
-
-               {/* Foreground/VFX Layer - Pushes even further forward */}
-               {card.imageLayers[2] && (
-                 <div 
-                   className="absolute inset-0 w-full h-full transition-transform duration-100 ease-out z-20"
-                   style={{ 
-                     transform: `translate3d(${layerOffsets[2].x}px, ${layerOffsets[2].y}px, 80px) scale(1.15)`,
-                     willChange: "transform"
-                   }}
-                 >
-                   <CanvasImage 
-                     src={getProxiedSrc(card.imageLayers[2])} 
-                     alt={`${card.name} vfx`}
-                     className="w-full h-full"
-                     style={{ willChange: 'transform', transform: 'translateZ(0)' }}
-                     objectFit="cover"
-                     opacity={0.8}
-                     onLoad={() => setLayersLoaded(prev => ({ ...prev, vfx: true }))}
-                   />
-                 </div>
-               )}
-            </div>
-          </>
-        ) : (
-          <div className="absolute inset-0 rounded-[1.4rem] sm:rounded-[1.9rem] md:rounded-[2.4rem] overflow-hidden">
-            <CanvasImage 
-              src={getProxiedSrc(card.imageUrl)} 
-              alt={card.name}
-              className="absolute inset-0 w-full h-full scale-[1.02]"
-              style={{ willChange: 'transform', transform: 'translateZ(0)' }}
-              objectFit="cover"
-              onError={(e) => handleImageError(e, card, false)}
-              onLoad={() => setIsImageLoading(false)}
-            />
-          </div>
-        )}
-        
-        {/* Загрузчик поверх изображения */}
-        {isImageLoading && imageStartedLoading && (
-          <div className="absolute inset-0 flex items-center justify-center bg-slate-900/80 backdrop-blur-sm z-20">
-            <div className="flex flex-col items-center gap-3">
-              <Loader2 className="w-8 h-8 sm:w-10 sm:h-10 text-white/80 animate-spin" />
-              <span className="text-xs sm:text-sm text-white/60 font-medium">Загрузка арта...</span>
-            </div>
-          </div>
-        )}
-        
-        <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/20 to-slate-950/20 pointer-events-none" />
-        
-        {/* Modifier Overlays */}
-        <CoatingOverlay coating={card.coatingModifier} />
-        <FrameOverlay frame={card.frameModifier} />
-        
-        <div 
-          className="absolute inset-0 opacity-0 transition-opacity duration-300 pointer-events-none"
-          style={{ 
-            background: `radial-gradient(circle at ${50 + highlightX}% ${50 + highlightY}%, rgba(255,255,255,0.15) 0%, transparent 50%)`,
-            opacity: isHovered ? 1 : 0 
-          }}
-        />
-
-        {/* UI элементов - FRONT */}
-        <div className={`absolute top-3 sm:top-4 md:top-5 inset-x-3 sm:inset-x-4 md:inset-x-5 flex justify-between items-start pointer-events-none z-10 transition-opacity duration-300 ${isRotating ? 'opacity-0' : 'opacity-100'}`}>
-          <div className="flex flex-col gap-1.5 sm:gap-2">
-            <div className={`px-2.5 sm:px-3 py-1 rounded-full text-[9px] sm:text-[10px] font-black uppercase tracking-widest backdrop-blur-md bg-black/40 border border-white/20 shadow-xl w-fit`}>
-              <span className={`bg-gradient-to-r ${rarityConfig[card.rarity].color} bg-clip-text text-transparent`}>
-                {rarityConfig[card.rarity].label}
-              </span>
-            </div>
-            {card.isMainCharacter && (
-              <div className="w-fit flex items-center gap-1 sm:gap-1.5 px-2 py-1 rounded-full text-[8px] sm:text-[9px] font-black uppercase tracking-wider bg-gradient-to-r from-yellow-400 to-amber-500 text-amber-950 shadow-lg border border-yellow-300">
-                <Crown className="w-2.5 sm:w-3 h-2.5 sm:h-3" />
-                Главный герой
-              </div>
-            )}
-            {card.frameModifier && (
-              <div className="w-fit flex items-center gap-1 sm:gap-1.5 px-2 py-1 rounded-full text-[8px] sm:text-[9px] font-black uppercase tracking-wider bg-gradient-to-r from-yellow-600 to-yellow-400 text-yellow-950 shadow-lg border border-yellow-300">
-                <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-yellow-200"></span>
-                {frameNames[card.frameModifier]}
-              </div>
-            )}
-            {card.coatingModifier && (
-              <div className="w-fit flex items-center gap-1 sm:gap-1.5 px-2 py-1 rounded-full text-[8px] sm:text-[9px] font-black uppercase tracking-wider bg-gradient-to-r from-cyan-600 to-cyan-400 text-cyan-950 shadow-lg border border-cyan-300">
-                <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-cyan-200"></span>
-                {coatingNames[card.coatingModifier]}
-              </div>
-            )}
-          </div>
-          <div className="flex items-center gap-1 bg-black/50 backdrop-blur-md px-2.5 sm:px-3 py-1 rounded-full border border-white/20 shadow-xl shrink-0">
-            <Star className="w-3 h-3 text-yellow-400 fill-yellow-400" />
-            <span className="text-[10px] sm:text-[11px] font-black text-white">{card.score.toFixed(1)}</span>
-          </div>
-        </div>
-
-        <div className={`absolute bottom-3 sm:bottom-4 md:bottom-5 inset-x-3 sm:inset-x-4 md:inset-x-5 pointer-events-none z-10 transition-opacity duration-300 ${isRotating ? 'opacity-0' : 'opacity-100'}`}>
-          <div className="backdrop-blur-xl bg-slate-900/40 border border-white/10 rounded-xl sm:rounded-2xl p-3 sm:p-4 shadow-2xl relative overflow-hidden">
-            <div className={`absolute left-0 top-0 bottom-0 w-1.5 bg-gradient-to-b ${rarityConfig[card.rarity].color}`} />
-            
-            {card.isMainCharacter && card.isArtBlacklisted && (
-              <div className="absolute top-2 right-2 px-1.5 py-0.5 rounded-full bg-red-500/20 border border-red-500/30 flex items-center gap-1">
-                <RefreshCcw className="w-2.5 h-2.5 text-red-400" />
-                <span className="text-[7px] sm:text-[8px] font-bold text-red-400 uppercase tracking-wider">Отклонен</span>
-              </div>
-            )}
-            
-            <h3 className="text-base sm:text-xl md:text-2xl font-black text-white uppercase leading-none drop-shadow-lg truncate mb-1">
-              {card.name}
-            </h3>
-            <p className="text-[8px] sm:text-[10px] md:text-xs text-white/70 font-bold uppercase tracking-wider truncate">
-              {card.anime}
-            </p>
-            
-            <div className="mt-2.5 sm:mt-3 flex items-center justify-between border-t border-white/10 pt-2">
-              <span className="text-[7px] sm:text-[8px] md:text-[9px] font-mono text-white/40 tracking-wider">ID: {card.shikiId}</span>
-              {card.packName && (
-                <span className="text-[7px] sm:text-[8px] md:text-[9px] font-black text-indigo-300 uppercase tracking-widest truncate max-w-[60%] text-right">{card.packName}</span>
-              )}
-            </div>
-            {showFlipHint && (
-              <div className={`mt-1.5 overflow-hidden transition-all duration-150 ${isHintExiting ? 'max-h-0' : 'max-h-8'}`}>
-                <div className={`text-center transition-opacity duration-150 ${isHintExpanded ? 'opacity-100' : 'opacity-0'}`}>
-                  <p className="text-[7px] sm:text-[8px] font-black text-white/30 uppercase tracking-widest">Нажмите на карту чтобы перевернуть</p>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* BACK SIDE (STATS) */}
-      <div 
-        className={`absolute inset-0 rounded-[1.5rem] sm:rounded-[2rem] md:rounded-[2.5rem] p-5 sm:p-6 md:p-8 flex flex-col justify-between border-[3px] sm:border-4 ${rarityConfig[card.rarity].bg} ${rarityConfig[card.rarity].glow}`}
-        style={{ 
-          backfaceVisibility: "hidden", 
-          transform: "rotateY(180deg)",
-          borderColor: `rgba(${rarityConfig[card.rarity].rgb}, 0.5)`,
-          willChange: "transform"
-        }}
-      >
-        <div className="absolute top-3 right-3 sm:top-4 sm:right-4 md:top-5 md:right-5 flex items-center gap-1.5 z-20">
-          <span className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-wider">вес</span>
-          <span className="text-sm sm:text-base font-black text-violet-400">{getCardProvision(card)}</span>
-        </div>
-
-        <div className="relative z-10 space-y-3 sm:space-y-6">
-          <div className="text-center pb-2.5 sm:pb-4 border-b border-white/10">
-            <p className={`text-[8px] sm:text-[10px] md:text-[11px] font-black uppercase tracking-widest bg-gradient-to-r ${rarityConfig[card.rarity].color} bg-clip-text text-transparent mb-1`}>
-              Характеристики
-            </p>
-            <h4 className="text-lg sm:text-2xl md:text-3xl font-black text-white uppercase truncate">{card.name}</h4>
-          </div>
-
-          <div className="space-y-2.5 sm:space-y-4 pt-1 sm:pt-2">
-            <StatBar label={statLabels.hp} value={card.stats.hp} color={rarityConfig[card.rarity].color} />
-            <StatBar label={statLabels.atk} value={card.stats.atk} color={rarityConfig[card.rarity].color} />
-            <StatBar label={statLabels.def} value={card.stats.def} color={rarityConfig[card.rarity].color} />
-            <StatBar label={statLabels.spd} value={card.stats.spd} color={rarityConfig[card.rarity].color} />
-            <StatBar label={statLabels.luck} value={card.stats.luck} color={rarityConfig[card.rarity].color} />
-          </div>
-        </div>
-
-        <div className="relative z-10 text-center space-y-2 sm:space-y-3">
-          <div className="flex items-center justify-center gap-2">
-            <Swords className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400" />
-            <span className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-wider">Общая сила</span>
-            <span className="text-sm sm:text-base font-black text-amber-300">{getCardBasePower(card)}</span>
-          </div>
-          <div className="w-10 sm:w-14 h-10 sm:h-14 mx-auto rounded-full border-2 border-white/10 flex items-center justify-center bg-white/5 backdrop-blur-sm shadow-xl">
-            <RefreshCcw className="w-4 sm:w-6 h-4 sm:h-6 text-white/40" />
-          </div>
-          <p className="text-[7px] sm:text-[9px] font-black text-white/40 uppercase tracking-widest leading-tight">Нажмите чтобы перевернуть</p>
-        </div>
-      </div>
-    </div>
-  )
-}
+const RARITY_ORDER = ["trash", "common", "uncommon", "rare", "super_rare", "epic", "mythic", "legendary", "ancient", "divine", "transcendent", "omnipotent"] as const
 
 export default function GachaPage() {
+  const {
+    isRolling,
+    isPackLoading,
+    revealedCard,
+    collectedCards,
+    showCard,
+    setShowCard,
+    viewedCard,
+    setViewedCard,
+    session,
+    userCoins,
+    coinsLoading,
+    isDev,
+    dust,
+    dustLoading,
+    refreshDust,
+    selectedPack,
+    setSelectedPack,
+    showPacks,
+    setShowPacks,
+    packSearchQuery,
+    setPackSearchQuery,
+    searchResults,
+    isSearching,
+    showCustomPackCreator,
+    setShowCustomPackCreator,
+    customPackQuery,
+    setCustomPackQuery,
+    isCreatingCustomPack,
+    createdCustomPack,
+    setCreatedCustomPack,
+    customPackSearchResults,
+    selectedAnimeIds,
+    setSelectedAnimeIds,
+    bannedArtsByCharacter,
+    searchQuery,
+    setSearchQuery,
+    selectedRarity,
+    setSelectedRarity,
+    sortBy,
+    setSortBy,
+    sortOrder,
+    setSortOrder,
+    selectedPackFilter,
+    setSelectedPackFilter,
+    selectedMainCharacterFilter,
+    setSelectedMainCharacterFilter,
+    showFilters,
+    setShowFilters,
+    showRatingModal,
+    setShowRatingModal,
+    showErrorPopup,
+    setShowErrorPopup,
+    errorPopupConfig,
+    showDismantleConfirm,
+    showDismantleSuccess,
+    setShowDismantleSuccess,
+    dismantleCardData,
+    isDismantling,
+    dismantleReward,
+    showBulkDismantleFilter,
+    setShowBulkDismantleFilter,
+    showBulkDismantleConfirm,
+    showBulkDismantleSuccess,
+    setShowBulkDismantleSuccess,
+    selectedBulkRarity,
+    excludeMainCharacters,
+    isBulkDismantling,
+    bulkDismantleReward,
+    bulkDismantleProgress,
+    gachaMainTab,
+    setGachaMainTab,
+    cardToSell,
+    setCardToSell,
+    cardToChangeArt,
+    setCardToChangeArt,
+    showDeleteConfirm,
+    setShowDeleteConfirm,
+    collectionRating,
+    isLoaded,
+    displayedCardsCount,
+    setDisplayedCardsCount,
+    isSyncingCards,
+    pendingSyncCount,
+    setPendingSyncCount,
+    prioritizeMainCharacters,
+    setPrioritizeMainCharacters,
+    pityData,
+    ART_BAN_LIMIT,
+    showArtWarning,
+    setShowArtWarning,
+    showArtLimitWarning,
+    setShowArtLimitWarning,
+    cardForArtLimitWarning,
+    setCardForArtLimitWarning,
+    isFixingCoins,
+    isSavingCard,
+    setIsRolling,
+    syncQueuedCards,
+    handleListedOnMarket,
+    handleTradeComplete,
+    handleMarketNotify,
+    handleArtChanged,
+    handleRoll,
+    saveCard,
+    handlePackSelect,
+    handleRandomRoll,
+    handleCreateCustomPack,
+    toggleAnimeSelection,
+    selectAllAnime,
+    deselectAllAnime,
+    handleCreateCustomPackFromSelected,
+    handleSelectCustomPack,
+    unblacklistArt,
+    handleSharePage,
+    removeCard,
+    dismantleCard,
+    confirmDismantle,
+    cancelDismantle,
+    openBulkDismantleFilter,
+    selectBulkRarity,
+    confirmBulkDismantle,
+    cancelBulkDismantle,
+    handleFixCoins,
+    resetFilters,
+    getUniquePacks,
+    filteredAndSortedCards
+  } = useGachaState()
+
   const router = useRouter()
-  const[isRolling, setIsRolling] = useState(false)
-  const[isPackLoading, setIsPackLoading] = useState(true)
-  const[isCustomPackLoading, setIsCustomPackLoading] = useState(false)
-  const[revealedCard, setRevealedCard] = useState<Card | null>(null)
-  const[collectedCards, setCollectedCards] = useState<Card[]>([])
-  const[showCard, setShowCard] = useState(false)
-  const[viewedCard, setViewedCard] = useState<Card | null>(null)
-
-  const usedCharacterIds = useMemo(() => new Set(collectedCards.map(c => c.characterId)), [collectedCards])
-  
-  const { user: authUser, session, sessionLoading } = useAuth()
-  const { coins: userCoins, loading: coinsLoading, spendCoins, addCoins, forceSync, fixOverflow, refresh: refreshCoins } = useCoins()
-
-  const isDev = process.env.NODE_ENV === 'development'
-  const { dust, loading: dustLoading, addDust, refresh: refreshDust } = useDust()
-  const[selectedPack, setSelectedPack] = useState<AnimePack | CustomAnimePack | null>(null)
-  const[showPacks, setShowPacks] = useState(false)
-  const[packSearchQuery, setPackSearchQuery] = useState("")
-  const[searchResults, setSearchResults] = useState<AnimePack[]>([])
-  const[isSearching, setIsSearching] = useState(false)
-  const[showCustomPackCreator, setShowCustomPackCreator] = useState(false)
-  const[customPackQuery, setCustomPackQuery] = useState("")
-  const[isCreatingCustomPack, setIsCreatingCustomPack] = useState(false)
-  const[createdCustomPack, setCreatedCustomPack] = useState<CustomAnimePack | null>(null)
-  const[customPackSearchResults, setCustomPackSearchResults] = useState<Array<{
-    id: number
-    name: string
-    russian: string | null
-    score: number | null
-    imageUrl: string
-  }>>([])
-  const[selectedAnimeIds, setSelectedAnimeIds] = useState<Set<number>>(new Set())
-  const[blacklistedUrls, setBlacklistedUrls] = useState<string[]>([])
-  const[expandPoolForCharacters, setExpandPoolForCharacters] = useState<Set<number>>(new Set())
-  const[showArtWarning, setShowArtWarning] = useState(false)
-  const[showArtLimitWarning, setShowArtLimitWarning] = useState(false)
-  const[cardForArtLimitWarning, setCardForArtLimitWarning] = useState<Card | null>(null)
-  const[isFixingCoins, setIsFixingCoins] = useState(false)
-  const[isSavingCard, setIsSavingCard] = useState(false)
-  const [isLoaded, setIsLoaded] = useState(false)
-  const[displayedCardsCount, setDisplayedCardsCount] = useState(60)
-  const[isSyncingCards, setIsSyncingCards] = useState(false)
-  const[pendingSyncCount, setPendingSyncCount] = useState(0)
-  const[prioritizeMainCharacters, setPrioritizeMainCharacters] = useState(false)
-  const[pityData, setPityData] = useState<PityData | null>(null)
-
-  // Ref for tracking operation start time
-  const operationStartTime = useRef<number | null>(null);
-
-  // Ref for tracking if component is mounted
-  const isMounted = useRef(true);
-
-  const ART_BAN_LIMIT = 10
-
-  const bannedArtsByCharacter = useMemo(() => {
-    const acc: Record<number, number> = {};
-    blacklistedUrls.forEach(url => {
-      const card = collectedCards.find(c => c.imageUrl === url || c.originalUrl === url);
-      if (card) {
-        acc[card.characterId] = (acc[card.characterId] || 0) + 1;
-      }
-    });
-    if (revealedCard && blacklistedUrls.includes(revealedCard.imageUrl)) {
-      acc[revealedCard.characterId] = (acc[revealedCard.characterId] || 0) + 1;
-    }
-    return acc;
-  }, [blacklistedUrls, collectedCards, revealedCard]);
-  
-  const[searchQuery, setSearchQuery] = useState("")
-  const[selectedRarity, setSelectedRarity] = useState<Rarity | "all">("all")
-  const[sortBy, setSortBy] = useState<"date" | "rarity" | "score" | "name" | "anime">("date")
-  const[sortOrder, setSortOrder] = useState<"asc" | "desc">("desc")
-  const[selectedPackFilter, setSelectedPackFilter] = useState<string | "all">("all")
-  const[selectedMainCharacterFilter, setSelectedMainCharacterFilter] = useState<"all" | "main" | "supporting">("all")
-  const [showFilters, setShowFilters] = useState(false)
-  const[showRatingModal, setShowRatingModal] = useState(false)
-  const[showErrorPopup, setShowErrorPopup] = useState(false)
-  const[errorPopupConfig, setErrorPopupConfig] = useState<{
-    title: string;
-    message: string;
-    type?: "error" | "warning" | "info";
-    packName?: string;
-    collectedCount?: number;
-    availableCount?: number;
-    totalCharacters?: number;
-  } | null>(null)
-  const[showDismantleConfirm, setShowDismantleConfirm] = useState(false)
-  const[showDismantleSuccess, setShowDismantleSuccess] = useState(false)
-  const[dismantleCardData, setDismantleCardData] = useState<Card | null>(null)
-  const[isDismantling, setIsDismantling] = useState(false)
-  const[dismantleReward, setDismantleReward] = useState(0)
-  
-  // Bulk dismantle states
-  const[showBulkDismantleFilter, setShowBulkDismantleFilter] = useState(false)
-  const[showBulkDismantleConfirm, setShowBulkDismantleConfirm] = useState(false)
-  const[showBulkDismantleSuccess, setShowBulkDismantleSuccess] = useState(false)
-  const[selectedBulkRarity, setSelectedBulkRarity] = useState<Rarity | "all">("all")
-  const[excludeMainCharacters, setExcludeMainCharacters] = useState(false)
-  const[isBulkDismantling, setIsBulkDismantling] = useState(false)
-  const[bulkDismantleReward, setBulkDismantleReward] = useState(0)
-  const[bulkDismantleProgress, setBulkDismantleProgress] = useState({ processed: 0, total: 0 })
-
-  const [gachaMainTab, setGachaMainTab] = useState<"gacha" | "market">("gacha")
-  const [cardToSell, setCardToSell] = useState<Card | null>(null)
-  const [listedCardIds, setListedCardIds] = useState<Set<string>>(new Set())
-  const [cardToChangeArt, setCardToChangeArt] = useState<Card | null>(null)
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
-
-  const collectionRating = calculateCollectionRating(collectedCards)
-
-  const loadListedCards = useCallback(async () => {
-    // 1. Вместо supabase.auth.getSession() просто проверяем наличие authUser
-    if (!authUser?.id) return;
-
-    const { supabase } = await import("@/lib/supabase")
-
-    try {
-      const { data, error } = await supabase
-        .from("market_listings")
-        .select("unique_id")
-        .eq("seller_id", authUser.id) // 2. Используем authUser.id
-
-      if (error) throw error
-      setListedCardIds(new Set(data?.map((item: { unique_id: string }) => item.unique_id) || []))
-    } catch (error: any) {
-      if (error.name === 'AbortError') {
-        console.log('[loadListedCards] Request aborted (expected behavior)');
-        return;
-      }
-      console.error("Error loading listed cards:", error)
-    }
-  }, [authUser?.id]) // 3. Обязательно добавляем authUser?.id в зависимости useCallback
-
-  const refreshCollectionMerge = useCallback(async () => {
-    // 1. Убираем supabase.auth.getSession() и здесь тоже
-    if (!authUser?.id) return;
-
-    try {
-      const dbCards = await loadUserCards({ user: authUser, session })
-      let localCollection: Card[] = []
-      try {
-        const raw = localStorage.getItem("gacha-collection")
-        if (raw) localCollection = JSON.parse(raw)
-      } catch {
-        /* ignore */
-      }
-
-      // Deduplicate database cards first
-      const seenDbIds = new Set<string>();
-      const deduplicatedDbCards = dbCards.filter((card) => {
-        if (seenDbIds.has(card.uniqueId)) {
-          console.log('[refreshCollectionMerge] Skipping duplicate DB card:', card.uniqueId);
-          return false;
-        }
-        seenDbIds.add(card.uniqueId);
-        return true;
-      });
-
-      const dbIds = new Set(deduplicatedDbCards.map((c) => c.uniqueId))
-
-      // Находим потерянные локальные карты (которых нет в БД)
-      // Also deduplicate within lostLocalCards themselves
-      const seenLocalIds = new Set<string>();
-      const lostLocalCards = localCollection.filter((c) => {
-        if (dbIds.has(c.uniqueId) || seenLocalIds.has(c.uniqueId)) {
-          return false; // Skip if already in DB or already seen in local
-        }
-        seenLocalIds.add(c.uniqueId);
-        return true;
-      })
-
-      // Приоритет: БД карты + потерянные локальные карты
-      const dbCardsWithOrder = deduplicatedDbCards.map((card, idx) => ({
-        ...card,
-        orderIndex: idx,
-      }))
-
-      const mergedCollection = [
-        ...dbCardsWithOrder,
-        ...lostLocalCards
-          .map((card, i) => ({
-            ...card,
-            orderIndex: deduplicatedDbCards.length + i,
-          })),
-      ]
-
-      // Final deduplication to ensure no duplicates in merged collection
-      const seenFinalIds = new Set<string>();
-      const merged = mergedCollection.filter(card => {
-        if (seenFinalIds.has(card.uniqueId)) {
-          console.log('[refreshCollectionMerge] Skipping duplicate in merged collection:', card.uniqueId);
-          return false;
-        }
-        seenFinalIds.add(card.uniqueId);
-        return true;
-      });
-
-      setCollectedCards(merged)
-    } catch (error: any) {
-      if (error.name === 'AbortError') {
-        console.log('[refreshCollectionMerge] Request aborted (expected behavior)');
-        return;
-      }
-      console.error("Error refreshing collection:", error)
-    }
-  }, [authUser?.id, session]) // 2. Добавляем session в зависимости
-
-  const handleListedOnMarket = useCallback(async () => {
-    setViewedCard(null)
-    setCardToSell(null)
-    await refreshCollectionMerge()
-    await refreshCoins()
-    await loadListedCards()
-  }, [refreshCollectionMerge, refreshCoins, loadListedCards])
-
-  const handleTradeComplete = useCallback(async () => {
-    await refreshCollectionMerge()
-    await refreshCoins()
-    await loadListedCards()
-  }, [refreshCollectionMerge, refreshCoins, loadListedCards])
-
-  const handleMarketNotify = useCallback((title: string, message: string, type: "error" | "warning" | "info" = "error") => {
-    setErrorPopupConfig({ title, message, type })
-    setShowErrorPopup(true)
-  }, [])
-
-  const handleArtChanged = useCallback((newImageUrl: string, newOriginalUrl: string) => {
-    setCollectedCards(prev => prev.map(card => 
-      card.uniqueId === cardToChangeArt?.uniqueId 
-        ? { ...card, imageUrl: newImageUrl, originalUrl: newOriginalUrl }
-        : card
-    ))
-  }, [cardToChangeArt?.uniqueId])
-
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-    if (!document.hidden) {
-      // Если вкладка стала видимой, проверяем, не застряла ли операция
-      if ((isRolling || isSavingCard) && operationStartTime.current) {
-        const elapsed = Date.now() - operationStartTime.current;
-        
-        // Если крутилка крутится дольше 15 секунд — скорее всего, запрос в фоне отвалился
-        if (elapsed > 15000) {
-          console.warn('[Gacha] Операция затянулась в фоне. Сброс состояния.');
-          setIsRolling(false);
-          setIsSavingCard(false);
-          operationStartTime.current = null;
-        }
-      }
-    }
-  };
-
-  document.addEventListener('visibilitychange', handleVisibilityChange);
-  return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-}, [isRolling, isSavingCard]);
-
-useEffect(() => {
-    let isMounted = true;
-
-    console.log('[loadSavedCards useEffect] authUser:', authUser?.id, 'sessionLoading:', sessionLoading, 'isLoaded:', isLoaded);
-
-    const loadSavedCards = async () => {
-      // КРИТИЧНО: Здесь НЕ ДОЛЖНО БЫТЬ "if (isLoaded) return;"
-      console.log('[loadSavedCards] Starting load...');
-
-      try {
-        let finalCollection: Card[] =[];
-        let localCards: Card[] = [];
-
-        // 1. Сначала загружаем настройки из localStorage
-        try {
-          const savedPriority = localStorage.getItem('gacha-prioritize-main-characters');
-          if (savedPriority) {
-            setPrioritizeMainCharacters(JSON.parse(savedPriority));
-          }
-        } catch (e) { console.error(e); }
-
-        // 2. Загружаем локальные карты для поиска потерянных
-        try {
-          const localData = localStorage.getItem('gacha-collection');
-          console.log('[loadSavedCards] LocalStorage cards:', localData ? JSON.parse(localData).length : 0);
-          if (localData) {
-            localCards = JSON.parse(localData);
-            localCards = localCards.map((card: Card, index: number) => ({
-              ...card,
-              orderIndex: localCards.length - 1 - index
-            }));
-          }
-        } catch (e) { console.error(e); }
-
-        // 3. Загрузка из базы данных (ПРИОРИТЕТ)
-        // Ждём пока сессия загрузится перед тем как продолжать
-        if (sessionLoading) {
-          console.log('[loadSavedCards] Session still loading, waiting...');
-          return; // Просто выходим, НЕ устанавливая isLoaded
-        }
-
-        console.log('[loadSavedCards] authUser check:', !!authUser);
-        if (authUser) {
-          try {
-            console.log('[loadSavedCards] Calling loadUserCards...');
-            
-            // Добавляем таймаут для всего процесса загрузки БД
-            const dbCards = await Promise.race([
-              loadUserCards({ user: authUser, session }), // Передаем объект с данными
-              new Promise<Card[]>((_, reject) => 
-                setTimeout(() => reject(new Error('DB load timeout')), 20000)
-              )
-            ]);
-            
-            console.log('[loadSavedCards] DB cards loaded:', dbCards.length);
-
-            // Проверка на пустой ответ от БД
-            if (!Array.isArray(dbCards)) {
-              console.error('[loadSavedCards] Invalid DB response, using local data');
-              if (isMounted) {
-                setCollectedCards(localCards);
-                setIsLoaded(true);
-              }
-              return;
-            }
-
-            // Deduplicate database cards first
-            const seenDbIds = new Set<string>();
-            const deduplicatedDbCards = dbCards.filter((card: Card) => {
-              if (seenDbIds.has(card.uniqueId)) {
-                console.log('[loadSavedCards] Skipping duplicate DB card:', card.uniqueId);
-                return false;
-              }
-              seenDbIds.add(card.uniqueId);
-              return true;
-            });
-
-            const dbCardsWithOrder = deduplicatedDbCards.map((card: Card, index: number) => ({
-              ...card,
-              orderIndex: index
-            }));
-
-            // 4. Ищем потерянные карты в localStorage, которых нет в БД
-            // Also deduplicate within lostCards themselves
-            const dbIds = new Set(dbCardsWithOrder.map(c => c.uniqueId));
-            const seenLostIds = new Set<string>();
-            const lostCards = localCards.filter(c => {
-              if (dbIds.has(c.uniqueId) || seenLostIds.has(c.uniqueId)) {
-                return false; // Skip if already in DB or already seen
-              }
-              seenLostIds.add(c.uniqueId);
-              return true;
-            });
-
-            console.log('[loadSavedCards] Found lost cards:', lostCards.length);
-
-            // 5. Синхронизируем потерянные карты в БД
-            if (lostCards.length > 0) {
-              console.log('[loadSavedCards] Syncing lost cards to DB...');
-              for (const card of lostCards) {
-                try {
-                  const result = await saveCardToDatabase(card, session);
-                  if (!result.success && !result.isAbort) {
-                    queueCardForSync(card);
-                  }
-                } catch (error) {
-                  console.error('[loadSavedCards] Failed to sync lost card:', card.uniqueId, error);
-                  queueCardForSync(card);
-                }
-              }
-            }
-
-            // 6. Объединяем: БД карты + потерянные локальные карты
-            const mergedCollection = [
-              ...dbCardsWithOrder,
-              ...lostCards.map((card, index) => ({
-                ...card,
-                orderIndex: dbCardsWithOrder.length + index
-              }))
-            ];
-
-            // 7. Final deduplication to ensure no duplicates in final collection
-            const seenFinalIds = new Set<string>();
-            finalCollection = mergedCollection.filter(card => {
-              if (seenFinalIds.has(card.uniqueId)) {
-                console.log('[loadSavedCards] Skipping duplicate in final collection:', card.uniqueId);
-                return false;
-              }
-              seenFinalIds.add(card.uniqueId);
-              return true;
-            });
-
-            console.log('[loadSavedCards] Final collection size:', finalCollection.length);
-
-            if (isMounted) {
-              setCollectedCards(finalCollection);
-              console.log('[loadSavedCards] Collection set. Unblocking UI...');
-              
-              // 1. СРАЗУ ЖЕ разблокируем UI, потому что карты уже готовы!
-              setIsLoaded(true); 
-              
-              // 2. Запускаем загрузку рынка В ФОНЕ (без await)
-              console.log('[loadSavedCards] Calling loadListedCards in background...');
-              loadListedCards().catch(e => console.error('[loadListedCards] Background error:', e));
-            }
-
-            // 7. Фоновая досинхронизация очереди (если она упадет, карты все равно уже на экране)
-            const queue = JSON.parse(localStorage.getItem('gacha-sync-queue') || '[]');
-            if (queue.length > 0) {
-              if (isMounted) setIsSyncingCards(true);
-              const syncResult = await syncQueuedCards(session);
-              if (isMounted) {
-                setIsSyncingCards(false);
-                setPendingSyncCount(syncResult.remaining);
-              }
-            }
-          } catch (dbError: any) {
-            if (dbError.name !== 'AbortError') {
-              console.error('[loadSavedCards] DB error:', dbError);
-              
-              // Если БД недоступна, используем локальные данные
-              console.log('[loadSavedCards] DB unavailable, using local data');
-              if (isMounted) {
-                setCollectedCards(localCards);
-                setIsLoaded(true);
-              }
-            }
-          }
-        } else {
-          // Если юзер пока гость (или сессия еще грузится) - показываем локальные данные
-          console.log('[loadSavedCards] No authUser (guest user), using local data only');
-          if (isMounted) {
-            setCollectedCards(localCards);
-            setIsLoaded(true); // <-- ОБЯЗАТЕЛЬНО! Иначе гости будут смотреть на бесконечную загрузку
-          }
-          return;
-        }
-
-      } catch (error: any) {
-        if (error.name === 'AbortError') return;
-        console.error('[loadSavedCards] Critical Error:', error);
-      } finally {
-        // УБРАЛИ установку isLoaded из finally блока!
-        // Теперь isLoaded устанавливается только при успешной загрузке
-      }
-    }
-
-    loadSavedCards();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [authUser?.id, sessionLoading]); // Добавили sessionLoading в зависимости
-
-  useEffect(() => {
-    const loadPacks = async () => {
-      try {
-        setIsPackLoading(true)
-        await loadYearBasedPacks()
-      } catch (error) {
-        console.error('[GachaPage] Error loading year-based packs:', error)
-      } finally {
-        setIsPackLoading(false)
-      }
-    }
-
-    loadPacks()
-  },[])
-
-
-
-  useEffect(() => {
-    try {
-      localStorage.setItem('gacha-prioritize-main-characters', JSON.stringify(prioritizeMainCharacters));
-    } catch (e) { console.error(e); }
-  }, [prioritizeMainCharacters]);
-
-  useEffect(() => {
-    if (packSearchQuery.trim().length < 1) {
-      setSearchResults([]);
-      setIsSearching(false);
-      return;
-    }
-
-    setIsSearching(true);
-    const debounce = setTimeout(async () => {
-      try {
-        const results = await searchGachaPacks(packSearchQuery.trim());
-        setSearchResults(results);
-      } catch (error) {
-        console.error("Pack search error:", error);
-        setSearchResults([]);
-      } finally {
-        setIsSearching(false);
-      }
-    }, 200);
-
-    return () => clearTimeout(debounce);
-  }, [packSearchQuery]);
-
-  useEffect(() => {
-    isMounted.current = true;
-
-    const loadPityData = async () => {
-      try {
-        const data = await loadUserPity(session);
-        if (isMounted.current) {
-          setPityData(data);
-        }
-      } catch (error) {
-        if (isMounted.current) {
-          console.error('[loadPityData] Error:', error);
-        }
-      }
-    };
-
-    loadPityData();
-
-    return () => {
-      isMounted.current = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    setRevealedCard(null);
-    setShowCard(false);
-    setIsRolling(false);
-    setViewedCard(null);
-    
-    // Сбрасываем состояние сохранения при смене пакета
-    setIsSavingCard(false);
-    operationStartTime.current = null;
-    setSearchQuery(""); 
-    setShowPacks(false); 
-  }, [selectedPack]);
-
-  const handleRoll = async () => {
-    if (isRolling) return;
-
-    // Check if user has enough coins before attempting roll
-    const rollCost = selectedPack ? selectedPack.price : 50;
-    if (userCoins < rollCost) {
-      setErrorPopupConfig({
-        title: "Недостаточно монет",
-        message: `Нужно ${rollCost} монет, у вас есть ${userCoins}. Пополните баланс и попробуйте снова!`,
-        type: "error"
-      });
-      setShowErrorPopup(true);
-      return;
-    }
-
-    try {
-      setIsRolling(true);
-      operationStartTime.current = Date.now();
-      setRevealedCard(null);
-      setShowCard(false);
-      
-      // Сбрасываем состояние сохранения при новой крутке
-      setIsSavingCard(false);
-
-      // Get current bad luck streak
-      const currentBadLuckStreak = pityData?.bad_luck_streak || 0;
-
-      // 1. Вызываем серверный экшен с pity data
-      const rollPromise = selectedPack
-        ? rollFromAnimePack(selectedPack, Array.from(usedCharacterIds), blacklistedUrls, Array.from(expandPoolForCharacters), currentBadLuckStreak)
-        : rollAnimeCharacter(Array.from(usedCharacterIds), blacklistedUrls, Array.from(expandPoolForCharacters), currentBadLuckStreak);
-
-      // Добавляем жесткий тайм-аут на сетевой запрос
-      const result = await Promise.race([
-        rollPromise,
-        new Promise((_, reject) => setTimeout(() => reject(new Error("TIMEOUT")), 15000))
-      ]) as any;
-
-      if (result) {
-        // Update pity system after roll
-        try {
-          // УБРАЛИ вызов getSession()
-          if (authUser) {
-            const pityUpdate = await updateUserPityAfterRoll(authUser.id, result); // ИСПОЛЬЗУЕМ authUser.id
-            
-            // Update local pity state
-            setPityData(prev => prev ? {
-              ...prev,
-              bad_luck_streak: pityUpdate.newStreak
-            } : {
-              bad_luck_streak: pityUpdate.newStreak
-            });
-
-            // Show pity notification if bonus was applied
-            if (result.pityData?.pity_bonus_applied) {
-              console.log(`[Pity System] Pity bonus applied! New streak: ${pityUpdate.newStreak}`);
-            }
-          }
-        } catch (error) {
-          console.error('[handleRoll] Pity update error:', error);
-        }
-
-        if (result.allFanArtBanned) {
-          // Если все арты забанены, просто сбрасываем и просим нажать еще раз
-          setErrorPopupConfig({
-            title: "Персонаж найден, но...",
-            message: "Все доступные арты для этого героя вами отклонены. Попробуйте другой пакет!",
-            type: "info"
-          });
-          setShowErrorPopup(true);
-          return; 
-        }
-
-        // Проверяем, что у результата есть imageUrl
-        if (!result.imageUrl) {
-          console.error('[handleRoll] No imageUrl in result:', result);
-          setErrorPopupConfig({
-            title: "Ошибка загрузки арта",
-            message: "Не удалось загрузить изображение персонажа. Попробуйте еще раз!",
-            type: "error"
-          });
-          setShowErrorPopup(true);
-          return;
-        }
-
-        // Создаём объект Card из GachaResult
-        const newCard: Card = {
-          id: Date.now(),
-          uniqueId: generateCardUniqueId(result.characterId, result.packId),
-          serialId: result.characterId.toString(),
-          name: result.characterName,
-          anime: result.animeName,
-          rarity: result.rarity as Rarity,
-          imageUrl: result.imageUrl || '',
-          originalUrl: result.originalUrl || '',
-          score: result.score,
-          shikiId: result.shikiId,
-          characterId: result.characterId,
-          stats: result.stats,
-          isMainCharacter: result.isMainCharacter || false,
-          packId: result.packId,
-          packName: result.packName,
-          frameModifier: result.frameModifier,
-          coatingModifier: result.coatingModifier,
-          isArtBlacklisted: result.isMainCharacter && blacklistedUrls.includes(result.imageUrl || '')
-        };
-
-        // Показываем карту пользователю
-        setRevealedCard(newCard);
-        
-        // Только при успешном результате списываем монеты
-        const rollCost = selectedPack ? selectedPack.price : 50;
-        spendCoins(rollCost).catch(error => {
-          console.error('[handleRoll] Failed to spend coins:', error);
-          // Показываем ошибку, но не прерываем процесс, так как карта уже получена
-          setErrorPopupConfig({
-            title: "Ошибка списания монет",
-            message: "Карта получена, но произошла ошибка при списании монет. Обратитесь к администратору.",
-            type: "warning"
-          });
-          setShowErrorPopup(true);
-        });
-        
-        // Мы НЕ вызываем setShowCard(true) сразу.
-        // Это сделает GachaAnimation в коллбэке onComplete.
-        console.log('[handleRoll] Roll result ready, waiting for animation:', newCard.name);
-      } else {
-        // Если результат пустой (пак закончился)
-        handleEmptyResult(); 
-      }
-
-    } catch (error: any) {
-      console.error("Gacha error:", error);
-      setIsRolling(false); // Здесь сбрасываем, так как анимация не начнется без результата
-      setErrorPopupConfig({
-        title: "Ошибка",
-        message: error.message === "TIMEOUT" ? "Сервер не ответил вовремя. Попробуйте еще раз!" : "Не удалось призвать персонажа.",
-        type: "error"
-      });
-      setShowErrorPopup(true);
-    } finally {
-      // setIsRolling(false); // УБРАНО: теперь сбрасывается в onComplete анимации
-      operationStartTime.current = null;
-    }
-  };
-
-  // Вынесите логику проверки доступности в отдельную функцию, чтобы не загромождать handleRoll
-  const handleEmptyResult = async () => {
-    setIsRolling(false);
-    if (!selectedPack) return;
-    
-    // Показываем общую ошибку сразу
-    setErrorPopupConfig({
-      title: "Пак пуст или персонаж не найден",
-      message: "Похоже, вы собрали всех доступных героев из этого набора.",
-      type: "info"
-    });
-    setShowErrorPopup(true);
-
-    // Фоново проверяем детали, не блокируя крутилку
-    try {
-      const packAvailability = await checkPackAvailability(selectedPack as AnimePack, Array.from(usedCharacterIds));
-      if (packAvailability.isEmpty) {
-         // Можно обновить попап более точными данными
-      }
-    } catch (e) {}
-  };
-
-  const saveCard = async (card: Card) => {
-    if (isSavingCard) return;
-    
-    // Проверяем, не сохранена ли карта уже
-    const isAlreadyIn = collectedCards.some(c => c.uniqueId === card.uniqueId);
-    if (isAlreadyIn) {
-      setShowCard(false);
-      return;
-    }
-    
-    let cardWithOrder = card;
-
-    // Добавляем orderIndex - находим минимальный индекс и делаем еще меньше
-    // чтобы новые карты всегда были первыми при сортировке по дате (desc)
-    const minOrderIndex = collectedCards.length > 0
-      ? Math.min(...collectedCards.map(c => c.orderIndex ?? 0))
-      : 0;
-    cardWithOrder = { ...card, orderIndex: minOrderIndex - 1 };
-    setCollectedCards(prev => [cardWithOrder, ...prev]);
-
-    // 2. СТРАХОВКА: Сохраняем в localStorage ПРЯМО СЕЙЧАС, даже если юзер залогинен.
-    // Это гарантирует, что при обновлении страницы карта не исчезнет, 
-    // даже если запрос в БД упадет.
-    try {
-      const localSaved = JSON.parse(localStorage.getItem('gacha-collection') || '[]');
-      if (!localSaved.some((c: Card) => c.uniqueId === card.uniqueId)) {
-        localStorage.setItem('gacha-collection', JSON.stringify([cardWithOrder, ...localSaved]));
-      }
-    } catch (e) {
-      console.error("Local storage backup failed", e);
-    }
-
-    setShowCard(false);
-    setIsSavingCard(true);
-    operationStartTime.current = Date.now();
-
-    try {
-      // УБРАЛИ вызов getSession()
-      if (authUser) { // ИСПОЛЬЗУЕМ authUser
-        const result = await saveCardToDatabase(card, session);
-        if (!result.success) {
-          // Если база недоступна, кладем в очередь на синхронизацию
-          queueCardForSync(card);
-        } else {
-          console.log("Card persisted to DB");
-        }
-      }
-      // Если сессии нет (authUser = null), карта уже лежит в localStorage благодаря шагу 2.
-    } catch (e) {
-      console.error("Critical save error:", e);
-      queueCardForSync(card);
-    } finally {
-      setIsSavingCard(false);
-      operationStartTime.current = null;
-    }
-  }
-
-  const handlePackSelect = async (pack: AnimePack) => {
-    if (userCoins >= pack.price) {
-      setIsPackLoading(true);
-      await new Promise(resolve => setTimeout(resolve, 300));
-      setSelectedPack(pack);
-      setShowPacks(false);
-      setIsPackLoading(false);
-    }
-  }
-
-  const handleRandomRoll = () => {
-    setSelectedPack(null);
-    setShowPacks(false);
-  }
-
-  const handleCreateCustomPack = async () => {
-    if (!customPackQuery.trim() || isCreatingCustomPack) return;
-    
-    setIsCreatingCustomPack(true);
-    setCreatedCustomPack(null);
-    setSelectedAnimeIds(new Set()); 
-    
-    try {
-      const result = await createCustomGachaPack(customPackQuery.trim());
-      
-      if (result) {
-        setCustomPackSearchResults(result.foundAnime);
-      } else {
-        alert("Аниме по запросу не найдено. Попробуйте другое название.");
-      }
-    } catch (error) {
-      console.error("Custom pack creation error:", error);
-      alert("Ошибка при создании пака. Попробуйте снова.");
-    } finally {
-      setIsCreatingCustomPack(false);
-    }
-  }
-
-  const toggleAnimeSelection = (animeId: number) => {
-    setSelectedAnimeIds(prev => {
-      const newSet = new Set(prev)
-      if (newSet.has(animeId)) {
-        newSet.delete(animeId)
-      } else {
-        newSet.add(animeId)
-      }
-      return newSet
-    })
-  }
-
-  const selectAllAnime = () => {
-    setSelectedAnimeIds(new Set(customPackSearchResults.map(anime => anime.id)))
-  }
-
-  const deselectAllAnime = () => {
-    setSelectedAnimeIds(new Set())
-  }
-
-  const handleCreateCustomPackFromSelected = async () => {
-    if (selectedAnimeIds.size === 0) {
-      alert("Выберите хотя бы одно аниме для создания пака")
-      return
-    }
-
-    setIsCreatingCustomPack(true)
-    setCreatedCustomPack(null)
-    
-    try {
-      const selectedAnime = customPackSearchResults.filter(anime => selectedAnimeIds.has(anime.id))
-      
-      const animeResults = selectedAnime.map(anime => ({
-        id: anime.id,
-        name: anime.name,
-        russian: anime.russian,
-        score: anime.score,
-        kind: 'tv', 
-        episodes: 0, 
-        status: 'released', 
-        image: { original: anime.imageUrl }
-      }))
-      
-      const customPack = createCustomPack(customPackQuery.trim(), animeResults)
-      
-      setCreatedCustomPack(customPack)
-      setCustomPackSearchResults(selectedAnime) 
-    } catch (error) {
-      console.error("Custom pack creation error:", error)
-      alert("Ошибка при создании пака. Попробуйте снова.")
-    } finally {
-      setIsCreatingCustomPack(false)
-    }
-  }
-
-  const handleSelectCustomPack = async (pack: CustomAnimePack) => {
-    if (userCoins >= pack.price) {
-      setIsCustomPackLoading(true);
-      await new Promise(resolve => setTimeout(resolve, 300));
-      setSelectedPack(pack);
-      setShowCustomPackCreator(false);
-      setCreatedCustomPack(null);
-      setCustomPackQuery("");
-      setIsCustomPackLoading(false);
-    }
-  }
-
-  const unblacklistArt = (card: Card) => {
-    setBlacklistedUrls(prev => prev.filter(url => url !== card.imageUrl));
-    setCollectedCards(prev => prev.map(c => 
-      c.uniqueId === card.uniqueId ? { ...c, isArtBlacklisted: false } : c
-    ));
-  }
-
-
-  const handleSharePage = async () => {
-    const shareText = gachaMainTab === "market"
-      ? `🎲 WEEB.X ГАЧА - Крути гачу, продавай и покупай карты на маркете! Собери коллекцию любимых героев аниме!`
-      : `🎲 WEEB.X ГАЧА - Призывай любимых персонажей, крути гачу и находи любых героев аниме! Зарегистрируй аккаунт и начни коллекцию! За первую решестрацию получи 10,000 монет бесплатно.`;
-    const shareUrl = typeof window !== 'undefined' ? window.location.href : '';
-
-    if (navigator.share) {
-      try {
-        await navigator.share({
-          title: 'WEEB.X ГАЧА',
-          text: shareText,
-          url: shareUrl
-        });
-      } catch (error) {
-        console.error('[Share] Error sharing:', error);
-      }
-    } else {
-      // Fallback: копировать в буфер обмена
-      try {
-        await navigator.clipboard.writeText(`${shareText}\n${shareUrl}`);
-        alert('Ссылка скопирована в буфер обмена!');
-      } catch (error) {
-        console.error('[Share] Error copying to clipboard:', error);
-        alert('Не удалось скопировать ссылку');
-      }
-    }
-  }
-
-  const removeCard = async (cardToRemove: Card, clearViewedCard: boolean = true) => {
-    try {
-      console.log('[removeCard] Starting removal for card:', cardToRemove.uniqueId)
-      
-      // УБРАЛИ вызов getSession()
-      if (authUser) { // ИСПОЛЬЗУЕМ authUser
-        console.log('[removeCard] User authenticated, attempting database delete')
-        const result = await deleteCardFromDatabase(cardToRemove.uniqueId, session)
-        if (!result.success) {
-          console.error('[removeCard] Database delete failed:', result.error)
-        } else {
-          console.log('[removeCard] Database delete successful')
-        }
-      } else {
-        console.log('[removeCard] No session, only local removal')
-      }
-      
-      try {
-        const collectionData = localStorage.getItem('gacha-collection')
-        if (collectionData) {
-          const collection = JSON.parse(collectionData)
-          const updatedCollection = collection.filter((card: Card) => card.uniqueId !== cardToRemove.uniqueId)
-          localStorage.setItem('gacha-collection', JSON.stringify(updatedCollection))
-          console.log('[removeCard] Removed from localStorage collection, new count:', updatedCollection.length)
-        }
-      } catch (e) { 
-        console.error('[removeCard] Error updating localStorage collection:', e)
-      }
-      
-      console.log('[removeCard] Removing from local state, current count:', collectedCards.length)
-      setCollectedCards(prev => {
-        const newCards = prev.filter(card => card.uniqueId !== cardToRemove.uniqueId)
-        console.log('[removeCard] New cards count:', newCards.length)
-        return newCards
-      })
-      
-      // Only clear viewed card if explicitly requested (not during bulk operations)
-      if (clearViewedCard) {
-        setViewedCard(null)
-      }
-      
-      // usedCharacterIds автоматически обновится через useMemo
-      
-      console.log('[removeCard] Card removal completed')
-    } catch (error) {
-      console.error('[removeCard] Error:', error)
-      alert('Ошибка при удалении карты')
-    }
-  }
-
-  const dismantleCard = async (card: Card) => {
-    // Show confirmation popup
-    setDismantleCardData(card);
-    setDismantleReward(getDismantleValue(card.rarity));
-    setShowDismantleConfirm(true);
-  };
-
-  const confirmDismantle = async () => {
-    if (!dismantleCardData) return;
-    
-    // Используем flushSync для немедленного обновления состояния
-    flushSync(() => {
-      setIsDismantling(true);
-    });
-    
-    // НЕ закрываем окно подтверждения - используем его для показа прогресса
-
-    try {
-      // Добавляем небольшую задержку чтобы прогресс был виден
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // 1. Начисляем пыль через безопасную серверную операцию
-      const reward = getDismantleValue(dismantleCardData.rarity);
-      const success = await addDust(reward);
-      
-      // Обновляем баланс пыли после начисления
-      if (success) {
-        await refreshDust();
-      }
-      
-      if (!success) {
-        setErrorPopupConfig({
-          title: 'Ошибка распыления',
-          message: 'Не удалось начислить пыль. Попробуйте еще раз.',
-          type: 'error'
-        });
-        setShowErrorPopup(true);
-        // Закрываем окно подтверждения при ошибке
-        setShowDismantleConfirm(false);
-        return;
-      }
-
-      // 2. Удаляем карту из БД и локального списка
-      await removeCard(dismantleCardData); 
-      
-      setViewedCard(null);
-      
-      // Показываем успешное уведомление
-      setDismantleReward(reward);
-      
-      // Закрываем окно подтверждения и открываем окно успеха
-      setShowDismantleConfirm(false);
-      setShowDismantleSuccess(true);
-      
-      // Сбрасываем состояние загрузки после показа успеха
-      setIsDismantling(false);
-    } catch (e) {
-      console.error("Dismantle failed", e);
-      setErrorPopupConfig({
-        title: 'Ошибка распыления',
-        message: 'Произошла ошибка при распылении карты. Попробуйте еще раз.',
-        type: 'error'
-      });
-      setShowErrorPopup(true);
-      // Закрываем окно подтверждения при ошибке
-      setShowDismantleConfirm(false);
-      // Сбрасываем состояние загрузки при ошибке
-      setIsDismantling(false);
-    } finally {
-      setDismantleCardData(null);
-    }
-  };
-
-  const cancelDismantle = () => {
-    setShowDismantleConfirm(false);
-    setDismantleCardData(null);
-    setDismantleReward(0);
-  };
-
-  // Bulk dismantle functions
-  const openBulkDismantleFilter = () => {
-    setShowBulkDismantleFilter(true);
-  };
-
-  const selectBulkRarity = (rarity: Rarity | "all", excludeMain: boolean) => {
-    setSelectedBulkRarity(rarity);
-    setExcludeMainCharacters(excludeMain);
-    setShowBulkDismantleFilter(false);
-    
-    // Calculate cards to dismantle
-    let cardsToDismantle = rarity === "all" 
-      ? [...collectedCards] 
-      : collectedCards.filter(card => card.rarity === rarity);
-    
-    // Exclude main characters if requested
-    if (excludeMain) {
-      cardsToDismantle = cardsToDismantle.filter(card => !card.isMainCharacter);
-    }
-    
-    // Calculate total dust and show confirmation
-    const totalDust = cardsToDismantle.reduce((total, card) => total + getDismantleValue(card.rarity), 0);
-    setBulkDismantleReward(totalDust);
-    setShowBulkDismantleConfirm(true);
-  };
-
-  const confirmBulkDismantle = async () => {
-    console.log('[confirmBulkDismantle] Starting bulk dismantle');
-    
-    // Force a small delay to ensure the loading state is set before starting the operation
-    await new Promise(resolve => setTimeout(resolve, 10));
-    
-    setIsBulkDismantling(true);
-    // НЕ закрываем окно подтверждения - используем его для показа прогресса
-    console.log('[confirmBulkDismantle] Set isBulkDismantling to true');
-    
-    // Another small delay to ensure the modal has time to update
-    await new Promise(resolve => setTimeout(resolve, 50));
-
-    try {
-      // Get cards to dismantle
-      let cardsToDismantle = selectedBulkRarity === "all" 
-        ? [...collectedCards] 
-        : collectedCards.filter(card => card.rarity === selectedBulkRarity);
-      
-      // Exclude main characters if requested
-      if (excludeMainCharacters) {
-        cardsToDismantle = cardsToDismantle.filter(card => !card.isMainCharacter);
-      }
-      
-      if (cardsToDismantle.length === 0) {
-        throw new Error("Нет карт для распыления");
-      }
-
-      // Initialize progress
-      console.log('[confirmBulkDismantle] Initializing progress for', cardsToDismantle.length, 'cards');
-      setBulkDismantleProgress({ processed: 0, total: cardsToDismantle.length });
-
-      // Calculate total dust
-      const totalDust = cardsToDismantle.reduce((total, card) => total + getDismantleValue(card.rarity), 0);
-      console.log('[confirmBulkDismantle] Total dust to add:', totalDust);
-      
-      // Add dust to user balance (один раз для всех карт)
-      const success = await addDust(totalDust);
-      console.log('[confirmBulkDismantle] Dust addition success:', success);
-      
-      // Обновляем баланс пыли после начисления
-      if (success) {
-        await refreshDust();
-      }
-      
-      if (!success) {
-        throw new Error("Не удалось начислить пыль");
-      }
-
-      // Remove cards in batches to avoid overwhelming the system
-      const batchSize = 5; // Уменьшаем размер партии для стабильности
-      let processedCount = 0;
-      
-      for (let i = 0; i < cardsToDismantle.length; i += batchSize) {
-        const batch = cardsToDismantle.slice(i, i + batchSize);
-        console.log(`[confirmBulkDismantle] Processing batch ${Math.floor(i/batchSize) + 1}/${Math.ceil(cardsToDismantle.length/batchSize)} with ${batch.length} cards`);
-        
-        // Process batch in parallel
-        await Promise.all(
-          batch.map(async (card) => {
-            await removeCard(card, false); // Don't clear viewed card during bulk operations
-            processedCount++;
-            console.log(`[confirmBulkDismantle] Processed ${processedCount}/${cardsToDismantle.length} cards`);
-            setBulkDismantleProgress(prev => ({ ...prev, processed: processedCount }));
-          })
-        );
-        
-        // Small delay between batches to prevent overwhelming
-        if (i + batchSize < cardsToDismantle.length) {
-          await new Promise(resolve => setTimeout(resolve, 100));
-        }
-      }
-      
-      console.log('[confirmBulkDismantle] All cards processed successfully');
-      
-      // Close any viewed card if it was dismantled
-      if (viewedCard && cardsToDismantle.some(c => c.uniqueId === viewedCard.uniqueId)) {
-        setViewedCard(null);
-      }
-      
-      // Reset progress and show success notification
-      setBulkDismantleProgress({ processed: 0, total: 0 });
-      setBulkDismantleReward(totalDust);
-      
-      // Закрываем окно подтверждения и открываем окно успеха
-      console.log('[confirmBulkDismantle] Closing confirmation modal and opening success modal');
-      setShowBulkDismantleConfirm(false);
-      setShowBulkDismantleSuccess(true);
-    } catch (e) {
-      console.error('[confirmBulkDismantle] Bulk dismantle failed', e);
-      setErrorPopupConfig({
-        title: 'Ошибка массового распыления',
-        message: 'Произошла ошибка при массовом распылении карт. Попробуйте еще раз.',
-        type: 'error'
-      });
-      setShowErrorPopup(true);
-      // Reset progress on error
-      setBulkDismantleProgress({ processed: 0, total: 0 });
-      // Закрываем окно подтверждения при ошибке
-      setShowBulkDismantleConfirm(false);
-    } finally {
-      console.log('[confirmBulkDismantle] Finally block - setting isBulkDismantling to false');
-      setIsBulkDismantling(false);
-      setSelectedBulkRarity("all");
-      setExcludeMainCharacters(false);
-    }
-  };
-
-  const cancelBulkDismantle = () => {
-    setShowBulkDismantleConfirm(false);
-    setSelectedBulkRarity("all");
-    setExcludeMainCharacters(false);
-    setBulkDismantleReward(0);
-  };
-
-  const handleFixCoins = async () => {
-    setIsFixingCoins(true)
-    try {
-      await fixOverflow(70000)
-      const currentCoins = userCoins 
-      alert(`Монеты исправлены! Теперь у вас ${currentCoins.toLocaleString()} монет`)
-    } catch (error) {
-      console.error('Fix coins error:', error)
-      alert('Ошибка при исправлении монет')
-    } finally {
-      setIsFixingCoins(false)
-    }
-  }
-
-  const resetFilters = () => {
-    setSearchQuery("")
-    setSelectedRarity("all")
-    setSortBy("date")
-    setSortOrder("desc")
-    setSelectedPackFilter("all")
-    setSelectedMainCharacterFilter("all")
-  }
-
-  const getUniquePacks = () => {
-    const packs = new Set<string>()
-    collectedCards.forEach(card => {
-      if (card.packName) packs.add(card.packName)
-    })
-    return Array.from(packs).sort()
-  }
-
-
-  const filteredAndSortedCards = useMemo(() => {
-    let result = [...collectedCards]
-
-    result = result.filter(card => !listedCardIds.has(card.uniqueId))
-
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase()
-      result = result.filter(card =>
-        card.name.toLowerCase().includes(query) ||
-        card.anime.toLowerCase().includes(query)
-      )
-    }
-
-    if (selectedRarity !== "all") {
-      result = result.filter(card => card.rarity === selectedRarity)
-    }
-
-    if (selectedPackFilter !== "all") {
-      result = result.filter(card => card.packName === selectedPackFilter)
-    }
-
-    if (selectedMainCharacterFilter !== "all") {
-      result = result.filter(card => {
-        if (selectedMainCharacterFilter === "main") return card.isMainCharacter === true
-        else if (selectedMainCharacterFilter === "supporting") return card.isMainCharacter !== true
-        return true
-      })
-    }
-
-    result.sort((a, b) => {
-      if (sortBy === "date") {
-        if (prioritizeMainCharacters) {
-          const aIsMain = a.isMainCharacter ? 1 : 0;
-          const bIsMain = b.isMainCharacter ? 1 : 0;
-          if (aIsMain !== bIsMain) return bIsMain - aIsMain;
-        }
-        const aOrder = a.orderIndex ?? Infinity;
-        const bOrder = b.orderIndex ?? Infinity;
-        return sortOrder === "desc" ? aOrder - bOrder : bOrder - aOrder;
-      } else {
-        let comparison = 0
-        switch (sortBy) {
-          case "rarity":
-            const rarityOrder =["trash", "common", "uncommon", "rare", "super_rare", "epic", "mythic", "legendary", "ancient", "divine", "transcendent", "omnipotent"]
-            comparison = rarityOrder.indexOf(a.rarity) - rarityOrder.indexOf(b.rarity)
-            break
-          case "score":
-            comparison = a.score - b.score
-            break
-          case "name":
-            comparison = a.name.localeCompare(b.name)
-            break
-          case "anime":
-            comparison = a.anime.localeCompare(b.anime)
-            break
-          default:
-            comparison = a.id - b.id
-            break
-        }
-        
-        if (prioritizeMainCharacters && comparison === 0) {
-          const aIsMain = a.isMainCharacter ? 1 : 0;
-          const bIsMain = b.isMainCharacter ? 1 : 0;
-          if (aIsMain !== bIsMain) return bIsMain - aIsMain;
-        }
-        return sortOrder === "desc" ? -comparison : comparison
-      }
-    })
-
-    return result
-  },[collectedCards, listedCardIds, searchQuery, selectedRarity, selectedPackFilter, selectedMainCharacterFilter, sortBy, sortOrder, prioritizeMainCharacters])
 
   return (
     <div className="min-h-screen bg-[#020617] relative text-slate-100 selection:bg-indigo-500/30 font-sans pb-24 overflow-x-hidden">
@@ -2313,7 +313,6 @@ useEffect(() => {
                   setShowCustomPackCreator(false);
                   setCreatedCustomPack(null);
                   setCustomPackQuery("");
-                  setCustomPackSearchResults([]);
                   setSelectedAnimeIds(new Set());
                 }}
                 className="absolute top-4 right-4 sm:static sm:top-auto sm:right-auto p-2 sm:p-2.5 rounded-full bg-slate-800 sm:bg-white/5 hover:bg-slate-700 sm:hover:bg-white/10 text-slate-400 hover:text-white transition-colors border border-slate-700 sm:border-white/5 z-10"
@@ -2520,8 +519,7 @@ useEffect(() => {
                       return;
                     }
 
-                    setBlacklistedUrls(prev =>[...prev, revealedCard.imageUrl]);
-                    setExpandPoolForCharacters(prev => new Set(prev).add(revealedCard.characterId));
+                    unblacklistArt(revealedCard);
                     setShowCard(false);
                     setShowArtWarning(false);
                   }}
@@ -2576,13 +574,11 @@ useEffect(() => {
               <div className="space-y-3">
                 <button
                   onClick={() => {
-                    setBlacklistedUrls(prev =>[...prev, cardForArtLimitWarning.imageUrl]);
                     const officialCard: Card = {
                       ...cardForArtLimitWarning,
                       imageUrl: cardForArtLimitWarning.originalUrl,
                       isArtBlacklisted: true
                     };
-                    setRevealedCard(officialCard);
                     setShowArtLimitWarning(false);
                     setShowCard(true);
                   }}
@@ -2594,7 +590,6 @@ useEffect(() => {
                 
                 <button
                   onClick={() => {
-                    setBlacklistedUrls(prev =>[...prev, cardForArtLimitWarning.imageUrl]);
                     setShowCard(false);
                     setShowArtLimitWarning(false);
                   }}
@@ -2765,7 +760,7 @@ useEffect(() => {
                 <span className="truncate">Распылить (+{getDismantleValue(viewedCard.rarity)} пыли)</span>
               </button>
 
-              {authUser && (
+              {session?.user && (
                 <button
                   type="button"
                   onClick={() => {
@@ -2778,7 +773,7 @@ useEffect(() => {
                 </button>
               )}
 
-              {authUser && (
+              {session?.user && (
                 <button
                   type="button"
                   onClick={() => {
@@ -2876,9 +871,7 @@ useEffect(() => {
             {(pendingSyncCount > 0 || isSyncingCards) && (
               <button
                 onClick={async () => {
-                  setIsSyncingCards(true);
                   const result = await syncQueuedCards(session);
-                  setIsSyncingCards(false);
                   setPendingSyncCount(result.remaining);
                   alert(`Синхронизация завершена: ${result.success} успешно, ${result.failed} ошибок`);
                 }}
@@ -2911,7 +904,6 @@ useEffect(() => {
             )}
           </div>
         </div>
-
 
         {gachaMainTab === "market" ? (
           <GachaMarketPanel
@@ -3048,30 +1040,15 @@ useEffect(() => {
               <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 mt-8 sm:mt-10 w-full max-w-xs sm:max-w-md mx-auto">
                 <button
                   onClick={() => {
-                    // If save is stuck (running for more than 5 seconds), allow user to force reset
-                    if (isSavingCard && operationStartTime.current && Date.now() - operationStartTime.current > 5000) {
-                      console.warn('[User] Force reset save state');
-                      setIsSavingCard(false);
-                      operationStartTime.current = null;
-                      return;
-                    }
                     saveCard(revealedCard);
                   }}
-                  disabled={isSavingCard && (!operationStartTime.current || Date.now() - operationStartTime.current <= 5000)}
+                  disabled={isSavingCard}
                   className="flex-1 px-4 sm:px-6 py-4 bg-indigo-600 hover:bg-indigo-500 text-white font-black uppercase tracking-wider rounded-xl sm:rounded-2xl transition-all text-sm sm:text-base disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg shadow-indigo-500/25 border border-indigo-400/50 relative group"
-                  title={isSavingCard && operationStartTime.current && Date.now() - operationStartTime.current > 5000 ? "Нажмите ещё раз для сброса" : undefined}
                 >
-                  {isSavingCard && operationStartTime.current && Date.now() - operationStartTime.current > 5000 && (
-                    <div className="absolute inset-0 bg-red-600/50 rounded-xl sm:rounded-2xl animate-pulse" />
-                  )}
                   {isSavingCard ? (
                     <>
                       <Loader2 className="w-5 h-5 animate-spin relative z-10" />
-                      <span className="relative z-10">
-                        {isSavingCard && operationStartTime.current && Date.now() - operationStartTime.current > 5000 
-                          ? "Нажмите для сброса" 
-                          : "Сохранение..."}
-                      </span>
+                      <span className="relative z-10">Сохранение...</span>
                     </>
                   ) : (
                     <>
@@ -3101,7 +1078,6 @@ useEffect(() => {
         {!isLoaded ? (
           <div className="space-y-6 sm:space-y-8 animate-in fade-in duration-500">
             <div className="flex flex-col gap-5">
-              {/* Collection Header Skeleton */}
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 bg-slate-700 rounded-lg animate-pulse" />
@@ -3114,13 +1090,12 @@ useEffect(() => {
                 </div>
               </div>
               
-              {/* Collection Grid Skeleton */}
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4 lg:gap-5">
                 <CollectionCardSkeleton count={12} />
               </div>
             </div>
           </div>
-        ) : (  // Убрали проверку на > 0, теперь коллекция рендерится всегда
+        ) : (
           <div className="space-y-6 sm:space-y-8 animate-in fade-in duration-500">
             <div className="flex flex-col gap-5">
               
@@ -3148,26 +1123,19 @@ useEffect(() => {
                     </div>
                   </button>
 
-                  {!isLoaded ? (
-                    <div className="flex items-center gap-2 px-5 py-2.5 bg-slate-900 border border-slate-800 text-slate-500 font-bold rounded-xl text-sm w-fit cursor-not-allowed">
-                      <Search className="w-4 h-4" />
-                      Загрузка...
-                    </div>
-                  ) : (
-                    <button
-                      onClick={() => setShowFilters(!showFilters)}
-                      className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm transition-all border ${showFilters ? 'bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-500/25' : 'bg-slate-800 border-slate-700 hover:bg-slate-700 text-white'}`}
-                    >
-                      <Search className="w-4 h-4" />
-                      Фильтры
-                      {showFilters ? <X className="w-4 h-4 ml-1" /> : null}
-                    </button>
-                  )}
+                  <button
+                    onClick={() => setShowFilters(!showFilters)}
+                    className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm transition-all border ${showFilters ? 'bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-500/25' : 'bg-slate-800 border-slate-700 hover:bg-slate-700 text-white'}`}
+                  >
+                    <Search className="w-4 h-4" />
+                    Фильтры
+                    {showFilters ? <X className="w-4 h-4 ml-1" /> : null}
+                  </button>
                 </div>
               </div>
 
               {/* Filter Panel */}
-              {isLoaded && showFilters && (
+              {showFilters && (
                 <div className="bg-slate-900/60 backdrop-blur-xl border border-slate-700/50 rounded-2xl p-4 sm:p-6 space-y-4 sm:space-y-5 animate-in fade-in slide-in-from-top-2 duration-200 shadow-2xl">
                   
                   {/* Search Input */}
@@ -3227,7 +1195,7 @@ useEffect(() => {
                         onChange={(e) => setSelectedMainCharacterFilter(e.target.value as typeof selectedMainCharacterFilter)}
                         className="w-full h-10 sm:h-11 rounded-xl bg-slate-950/50 border border-slate-700/50 px-3 sm:px-4 text-xs sm:text-sm font-medium text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all"
                       >
-                        <option value="all">Все типы</option>
+                        <option value="all">Все типа</option>
                         <option value="main">Главные герои</option>
                         <option value="supporting">Второстепенные</option>
                       </select>
@@ -3334,20 +1302,14 @@ useEffect(() => {
             </div>
 
             {/* Results Info */}
-            {!isLoaded ? (
-              <div className="text-sm font-bold text-slate-500 animate-pulse">Синхронизация базы данных...</div>
-            ) : filteredAndSortedCards.length !== collectedCards.length && (
+            {filteredAndSortedCards.length !== collectedCards.length && (
               <div className="text-sm font-bold text-slate-400">
                 Показано <span className="text-white">{filteredAndSortedCards.length}</span> из {collectedCards.length} карт
               </div>
             )}
 
             {/* Grid */}
-            {!isLoaded ? (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4 lg:gap-5">
-                <CollectionCardSkeleton count={12} />
-              </div>
-            ) : filteredAndSortedCards.length === 0 ? (
+            {filteredAndSortedCards.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 sm:py-24 text-center border-2 border-dashed border-slate-800 rounded-3xl bg-slate-900/20">
                 <Database className="w-12 h-12 text-slate-700 mb-4" />
                 <p className="text-slate-300 font-bold text-lg mb-2">Ничего не найдено</p>
@@ -3490,7 +1452,8 @@ useEffect(() => {
         newDustBalance={dust}
         excludeMainCharacters={excludeMainCharacters}
       />
-{/* Delete Confirmation Dialog */}
+
+      {/* Delete Confirmation Dialog */}
       <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
         <AlertDialogContent className="bg-slate-900 border-slate-700/50 w-[95vw] max-w-md rounded-2xl sm:rounded-3xl p-5 sm:p-6 shadow-2xl">
           <AlertDialogHeader className="space-y-3">

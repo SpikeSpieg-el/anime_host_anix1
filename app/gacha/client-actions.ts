@@ -1,6 +1,6 @@
 "use client"
 
-import type { Card } from './page'
+import type { Card } from './types'
 
 /**
  * Client-side functions for card database operations

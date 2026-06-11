@@ -17,6 +17,7 @@ interface TVAnimeCardProps {
 
 export function TVAnimeCard({ id, title, imageUrl, episodesCurrent, episodesTotal, rating, onSelect }: TVAnimeCardProps) {
   const [isFocused, setIsFocused] = useState(false)
+  const [imageLoading, setImageLoading] = useState(true)
 
   return (
     <button
@@ -36,7 +37,15 @@ export function TVAnimeCard({ id, title, imageUrl, episodesCurrent, episodesTota
         fill
         className="object-cover"
         sizes="(max-width: 768px) 50vw, 25vw"
+        onLoad={() => setImageLoading(false)}
+        onError={() => setImageLoading(false)}
       />
+
+      {imageLoading && (
+        <div className="absolute inset-0 bg-neutral-200 dark:bg-zinc-800 animate-pulse flex items-center justify-center z-10">
+          <div className="w-6 h-6 rounded-full border-2 border-orange-500/20 border-t-orange-500 animate-spin" />
+        </div>
+      )}
       
       <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/40 to-transparent">
         <div className="absolute bottom-0 left-0 right-0 p-3 bg-black/80">

@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import Image from "next/image"
 import { X, RefreshCcw, Sparkles, Loader2, Check } from "lucide-react"
-import type { Card } from "@/app/gacha/page"
+import type { Card } from "@/app/gacha/types"
 import { useDust } from "@/hooks/use-dust"
 import { useAuth } from "@/components/auth/auth-provider"
 import { supabase } from "@/lib/supabase"

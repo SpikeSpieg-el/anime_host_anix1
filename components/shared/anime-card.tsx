@@ -65,6 +65,7 @@ export function AnimeCard({ anime, className, variant = 'default', showUpdateBad
   const { isSaved, toggle } = useBookmarks()
   const saved = isSaved(anime.id)
   const [imageError, setImageError] = useState(false)
+  const [imageLoading, setImageLoading] = useState(true)
   
   const posterSrc = imageError ? generateFallbackPoster(anime.title) : anime.poster
   const isCompact = variant === 'compact'
@@ -86,9 +87,19 @@ export function AnimeCard({ anime, className, variant = 'default', showUpdateBad
               priority={priority}
               placeholder="blur"
               blurDataURL="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjMjIyIi8+PC9zdmc+"
-              onError={() => setImageError(true)}
+              onLoad={() => setImageLoading(false)}
+              onError={() => {
+                setImageError(true)
+                setImageLoading(false)
+              }}
               unoptimized={imageError}
             />
+
+            {imageLoading && (
+              <div className="absolute inset-0 bg-neutral-200 dark:bg-zinc-800 animate-pulse flex items-center justify-center">
+                <div className="w-4 h-4 rounded-full border border-orange-500/20 border-t-orange-500 animate-spin" />
+              </div>
+            )}
             
             {/* Status badge */}
             <div className="absolute top-1 right-1 flex flex-col items-end gap-1">
@@ -174,9 +185,19 @@ export function AnimeCard({ anime, className, variant = 'default', showUpdateBad
           priority={priority}
           placeholder="blur"
           blurDataURL="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjMjIyIi8+PC9zdmc+"
-          onError={() => setImageError(true)}
+          onLoad={() => setImageLoading(false)}
+          onError={() => {
+            setImageError(true)
+            setImageLoading(false)
+          }}
           unoptimized={imageError}
         />
+
+        {imageLoading && (
+          <div className="absolute inset-0 bg-neutral-200 dark:bg-zinc-800 animate-pulse flex items-center justify-center z-10">
+            <div className="w-6 h-6 rounded-full border-2 border-orange-500/20 border-t-orange-500 animate-spin" />
+          </div>
+        )}
 
         {/* Градиент */}
         <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-transparent opacity-60" />

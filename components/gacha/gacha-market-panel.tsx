@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState, useRef, useMemo } from "react"
 import Image from "next/image"
 import { Loader2, ShoppingCart, XCircle, Store, RefreshCcw, ZoomIn, ExternalLink, X, Trash, Crown, Star, Filter, ChevronDown, Search, Swords } from "lucide-react"
-import type { Card } from "@/app/gacha/page"
+import type { Card } from "@/app/gacha/types"
 import { rarityConfig, type Rarity } from "@/types/gacha"
 import { useAuth } from "@/components/auth/auth-provider"
 import { supabase } from "@/lib/supabase"

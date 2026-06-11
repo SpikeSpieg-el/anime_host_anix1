@@ -12,7 +12,7 @@ import {
   AlertDialogCancel
 } from "@/components/ui/alert-dialog"
 import { Rarity, rarityConfig, getDismantleValue } from "@/types/gacha"
-import { Card } from "@/app/gacha/page"
+import { Card } from "@/app/gacha/types"
 import { useState } from "react"
 
 interface BulkDismantleFilterPopupProps {

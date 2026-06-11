@@ -80,6 +80,7 @@ export function WatchPageClient({
   const [isRegionDetected, setIsRegionDetected] = useState(false)
   const [useBackupPlayer, setUseBackupPlayer] = useState(false)
   const [isUpdatingFromPlayer, setIsUpdatingFromPlayer] = useState(false)
+  const [posterLoading, setPosterLoading] = useState(true)
   const [lastWatchedInfo, setLastWatchedInfo] = useState<{
     season?: number
     episode: number
@@ -379,7 +380,15 @@ export function WatchPageClient({
               className="object-cover"
               sizes="(max-width: 768px) 100px, 180px"
               priority
+              onLoad={() => setPosterLoading(false)}
+              onError={() => setPosterLoading(false)}
             />
+
+            {posterLoading && (
+              <div className="absolute inset-0 bg-neutral-200 dark:bg-zinc-800 animate-pulse flex items-center justify-center z-10">
+                <div className="w-6 h-6 rounded-full border-2 border-orange-500/20 border-t-orange-500 animate-spin" />
+              </div>
+            )}
           </div>
 
           {/* Info Text */}

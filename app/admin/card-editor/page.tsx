@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { Navbar } from "@/components/layout/navbar"
-import { Card, CardStats } from "@/app/gacha/page"
+import { Card, CardStats } from "@/app/gacha/types"
 import { Rarity, rarityConfig } from "@/types/gacha"
 import { saveCardToDatabase } from "@/app/gacha/client-actions"
 import { useAuth } from "@/components/auth/auth-provider"
