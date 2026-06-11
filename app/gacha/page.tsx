@@ -13,6 +13,7 @@ import { ANIME_PACKS, AnimePack, CustomAnimePack, createCustomPack, loadYearBase
 import { useCoins } from "@/hooks/use-coins"
 import { useDust } from "@/hooks/use-dust"
 import { GachaLoading } from "@/components/gacha/gacha-loading"
+import { GachaAnimation } from "@/components/gacha/gacha-animation"
 import { CollectionCardSkeleton } from "@/components/gacha/collection-skeleton"
 import { PackCardSkeleton } from "@/components/gacha/pack-skeleton"
 import { GachaErrorPopup } from "@/components/gacha/gacha-error-popup"
@@ -1418,8 +1419,10 @@ useEffect(() => {
           });
           setShowErrorPopup(true);
         });
-        setShowCard(true);
-        console.log('[handleRoll] Card revealed successfully:', newCard.name);
+        
+        // Мы НЕ вызываем setShowCard(true) сразу.
+        // Это сделает GachaAnimation в коллбэке onComplete.
+        console.log('[handleRoll] Roll result ready, waiting for animation:', newCard.name);
       } else {
         // Если результат пустой (пак закончился)
         handleEmptyResult(); 
@@ -1427,7 +1430,7 @@ useEffect(() => {
 
     } catch (error: any) {
       console.error("Gacha error:", error);
-      setIsRolling(false); // На всякий случай дублируем здесь
+      setIsRolling(false); // Здесь сбрасываем, так как анимация не начнется без результата
       setErrorPopupConfig({
         title: "Ошибка",
         message: error.message === "TIMEOUT" ? "Сервер не ответил вовремя. Попробуйте еще раз!" : "Не удалось призвать персонажа.",
@@ -1435,13 +1438,14 @@ useEffect(() => {
       });
       setShowErrorPopup(true);
     } finally {
-      setIsRolling(false);
+      // setIsRolling(false); // УБРАНО: теперь сбрасывается в onComplete анимации
       operationStartTime.current = null;
     }
   };
 
   // Вынесите логику проверки доступности в отдельную функцию, чтобы не загромождать handleRoll
   const handleEmptyResult = async () => {
+    setIsRolling(false);
     if (!selectedPack) return;
     
     // Показываем общую ошибку сразу
@@ -2866,25 +2870,15 @@ useEffect(() => {
 
           {/* Rolling State */}
           {isRolling && (
-            <div className="w-[260px] sm:w-72 md:w-80 h-[380px] sm:h-[420px] md:h-[480px] rounded-[2rem] sm:rounded-[2.5rem] bg-gradient-to-br from-slate-900 to-indigo-950/40 border border-indigo-500/30 flex flex-col items-center justify-center relative overflow-hidden shadow-2xl shadow-indigo-500/20">
-              <div className="absolute inset-0">
-                {[...Array(15)].map((_, i) => (
-                  <div
-                    key={i}
-                    className="absolute w-1 h-1 bg-indigo-400 rounded-full animate-pulse"
-                    style={{
-                      top: `${Math.random() * 100}%`,
-                      left: `${Math.random() * 100}%`,
-                      animationDelay: `${Math.random() * 2}s`,
-                      animationDuration: `${1 + Math.random() * 2}s`
-                    }}
-                  />
-                ))}
-              </div>
-
-              <div className="relative z-10 scale-100 sm:scale-125">
-                <GachaLoading message="Загрузка карт..." />
-              </div>
+            <div className="flex flex-col items-center justify-center w-full animate-in fade-in duration-500">
+              <GachaAnimation 
+                isRolling={isRolling} 
+                revealedCard={revealedCard} 
+                onComplete={() => {
+                  setShowCard(true);
+                  setIsRolling(false);
+                }} 
+              />
             </div>
           )}
 

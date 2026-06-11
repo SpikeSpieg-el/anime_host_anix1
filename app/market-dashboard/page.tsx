@@ -650,8 +650,25 @@ export default function MarketDashboardPage() {
                             }))}
                           cx="50%"
                           cy="50%"
-                          labelLine={false}
-                          label={({ percent }) => `${(percent * 100).toFixed(0)}%`}
+                          labelLine={true}
+                          label={({ percent, name, cx, cy, midAngle, innerRadius, outerRadius, value, index }) => {
+                            const RADIAN = Math.PI / 180;
+                            const radius = outerRadius * 1.2;
+                            const x = cx + radius * Math.cos(-midAngle * RADIAN);
+                            const y = cy + radius * Math.sin(-midAngle * RADIAN);
+                            return (
+                              <text 
+                                x={x} 
+                                y={y} 
+                                fill="#f1f5f9" 
+                                textAnchor={x > cx ? 'start' : 'end'} 
+                                dominantBaseline="central"
+                                className="text-[12px] font-black tracking-tight"
+                              >
+                                {`${name} (${(percent * 100).toFixed(0)}%)`}
+                              </text>
+                            );
+                          }}
                           outerRadius="85%"
                           innerRadius="60%"
                           fill="#8884d8"
@@ -670,7 +687,16 @@ export default function MarketDashboardPage() {
                             ))}
                         </Pie>
                         <Tooltip 
-                          contentStyle={{ backgroundColor: '#020617', border: '1px solid #1e293b', borderRadius: '16px', fontSize: '12px' }}
+                          contentStyle={{ 
+                            backgroundColor: 'rgba(2, 6, 23, 0.95)', 
+                            backdropFilter: 'blur(8px)',
+                            border: '1px solid rgba(30, 41, 59, 0.5)', 
+                            borderRadius: '16px', 
+                            fontSize: '14px',
+                            fontWeight: '800',
+                            boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)'
+                          }}
+                          itemStyle={{ color: '#fff' }}
                           formatter={(value, name) => [`${value} лотов`, name]}
                         />
                       </PieChart>
