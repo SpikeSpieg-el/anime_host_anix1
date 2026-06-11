@@ -29,7 +29,7 @@ export function SuccessPopup({
   return (
     <div className="z-[60]">
       <AlertDialog open={isOpen} onOpenChange={onClose}>
-        <AlertDialogContent className="max-w-md bg-slate-900 border-slate-700 text-white">
+        <AlertDialogContent className="max-w-[90vw] sm:max-w-md bg-slate-900 border-slate-700 text-white">
           <AlertDialogHeader>
             <AlertDialogTitle className="sr-only">
               {title}

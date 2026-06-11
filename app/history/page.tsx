@@ -326,7 +326,7 @@ export default function HistoryPage() {
         </div>
 
         <AlertDialog open={showClearDialog} onOpenChange={setShowClearDialog}>
-          <AlertDialogContent>
+          <AlertDialogContent className="max-w-[90vw] sm:max-w-md">
             <AlertDialogHeader>
               <div className="flex items-center gap-3 mb-2">
                 <div className="p-2 bg-destructive/10 rounded-full">
@@ -351,7 +351,7 @@ export default function HistoryPage() {
         </AlertDialog>
 
         <AlertDialog open={showDeleteSelectedDialog} onOpenChange={setShowDeleteSelectedDialog}>
-          <AlertDialogContent>
+          <AlertDialogContent className="max-w-[90vw] sm:max-w-md">
             <AlertDialogHeader>
               <div className="flex items-center gap-3 mb-2">
                 <div className="p-2 bg-destructive/10 rounded-full">

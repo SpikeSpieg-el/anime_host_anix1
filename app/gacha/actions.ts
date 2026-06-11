@@ -26,12 +26,48 @@ function generateStats(rarity: string) {
   
   const roll = (min: number, max: number) => Math.min(Math.floor(Math.random() * (max - min + 1) + min), 100);
 
+  // Шанс на все нулевые статы (2%)
+  const allZeroChance = 0.02;
+  if (Math.random() < allZeroChance) {
+    return {
+      hp: 0,
+      atk: 0,
+      def: 0,
+      spd: 0,
+      luck: 0
+    };
+  }
+
+  // Архетипы для идентичности карт
+  const archetypes = [
+    { name: "tank", boost: { hp: 1.5, def: 1.4, atk: 0.6, spd: 0.7, luck: 0.8 } },
+    { name: "berserker", boost: { hp: 0.8, def: 0.5, atk: 1.6, spd: 1.2, luck: 0.9 } },
+    { name: "speedster", boost: { hp: 0.7, def: 0.6, atk: 1.1, spd: 1.7, luck: 1.3 } },
+    { name: "lucky", boost: { hp: 0.8, def: 0.8, atk: 0.9, spd: 1.0, luck: 1.8 } },
+    { name: "balanced", boost: { hp: 1.0, def: 1.0, atk: 1.0, spd: 1.0, luck: 1.0 } },
+    { name: "glass_cannon", boost: { hp: 0.5, def: 0.4, atk: 1.8, spd: 1.4, luck: 1.1 } },
+    { name: "fortress", boost: { hp: 1.8, def: 1.6, atk: 0.4, spd: 0.5, luck: 0.6 } },
+    { name: "trickster", boost: { hp: 0.6, def: 0.5, atk: 1.0, spd: 1.8, luck: 1.6 } },
+  ];
+
+  const archetype = archetypes[Math.floor(Math.random() * archetypes.length)];
+  const boost = archetype.boost;
+
+  // Шанс на 0 для отдельного стата (12%)
+  const zeroChance = 0.12;
+  
+  const applyBoost = (base: number, multiplier: number) => {
+    if (Math.random() < zeroChance) return 0;
+    const boosted = Math.floor(base * multiplier);
+    return Math.min(Math.max(boosted, 0), 100);
+  };
+
   return {
-    hp: roll(baseMin, baseMax),
-    atk: roll(baseMin, baseMax),
-    def: roll(baseMin, baseMax),
-    spd: roll(baseMin, baseMax),
-    luck: roll(baseMin, baseMax)
+    hp: applyBoost(roll(baseMin, baseMax), boost.hp),
+    atk: applyBoost(roll(baseMin, baseMax), boost.atk),
+    def: applyBoost(roll(baseMin, baseMax), boost.def),
+    spd: applyBoost(roll(baseMin, baseMax), boost.spd),
+    luck: applyBoost(roll(baseMin, baseMax), boost.luck)
   };
 }
 

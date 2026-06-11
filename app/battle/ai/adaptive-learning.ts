@@ -1,5 +1,6 @@
 import { Card } from "../types"
 import { supabase } from "@/lib/supabase"
+import { getCardProvision } from "../utils"
 
 // ============================================================================
 // ТИПЫ ДЛЯ СИСТЕМЫ АДАПТАЦИИ
@@ -177,7 +178,7 @@ class AIAdaptiveLearning {
     })
 
     // Вычисляем средний provision cost
-    const totalProvision = playerDeck.reduce((sum, c) => sum + (c.provisionCost || 0), 0)
+    const totalProvision = playerDeck.reduce((sum, c) => sum + (c.provisionCost || getCardProvision(c)), 0)
     playstyle.avgProvisionCost = totalProvision / playerDeck.length
 
     // Оцениваем агрессивность/защиту на основе ролей

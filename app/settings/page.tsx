@@ -15,6 +15,7 @@ import { supabase } from "@/lib/supabase"
 import Link from "next/link"
 import { ScrollToTop } from "@/components/layout/scroll-to-top"
 import { SuccessNotification } from "@/components/settings/success-notification"
+import { Footer } from "@/components/layout/footer"
 
 export default function SettingsPage() {
   const { user, profile, refreshProfile, session } = useAuth()
@@ -167,6 +168,8 @@ export default function SettingsPage() {
         <AuthModal isOpen={isAuthModalOpen} onClose={() => setIsAuthModalOpen(false)}>
           <></>
         </AuthModal>
+
+        <Footer />
       </div>
     )
   }
@@ -309,6 +312,8 @@ export default function SettingsPage() {
         title={successPopup.title}
         message={successPopup.message}
       />
+
+      <Footer />
     </div>
   )
 }

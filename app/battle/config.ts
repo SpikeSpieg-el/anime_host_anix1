@@ -41,7 +41,8 @@ export const PROVISION_LIMIT = 35
 export const DECK_SIZE = 8
 export const MAX_CARDS_PER_SIDE = 4
 
-export const RARITY_PROVISION_MAP: Record<string, number> = {
+// Base provision cost by rarity (used as starting point for dynamic calculation)
+export const RARITY_PROVISION_BASE: Record<string, number> = {
   trash: 0,
   common: 1,
   uncommon: 2,
@@ -55,6 +56,26 @@ export const RARITY_PROVISION_MAP: Record<string, number> = {
   transcendent: 10,
   omnipotent: 11,
 }
+
+// Average total stats for each rarity (used for dynamic provision calculation)
+// Based on generateStats() in app/gacha/actions.ts
+export const RARITY_AVG_STATS: Record<string, number> = {
+  trash: 60,      // avg ~15 per stat * 4 stats (hp/8 ~ 19)
+  common: 80,     // avg ~20 per stat
+  uncommon: 100,  // avg ~25 per stat
+  rare: 120,      // avg ~30 per stat
+  super_rare: 140, // avg ~35 per stat
+  epic: 160,      // avg ~40 per stat
+  mythic: 180,    // avg ~45 per stat
+  legendary: 200, // avg ~50 per stat
+  ancient: 225,   // avg ~56 per stat
+  divine: 250,    // avg ~62 per stat
+  transcendent: 275, // avg ~69 per stat
+  omnipotent: 300,   // avg ~75 per stat
+}
+
+// Provision variance: how much the cost can deviate from base based on stats
+export const PROVISION_VARIANCE = 2 // +/- 2 points based on stats
 
 export const ROLE_CONFIG = {
   vanguard: { name: "Авангард", label: "Авангард", color: "text-rose-400", bg: "bg-rose-500/10", border: "border-rose-500/20" },

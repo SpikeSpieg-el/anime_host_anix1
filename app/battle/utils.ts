@@ -1,7 +1,7 @@
 import { Dungeon, Enemy, Card, CardRole, ZoneCard, BattleZone, DeckContext, DeckSynergyResult } from "./types"
 import { calculateEnemyTeamPower } from "@/lib/battle-engine"
 import {
-  RARITY_PROVISION_MAP, SYNERGY_VALUES, SYNERGY_DEFINITIONS, LIGHT_STEP_THRESHOLD, ELITE_RARITIES,
+  RARITY_PROVISION_BASE, RARITY_AVG_STATS, PROVISION_VARIANCE, SYNERGY_VALUES, SYNERGY_DEFINITIONS, LIGHT_STEP_THRESHOLD, ELITE_RARITIES,
   SYNERGY_TOTAL_CAP, SYNERGY_TOTAL_FLOOR, LEADER_AURA_VALUE, FORMATION_CONFIG, FormationId,
 } from "./config"
 
@@ -46,7 +46,27 @@ export const getCardRole = (card: Card): CardRole => {
 }
 
 export const getCardProvision = (card: Card): number => {
-  return RARITY_PROVISION_MAP[card.rarity] !== undefined ? RARITY_PROVISION_MAP[card.rarity] : 0
+  // Dynamic provision calculation based on actual stats from gacha rolls
+  const baseCost = RARITY_PROVISION_BASE[card.rarity] !== undefined ? RARITY_PROVISION_BASE[card.rarity] : 0
+  
+  // Calculate actual total stats (normalized)
+  // HP is divided by 8 because it's typically 8x larger than other stats
+  const actualTotalStats = (card.stats.hp / 8) + card.stats.atk + card.stats.def + card.stats.spd + card.stats.luck
+  
+  // Get expected average stats for this rarity
+  const expectedAvgStats = RARITY_AVG_STATS[card.rarity] || 100
+  
+  // Calculate stat ratio (how much better/worse than average)
+  const statRatio = actualTotalStats / expectedAvgStats
+  
+  // Apply variance: if stats are 20% above average, add +1 to cost, etc.
+  // Capped at +/- PROVISION_VARIANCE
+  const statBonus = Math.round((statRatio - 1) * PROVISION_VARIANCE * 2)
+  const clampedBonus = Math.max(-PROVISION_VARIANCE, Math.min(PROVISION_VARIANCE, statBonus))
+  
+  const finalCost = Math.max(0, baseCost + clampedBonus)
+  
+  return finalCost
 }
 
 export const getCardBasePower = (card: Card): number => {

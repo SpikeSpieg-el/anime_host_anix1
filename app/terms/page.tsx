@@ -1,6 +1,7 @@
 import { Metadata } from "next"
 import Link from "next/link"
 import { ArrowLeft, FileText, Shield, UserCheck, AlertTriangle } from "lucide-react"
+import { Footer } from "@/components/layout/footer"
 
 export const metadata: Metadata = {
   title: "Пользовательское соглашение — Weeb.X",
@@ -213,6 +214,8 @@ export default function TermsPage() {
           </p>
         </div>
       </div>
+
+      <Footer />
     </div>
   )
 }

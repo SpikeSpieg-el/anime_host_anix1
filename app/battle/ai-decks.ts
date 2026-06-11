@@ -1,7 +1,7 @@
 import { Card } from "./types"
 import { Rarity } from "@/types/gacha"
-import { RARITY_PROVISION_MAP, PROVISION_LIMIT, DECK_SIZE } from "./config"
-import { getCardRole } from "./utils"
+import { RARITY_PROVISION_BASE, PROVISION_LIMIT, DECK_SIZE } from "./config"
+import { getCardRole, getCardProvision } from "./utils"
 import { PlayerCardUsage } from "./ai/adaptive-learning"
 
 // ==========================================
@@ -84,16 +84,12 @@ function generateRandomCard(difficultyModifier: number = 0, cardIndex: number): 
 
   const stats = generateRandomStats(rarity)
   const role = getCardRole({ uniqueId: "", name, anime, rarity, imageUrl: "", stats } as Card)
+  const card = { uniqueId: `ai-generated-${cardIndex}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`, name, anime, rarity, imageUrl: `https://shikimori.one/system/characters/original/${1000 + cardIndex}.jpg`, stats, role }
+  const provisionCost = getCardProvision(card)
 
   return {
-    uniqueId: `ai-generated-${cardIndex}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-    name,
-    anime,
-    rarity,
-    imageUrl: `https://shikimori.one/system/characters/original/${1000 + cardIndex}.jpg`,
-    stats,
-    role,
-    provisionCost: RARITY_PROVISION_MAP[rarity]
+    ...card,
+    provisionCost
   }
 }
 
@@ -112,7 +108,7 @@ export function generateRandomAIDeck(difficultyModifier: number = 0, targetProvi
   }
 
   // Sort by provision cost (higher rarity first) to try to fit best cards
-  cardPool.sort((a, b) => (b.provisionCost || 0) - (a.provisionCost || 0))
+  cardPool.sort((a, b) => getCardProvision(b) - getCardProvision(a))
 
   // Build deck from pool (greedy algorithm)
   while (deck.length < DECK_SIZE && attempts < maxAttempts) {
@@ -123,7 +119,7 @@ export function generateRandomAIDeck(difficultyModifier: number = 0, targetProvi
       // Check for duplicate characters (same name + anime) instead of uniqueId
       if (deck.some(c => c.name === card.name && c.anime === card.anime)) continue
 
-      const cardProvision = card.provisionCost || RARITY_PROVISION_MAP[card.rarity]
+      const cardProvision = getCardProvision(card)
       if (totalProvision + cardProvision <= targetProvision) {
         deck.push(card)
         totalProvision += cardProvision
@@ -137,7 +133,7 @@ export function generateRandomAIDeck(difficultyModifier: number = 0, targetProvi
         // Check for duplicate characters (same name + anime) instead of uniqueId
         if (deck.some(c => c.name === card.name && c.anime === card.anime)) continue
 
-        const cardProvision = card.provisionCost || RARITY_PROVISION_MAP[card.rarity]
+        const cardProvision = getCardProvision(card)
         if (totalProvision + cardProvision <= targetProvision) {
           deck.push(card)
           totalProvision += cardProvision
@@ -157,10 +153,9 @@ export function generateRandomAIDeck(difficultyModifier: number = 0, targetProvi
 }
 
 // Pre-defined AI decks for each dungeon
-// Each deck contains exactly 8 cards and sums up to exactly 35 provision weight.
+// Each deck contains exactly 8 cards. Provision cost is calculated dynamically based on stats.
 export const AI_DECKS: Record<string, Card[]> = {
   // Dark Forest - Beginner dungeon
-  // Weight Breakdown: 5x rare (4) + 3x super_rare (5) = 20 + 15 = 35 provision (8 cards)
   "dark_forest": [
     { uniqueId: "ai-dark-1", name: "Какаши Хатаке", anime: "Naruto", rarity: "rare" as Rarity, imageUrl: "https://shikimori.one/system/characters/original/85.jpg", stats: { hp: 70, atk: 75, def: 50, spd: 60, luck: 55 } },
     { uniqueId: "ai-dark-2", name: "Наруто Узумаки", anime: "Naruto", rarity: "rare" as Rarity, imageUrl: "https://shikimori.one/system/characters/original/17.jpg", stats: { hp: 90, atk: 85, def: 55, spd: 65, luck: 50 } },
@@ -170,10 +165,9 @@ export const AI_DECKS: Record<string, Card[]> = {
     { uniqueId: "ai-dark-6", name: "Шикамару Нара", anime: "Naruto", rarity: "super_rare" as Rarity, imageUrl: "https://shikimori.one/system/characters/original/2007.jpg", stats: { hp: 65, atk: 50, def: 55, spd: 50, luck: 80 } },
     { uniqueId: "ai-dark-7", name: "Гаара", anime: "Naruto", rarity: "super_rare" as Rarity, imageUrl: "https://shikimori.one/system/characters/original/1662.jpg", stats: { hp: 80, atk: 55, def: 90, spd: 50, luck: 45 } },
     { uniqueId: "ai-dark-8", name: "Саске Учиха", anime: "Naruto", rarity: "rare" as Rarity, imageUrl: "https://shikimori.one/system/characters/original/13.jpg", stats: { hp: 75, atk: 80, def: 50, spd: 85, luck: 50 } },
-  ],
+  ].map(card => ({ ...card, provisionCost: getCardProvision(card) })),
 
   // Volcanic Cave - Mid tier
-  // Weight Breakdown: 3x epic (6) + 2x rare (4) + 3x uncommon (3) = 18 + 8 + 9 = 35 provision (8 cards)
   "volcano": [
     { uniqueId: "ai-volc-1", name: "Ророноа Зоро", anime: "One Piece", rarity: "epic" as Rarity, imageUrl: "https://shikimori.one/system/characters/original/62.jpg", stats: { hp: 100, atk: 110, def: 60, spd: 70, luck: 50 } },
     { uniqueId: "ai-volc-2", name: "Саске Учиха", anime: "Naruto", rarity: "epic" as Rarity, imageUrl: "https://shikimori.one/system/characters/original/13.jpg", stats: { hp: 100, atk: 105, def: 55, spd: 90, luck: 55 } },
@@ -183,10 +177,9 @@ export const AI_DECKS: Record<string, Card[]> = {
     { uniqueId: "ai-volc-6", name: "Усопп", anime: "One Piece", rarity: "uncommon" as Rarity, imageUrl: "https://shikimori.one/system/characters/original/724.jpg", stats: { hp: 65, atk: 60, def: 50, spd: 70, luck: 85 } },
     { uniqueId: "ai-volc-7", name: "Рок Ли", anime: "Naruto", rarity: "rare" as Rarity, imageUrl: "https://shikimori.one/system/characters/original/306.jpg", stats: { hp: 70, atk: 85, def: 40, spd: 95, luck: 35 } },
     { uniqueId: "ai-volc-8", name: "Тони Тони Чоппер", anime: "One Piece", rarity: "uncommon" as Rarity, imageUrl: "https://shikimori.one/system/characters/original/309.jpg", stats: { hp: 80, atk: 60, def: 60, spd: 65, luck: 70 } },
-  ],
+  ].map(card => ({ ...card, provisionCost: getCardProvision(card) })),
 
   // Ocean Depths - High mid tier
-  // Weight Breakdown: 1x legendary (9) + 1x epic (6) + 1x super_rare (5) + 1x rare (4) + 3x uncommon (3) + 1x common (2) = 9 + 6 + 5 + 4 + 9 + 2 = 35 provision (8 cards)
   "ocean": [
     { uniqueId: "ai-ocean-1", name: "Ичиго Куросаки", anime: "Bleach", rarity: "legendary" as Rarity, imageUrl: "https://shikimori.one/system/characters/original/5.jpg", stats: { hp: 125, atk: 120, def: 75, spd: 90, luck: 60 } },
     { uniqueId: "ai-ocean-2", name: "Рукия Кучики", anime: "Bleach", rarity: "epic" as Rarity, imageUrl: "https://shikimori.one/system/characters/original/6.jpg", stats: { hp: 90, atk: 95, def: 65, spd: 85, luck: 50 } },
@@ -196,10 +189,9 @@ export const AI_DECKS: Record<string, Card[]> = {
     { uniqueId: "ai-ocean-6", name: "Орихиме Иноуэ", anime: "Bleach", rarity: "uncommon" as Rarity, imageUrl: "https://shikimori.one/system/characters/original/7.jpg", stats: { hp: 90, atk: 40, def: 75, spd: 50, luck: 60 } },
     { uniqueId: "ai-ocean-7", name: "Усопп", anime: "One Piece", rarity: "uncommon" as Rarity, imageUrl: "https://shikimori.one/system/characters/original/724.jpg", stats: { hp: 70, atk: 65, def: 55, spd: 75, luck: 80 } },
     { uniqueId: "ai-ocean-8", name: "Нами", anime: "One Piece", rarity: "common" as Rarity, imageUrl: "https://shikimori.one/system/characters/original/723.jpg", stats: { hp: 65, atk: 60, def: 45, spd: 80, luck: 60 } },
-  ],
+  ].map(card => ({ ...card, provisionCost: getCardProvision(card) })),
 
   // Sky Castle - Elite tier
-  // Weight Breakdown: 1x legendary (9) + 2x epic (12) + 1x rare (4) + 2x uncommon (6) + 2x common (4) = 9 + 12 + 4 + 6 + 4 = 35 provision (8 cards)
   "sky_castle": [
     { uniqueId: "ai-sky-1", name: "Эрен Йегер", anime: "Attack on Titan", rarity: "legendary" as Rarity, imageUrl: "https://shikimori.one/system/characters/original/40882.jpg", stats: { hp: 140, atk: 130, def: 85, spd: 100, luck: 55 } },
     { uniqueId: "ai-sky-2", name: "Леви Аккерман", anime: "Attack on Titan", rarity: "epic" as Rarity, imageUrl: "https://shikimori.one/system/characters/original/45627.jpg", stats: { hp: 100, atk: 120, def: 65, spd: 110, luck: 50 } },
@@ -209,10 +201,9 @@ export const AI_DECKS: Record<string, Card[]> = {
     { uniqueId: "ai-sky-6", name: "Уракака", anime: "My Hero Academia", rarity: "uncommon" as Rarity, imageUrl: "https://shikimori.one/system/characters/original/117917.jpg", stats: { hp: 100, atk: 60, def: 80, spd: 60, luck: 50 } },
     { uniqueId: "ai-sky-7", name: "Бакуго", anime: "My Hero Academia", rarity: "common" as Rarity, imageUrl: "https://shikimori.one/system/characters/original/117911.jpg", stats: { hp: 90, atk: 95, def: 55, spd: 80, luck: 40 } },
     { uniqueId: "ai-sky-8", name: "Тодороки", anime: "My Hero Academia", rarity: "common" as Rarity, imageUrl: "https://shikimori.one/system/characters/original/117915.jpg", stats: { hp: 95, atk: 90, def: 60, spd: 75, luck: 45 } },
-  ],
+  ].map(card => ({ ...card, provisionCost: getCardProvision(card) })),
 
   // Demon Realm - Boss tier
-  // Weight Breakdown: 1x ancient (10) + 1x legendary (9) + 1x epic (6) + 1x super_rare (5) + 1x uncommon (3) + 1x common (2) + 2x trash (0) = 10 + 9 + 6 + 5 + 3 + 2 + 0 = 35 provision (8 cards)
   "demon_realm": [
     { uniqueId: "ai-demon-1", name: "Сатору Годжо", anime: "Jujutsu Kaisen", rarity: "ancient" as Rarity, imageUrl: "https://shikimori.one/system/characters/original/164471.jpg", stats: { hp: 175, atk: 155, def: 110, spd: 125, luck: 70 } },
     { uniqueId: "ai-demon-2", name: "Танджиро Камадо", anime: "Demon Slayer", rarity: "legendary" as Rarity, imageUrl: "https://shikimori.one/system/characters/original/146156.jpg", stats: { hp: 195, atk: 125, def: 105, spd: 100, luck: 60 } },
@@ -222,10 +213,9 @@ export const AI_DECKS: Record<string, Card[]> = {
     { uniqueId: "ai-demon-6", name: "Нобара Кугисаки", anime: "Jujutsu Kaisen", rarity: "common" as Rarity, imageUrl: "https://shikimori.one/system/characters/original/164472.jpg", stats: { hp: 90, atk: 85, def: 65, spd: 75, luck: 50 } },
     { uniqueId: "ai-demon-7", name: "Иносаукэ", anime: "Demon Slayer", rarity: "trash" as Rarity, imageUrl: "https://shikimori.one/system/characters/original/146159.jpg", stats: { hp: 80, atk: 85, def: 50, spd: 70, luck: 30 } },
     { uniqueId: "ai-demon-8", name: "Ренгоку", anime: "Demon Slayer", rarity: "trash" as Rarity, imageUrl: "https://shikimori.one/system/characters/original/148417.jpg", stats: { hp: 85, atk: 90, def: 55, spd: 75, luck: 40 } },
-  ],
+  ].map(card => ({ ...card, provisionCost: getCardProvision(card) })),
 
   // Grand Tournament - Legendary tier
-  // Weight Breakdown: 1x transcendent (13) + 1x divine (11) + 1x uncommon (3) + 4x common (8) + 1x trash (0) = 13 + 11 + 3 + 8 + 0 = 35 provision (8 cards)
   "tournament": [
     { uniqueId: "ai-tourn-1", name: "Аин", anime: "One Piece", rarity: "transcendent" as Rarity, imageUrl: "https://shikimori.one/system/characters/original/67143.jpg", stats: { hp: 245, atk: 245, def: 170, spd: 155, luck: 100 } },
     { uniqueId: "ai-tourn-2", name: "Сайтама", anime: "One Punch Man", rarity: "divine" as Rarity, imageUrl: "https://shikimori.one/system/characters/original/73935.jpg", stats: { hp: 315, atk: 265, def: 140, spd: 70, luck: 35 } },
@@ -235,10 +225,9 @@ export const AI_DECKS: Record<string, Card[]> = {
     { uniqueId: "ai-tourn-6", name: "Гаро", anime: "One Punch Man", rarity: "common" as Rarity, imageUrl: "https://shikimori.one/system/characters/original/112889.jpg", stats: { hp: 125, atk: 115, def: 95, spd: 100, luck: 50 } },
     { uniqueId: "ai-tourn-7", name: "Пикколо", anime: "Dragon Ball", rarity: "common" as Rarity, imageUrl: "https://shikimori.one/system/characters/original/915.jpg", stats: { hp: 110, atk: 100, def: 95, spd: 85, luck: 50 } },
     { uniqueId: "ai-tourn-8", name: "Транкс", anime: "Dragon Ball", rarity: "trash" as Rarity, imageUrl: "https://shikimori.one/system/characters/original/247.jpg", stats: { hp: 100, atk: 105, def: 80, spd: 90, luck: 45 } },
-  ],
+  ].map(card => ({ ...card, provisionCost: getCardProvision(card) })),
 
   // Daily battle - Mid-high tier
-  // Weight Breakdown: 1x legendary (9) + 1x mythic (8) + 1x epic (6) + 1x super_rare (5) + 1x rare (4) + 1x uncommon (3) + 2x trash (0) = 9 + 8 + 6 + 5 + 4 + 3 + 0 = 35 provision (8 cards)
   "daily": [
     { uniqueId: "ai-daily-1", name: "Астa", anime: "Black Clover", rarity: "legendary" as Rarity, imageUrl: "https://shikimori.one/system/characters/original/124731.jpg", stats: { hp: 130, atk: 130, def: 90, spd: 105, luck: 65 } },
     { uniqueId: "ai-daily-2", name: "Юно", anime: "Black Clover", rarity: "mythic" as Rarity, imageUrl: "https://shikimori.one/system/characters/original/124732.jpg", stats: { hp: 160, atk: 100, def: 100, spd: 85, luck: 60 } },
@@ -248,10 +237,9 @@ export const AI_DECKS: Record<string, Card[]> = {
     { uniqueId: "ai-daily-6", name: "Хиен", anime: "Naruto", rarity: "uncommon" as Rarity, imageUrl: "https://shikimori.one/system/characters/original/2792.jpg", stats: { hp: 125, atk: 90, def: 100, spd: 85, luck: 55 } },
     { uniqueId: "ai-daily-7", name: "Ноэль", anime: "Black Clover", rarity: "trash" as Rarity, imageUrl: "https://shikimori.one/system/characters/original/124733.jpg", stats: { hp: 80, atk: 75, def: 60, spd: 70, luck: 50 } },
     { uniqueId: "ai-daily-8", name: "Юми", anime: "Black Clover", rarity: "trash" as Rarity, imageUrl: "https://shikimori.one/system/characters/original/124734.jpg", stats: { hp: 90, atk: 95, def: 70, spd: 65, luck: 45 } },
-  ],
+  ].map(card => ({ ...card, provisionCost: getCardProvision(card) })),
 
   // Daily Market Deck 1 - Frieren Power (High tier)
-  // Weight Breakdown: 1x omnipotent (15) + 1x ancient (10) + 1x super_rare (5) + 1x uncommon (3) + 1x common (2) + 3x trash (0) = 15 + 10 + 5 + 3 + 2 + 0 = 35 provision (8 cards)
   "daily_market_1": [
     { uniqueId: "market-1-1", name: "Ферн", anime: "Провожающая в последний путь Фрирен", rarity: "omnipotent" as Rarity, imageUrl: "https://files.yande.re/image/21766019c33763e78e32f5a0b3e22076/yande.re%201256576%20bandages%20elf%20fern%20frieren%20pointy_ears%20sousou_no_frieren%20stark%20tagme.jpg", stats: { hp: 94, atk: 91, def: 97, spd: 97, luck: 100 } },
     { uniqueId: "market-1-2", name: "Фрирен", anime: "Провожающая в последний путь Фрирен", rarity: "ancient" as Rarity, imageUrl: "https://shikimori.one/system/characters/original/184947.jpg", stats: { hp: 64, atk: 79, def: 82, spd: 67, luck: 73 } },
@@ -261,10 +249,9 @@ export const AI_DECKS: Record<string, Card[]> = {
     { uniqueId: "market-1-6", name: "Дакэми", anime: "Б — улица рэперов", rarity: "trash" as Rarity, imageUrl: "https://shikimori.one/system/characters/original/170864.jpg", stats: { hp: 15, atk: 20, def: 25, spd: 5, luck: 25 } },
     { uniqueId: "market-1-7", name: "Саяка Табэ", anime: "Девушки, покоряющие новые горизонты", rarity: "trash" as Rarity, imageUrl: "https://shikimori.one/system/characters/original/138648.jpg", stats: { hp: 8, atk: 24, def: 8, spd: 10, luck: 21 } },
     { uniqueId: "market-1-8", name: "Хакуфу Сонсаку", anime: "Сила тысячи", rarity: "trash" as Rarity, imageUrl: "https://safebooru.org/images/1880/c2911f8795b5f2e0c030de1359939ea64dff09bb.jpeg", stats: { hp: 15, atk: 14, def: 20, spd: 12, luck: 15 } },
-  ],
+  ].map(card => ({ ...card, provisionCost: getCardProvision(card) })),
 
   // Daily Market Deck 2 - Jujutsu Kaisen Elite
-  // Weight Breakdown: 1x legendary (9) + 1x mythic (8) + 1x epic (6) + 1x super_rare (5) + 1x rare (4) + 1x uncommon (3) + 2x trash (0) = 9 + 8 + 6 + 5 + 4 + 3 + 0 = 35 provision (8 cards)
   "daily_market_2": [
     { uniqueId: "market-2-1", name: "Мэгуми Фусигуро", anime: "Магическая битва: Смертельная миграция", rarity: "legendary" as Rarity, imageUrl: "https://safebooru.org/images/1842/23b738f985ca314edef731e126c3a12c36c7e7e7.jpg", stats: { hp: 65, atk: 74, def: 57, spd: 68, luck: 55 } },
     { uniqueId: "market-2-2", name: "Юдзи Итадори", anime: "Магическая битва: Смертельная миграция", rarity: "mythic" as Rarity, imageUrl: "https://safebooru.org/images/1070/643a1988dd3e8471ca4de8f176b6db6ab9da371c.png", stats: { hp: 64, atk: 59, def: 67, spd: 62, luck: 48 } },
@@ -274,10 +261,9 @@ export const AI_DECKS: Record<string, Card[]> = {
     { uniqueId: "market-2-6", name: "Котори Сиракава", anime: "С начала. Часть I", rarity: "uncommon" as Rarity, imageUrl: "https://shikimori.one/system/characters/original/2387.jpg", stats: { hp: 15, atk: 14, def: 18, spd: 34, luck: 18 } },
     { uniqueId: "market-2-7", name: "Хакуфу Сонсаку", anime: "Сила тысячи", rarity: "trash" as Rarity, imageUrl: "https://safebooru.org/images/1880/c2911f8795b5f2e0c030de1359939ea64dff09bb.jpeg", stats: { hp: 15, atk: 15, def: 18, spd: 14, luck: 12 } },
     { uniqueId: "market-2-8", name: "Саяка Табэ", anime: "Девушки, покоряющие новые горизонты", rarity: "trash" as Rarity, imageUrl: "https://shikimori.one/system/characters/original/138648.jpg", stats: { hp: 8, atk: 24, def: 8, spd: 10, luck: 21 } },
-  ],
+  ].map(card => ({ ...card, provisionCost: getCardProvision(card) })),
 
   // Daily Market Deck 3 - Naruto Speedsters
-  // Weight Breakdown: 1x mythic (8) + 4x super_rare (20) + 1x uncommon (3) + 2x common (4) = 8 + 20 + 3 + 4 = 35 provision (8 cards)
   "daily_market_3": [
     { uniqueId: "market-3-1", name: "Нобара Кугисаки", anime: "Магическая битва: Смертельная миграция", rarity: "mythic" as Rarity, imageUrl: "https://safebooru.org/images/4395/e614360d0d8cd16e3b226d9a3b0909b68ac174f9.jpg", stats: { hp: 59, atk: 59, def: 61, spd: 56, luck: 49 } },
     { uniqueId: "market-3-2", name: "Наруто Узумаки", anime: "Наруто: Последний фильм", rarity: "super_rare" as Rarity, imageUrl: "https://safebooru.org/images/1842/0e06d477880ced203e25823c228d59ad68f674ec.jpg", stats: { hp: 44, atk: 37, def: 35, spd: 43, luck: 50 } },
@@ -287,10 +273,9 @@ export const AI_DECKS: Record<string, Card[]> = {
     { uniqueId: "market-3-6", name: "Дории", anime: "Прославленный: Маска истины", rarity: "uncommon" as Rarity, imageUrl: "https://shikimori.one/system/characters/original/2437.jpg", stats: { hp: 20, atk: 25, def: 30, spd: 38, luck: 28 } },
     { uniqueId: "market-3-7", name: "Котори Сиракава", anime: "С начала. Часть I", rarity: "common" as Rarity, imageUrl: "https://shikimori.one/system/characters/original/2387.jpg", stats: { hp: 13, atk: 12, def: 16, spd: 32, luck: 15 } },
     { uniqueId: "market-3-8", name: "Хакуфу Сонсаку", anime: "Сила тысячи", rarity: "common" as Rarity, imageUrl: "https://safebooru.org/images/1880/c2911f8795b5f2e0c030de1359939ea64dff09bb.jpeg", stats: { hp: 25, atk: 23, def: 31, spd: 22, luck: 20 } },
-  ],
+  ].map(card => ({ ...card, provisionCost: getCardProvision(card) })),
 
   // Daily Market Deck 4 - Mixed Power
-  // Weight Breakdown: 1x transcendent (13) + 1x legendary (9) + 1x epic (6) + 1x uncommon (3) + 2x common (4) + 2x trash (0) = 13 + 9 + 6 + 3 + 4 + 0 = 35 provision (8 cards)
   "daily_market_4": [
     { uniqueId: "market-4-1", name: "Леорио Паладинайт", anime: "Охотник х Охотник (2011)", rarity: "transcendent" as Rarity, imageUrl: "https://s3.zerochan.net/600/15/41/3337065.jpg", stats: { hp: 90, atk: 90, def: 82, spd: 82, luck: 91 } },
     { uniqueId: "market-4-2", name: "Симон", anime: "Гуррен-Лаганн, пронзающий небеса", rarity: "legendary" as Rarity, imageUrl: "https://safebooru.org/images/3048/e8a1e6f31233901bb9eebe9c205fe82b41c33a86.jpg", stats: { hp: 61, atk: 56, def: 67, spd: 55, luck: 72 } },
@@ -300,7 +285,7 @@ export const AI_DECKS: Record<string, Card[]> = {
     { uniqueId: "market-4-6", name: "Котори Сиракава", anime: "С начала. Часть I", rarity: "common" as Rarity, imageUrl: "https://shikimori.one/system/characters/original/2387.jpg", stats: { hp: 13, atk: 12, def: 16, spd: 32, luck: 15 } },
     { uniqueId: "market-4-7", name: "Дакэми", anime: "Б — улица рэперов", rarity: "trash" as Rarity, imageUrl: "https://shikimori.one/system/characters/original/170864.jpg", stats: { hp: 15, atk: 20, def: 25, spd: 5, luck: 25 } },
     { uniqueId: "market-4-8", name: "Саяка Табэ", anime: "Девушки, покоряющие новые горизонты", rarity: "trash" as Rarity, imageUrl: "https://shikimori.one/system/characters/original/138648.jpg", stats: { hp: 8, atk: 24, def: 8, spd: 10, luck: 21 } },
-  ],
+  ].map(card => ({ ...card, provisionCost: getCardProvision(card) })),
 }
 
 // Get AI deck for a specific dungeon theme
@@ -353,7 +338,7 @@ export function generateAdaptiveAIDeck(
   // If we have enough counter cards, prioritize them
   if (counterCards.length >= DECK_SIZE) {
     // Sort by provision to fit within limit
-    counterCards.sort((a, b) => (b.provisionCost || 0) - (a.provisionCost || 0))
+    counterCards.sort((a, b) => getCardProvision(b) - getCardProvision(a))
     
     const adaptiveDeck: Card[] = []
     let totalProvision = 0
@@ -362,7 +347,7 @@ export function generateAdaptiveAIDeck(
       if (adaptiveDeck.length >= DECK_SIZE) break
       // Check for duplicate characters (same name + anime)
       if (adaptiveDeck.some(c => c.name === card.name && c.anime === card.anime)) continue
-      const cardProvision = card.provisionCost || RARITY_PROVISION_MAP[card.rarity]
+      const cardProvision = getCardProvision(card)
       if (totalProvision + cardProvision <= targetProvision) {
         adaptiveDeck.push(card)
         totalProvision += cardProvision
@@ -376,7 +361,7 @@ export function generateAdaptiveAIDeck(
       const randomCard = remainingCards[Math.floor(Math.random() * remainingCards.length)]
       // Check for duplicate characters (same name + anime)
       if (adaptiveDeck.some(c => c.name === randomCard.name && c.anime === randomCard.anime)) continue
-      const cardProvision = randomCard.provisionCost || RARITY_PROVISION_MAP[randomCard.rarity]
+      const cardProvision = getCardProvision(randomCard)
       if (totalProvision + cardProvision <= targetProvision) {
         adaptiveDeck.push(randomCard)
         totalProvision += cardProvision

@@ -61,7 +61,7 @@ export function BulkDismantleFilterPopup({
 
   return (
     <AlertDialog open={isOpen} onOpenChange={onClose}>
-      <AlertDialogContent className="max-w-2xl bg-slate-900 border-slate-700 text-white max-h-[80vh] overflow-y-auto">
+      <AlertDialogContent className="max-w-[90vw] sm:max-w-2xl bg-slate-900 border-slate-700 text-white max-h-[80vh] overflow-y-auto">
         <AlertDialogHeader>
           <AlertDialogTitle className="sr-only">
             Массовое распыление карт

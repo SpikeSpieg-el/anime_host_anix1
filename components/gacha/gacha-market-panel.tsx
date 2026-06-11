@@ -1,11 +1,13 @@
 "use client"
 
 import { useCallback, useEffect, useState, useRef, useMemo } from "react"
+import { createPortal } from "react-dom"
 import Image from "next/image"
 import { Loader2, ShoppingCart, XCircle, Store, RefreshCcw, ZoomIn, ExternalLink, X, Trash, Crown, Star, Filter, ChevronDown, Search, Swords } from "lucide-react"
 import type { Card } from "@/app/gacha/types"
 import { rarityConfig, type Rarity } from "@/types/gacha"
 import { useAuth } from "@/components/auth/auth-provider"
+import { useCoins } from "@/hooks/use-coins"
 import { supabase } from "@/lib/supabase"
 import { frameNames, coatingNames, FrameOverlay, CoatingOverlay } from "@/components/gacha/card-modifiers"
 import { getCardBasePower, getCardProvision } from "@/app/battle/utils"
@@ -373,13 +375,14 @@ export function GachaMarketPanel({
   onNotify: (title: string, message: string, type?: "error" | "info" | "warning") => void
 }) {
   const { user, session } = useAuth()
+  const { coins: userCoins } = useCoins()
   const [tab, setTab] = useState<"vitrine" | "mine">("vitrine")
   const [listings, setListings] = useState<MarketListingApi[]>([])
   const [loading, setLoading] = useState(true)
   const [actionId, setActionId] = useState<string | null>(null)
   const [viewedCard, setViewedCard] = useState<MarketListingApi | null>(null)
   const [loadingImages, setLoadingImages] = useState<Record<string, boolean>>({})
-  const [buyPreview, setBuyPreview] = useState<{ listing: MarketListingApi } | null>(null)
+  const [showConfirmBuy, setShowConfirmBuy] = useState(false)
   const [showFilters, setShowFilters] = useState(false)
   const [filters, setFilters] = useState<MarketFilters>({
     search: "",
@@ -546,14 +549,11 @@ export function GachaMarketPanel({
     }
   }
 
-  const buyWithPreview = async (listing: MarketListingApi) => {
-    setBuyPreview({ listing })
-  }
-
   const confirmBuy = async () => {
-    if (!buyPreview) return
-    await buy(buyPreview.listing.listingId, buyPreview.listing.price, buyPreview.listing.card.name)
-    setBuyPreview(null)
+    if (!viewedCard) return
+    await buy(viewedCard.listingId, viewedCard.price, viewedCard.card.name)
+    setViewedCard(null)
+    setShowConfirmBuy(false)
   }
 
   const cancel = async (listingId: string, name: string) => {
@@ -925,7 +925,10 @@ export function GachaMarketPanel({
                       <button
                         type="button"
                         disabled={busy}
-                        onClick={() => void buyWithPreview(L)}
+                        onClick={() => {
+                          setViewedCard(L)
+                          setShowConfirmBuy(false)
+                        }}
                         className="w-full py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-black uppercase disabled:opacity-50 flex items-center justify-center gap-2"
                       >
                         {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShoppingCart className="w-4 h-4" />}
@@ -958,142 +961,118 @@ export function GachaMarketPanel({
       )}
 
       {/* Viewed Card Modal */}
-      {viewedCard && (
+      {viewedCard && createPortal(
         <div 
-          className="fixed inset-0 z-50 flex flex-col items-center justify-center p-4 sm:p-6 bg-slate-950/90 backdrop-blur-xl animate-in fade-in duration-200 overflow-y-auto"
-          onClick={() => setViewedCard(null)}
+          className="fixed inset-0 z-[120] flex flex-col items-center justify-center p-4 sm:p-6 bg-slate-950/90 backdrop-blur-xl animate-in fade-in duration-200 overflow-y-auto"
+          onClick={() => {
+            setViewedCard(null)
+            setShowConfirmBuy(false)
+          }}
         >
-          <button onClick={() => setViewedCard(null)} className="absolute top-4 sm:top-6 right-4 sm:right-6 p-2.5 sm:p-3 rounded-full bg-white/5 hover:bg-white/10 text-white transition-colors border border-white/10 z-50">
+          <button onClick={() => {
+            setViewedCard(null)
+            setShowConfirmBuy(false)
+          }} className="fixed top-4 right-4 sm:top-6 sm:right-6 p-2.5 sm:p-3 rounded-full bg-white/5 hover:bg-white/10 text-white transition-colors border border-white/10 z-[130] shadow-xl backdrop-blur-md touch-manipulation">
             <X className="w-5 h-5 sm:w-6 sm:h-6" />
           </button>
           
           <div 
-            className="flex flex-col items-center justify-center min-h-full py-12"
+            className="flex flex-col items-center justify-center min-h-full py-12 w-full"
             onClick={(e) => e.stopPropagation()}
+            style={{ touchAction: 'none' }}
           >
             <InteractiveCard card={viewedCard.card} />
             
-            <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-4 mt-8 sm:mt-10 w-full max-w-lg mx-auto">
-              {tab === "vitrine" && !viewedCard.isMine && user && (
-                <button
-                  onClick={() => {
-                    setViewedCard(null)
-                    buyWithPreview(viewedCard)
-                  }}
-                  className="px-4 py-2.5 sm:px-5 sm:py-3 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs sm:text-sm flex items-center gap-2 transition-colors"
-                >
-                  <ShoppingCart className="w-4 h-4" /> <span className="hidden sm:inline">Купить</span><span className="sm:hidden">Купить</span>
-                </button>
-              )}
-              
-              {tab === "vitrine" && viewedCard.isMine && (
-                <span className="px-4 py-2.5 sm:px-5 sm:py-3 rounded-xl bg-violet-600/20 text-violet-300 font-bold text-xs sm:text-sm flex items-center gap-2 border border-violet-500/30">
-                  <Store className="w-4 h-4" /> <span className="hidden sm:inline">Ваш лот</span><span className="sm:hidden">Ваш</span>
-                </span>
-              )}
-              
-              {tab === "mine" && (
-                <button
-                  onClick={() => {
-                    setViewedCard(null)
-                    cancel(viewedCard.listingId, viewedCard.card.name)
-                  }}
-                  className="px-4 py-2.5 sm:px-5 sm:py-3 rounded-xl bg-red-500/15 hover:bg-red-500/25 text-red-300 font-bold text-xs sm:text-sm flex items-center gap-2 transition-colors border border-red-500/30"
-                >
-                  <XCircle className="w-4 h-4" /> <span className="hidden sm:inline">Снять с продажи</span><span className="sm:hidden">Снять</span>
-                </button>
-              )}
-              
-              <a href={viewedCard.card.originalUrl} target="_blank" rel="noreferrer" className="px-4 py-2.5 sm:px-5 sm:py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs sm:text-sm flex items-center gap-2 transition-colors border border-slate-700">
-                <ZoomIn className="w-4 h-4" /> <span className="hidden sm:inline">Оригинал</span>
-              </a>
-              
-              <a href={`https://shikimori.one/animes/${viewedCard.card.shikiId}`} target="_blank" rel="noreferrer" className="px-4 py-2.5 sm:px-5 sm:py-3 rounded-xl bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 font-bold text-xs sm:text-sm flex items-center gap-2 transition-colors border border-blue-500/20">
-                <ExternalLink className="w-4 h-4" /> <span className="hidden sm:inline">Шикимори</span>
-              </a>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Buy Preview Modal */}
-      {buyPreview && (
-        <div 
-          className="fixed inset-0 z-50 flex flex-col items-center justify-center p-4 sm:p-6 bg-slate-950/90 backdrop-blur-xl animate-in fade-in duration-200 overflow-y-auto"
-          onClick={() => setBuyPreview(null)}
-          onTouchEnd={(e) => {
-            // Check if touch ended on the backdrop (not on modal content)
-            if (e.target === e.currentTarget) {
-              setBuyPreview(null)
-            }
-          }}
-        >
-          <button 
-            onClick={() => setBuyPreview(null)} 
-            className="absolute top-4 sm:top-6 right-4 sm:right-6 p-3 sm:p-4 rounded-full bg-white/5 hover:bg-white/10 text-white transition-colors border border-white/10 z-50 touch-manipulation"
-            aria-label="Закрыть"
-          >
-            <X className="w-5 h-5 sm:w-6 sm:h-6" />
-          </button>
-          
-          <div 
-            className="flex flex-col items-center justify-center min-h-full py-12"
-            onClick={(e) => e.stopPropagation()}
-            onTouchEnd={(e) => e.stopPropagation()}
-          >
-            <div className="text-center mb-6">
-              <h3 className="text-2xl sm:text-3xl font-black text-white uppercase tracking-tight mb-2">
-                Подтверждение покупки
-              </h3>
-              <p className="text-slate-300 text-sm">
-                Вы уверены, что хотите купить эту карту?
-              </p>
-            </div>
-
-            <InteractiveCard card={buyPreview.listing.card} />
-            
-            <div className="mt-8 text-center space-y-4">
-              <div className="flex items-center justify-center gap-3 text-2xl sm:text-3xl font-black text-yellow-400">
-                <ShoppingCart className="w-8 h-8" />
-                <span>{buyPreview.listing.price.toLocaleString()}</span>
-                <span className="text-sm sm:text-base text-yellow-200/80 font-bold">монет</span>
-              </div>
-              
-              <p className="text-xs sm:text-sm text-slate-400">
-                Защитный минимум: {buyPreview.listing.minPriceAtList.toLocaleString()} монет
-              </p>
-            </div>
-            
-            <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-4 mt-8 sm:mt-10 w-full max-w-lg mx-auto">
-              <button
-                onClick={confirmBuy}
-                disabled={actionId === buyPreview.listing.listingId}
-                className="px-6 py-3 sm:px-8 sm:py-4 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-sm sm:text-base flex items-center gap-2 transition-colors disabled:opacity-50"
-              >
-                {actionId === buyPreview.listing.listingId ? (
-                  <>
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                    Покупка...
-                  </>
-                ) : (
-                  <>
-                    <ShoppingCart className="w-5 h-5" />
-                    Подтвердить покупку
-                  </>
+            {!showConfirmBuy ? (
+              <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-4 mt-8 sm:mt-10 w-full max-w-lg mx-auto">
+                {tab === "vitrine" && !viewedCard.isMine && user && (
+                  <button
+                    onClick={() => setShowConfirmBuy(true)}
+                    className="px-4 py-2.5 sm:px-5 sm:py-3 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs sm:text-sm flex items-center gap-2 transition-colors"
+                  >
+                    <ShoppingCart className="w-4 h-4" /> <span className="hidden sm:inline">Купить</span><span className="sm:hidden">Купить</span>
+                  </button>
                 )}
-              </button>
-              
-              <button
-                onClick={() => setBuyPreview(null)}
-                className="px-6 py-3 sm:px-8 sm:py-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-sm sm:text-base flex items-center gap-2 transition-colors border border-slate-700 touch-manipulation min-h-[44px]"
-              >
-                <X className="w-5 h-5" />
-                Отмена
-              </button>
-            </div>
+                
+                {tab === "vitrine" && viewedCard.isMine && (
+                  <span className="px-4 py-2.5 sm:px-5 sm:py-3 rounded-xl bg-violet-600/20 text-violet-300 font-bold text-xs sm:text-sm flex items-center gap-2 border border-violet-500/30">
+                    <Store className="w-4 h-4" /> <span className="hidden sm:inline">Ваш лот</span><span className="sm:hidden">Ваш</span>
+                  </span>
+                )}
+                
+                {tab === "mine" && (
+                  <button
+                    onClick={() => {
+                      setViewedCard(null)
+                      cancel(viewedCard.listingId, viewedCard.card.name)
+                    }}
+                    className="px-4 py-2.5 sm:px-5 sm:py-3 rounded-xl bg-red-500/15 hover:bg-red-500/25 text-red-300 font-bold text-xs sm:text-sm flex items-center gap-2 transition-colors border border-red-500/30"
+                  >
+                    <XCircle className="w-4 h-4" /> <span className="hidden sm:inline">Снять с продажи</span><span className="sm:hidden">Снять</span>
+                  </button>
+                )}
+                
+              </div>
+            ) : (
+              <div className="absolute inset-0 bg-slate-950/95 backdrop-blur-xl rounded-[1.5rem] sm:rounded-[2rem] md:rounded-[2.5rem] flex flex-col items-center justify-center p-6 sm:p-8 z-20">
+                <div className="text-center space-y-4 sm:space-y-6 w-full max-w-sm">
+                  <h3 className="text-xl sm:text-2xl font-black text-white uppercase tracking-tight">
+                    Подтверждение покупки
+                  </h3>
+
+                  <div className="bg-slate-900/50 border border-slate-700 rounded-xl p-4 sm:p-5 space-y-3">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-slate-400">Цена карты:</span>
+                      <span className="text-yellow-400 font-bold">{viewedCard.price.toLocaleString()} монет</span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-slate-400">Ваш баланс:</span>
+                      <span className="text-white font-bold">{userCoins.toLocaleString()} монет</span>
+                    </div>
+                    <div className="h-px bg-slate-700 my-2" />
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-slate-400">Останется:</span>
+                      <span className={`font-bold ${userCoins - viewedCard.price >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                        {(userCoins - viewedCard.price).toLocaleString()} монет
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col gap-3">
+                    <button
+                      onClick={confirmBuy}
+                      disabled={actionId === viewedCard.listingId || userCoins < viewedCard.price}
+                      className="w-full py-3 sm:py-4 rounded-xl bg-cyan-600 hover:bg-cyan-500 disabled:bg-slate-700 disabled:text-slate-500 text-white font-bold text-sm sm:text-base flex items-center justify-center gap-2 transition-colors disabled:opacity-50 min-h-[44px]"
+                    >
+                      {actionId === viewedCard.listingId ? (
+                        <>
+                          <Loader2 className="w-5 h-5 animate-spin" />
+                          Покупка...
+                        </>
+                      ) : (
+                        <>
+                          <ShoppingCart className="w-5 h-5" />
+                          Подтвердить покупку
+                        </>
+                      )}
+                    </button>
+
+                    <button
+                      onClick={() => setShowConfirmBuy(false)}
+                      className="w-full py-3 sm:py-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-sm sm:text-base flex items-center justify-center gap-2 transition-colors border border-slate-700 touch-manipulation min-h-[44px]"
+                    >
+                      <X className="w-5 h-5" />
+                      Отмена
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
+
     </div>
   )
 }

@@ -1,6 +1,7 @@
 import { Metadata } from "next"
 import Link from "next/link"
 import { ArrowLeft, HelpCircle, Search, Bookmark, History, Settings, Shield, Mail } from "lucide-react"
+import { Footer } from "@/components/layout/footer"
 
 export const metadata: Metadata = {
   title: "Помощь — Weeb.X",
@@ -110,6 +111,8 @@ export default function HelpPage() {
           </p>
         </div>
       </div>
+
+      <Footer />
     </div>
   )
 }

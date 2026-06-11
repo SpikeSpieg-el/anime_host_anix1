@@ -4,6 +4,8 @@ import { useState, useEffect } from "react"
 import { Loader2, Store, TrendingUp, TrendingDown, Minus, BarChart3, History, Package, DollarSign, Eye, Filter, RefreshCw } from "lucide-react"
 import { LineChart, Line, BarChart, Bar, PieChart, Pie, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from "recharts"
 import type { Rarity } from "@/types/gacha"
+import { frameNames, coatingNames } from "@/components/gacha/card-modifiers"
+import { Footer } from "@/components/layout/footer"
 
 interface MarketListing {
   listingId: string
@@ -446,8 +448,8 @@ export default function MarketDashboardPage() {
                                 </div>
                                 {(listing.card.frameModifier || listing.card.coatingModifier) && (
                                   <div className="flex gap-2">
-                                    {listing.card.frameModifier && <span className="text-[10px] font-black uppercase tracking-widest bg-purple-500/10 text-purple-400 px-3 py-1 rounded-lg border border-purple-500/20">🖼️ {listing.card.frameModifier}</span>}
-                                    {listing.card.coatingModifier && <span className="text-[10px] font-black uppercase tracking-widest bg-blue-500/10 text-blue-400 px-3 py-1 rounded-lg border border-blue-500/20">✨ {listing.card.coatingModifier}</span>}
+                                    {listing.card.frameModifier && <span className="text-[10px] font-black uppercase tracking-widest bg-purple-500/10 text-purple-400 px-3 py-1 rounded-lg border border-purple-500/20">🖼️ {frameNames[listing.card.frameModifier] || listing.card.frameModifier}</span>}
+                                    {listing.card.coatingModifier && <span className="text-[10px] font-black uppercase tracking-widest bg-blue-500/10 text-blue-400 px-3 py-1 rounded-lg border border-blue-500/20">✨ {coatingNames[listing.card.coatingModifier] || listing.card.coatingModifier}</span>}
                                   </div>
                                 )}
                               </div>
@@ -826,7 +828,7 @@ export default function MarketDashboardPage() {
                       return (
                         <div key={modifier} className="bg-slate-950/40 hover:bg-slate-950/60 transition-all rounded-2xl p-4 border border-slate-800/50">
                           <div className="flex justify-between items-center mb-3">
-                            <span className="text-white text-sm font-black uppercase tracking-tight">{modifier}</span>
+                            <span className="text-white text-sm font-black uppercase tracking-tight">{frameNames[modifier] || modifier}</span>
                             <span className={`text-[10px] px-2 py-0.5 rounded-full font-black ${ratio > 1.2 ? 'bg-red-500/10 text-red-400 border border-red-500/20' : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'}`}>
                               {ratio.toFixed(2)}x
                             </span>
@@ -1003,6 +1005,8 @@ export default function MarketDashboardPage() {
         )}
         </div>
       </div>
+
+      <Footer />
     </div>
   )
 }

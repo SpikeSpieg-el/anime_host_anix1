@@ -1,6 +1,7 @@
 import { Metadata } from "next"
 import Link from "next/link"
 import { ArrowLeft, Mail, MessageCircle, Github, ShieldAlert, FileText, Clock } from "lucide-react"
+import { Footer } from "@/components/layout/footer"
 
 export const metadata: Metadata = {
   title: "Контакты — Weeb.X",
@@ -173,6 +174,8 @@ export default function ContactsPage() {
           </ul>
         </div>
       </div>
+
+      <Footer />
     </div>
   )
 }

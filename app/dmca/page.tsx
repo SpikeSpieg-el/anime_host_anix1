@@ -1,6 +1,7 @@
 import { Metadata } from "next"
 import Link from "next/link"
 import { ArrowLeft, ShieldAlert, Mail, FileText } from "lucide-react"
+import { Footer } from "@/components/layout/footer"
 
 export const metadata: Metadata = {
   title: "Правообладателям (DMCA) — Weeb.X",
@@ -151,6 +152,8 @@ export default function DMCAPage() {
           </p>
         </div>
       </div>
+
+      <Footer />
     </div>
   )
 }

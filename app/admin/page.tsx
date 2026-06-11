@@ -4,6 +4,7 @@ import { useEffect, useState, useTransition } from "react"
 import { Users, Eye, Bookmark, User, Search, LogOut, Lock, Brain, Sword, Shield } from "lucide-react"
 import Image from "next/image"
 import { ScrollToTop } from "@/components/layout/scroll-to-top"
+import { Footer } from "@/components/layout/footer"
 import { adminLogin, adminLogout, checkAdminAuth, getAdminUsers } from "./actions"
 
 interface UserProfile {
@@ -574,6 +575,7 @@ export default function AdminPage() {
       </div>
 
       <ScrollToTop />
+      <Footer />
     </div>
   )
 }

@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation"
 import { useState } from "react"
 import { Navbar } from "@/components/layout/navbar"
+import { Footer } from "@/components/layout/footer"
 import { Sparkles, Star, Heart, Loader2, X, ZoomIn, ExternalLink, RefreshCcw, Trash, Trash2, Crown, Package, Coins, Search, Database, Store, Share, Swords, Wrench } from "lucide-react"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { ANIME_PACKS } from "@/lib/gacha-packs"
@@ -1449,7 +1450,7 @@ export default function GachaPage() {
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
-        <AlertDialogContent className="bg-slate-900 border-slate-700/50 w-[95vw] max-w-md rounded-2xl sm:rounded-3xl p-5 sm:p-6 shadow-2xl">
+        <AlertDialogContent className="bg-slate-900 border-slate-700/50 w-[90vw] max-w-[90vw] sm:max-w-md rounded-2xl sm:rounded-3xl p-5 sm:p-6 shadow-2xl">
           <AlertDialogHeader className="space-y-3">
             <AlertDialogTitle className="text-xl sm:text-2xl font-black text-white">Удалить карту?</AlertDialogTitle>
             <AlertDialogDescription className="text-slate-400 text-sm sm:text-base leading-relaxed">
@@ -1535,6 +1536,8 @@ export default function GachaPage() {
           </button>
         </div>
       </div>
+
+      <Footer />
     </div>
   )
 }

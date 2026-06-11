@@ -3,6 +3,7 @@
 import { useTVMode } from '@/hooks/use-tv-mode'
 import { TVHomePage } from '@/components/tv/tv-home-page'
 import { Navbar } from '@/components/layout/navbar'
+import { Footer } from '@/components/layout/footer'
 import { FloatingNav } from '@/components/layout/floating-nav'
 import { HeroBanner } from './hero-banner'
 import { HeroBannerSkeleton } from '@/components/shared/skeleton'
@@ -123,6 +124,7 @@ export function HomePageWrapper({
         )}
       </section>
       <HomePageClient initialData={initialData} />
+      <Footer />
     </main>
   )
 }
