@@ -1,4 +1,4 @@
-import React, { useState } from "react"
+import React, { useState, useEffect } from "react"
 import Image from "next/image"
 import { Loader2, Crown, RefreshCcw } from "lucide-react"
 import { Card } from "../types"
@@ -12,6 +12,14 @@ interface CollectionCardProps {
 
 export const CollectionCard = ({ card, onClick }: CollectionCardProps) => {
   const [isImageLoading, setIsImageLoading] = useState(true)
+
+  // Fallback: hide spinner after 3 seconds to prevent infinite loading
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsImageLoading(false)
+    }, 3000)
+    return () => clearTimeout(timer)
+  }, [])
 
   return (
     <div
@@ -33,8 +41,11 @@ export const CollectionCard = ({ card, onClick }: CollectionCardProps) => {
               loading="lazy"
               referrerPolicy="no-referrer"
               style={{ zIndex: 0 }}
-              onError={(e) => handleImageError(e, card, true)}
-              onLoad={() => setIsImageLoading(false)}
+              onError={(e) => {
+                handleImageError(e, card, true)
+                setIsImageLoading(false)
+              }}
+              onLoadingComplete={() => setIsImageLoading(false)}
             />
           )}
 
@@ -82,8 +93,11 @@ export const CollectionCard = ({ card, onClick }: CollectionCardProps) => {
           quality={50}
           loading="lazy"
           referrerPolicy="no-referrer"
-          onError={(e) => handleImageError(e, card, true)}
-          onLoad={() => setIsImageLoading(false)}
+          onError={(e) => {
+            handleImageError(e, card, true)
+            setIsImageLoading(false)
+          }}
+          onLoadingComplete={() => setIsImageLoading(false)}
         />
       )}
       

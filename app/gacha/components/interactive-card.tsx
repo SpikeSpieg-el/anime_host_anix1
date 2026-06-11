@@ -65,7 +65,17 @@ export const InteractiveCard = ({ card, forceFlipped = false }: InteractiveCardP
       vfx: !card.imageLayers?.[2]
     })
 
-    return () => clearTimeout(timer)
+    // Fallback: hide spinner after 3 seconds for regular cards
+    const fallbackTimer = setTimeout(() => {
+      if (!card.imageLayers || !card.imageLayers.some(l => l)) {
+        setIsImageLoading(false)
+      }
+    }, 3000)
+
+    return () => {
+      clearTimeout(timer)
+      clearTimeout(fallbackTimer)
+    }
   }, [card.imageUrl, card.uniqueId, card.imageLayers])
   
   useEffect(() => {

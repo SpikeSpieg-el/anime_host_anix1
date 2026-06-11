@@ -129,8 +129,11 @@ export function CanvasImage({
 
     img.onload = (e) => {
       setIsLoaded(true)
-      drawImage()
-      onLoad?.()
+      // Ensure canvas is ready before drawing and calling onLoad
+      requestAnimationFrame(() => {
+        drawImage()
+        onLoad?.()
+      })
     }
 
     img.onerror = (e) => {
