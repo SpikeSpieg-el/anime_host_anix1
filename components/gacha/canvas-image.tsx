@@ -23,6 +23,31 @@ export function CanvasImage({
   objectFit = 'cover',
   opacity = 1
 }: CanvasImageProps) {
+  const isGif = src.toLowerCase().includes('.gif')
+
+  // For GIFs, use regular img tag for native animation support
+  if (isGif) {
+    return (
+      <img
+        src={src}
+        alt={alt}
+        className={className}
+        style={{
+          ...style,
+          width: '100%',
+          height: '100%',
+          objectFit,
+          opacity,
+          display: 'block',
+          borderRadius: 'inherit'
+        }}
+        onLoad={onLoad}
+        onError={onError}
+      />
+    )
+  }
+
+  // For static images, use Canvas for GPU acceleration
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const imageRef = useRef<HTMLImageElement | null>(null)
   const animationFrameRef = useRef<number | undefined>(undefined)
@@ -125,6 +150,15 @@ export function CanvasImage({
 
     window.addEventListener('resize', handleResize)
 
+    // Для GIF: запускаем непрерывную анимацию
+    if (isGif) {
+      const animate = () => {
+        drawImage()
+        animationFrameRef.current = requestAnimationFrame(animate)
+      }
+      animationFrameRef.current = requestAnimationFrame(animate)
+    }
+
     return () => {
       window.removeEventListener('resize', handleResize)
       if (animationFrameRef.current) {
@@ -135,7 +169,7 @@ export function CanvasImage({
         imageRef.current.onerror = null
       }
     }
-  }, [src, objectFit, opacity, onLoad, onError])
+  }, [src, objectFit, opacity, onLoad, onError, isGif])
 
   return (
     <canvas
