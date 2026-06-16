@@ -188,6 +188,7 @@ npm start
 - [Anilist](https://anilist.co) - за дополнительные изображения
 - [Supabase](https://supabase.com) - за backend и аутентификацию
 - [Vercel](https://vercel.com) - за платформу развертывания
+- [Consumer](https://consumet.org) - за API для получения ссылок
 - Сообществу разработчиков за вдохновение и идеи
 
 ---

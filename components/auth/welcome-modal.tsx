@@ -52,6 +52,14 @@ const customStyles = `
       height: 2.75rem !important;
     }
   }
+  @media (max-width: 380px) {
+    .welcome-card-content {
+      padding: 0.75rem !important;
+    }
+    .welcome-features-container > div {
+      padding: 0.4rem 0.6rem !important;
+    }
+  }
 `
 
 // --- Класс Частицы ---
@@ -186,7 +194,7 @@ export function WelcomeModal() {
       >
         {/* Сама карточка модалки */}
         <div 
-          className={`relative w-full h-auto max-h-[95vh] sm:max-h-[90vh] md:max-h-[85vh] lg:max-h-[80vh] max-w-[95vw] sm:max-w-[420px] md:max-w-[450px] lg:max-w-[480px] bg-card rounded-[1.5rem] sm:rounded-[2rem] overflow-y-auto no-scrollbar shadow-2xl border border-border transition-all duration-500 ease-out transform ${
+          className={`relative w-full h-auto max-h-[95vh] sm:max-h-[90vh] md:max-h-[85vh] lg:max-h-[80vh] max-w-[95vw] sm:max-w-[400px] md:max-w-[450px] lg:max-w-[480px] bg-card rounded-[1.25rem] sm:rounded-[1.5rem] md:rounded-[2rem] overflow-y-auto no-scrollbar shadow-2xl border border-border transition-all duration-500 ease-out transform ${
             isOpen ? "scale-100 opacity-100" : "scale-95 opacity-0"
           }`}
         >
@@ -214,55 +222,66 @@ export function WelcomeModal() {
           </div>
 
           {/* --- КОНТЕНТ --- */}
-          <div className="relative z-20 flex flex-col justify-between min-h-full p-4 sm:p-6 md:p-8 welcome-card-content">
+          <div className="relative z-20 flex flex-col justify-between min-h-full p-3 sm:p-5 md:p-7 lg:p-8 welcome-card-content">
             
             {/* Логотип */}
-            <div className="flex justify-center pt-2 sm:pt-4 welcome-logo-container">
+            <div className="flex justify-center pt-1 sm:pt-3 md:pt-4 welcome-logo-container">
               <div className="relative group cursor-default">
                 {/* Свечение */}
-                <div className="absolute -inset-1 bg-gradient-to-r from-orange-600 to-purple-600 rounded-xl blur opacity-20 group-hover:opacity-40 transition duration-1000" />
+                <div className="absolute -inset-2 sm:-inset-3 bg-gradient-to-r from-orange-500 via-orange-600 to-purple-600 rounded-2xl blur-xl opacity-30 group-hover:opacity-50 transition duration-1000 animate-pulse" />
                 
                 {/* Иконка */}
-                <div className="relative w-10 h-10 sm:w-12 sm:h-12 bg-card/50 backdrop-blur-md border border-border rounded-xl flex items-center justify-center shadow-lg">
-                  <Zap className="w-5 h-5 sm:w-6 sm:h-6 text-orange-500 fill-orange-500/20" />
+                <div className="relative w-14 h-14 sm:w-16 sm:h-16 md:w-20 md:h-20 bg-gradient-to-br from-orange-500/20 to-purple-500/20 backdrop-blur-xl border-2 border-orange-500/30 rounded-2xl flex items-center justify-center shadow-2xl">
+                  <Zap className="w-7 h-7 sm:w-8 sm:h-8 md:w-10 md:h-10 text-orange-400 fill-orange-400/20" />
                 </div>
               </div>
             </div>
 
             {/* Текст и кнопки */}
-            <div className="flex flex-col items-center text-center space-y-6 sm:space-y-8 pb-2 sm:pb-4 welcome-text-container">
+            <div className="flex flex-col items-center text-center space-y-4 sm:space-y-6 md:space-y-8 pb-2 sm:pb-4 welcome-text-container">
               
               {/* Заголовки */}
-              <div className="space-y-2 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-100">
-                <h2 className="text-3xl sm:text-4xl font-black text-foreground tracking-tighter leading-none drop-shadow-2xl font-unbounded">
-                  Weeb.<span className="text-transparent bg-clip-text bg-gradient-to-br from-orange-400 to-orange-600">X</span>
+              <div className="space-y-1.5 sm:space-y-2 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-100">
+                <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-black text-foreground tracking-tighter leading-none drop-shadow-2xl font-unbounded">
+                  Weeb.<span className="text-transparent bg-clip-text bg-gradient-to-br from-orange-400 via-orange-500 to-purple-600">X</span>
                 </h2>
-                <p className="text-muted-foreground text-[10px] sm:text-xs font-bold uppercase tracking-[0.2em] sm:tracking-[0.3em]">
-                  Premium Anime Stream
+                <p className="text-muted-foreground text-[9px] sm:text-[10px] md:text-xs font-bold uppercase tracking-[0.15em] sm:tracking-[0.2em] md:tracking-[0.3em]">
+                  Аниме без границ
                 </p>
               </div>
 
               {/* Преимущества (Список) */}
-              <div className="w-full space-y-2.5 sm:space-y-3 welcome-features-container animate-in fade-in slide-in-from-bottom-4 duration-700 delay-200">
+              <div className="w-full space-y-2 sm:space-y-2.5 md:space-y-3 welcome-features-container animate-in fade-in slide-in-from-bottom-4 duration-700 delay-200">
                 {/* Карточка 1 */}
-                <div className="flex items-center gap-3 sm:gap-4 bg-muted/5 border border-border p-3 sm:p-3.5 rounded-2xl backdrop-blur-sm hover:bg-muted/10 transition-colors cursor-default group">
-                  <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-orange-500/10 flex items-center justify-center shrink-0 border border-orange-500/20">
-                    <PlayCircle className="w-4 h-4 sm:w-5 sm:h-5 text-orange-500" />
+                <div className="flex items-center gap-2.5 sm:gap-3 md:gap-4 bg-muted/5 border border-border p-2.5 sm:p-3 md:p-3.5 rounded-2xl backdrop-blur-sm hover:bg-muted/10 transition-colors cursor-default group">
+                  <div className="w-7 h-7 sm:w-8 sm:h-8 md:w-9 md:h-9 rounded-full bg-orange-500/10 flex items-center justify-center shrink-0 border border-orange-500/20">
+                    <PlayCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4 md:w-5 md:h-5 text-orange-500" />
                   </div>
                   <div className="text-left">
-                    <div className="text-foreground text-xs sm:text-sm font-bold group-hover:text-orange-200 transition-colors">Без рекламы</div>
-                    <div className="text-muted-foreground text-[10px] sm:text-xs">Ничто не отвлечет от просмотра</div>
+                    <div className="text-foreground text-[10px] sm:text-xs md:text-sm font-bold group-hover:text-orange-200 transition-colors">Без рекламы</div>
+                    <div className="text-muted-foreground text-[9px] sm:text-[10px] md:text-xs">Смотри без прерываний</div>
                   </div>
                 </div>
                 
                 {/* Карточка 2 */}
-                <div className="flex items-center gap-3 sm:gap-4 bg-muted/5 border border-border p-3 sm:p-3.5 rounded-2xl backdrop-blur-sm hover:bg-muted/10 transition-colors cursor-default group">
-                  <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-blue-500/10 flex items-center justify-center shrink-0 border border-blue-500/20">
-                    <Star className="w-4 h-4 sm:w-5 sm:h-5 text-blue-400" />
+                <div className="flex items-center gap-2.5 sm:gap-3 md:gap-4 bg-muted/5 border border-border p-2.5 sm:p-3 md:p-3.5 rounded-2xl backdrop-blur-sm hover:bg-muted/10 transition-colors cursor-default group">
+                  <div className="w-7 h-7 sm:w-8 sm:h-8 md:w-9 md:h-9 rounded-full bg-purple-500/10 flex items-center justify-center shrink-0 border border-purple-500/20">
+                    <Star className="w-3.5 h-3.5 sm:w-4 sm:h-4 md:w-5 md:h-5 text-purple-400" />
                   </div>
                   <div className="text-left">
-                    <div className="text-foreground text-xs sm:text-sm font-bold group-hover:text-blue-200 transition-colors">Лучший подбор</div>
-                    <div className="text-muted-foreground text-[10px] sm:text-xs">Только топовые тайтлы сезона</div>
+                    <div className="text-foreground text-[10px] sm:text-xs md:text-sm font-bold group-hover:text-purple-200 transition-colors">HD качество</div>
+                    <div className="text-muted-foreground text-[9px] sm:text-[10px] md:text-xs">Кристально чистая картинка</div>
+                  </div>
+                </div>
+
+                {/* Карточка 3 */}
+                <div className="flex items-center gap-2.5 sm:gap-3 md:gap-4 bg-muted/5 border border-border p-2.5 sm:p-3 md:p-3.5 rounded-2xl backdrop-blur-sm hover:bg-muted/10 transition-colors cursor-default group">
+                  <div className="w-7 h-7 sm:w-8 sm:h-8 md:w-9 md:h-9 rounded-full bg-blue-500/10 flex items-center justify-center shrink-0 border border-blue-500/20">
+                    <Zap className="w-3.5 h-3.5 sm:w-4 sm:h-4 md:w-5 md:h-5 text-blue-400" />
+                  </div>
+                  <div className="text-left">
+                    <div className="text-foreground text-[10px] sm:text-xs md:text-sm font-bold group-hover:text-blue-200 transition-colors">Быстрый стрим</div>
+                    <div className="text-muted-foreground text-[9px] sm:text-[10px] md:text-xs">Мгновенная загрузка</div>
                   </div>
                 </div>
               </div>
@@ -271,10 +290,10 @@ export function WelcomeModal() {
               <div className="w-full pt-1 sm:pt-2 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-300">
                 <button
                   onClick={handleStart}
-                  className="w-full h-12 sm:h-14 bg-primary text-primary-foreground hover:bg-primary/90 hover:scale-[1.02] active:scale-[0.98] text-xs sm:text-sm font-bold rounded-2xl shadow-xl shadow-primary/20 transition-all duration-300 flex items-center justify-center gap-2 group outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 focus:ring-offset-card"
+                  className="w-full h-10 sm:h-12 md:h-14 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white hover:scale-[1.02] active:scale-[0.98] text-[10px] sm:text-xs md:text-sm font-bold rounded-2xl shadow-xl shadow-orange-500/30 transition-all duration-300 flex items-center justify-center gap-2 group outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 focus:ring-offset-card"
                 >
-                  Смотреть бесплатно
-                  <ChevronRight className="w-3.5 h-3.5 sm:w-4 sm:h-4 group-hover:translate-x-1 transition-transform" />
+                  Начать смотреть
+                  <ChevronRight className="w-3 h-3 sm:w-3.5 sm:h-3.5 md:w-4 md:h-4 group-hover:translate-x-1 transition-transform" />
                 </button>
               </div>
 
@@ -282,10 +301,10 @@ export function WelcomeModal() {
               <div className="w-full animate-in fade-in slide-in-from-bottom-4 duration-700 delay-400">
                 <button
                   onClick={handleSignUp}
-                  className="w-full h-10 sm:h-12 bg-transparent text-foreground hover:bg-muted/5 hover:border-border border border-border text-xs sm:text-sm font-medium rounded-2xl transition-all duration-300 flex items-center justify-center gap-2 group outline-none focus:ring-2 focus:ring-border focus:ring-offset-2 focus:ring-offset-card"
+                  className="w-full h-9 sm:h-10 md:h-12 bg-transparent text-foreground hover:bg-muted/10 hover:border-orange-500/50 border border-border text-[10px] sm:text-xs md:text-sm font-medium rounded-2xl transition-all duration-300 flex items-center justify-center gap-2 group outline-none focus:ring-2 focus:ring-border focus:ring-offset-2 focus:ring-offset-card"
                 >
-                  Войти / Зарегистрироваться
-                  <ChevronRight className="w-3.5 h-3.5 sm:w-4 sm:h-4 group-hover:translate-x-1 transition-transform" />
+                  Войти в аккаунт
+                  <ChevronRight className="w-3 h-3 sm:w-3.5 sm:h-3.5 md:w-4 md:h-4 group-hover:translate-x-1 transition-transform" />
                 </button>
               </div>
 

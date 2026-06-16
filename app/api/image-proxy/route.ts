@@ -7,7 +7,12 @@ const ALLOWED_HOSTS = [
   'safebooru.org',
   'zerochan.net',
   's3.zerochan.net',
-  'shikimori.one'
+  'shikimori.one',
+  'mixlib.me',
+  'mangalib.me',
+  'remanga.org',
+  'reimg2.org',
+  'img.reimg.org'
 ];
 
 export async function GET(req: NextRequest) {
@@ -32,30 +37,56 @@ export async function GET(req: NextRequest) {
   try {
     // Set appropriate headers based on the domain
     let referer = 'https://www.pinterest.com/'
+    let origin: string | undefined = undefined;
     if (parsed.hostname.includes('konachan.net')) {
       referer = 'https://konachan.net/'
     } else if (parsed.hostname.includes('safebooru.org')) {
       referer = 'https://safebooru.org/'
     } else if (parsed.hostname.includes('zerochan.net') || parsed.hostname.includes('s3.zerochan.net')) {
       referer = 'https://www.zerochan.net/'
+    } else if (parsed.hostname.includes('mixlib.me') || parsed.hostname.includes('mangalib.me')) {
+      referer = 'https://mangalib.me/'
     } else if (parsed.hostname.includes('shikimori.one')) {
       referer = 'https://shikimori.one/'
+    } else if (parsed.hostname.includes('remanga.org') || parsed.hostname.includes('reimg2.org') || parsed.hostname.includes('img.reimg.org')) {
+      referer = 'https://remanga.org/'
+      origin = 'https://remanga.org'
     }
 
-    const res = await fetch(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Referer': referer,
-        'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.9',
-        'Accept-Encoding': 'gzip, deflate, br',
-        'DNT': '1',
-        'Connection': 'keep-alive',
-        'Sec-Fetch-Dest': 'image',
-        'Sec-Fetch-Mode': 'no-cors',
-        'Sec-Fetch-Site': 'cross-site',
-      },
-    });
+    const headers: Record<string, string> = {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      'Referer': referer,
+      'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+      'Accept-Language': 'en-US,en;q=0.9',
+      'Accept-Encoding': 'gzip, deflate, br',
+      'DNT': '1',
+      'Connection': 'keep-alive',
+      'Sec-Fetch-Dest': 'image',
+      'Sec-Fetch-Mode': 'no-cors',
+      'Sec-Fetch-Site': 'cross-site',
+    };
+    if (origin) {
+      headers['Origin'] = origin;
+    }
+
+    // Try additional headers for reimg2.org and img.reimg.org to bypass hotlink protection
+    if (parsed.hostname.includes('reimg2.org') || parsed.hostname.includes('img.reimg.org')) {
+      // For img.reimg.org, use the exact same headers that work for the Remanga API
+      if (parsed.hostname.includes('img.reimg.org')) {
+        const remangaApiHeaders: Record<string, string> = {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Referer': 'https://remanga.org/',
+          'Origin': 'https://remanga.org',
+        };
+        Object.keys(headers).forEach(key => delete headers[key]);
+        Object.assign(headers, remangaApiHeaders);
+      } else {
+        headers['Sec-Fetch-Site'] = 'same-site';
+        headers['Sec-Fetch-Mode'] = 'cors';
+      }
+    }
+
+    const res = await fetch(url, { headers });
 
     if (!res.ok) {
       console.error('[image-proxy] Upstream error:', res.status, res.statusText);
@@ -91,7 +122,7 @@ export async function GET(req: NextRequest) {
 
     // Additional check: detect gradient placeholders by analyzing color variance
     // Gradient placeholders typically have very low color variance
-    if (contentType.includes('image/')) {
+    if (contentType.includes('image/') && !parsed.hostname.includes('remanga.org') && !parsed.hostname.includes('reimg2.org') && !parsed.hostname.includes('mixlib.me') && !parsed.hostname.includes('mangalib.me')) {
       let colorVariance = 0;
       const sampleSize = Math.min(1000, buffer.byteLength);
       for (let i = 0; i < sampleSize - 3; i += 4) {
