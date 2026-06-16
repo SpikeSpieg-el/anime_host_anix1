@@ -119,13 +119,16 @@ export async function searchRemangaSlug(title: string, altTitles: string[] = [])
 
 export async function getRemangaChaptersBySlug(slug: string): Promise<RemangaChapter[]> {
   try {
+    // Clean up slug: remove trailing underscores, dashes, and spaces
+    const cleanedSlug = slug.replace(/[_\-]+$/, '').trim();
+    
     // 1. Get title details to fetch the branches (translation groups)
-    const detailUrl = `${REMANGA_API_BASE}/titles/${slug}/`;
+    const detailUrl = `${REMANGA_API_BASE}/titles/${cleanedSlug}/`;
     const details = await fetchRemanga<{ content?: { branches?: Array<{ id: number }> } }>(detailUrl);
     
     const branchId = details.content?.branches?.[0]?.id;
     if (!branchId) {
-      console.warn('[Remanga] No branch found for slug:', slug);
+      console.warn('[Remanga] No branch found for slug:', cleanedSlug, '(original:', slug, ')');
       return [];
     }
 
@@ -183,15 +186,8 @@ export async function getRemangaChapterPages(chapterId: string): Promise<string[
       .map(p => p?.[0]?.link)
       .filter(Boolean);
 
-    // Filter out all reimg2.org subdomains (img.reimg.org, img3.reimg2.org, etc.) due to impenetrable hotlink protection
-    // These images will always return 403 Forbidden
-    const filteredPages = pages.filter(url => !url.includes('reimg2.org') && !url.includes('reimg.org'));
-    
-    if (filteredPages.length === 0 && pages.length > 0) {
-      console.warn('[Remanga] All pages filtered out due to reimg.org hotlink protection');
-    }
-    
-    return filteredPages;
+    // Return all pages - reimg.org protection is now handled by the image proxy with proper referers
+    return pages;
   } catch (error) {
     console.error('[Remanga] Error getting chapter pages:', error);
     return [];

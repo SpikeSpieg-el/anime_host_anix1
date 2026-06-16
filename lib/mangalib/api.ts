@@ -1,27 +1,67 @@
-const MANGALIB_API_BASE = 'https://api.mangalib.me/api';
+const MANGALIB_PROXY_BASE = '/api/manga/mangalib';
 
+// Расширенный интерфейс главы (добавлено поле volume)
 export interface MangalibChapter {
   id: string;
   chapter: string;
+  volume?: string;
   title?: string;
   lang: string;
   provider: 'mangalib';
 }
 
-async function fetchMangalib<T>(url: string): Promise<T> {
-  const response = await fetch(url, {
-    headers: {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      'Referer': 'https://mangalib.me/',
-      'Origin': 'https://mangalib.me'
+// Интерфейсы для типизации API MangaLib
+interface MangalibSearchResult {
+  id: number;
+  slug: string;
+  rus_name: string;
+  en_name: string;
+}
+
+interface MangalibBranch {
+  id: number;
+  name?: string;
+}
+
+interface MangalibMangaDetails {
+  data?: {
+    branches?: MangalibBranch[];
+  };
+}
+
+interface MangalibChapterResponseItem {
+  id: number;
+  chapter: string;
+  volume?: string;
+  name?: string;
+}
+
+async function fetchMangalib<T>(endpoint: string, retries: number = 3): Promise<T> {
+  let lastError: Error | null = null;
+  
+  for (let attempt = 0; attempt < retries; attempt++) {
+    try {
+      const url = `${MANGALIB_PROXY_BASE}?endpoint=${encodeURIComponent(endpoint)}`;
+      console.log(`[Mangalib] Fetching via proxy: ${url} (attempt ${attempt + 1}/${retries})`);
+      
+      const response = await fetch(url);
+
+      if (!response.ok) {
+        throw new Error(`Mangalib API error: ${response.status}`);
+      }
+
+      return response.json() as Promise<T>;
+    } catch (error) {
+      lastError = error as Error;
+      console.warn(`[Mangalib] Fetch attempt ${attempt + 1}/${retries} failed:`, error);
+      
+      if (attempt < retries - 1) {
+        await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
+      }
     }
-  });
-
-  if (!response.ok) {
-    throw new Error(`Mangalib API error: ${response.status}`);
   }
-
-  return response.json() as Promise<T>;
+  
+  throw lastError || new Error('Mangalib API: Max retries exceeded');
 }
 
 function normalizeTitle(t: string): string {
@@ -31,13 +71,6 @@ function normalizeTitle(t: string): string {
     .trim();
 }
 
-interface MangalibSearchResult {
-  id: number;
-  slug: string;
-  rus_name: string;
-  en_name: string;
-}
-
 export async function searchMangalibSlug(title: string, altTitles: string[] = []): Promise<string | null> {
   try {
     const allSearchQueries = [title, ...altTitles].filter(Boolean);
@@ -45,36 +78,42 @@ export async function searchMangalibSlug(title: string, altTitles: string[] = []
 
     console.log(`[Mangalib] Searching for:`, allSearchQueries.slice(0, 3));
 
-    let firstFallbackSlug: string | null = null;
+    const queriesToExecute = allSearchQueries.slice(0, 5);
+    
+    // Оптимизация: Выполняем поисковые запросы параллельно
+    const searchPromises = queriesToExecute.map(async (query) => {
+      const endpoint = `/search/?query=${encodeURIComponent(query)}&page=1`;
+      try {
+        const res = await fetchMangalib<{ data?: MangalibSearchResult[] }>(endpoint);
+        return res.data || [];
+      } catch (err) {
+        console.warn(`[Mangalib] Search request failed for query "${query}":`, err);
+        return [];
+      }
+    });
+
+    const resultsArray = await Promise.all(searchPromises);
+    
     const seenSlugs = new Set<string>();
     const allResults: MangalibSearchResult[] = [];
+    let firstFallbackSlug: string | null = null;
 
-    // Fetch search results for queries (limit to top 5 search queries)
-    for (const query of allSearchQueries.slice(0, 5)) {
-      const url = `${MANGALIB_API_BASE}/search/?query=${encodeURIComponent(query)}&page=1`;
-      console.log(`[Mangalib] Searching query: "${query}"`);
-      const res = await fetchMangalib<{ data?: Array<MangalibSearchResult> }>(url);
-      
-      if (res.data && res.data.length > 0) {
-        console.log(`[Mangalib] Found ${res.data.length} results for "${query}"`);
-        if (!firstFallbackSlug) {
-          firstFallbackSlug = res.data[0].slug;
+    // Собираем результаты в один плоский массив уникальных тайтлов
+    for (const results of resultsArray) {
+      if (results.length > 0 && !firstFallbackSlug) {
+        firstFallbackSlug = results[0].slug;
+      }
+      for (const item of results) {
+        if (!seenSlugs.has(item.slug)) {
+          seenSlugs.add(item.slug);
+          allResults.push(item);
         }
-
-        for (const item of res.data) {
-          if (!seenSlugs.has(item.slug)) {
-            seenSlugs.add(item.slug);
-            allResults.push(item);
-          }
-        }
-      } else {
-        console.log(`[Mangalib] No results for "${query}"`);
       }
     }
 
     console.log(`[Mangalib] Total unique results collected: ${allResults.length}`);
 
-    // Find exact match among the collected results
+    // 1. Поиск точного совпадения
     for (const item of allResults) {
       const normRus = normalizeTitle(item.rus_name || '');
       const normEn = normalizeTitle(item.en_name || '');
@@ -85,12 +124,12 @@ export async function searchMangalibSlug(title: string, altTitles: string[] = []
         normalizedInputTitles.has(normEn) ||
         normalizedInputTitles.has(normSlug)
       ) {
-        console.log(`[Mangalib] Exact match found! Slug: ${item.slug} matching title: "${item.en_name}" / "${item.rus_name}"`);
+        console.log(`[Mangalib] Exact match found! Slug: ${item.slug}`);
         return item.slug;
       }
     }
 
-    // Try partial matching
+    // 2. Частичное совпадение
     for (const item of allResults) {
       const normRus = normalizeTitle(item.rus_name || '');
       const normEn = normalizeTitle(item.en_name || '');
@@ -98,7 +137,7 @@ export async function searchMangalibSlug(title: string, altTitles: string[] = []
       for (const inputTitle of normalizedInputTitles) {
         if (inputTitle.length > 3) {
           if (normRus.includes(inputTitle) || normEn.includes(inputTitle) || inputTitle.includes(normRus) || inputTitle.includes(normEn)) {
-            console.log(`[Mangalib] Partial match found! Slug: ${item.slug} matching: "${item.en_name}" / "${item.rus_name}"`);
+            console.log(`[Mangalib] Partial match found! Slug: ${item.slug}`);
             return item.slug;
           }
         }
@@ -118,26 +157,34 @@ export async function searchMangalibSlug(title: string, altTitles: string[] = []
   }
 }
 
-export async function getMangalibChaptersBySlug(slug: string): Promise<MangalibChapter[]> {
+export async function getMangalibChaptersBySlug(
+  slug: string, 
+  maxChaptersLimit: number = 3000 // Увеличен лимит для сверхдлинных тайтлов
+): Promise<MangalibChapter[]> {
   try {
-    // Get title details to fetch the branch
-    const detailUrl = `${MANGALIB_API_BASE}/manga/${slug}/`;
-    const details = await fetchMangalib<{ data?: { branches?: Array<{ id: number }> } }>(detailUrl);
+    const cleanedSlug = slug.replace(/[_\-]+$/, '').trim();
+    
+    if (cleanedSlug.length <= 2 || /^(ru|en|ja|ko|zh|es|fr|de|it|pt|pl|tr|ar|vi|th|id|ms|hi|bn|uk|be|kk|uz)$/.test(cleanedSlug)) {
+      console.warn('[Mangalib] Invalid slug:', cleanedSlug);
+      return [];
+    }
+    
+    const detailEndpoint = `/manga/${cleanedSlug}/`;
+    const details = await fetchMangalib<MangalibMangaDetails>(detailEndpoint);
     
     const branchId = details.data?.branches?.[0]?.id;
     if (!branchId) {
-      console.warn('[Mangalib] No branch found for slug:', slug);
+      console.warn('[Mangalib] No branch found for slug:', cleanedSlug);
       return [];
     }
 
-    // Fetch all chapters for the branch
-    let allChapters: Array<{ id: number; chapter: string; name?: string }> = [];
+    let allChapters: MangalibChapterResponseItem[] = [];
     let page = 1;
     let hasMore = true;
 
     while (hasMore) {
-      const chaptersUrl = `${MANGALIB_API_BASE}/manga/${slug}/chapters/?branch_id=${branchId}&limit=100&page=${page}`;
-      const chaptersRes = await fetchMangalib<{ data?: Array<{ id: number; chapter: string; name?: string }> }>(chaptersUrl);
+      const chaptersEndpoint = `/manga/${cleanedSlug}/chapters/?branch_id=${branchId}&limit=100&page=${page}`;
+      const chaptersRes = await fetchMangalib<{ data?: MangalibChapterResponseItem[] }>(chaptersEndpoint);
       
       if (!chaptersRes.data || !Array.isArray(chaptersRes.data) || chaptersRes.data.length === 0) {
         break;
@@ -145,22 +192,19 @@ export async function getMangalibChaptersBySlug(slug: string): Promise<MangalibC
 
       allChapters = allChapters.concat(chaptersRes.data);
       
-      if (chaptersRes.data.length < 100 || allChapters.length >= 1500) {
+      if (chaptersRes.data.length < 100 || allChapters.length >= maxChaptersLimit) {
         hasMore = false;
       } else {
         page++;
       }
     }
 
-    if (allChapters.length === 0) {
-      return [];
-    }
-
     return allChapters.map(ch => ({
       id: ch.id.toString(),
       chapter: ch.chapter,
+      volume: ch.volume,
       title: ch.name || undefined,
-      lang: 'ru', // Mangalib translations are in Russian
+      lang: 'ru',
       provider: 'mangalib' as const
     }));
   } catch (error) {
@@ -171,18 +215,16 @@ export async function getMangalibChaptersBySlug(slug: string): Promise<MangalibC
 
 export async function getMangalibChapterPages(chapterId: string): Promise<string[]> {
   try {
-    const url = `${MANGALIB_API_BASE}/chapter/${chapterId}/`;
-    const res = await fetchMangalib<{ data?: { pages?: Array<{ link: string }> } }>(url);
+    const endpoint = `/chapter/${chapterId}/`;
+    const res = await fetchMangalib<{ data?: { pages?: Array<{ link: string }> } }>(endpoint);
     
     if (!res.data?.pages || !Array.isArray(res.data.pages)) {
       return [];
     }
 
-    const pages = res.data.pages
+    return res.data.pages
       .map(p => p?.link)
       .filter(Boolean);
-
-    return pages;
   } catch (error) {
     console.error('[Mangalib] Error getting chapter pages:', error);
     return [];

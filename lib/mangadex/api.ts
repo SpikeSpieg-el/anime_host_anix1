@@ -108,7 +108,7 @@ export interface MangaChapter {
   translatedLanguage: string;
 }
 
-async function fetchMangaDex<T>(endpoint: string, params: Record<string, string | string[]> = {}): Promise<T> {
+async function fetchMangaDex<T>(endpoint: string, params: Record<string, string | string[]> = {}, retries: number = 3): Promise<T> {
   const url = new URL(`${MANGADEX_API_BASE}${endpoint}`);
   Object.entries(params).forEach(([key, value]) => {
     if (Array.isArray(value)) {
@@ -122,36 +122,46 @@ async function fetchMangaDex<T>(endpoint: string, params: Record<string, string 
 
   console.log(`[MangaDex] Fetching: ${url.toString()}`);
 
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 10000);
+  let lastError: Error | null = null;
+  
+  for (let attempt = 0; attempt < retries; attempt++) {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10000);
 
-  try {
-    const response = await fetch(url.toString(), {
-      headers: {
-        'User-Agent': 'MangaReader/1.0',
-        'Accept': 'application/json',
-      },
-      signal: controller.signal,
-    });
+      const response = await fetch(url.toString(), {
+        headers: {
+          'User-Agent': 'MangaReader/1.0',
+          'Accept': 'application/json',
+        },
+        signal: controller.signal,
+      });
 
-    clearTimeout(timeout);
+      clearTimeout(timeout);
 
-    if (!response.ok) {
-      let errorDetails = '';
-      try {
-        errorDetails = await response.text();
-      } catch (e) {}
-      throw new Error(`MangaDex API error: ${response.status} - ${errorDetails}`);
+      if (!response.ok) {
+        let errorDetails = '';
+        try {
+          errorDetails = await response.text();
+        } catch (e) {}
+        throw new Error(`MangaDex API error: ${response.status} - ${errorDetails}`);
+      }
+
+      const data = await response.json();
+      console.log(`[MangaDex] Response received for ${endpoint}`);
+      return data;
+    } catch (error) {
+      lastError = error as Error;
+      console.warn(`[MangaDex] Fetch attempt ${attempt + 1}/${retries} failed:`, error);
+      
+      if (attempt < retries - 1) {
+        await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
+      }
     }
-
-    const data = await response.json();
-    console.log(`[MangaDex] Response received for ${endpoint}`);
-    return data;
-  } catch (error) {
-    clearTimeout(timeout);
-    console.error(`[MangaDex] Fetch error for ${url.toString()}:`, error);
-    throw error;
   }
+  
+  console.error(`[MangaDex] Fetch error for ${url.toString()} after ${retries} retries:`, lastError);
+  throw lastError || new Error('MangaDex API: Max retries exceeded');
 }
 
 function isCyrillic(text: string): boolean {

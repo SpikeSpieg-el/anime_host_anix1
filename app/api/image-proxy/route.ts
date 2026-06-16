@@ -12,7 +12,8 @@ const ALLOWED_HOSTS = [
   'mangalib.me',
   'remanga.org',
   'reimg2.org',
-  'img.reimg.org'
+  'img.reimg.org',
+  'uploads.mangadex.org'
 ];
 
 export async function GET(req: NextRequest) {
@@ -51,6 +52,8 @@ export async function GET(req: NextRequest) {
     } else if (parsed.hostname.includes('remanga.org') || parsed.hostname.includes('reimg2.org') || parsed.hostname.includes('img.reimg.org')) {
       referer = 'https://remanga.org/'
       origin = 'https://remanga.org'
+    } else if (parsed.hostname.includes('uploads.mangadex.org')) {
+      referer = 'https://mangadex.org/'
     }
 
     const headers: Record<string, string> = {

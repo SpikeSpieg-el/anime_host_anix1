@@ -6,6 +6,7 @@ import { Search, Flame, Sparkles, ChevronLeft, ChevronRight, BookOpen, Filter, X
 import { cn } from '@/lib/utils';
 import { MultiSelect } from '@/components/ui/multi-select';
 import { MANGADEX_TAGS_MAP } from '@/lib/mangadex/api';
+import { Footer } from '@/components/layout/footer';
 
 interface Manga {
   id: string;
@@ -24,6 +25,9 @@ function MangaCard({ manga }: { manga: Manga }) {
   const [isLoaded, setIsLoaded] = useState(false);
   const [hasError, setHasError] = useState(false);
 
+  // Use proxy for manga cover images to avoid CORS issues
+  const imageUrl = manga.image ? `/api/image-proxy?url=${encodeURIComponent(manga.image)}` : undefined;
+
   return (
     <Link
       href={`/manga/${manga.id}`}
@@ -32,15 +36,15 @@ function MangaCard({ manga }: { manga: Manga }) {
       <div className="relative overflow-hidden rounded-2xl bg-secondary aspect-[3/4] border border-zinc-800/30 shadow-md group-hover:border-primary/50 group-hover:shadow-primary/5 transition-all duration-300">
         
         {/* Shimmer Skeleton Placeholder with Spinner while loading */}
-        {!isLoaded && !hasError && manga.image && (
+        {!isLoaded && !hasError && imageUrl && (
           <div className="absolute inset-0 bg-secondary/60 animate-pulse flex items-center justify-center">
             <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
           </div>
         )}
 
-        {manga.image && !hasError ? (
+        {imageUrl && !hasError ? (
           <img
-            src={manga.image}
+            src={imageUrl}
             alt={manga.title}
             onLoad={() => setIsLoaded(true)}
             onError={() => setHasError(true)}
@@ -333,6 +337,7 @@ export default function MangaClient() {
           </div>
         )}
       </div>
+      <Footer />
     </div>
   );
 }

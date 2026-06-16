@@ -7,14 +7,18 @@ import {
   Maximize, Minimize, Settings, Sparkles, Calendar, Star, Info
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Footer } from '@/components/layout/footer';
 
 interface Chapter {
   id: string;
   chapter: string;
   title?: string;
   lang?: string;
-  provider?: 'mangadex' | 'remanga' | 'mangalib';
+  provider?: 'mangadex' | 'remanga' | 'mangalib' | 'comick' | 'mangaeden';
   fallbackId?: string;
+  mangalibId?: string;
+  comickId?: string;
+  mangaedenId?: string;
 }
 
 interface MangaInfo {
@@ -90,7 +94,7 @@ export default function MangaDetailClient({ mangaId }: MangaDetailClientProps) {
     }
   };
 
-  const handleChapterSelect = async (chapter: Chapter, forceProvider?: 'mangadex' | 'remanga' | 'mangalib') => {
+  const handleChapterSelect = async (chapter: Chapter, forceProvider?: 'mangadex' | 'remanga' | 'mangalib' | 'comick' | 'mangaeden') => {
     setSelectedChapter(chapter);
     setShowReader(true);
     setLoadingPages(true);
@@ -104,7 +108,10 @@ export default function MangaDetailClient({ mangaId }: MangaDetailClientProps) {
     
     try {
       const fallbackParam = chapter.fallbackId ? `&fallbackId=${chapter.fallbackId}` : '';
-      const response = await fetch(`/api/manga/read?mangaId=${mangaId}&chapterId=${chapterId}&provider=${provider}${fallbackParam}`);
+      const mangalibParam = chapter.mangalibId ? `&mangalibId=${chapter.mangalibId}` : '';
+      const comickParam = chapter.comickId ? `&comickId=${chapter.comickId}` : '';
+      const mangaedenParam = chapter.mangaedenId ? `&mangaedenId=${chapter.mangaedenId}` : '';
+      const response = await fetch(`/api/manga/read?mangaId=${mangaId}&chapterId=${chapterId}&provider=${provider}${fallbackParam}${mangalibParam}${comickParam}${mangaedenParam}`);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -112,9 +119,9 @@ export default function MangaDetailClient({ mangaId }: MangaDetailClientProps) {
       if (!contentType || !contentType.includes('application/json')) {
         throw new Error(`Expected JSON response but got: ${contentType || 'none'}`);
       }
-      const data = await response.json() as { pages: string[] };
+      const data = await response.json() as { pages: string[]; usedProvider?: string };
       setChapterPages(data.pages || []);
-      if (forceProvider === 'mangadex') {
+      if (data.usedProvider && data.usedProvider !== provider) {
         setUsingFallback(true);
       }
     } catch (error) {
@@ -394,7 +401,6 @@ export default function MangaDetailClient({ mangaId }: MangaDetailClientProps) {
                         "max-w-full h-auto block mx-auto object-contain rounded-lg shadow-2xl bg-zinc-900 border border-zinc-800/30",
                         !loadedImages.has(index) && "hidden"
                       )}
-                      loading="lazy"
                       onLoad={() => handleImageLoad(index)}
                       onError={handleImageError}
                     />
@@ -696,32 +702,61 @@ export default function MangaDetailClient({ mangaId }: MangaDetailClientProps) {
               </div>
 
               {manga.chapters && manga.chapters.length > 0 ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[450px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-zinc-800">
-                  {manga.chapters.map((chapter) => (
-                    <button
-                      key={chapter.id}
-                      onClick={() => handleChapterSelect(chapter)}
-                      className="group/btn text-left p-4 bg-secondary/35 hover:bg-secondary border border-zinc-800/30 hover:border-primary/50 rounded-xl transition-all duration-300 hover:scale-[1.01] hover:shadow-lg hover:shadow-primary/5 active:scale-95"
-                    >
-                      <div className="flex items-center justify-between gap-4">
-                        <div className="flex flex-col gap-1 min-w-0">
-                          <span className="font-bold text-sm text-foreground truncate group-hover/btn:text-primary transition-colors">
-                            Глава {chapter.chapter}
-                          </span>
-                          {chapter.title && (
-                            <span className="text-xs text-muted-foreground truncate max-w-[200px]">
-                              {chapter.title}
+                <div className="space-y-6 max-h-[450px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-zinc-800">
+                  {(() => {
+                    // Group chapters by provider
+                    const grouped = manga.chapters.reduce((acc, chapter) => {
+                      const provider = chapter.provider || 'mangadex';
+                      if (!acc[provider]) acc[provider] = [];
+                      acc[provider].push(chapter);
+                      return acc;
+                    }, {} as Record<string, typeof manga.chapters>);
+
+                    // Provider order: ReManga (RU priority), MangaLib, MangaDex
+                    const providerOrder = ['remanga', 'mangalib', 'mangadex'];
+                    
+                    return providerOrder
+                      .filter(provider => grouped[provider]?.length > 0)
+                      .map(provider => (
+                        <div key={provider} className="space-y-3">
+                          <div className="flex items-center gap-2 pb-2 border-b border-zinc-800/40">
+                            <span className="text-sm font-bold text-foreground">
+                              {provider === 'remanga' ? '🇷🇺 ReManga' : provider === 'mangalib' ? '🇷🇺 MangaLib' : '🌐 MangaDex'}
                             </span>
-                          )}
+                            <span className="text-xs text-muted-foreground">
+                              ({grouped[provider].length} глав)
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            {grouped[provider].map((chapter) => (
+                              <button
+                                key={chapter.id}
+                                onClick={() => handleChapterSelect(chapter)}
+                                className="group/btn text-left p-4 bg-secondary/35 hover:bg-secondary border border-zinc-800/30 hover:border-primary/50 rounded-xl transition-all duration-300 hover:scale-[1.01] hover:shadow-lg hover:shadow-primary/5 active:scale-95"
+                              >
+                                <div className="flex items-center justify-between gap-4">
+                                  <div className="flex flex-col gap-1 min-w-0">
+                                    <span className="font-bold text-sm text-foreground truncate group-hover/btn:text-primary transition-colors">
+                                      Глава {chapter.chapter}
+                                    </span>
+                                    {chapter.title && (
+                                      <span className="text-xs text-muted-foreground truncate max-w-[200px]">
+                                        {chapter.title}
+                                      </span>
+                                    )}
+                                  </div>
+                                  {chapter.lang && chapter.provider !== 'remanga' && chapter.provider !== 'mangalib' && (
+                                    <span className="text-[10px] font-extrabold bg-zinc-900 border border-zinc-800 text-zinc-400 group-hover/btn:text-white px-2 py-1 rounded">
+                                      {chapter.lang === 'ru' ? '🇷🇺' : chapter.lang.toUpperCase()}
+                                    </span>
+                                  )}
+                                </div>
+                              </button>
+                            ))}
+                          </div>
                         </div>
-                        {(chapter.lang || chapter.provider) && (
-                          <span className="text-[10px] font-extrabold bg-zinc-900 border border-zinc-800 text-zinc-400 group-hover/btn:text-white px-2 py-1 rounded">
-                            {chapter.provider === 'remanga' ? '🇷🇺 ReManga' : chapter.provider === 'mangalib' ? '🇷🇺 MangaLib' : (chapter.lang === 'ru' ? '🇷🇺 RU' : (chapter.lang ? chapter.lang.toUpperCase() : ''))}
-                          </span>
-                        )}
-                      </div>
-                    </button>
-                  ))}
+                      ));
+                  })()}
                 </div>
               ) : (
                 <div className="text-center py-12 bg-secondary/20 rounded-2xl border border-zinc-800/30">
@@ -734,6 +769,7 @@ export default function MangaDetailClient({ mangaId }: MangaDetailClientProps) {
           </div>
         </div>
       </div>
+      <Footer />
     </div>
   );
 }

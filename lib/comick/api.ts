@@ -1,4 +1,4 @@
-const COMICK_API_BASE = 'https://comick.io/api';
+const COMICK_PROXY_BASE = '/api/manga/comick';
 
 export interface ComickManga {
   id: string;
@@ -19,22 +19,20 @@ export interface ComickChapter {
 }
 
 async function fetchComick<T>(endpoint: string, params: Record<string, string> = {}): Promise<T> {
-  const url = new URL(`${COMICK_API_BASE}${endpoint}`);
+  const url = new URL(`${COMICK_PROXY_BASE}`);
+  url.searchParams.append('endpoint', endpoint);
+  
   Object.entries(params).forEach(([key, value]) => {
     url.searchParams.append(key, value);
   });
 
-  console.log(`[Comick] Fetching: ${url.toString()}`);
+  console.log(`[Comick] Fetching via proxy: ${url.toString()}`);
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 10000);
+  const timeout = setTimeout(() => controller.abort(), 15000);
 
   try {
     const response = await fetch(url.toString(), {
-      headers: {
-        'User-Agent': 'MangaReader/1.0',
-        'Accept': 'application/json',
-      },
       signal: controller.signal,
     });
 
