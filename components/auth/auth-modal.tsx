@@ -123,13 +123,13 @@ export function AuthModal({ isOpen: externalIsOpen, onClose, children }: AuthMod
           return
         }
 
-        if (data.user && !data.user.email_confirmed_at) {
-          setError('Пожалуйста, проверьте вашу почту и подтвердите регистрацию')
-          setLoading(false)
-          return
+        // Если пользователь создан успешно - закрываем модалку
+        // Email confirmation handled by Supabase settings
+        if (data.user) {
+          setIsOpen(false)
+        } else {
+          setError('Не удалось создать аккаунт. Попробуйте снова.')
         }
-
-        setIsOpen(false)
       }
     } catch (err: any) {
       loggers.auth.error("Auth error:", err)
