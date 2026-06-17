@@ -147,18 +147,14 @@ export function BookmarksProvider({ children }: { children: React.ReactNode }) {
     })
 
     if (user) {
-      try {
-        await supabase.from('bookmarks').insert({
-          user_id: user.id,
-          anime_id: anime.id,
-          anime_data: anime,
-          created_at: new Date().toISOString()
-        })
-      } catch (error) {
-        // Handle duplicate key error gracefully
-        if ((error as any)?.code !== '23505') {
-          loggers.bookmarks.error('Failed to add bookmark', error)
-        }
+      const { error } = await supabase.from('bookmarks').insert({
+        user_id: user.id,
+        anime_id: anime.id,
+        anime_data: anime,
+        created_at: new Date().toISOString()
+      })
+      if (error && error.code !== '23505') {
+        loggers.bookmarks.error('Failed to add bookmark', error)
       }
     }
   }, [user?.id])
@@ -187,19 +183,20 @@ export function BookmarksProvider({ children }: { children: React.ReactNode }) {
     })
 
     if (user) {
-      try {
-        if (isAdded) {
-          await supabase.from('bookmarks').insert({
-            user_id: user.id,
-            anime_id: anime.id,
-            anime_data: anime
-          })
-        } else {
-          await supabase.from('bookmarks').delete().match({ user_id: user.id, anime_id: anime.id })
+      if (isAdded) {
+        const { error } = await supabase.from('bookmarks').insert({
+          user_id: user.id,
+          anime_id: anime.id,
+          anime_data: anime,
+          created_at: new Date().toISOString()
+        })
+        if (error && error.code !== '23505') {
+          loggers.bookmarks.error('Failed to toggle bookmark (insert)', error)
         }
-      } catch (error) {
-        if ((error as any)?.code !== '23505') {
-          loggers.bookmarks.error('Failed to toggle bookmark', error)
+      } else {
+        const { error } = await supabase.from('bookmarks').delete().match({ user_id: user.id, anime_id: anime.id })
+        if (error) {
+          loggers.bookmarks.error('Failed to toggle bookmark (delete)', error)
         }
       }
     }

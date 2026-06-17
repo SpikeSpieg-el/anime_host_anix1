@@ -68,8 +68,8 @@ export function WatchPageClient({
   anime,
   initialEpisode
 }: WatchPageClientProps) {
-  const availableEpisodes = Math.max(anime.episodesCurrent || 0, anime.episodesTotal || 0)
-  const hasEpisodes = availableEpisodes > 0
+  const availableEpisodes = Math.max(anime.episodesCurrent || 0, anime.episodesTotal || 0, 1)
+  const hasEpisodes = true
 
   const { isSaved, toggle } = useBookmarks()
   const saved = isSaved(anime.id)
@@ -78,7 +78,7 @@ export function WatchPageClient({
   const [isStarted, setIsStarted] = useState(false)
   const [selectedCountry, setSelectedCountry] = useState<string>('RU')
   const [isRegionDetected, setIsRegionDetected] = useState(false)
-  const [useBackupPlayer, setUseBackupPlayer] = useState(false)
+  const [activePlayer, setActivePlayer] = useState<'main' | 'backup'>('main')
   const [isUpdatingFromPlayer, setIsUpdatingFromPlayer] = useState(false)
   const [posterLoading, setPosterLoading] = useState(true)
   const [lastWatchedInfo, setLastWatchedInfo] = useState<{
@@ -133,6 +133,15 @@ export function WatchPageClient({
       setSelectedEpisode(lastWatchedInfo.episode)
     }
   }, [initialEpisode, isStarted, lastWatchedInfo, selectedEpisode])
+
+  // Record history on initial mount (page load counts as watching)
+  useEffect(() => {
+    recordWatchStart(
+      { id: anime.id, title: anime.title, poster: anime.poster },
+      { episode: selectedEpisode, episodesTotal: availableEpisodes }
+    )
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   useEffect(() => {
     if (!isStarted || isUpdatingFromPlayer) return
@@ -239,11 +248,11 @@ export function WatchPageClient({
             <div className="flex items-center gap-1 bg-card border border-border rounded-lg p-1">
               <Button
                 size="sm"
-                variant={!useBackupPlayer ? "default" : "ghost"}
-                onClick={() => setUseBackupPlayer(false)}
+                variant={activePlayer === 'main' ? "default" : "ghost"}
+                onClick={() => setActivePlayer('main')}
                 className={cn(
                   "gap-2 text-xs transition-all",
-                  !useBackupPlayer 
+                  activePlayer === 'main' 
                     ? "bg-primary text-primary-foreground hover:bg-primary/90" 
                     : "text-muted-foreground hover:text-foreground hover:bg-card/80"
                 )}
@@ -252,11 +261,11 @@ export function WatchPageClient({
               </Button>
               <Button
                 size="sm"
-                variant={useBackupPlayer ? "default" : "ghost"}
-                onClick={() => setUseBackupPlayer(true)}
+                variant={activePlayer === 'backup' ? "default" : "ghost"}
+                onClick={() => setActivePlayer('backup')}
                 className={cn(
                   "gap-2 text-xs transition-all",
-                  useBackupPlayer 
+                  activePlayer === 'backup' 
                     ? "bg-primary text-primary-foreground hover:bg-primary/90" 
                     : "text-muted-foreground hover:text-foreground hover:bg-card/80"
                 )}
@@ -476,7 +485,7 @@ export function WatchPageClient({
                 episode={selectedEpisode}
                 isActive={true}
               />
-            ) : !useBackupPlayer ? (
+            ) : activePlayer === 'main' ? (
               <KodikPlayer
                 shikimoriId={anime.shikimoriId}
                 title={anime.title}

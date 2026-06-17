@@ -1,0 +1,1035 @@
+import { Server } from 'socket.io'
+import { createServer } from 'http'
+import { createClient } from '@supabase/supabase-js'
+import dotenv from 'dotenv'
+
+// Helper functions for card power calculation
+function getCardRole(card) {
+  const hpWeight = card.stats.hp / 8
+  const atkWeight = card.stats.atk
+  const defWeight = card.stats.def
+  const spdWeight = card.stats.spd
+  const luckWeight = card.stats.luck
+
+  const options = [
+    { role: 'guard', value: Math.max(hpWeight, defWeight) },
+    { role: 'vanguard', value: atkWeight },
+    { role: 'trickster', value: Math.max(spdWeight, luckWeight) }
+  ]
+
+  options.sort((a, b) => b.value - a.value)
+  return options[0].role
+}
+
+function getCardBasePower(card) {
+  return Math.round((card.stats.hp / 8 + card.stats.atk * 0.5 + card.stats.def * 0.3 + card.stats.spd * 0.3 + card.stats.luck * 0.2))
+}
+
+function getKNBBonusMultiplier(attackerRole, defenderRole, reverse = false) {
+  if (!reverse) {
+    // Vanguard > Trickster, Guard > Vanguard, Trickster > Guard
+    if (attackerRole === 'vanguard' && defenderRole === 'trickster') return 0.5
+    if (attackerRole === 'guard' && defenderRole === 'vanguard') return 0.5
+    if (attackerRole === 'trickster' && defenderRole === 'guard') return 0.5
+  } else {
+    // Trickster > Vanguard, Vanguard > Guard, Guard > Trickster
+    if (attackerRole === 'trickster' && defenderRole === 'vanguard') return 0.5
+    if (attackerRole === 'vanguard' && defenderRole === 'guard') return 0.5
+    if (attackerRole === 'guard' && defenderRole === 'trickster') return 0.5
+  }
+  return 0
+}
+
+const TERRITORY_MODIFIERS = [
+  // === ВЗАИМОДЕЙСТВИЕ С ИНФОРМАЦИЕЙ И СКРЫТЫМИ КАРТАМИ ===
+  { id: "shadow_step", name: "Теневой выпад", nameRu: "Теневой выпад", description: "Все скрытые карты на этой линии получают +100 к силе при раскрытии." },
+  { id: "mirage_zone", name: "Зона иллюзий", nameRu: "Зона иллюзий", description: "Сила скрытых карт удваивается, но открытые карты теряют 50% своей силы." },
+  { id: "first_strike", name: "Быстрый старт", nameRu: "Быстрый старт", description: "Открытые карты (сыгранные на эту линию первыми) получают бонус +80 к силе." },
+  { id: "ambush_point", name: "Точка засады", nameRu: "Точка засады", description: "Скрытые карты (сыгранные на эту линию вторыми) получают бонус +120 к силе." },
+  { id: "double_bluff", name: "Двойной блеф", nameRu: "Двойной блеф", description: "Если оба игрока сыграли свои скрытые карты на этой линии, обе карты получают +200 к силе." },
+  { id: "dark_zone", name: "Темная зона", nameRu: "Темная зона", description: "Все показатели карт на этой линии скрыты даже после раскрытия. Победитель определяется вслепую." },
+  { id: "provocation_point", name: "Точка провокации", nameRu: "Точка провокации", description: "Раскрытие скрытой карты Стража на этой линии принудительно раскрывает скрытую карту противника." },
+
+  // === ПРАВИЛА РОЛЕЙ И КНБ ===
+  { id: "reverse_rps", name: "Зеркальный резонанс", nameRu: "Зеркальный резонанс", description: "Правила превосходства ролей меняются: Плут побеждает Авангарда, Авангард побеждает Стража, Страж побеждает Плута." },
+  { id: "double_rps", name: "Абсолютное доминирование", nameRu: "Абсолютное доминирование", description: "Бонус к силе за победу по системе ролей (КНБ) на этой линии увеличивается в два раза." },
+  { id: "no_rps", name: "Чистый триумф", nameRu: "Чистый триумф", description: "На этой линии не действуют правила ролей (КНБ), сравнивается только чистая базовая сила карт." },
+  { id: "tactical_synergy", name: "Тактический союз", nameRu: "Тактический союз", description: "Если ваши две карты на этой линии имеют разные роли, они обе получают бонус +100 к силе." },
+  { id: "shared_fate", name: "Общая судьба", nameRu: "Общая судьба", description: "Если карты противников на этой линии имеют одинаковую роль, обе карты получают +150 к силе." },
+  { id: "unity", name: "Единство", nameRu: "Единство", description: "Если ваши две карты на этой линии из одного аниме, они обе получают бонус +150 к силе." },
+  { id: "rivalry", name: "Соперничество", nameRu: "Соперничество", description: "Если карты противников на этой линии из разных аниме, они теряют 50 к силе." },
+  { id: "sabotage_camp", name: "Лагерь диверсантов", nameRu: "Лагерь диверсантов", description: "Плуты на этой линии снижают скрытую силу противостоящей карты противника на 100 единиц." },
+  
+  // === БАФФЫ ДЛЯ КОНКРЕТНЫХ РОЛЕЙ ===
+  { id: "vanguard_ring", name: "Авангардный ринг", nameRu: "Авангардный ринг", description: "Карты с ролью Авангард получают +150 к базовой силе." },
+  { id: "fortress_gate", name: "Железная цитадель", nameRu: "Железная цитадель", description: "Карты с ролью Страж получают +150 к базовой силе." },
+  { id: "speed_valley", name: "Долина Ветров", nameRu: "Долина Ветров", description: "Карты с ролью Плут получают +150 к базовой силе." },
+  { id: "iron_curtain", name: "Железный занавес", nameRu: "Железный занавес", description: "Стражи на этой линии полностью защищены от любых негативных эффектов и принудительного снижения силы." },
+
+  // === ПРАВИЛА РЕДКОСТИ ===
+  { id: "trash_revolution", name: "Восстание низов", nameRu: "Восстание низов", description: "Карты редкости Мусор и Обычная получают +300% к силе на этой линии." },
+  { id: "golden_cage", name: "Золотая клетка", nameRu: "Золотая клетка", description: "Карты редкостей Божественные, Трансцендентные и Всемогущие теряют 40% своей силы." },
+  { id: "balanced_force", name: "Идеальный баланс", nameRu: "Идеальный баланс", description: "Карты редкостей Эпические, Сверхредкие и Редкие получают +100 к базовой силе." },
+  { id: "black_market", name: "Черный рынок", nameRu: "Черный рынок", description: "Карты редкостей Необычные и Редкие получают +120 к силе." },
+  { id: "god_domain", name: "Обитель богов", nameRu: "Обитель богов", description: "Всемогущие карты на этой линии удваивают свои итоговые показатели." },
+  { id: "vandalism", name: "Отрицание редкости", nameRu: "Отрицание редкости", description: "Все преимущества редкостей отключены. Карты рассчитываются как Обычные." },
+  { id: "fools_gold", name: "Золото дураков", nameRu: "Золото дураков", description: "Карты редкостей Легендарные и Мифические приравниваются по силе к редкости Мусор." },
+
+  // === МЕХАНИКИ ПОЗИЦИОНИРОВАНИЯ И КОЛИЧЕСТВА ===
+  { id: "lonely_hero", name: "Одинокий боец", nameRu: "Одинокий боец", description: "Если у вас на этой линии всего одна карта против двух карт соперника, она получает +200 к силе." },
+  { id: "duelist_honor", name: "Честь дуэлянта", nameRu: "Честь дуэлянта", description: "Если на линии находится ровно по одной карте с каждой стороны, они получают +150 к силе." },
+  { id: "gravity_well", name: "Гравитационный колодец", nameRu: "Гравитационный колодец", description: "Сила карт на этой линии уменьшается на 50 за каждую карту, сыгранную на соседних линиях." },
+  { id: "overdrive", name: "Предельная перегрузка", nameRu: "Предельная перегрузка", description: "Карта с максимальной силой на этой линии наносит урон соседним линиям противника в размере 50% от своей силы." },
+
+  // === СИСТЕМНЫЕ И АНАРХИЧЕСКИЕ ИЗМЕНЕНИЯ ПРАВИЛ ===
+  { id: "equality", name: "Уравнитель", nameRu: "Уравнитель", description: "Сила всех карт на этой линии приравнивается к 150, независимо от их реальных показателей." },
+  { id: "power_vacuum", name: "Вакуум силы", nameRu: "Вакуум силы", description: "Энергетический сбой. Все карты на этой линии теряют 50% своей базовой силы." },
+  { id: "kamikaze_rift", name: "Разлом камикадзе", nameRu: "Разлом камикадзе", description: "Сильнейшая карта на этой линии по итогам раунда уничтожается и не возвращается в колоду." },
+  { id: "stamina_drain", name: "Перераспределение", nameRu: "Перераспределение", description: "Сильнейшая карта на этой линии отдает 100 единиц своей силы самой слабой карте на этой же линии." },
+  { id: "gambler_den", name: "Притон азарта", nameRu: "Притон азарта", description: "Карты с высоким показателем Удачи получают случайный бонус от 50 до 250 силы." },
+  { id: "reversal_gate", name: "Врата парадокса", nameRu: "Врата парадокса", description: "Парадокс силы: на этой линии карта с наименьшим показателем силы побеждает карту с наибольшим." }
+]
+
+function getCardProvision(card) {
+  const map = {
+    omnipotent: 15,
+    transcendent: 13,
+    divine: 11,
+    ancient: 10,
+    legendary: 9,
+    mythic: 8,
+    epic: 6,
+    super_rare: 5,
+    rare: 4,
+    uncommon: 3,
+    common: 2,
+    trash: 0
+  }
+  return map[card.rarity] !== undefined ? map[card.rarity] : 2
+}
+
+// Constants for synergies
+const SYNERGY_VALUES = {
+  brotherhoodMinCards: 2,
+  brotherhoodPerCard: 4,
+  roleHarmony: 8,
+  raritySpectrum: 5,
+  lightStep: 5,
+  elite: 6,
+  specializationSelf: 6,
+  specializationOther: -3
+}
+
+const SYNERGY_TOTAL_FLOOR = -25
+const SYNERGY_TOTAL_CAP = 35
+const LEADER_AURA_VALUE = 20
+const LIGHT_STEP_THRESHOLD = 30
+const ELITE_RARITIES = ["epic", "mythic", "legendary", "ancient", "divine", "transcendent", "omnipotent"]
+
+const FORMATION_CONFIG = {
+  balance: { vanguard: 10, guard: 10, trickster: 15 },
+  aggression: { vanguard: 25, guard: -10, trickster: 5 },
+  defense: { vanguard: -10, guard: 25, trickster: 5 }
+}
+
+function computeDeckSynergies(deck) {
+  let globalBonus = 0
+  const roleAdjust = { vanguard: 0, guard: 0, trickster: 0 }
+
+  if (!deck || deck.length === 0) {
+    return { globalBonus, roleAdjust }
+  }
+
+  // Role counts
+  const roleCounts = { vanguard: 0, guard: 0, trickster: 0 }
+  deck.forEach(c => { roleCounts[c.role || getCardRole(c)]++ })
+
+  // Anime counts
+  const animeCounts = {}
+  deck.forEach(c => { animeCounts[c.anime] = (animeCounts[c.anime] || 0) + 1 })
+  const maxAnime = Math.max(0, ...Object.values(animeCounts))
+
+  // 1. Brotherhood
+  if (maxAnime >= SYNERGY_VALUES.brotherhoodMinCards) {
+    globalBonus += SYNERGY_VALUES.brotherhoodPerCard * (maxAnime - 1)
+  }
+
+  // 2. Role harmony
+  if (roleCounts.vanguard > 0 && roleCounts.guard > 0 && roleCounts.trickster > 0) {
+    globalBonus += SYNERGY_VALUES.roleHarmony
+  }
+
+  // 3. Rarity spectrum
+  const distinctRarities = new Set(deck.map(c => c.rarity)).size
+  if (distinctRarities >= 5) {
+    globalBonus += SYNERGY_VALUES.raritySpectrum
+  }
+
+  // 4. Light step
+  const totalWeight = deck.reduce((acc, c) => acc + (c.provisionCost || getCardProvision(c)), 0)
+  if (totalWeight <= LIGHT_STEP_THRESHOLD) {
+    globalBonus += SYNERGY_VALUES.lightStep
+  }
+
+  // 5. Elite
+  const eliteCount = deck.filter(c => ELITE_RARITIES.includes(c.rarity)).length
+  if (eliteCount >= 4) {
+    globalBonus += SYNERGY_VALUES.elite
+  }
+
+  // 6. Specialization
+  Object.keys(roleCounts).forEach(role => {
+    if (roleCounts[role] >= 4) {
+      roleAdjust[role] += SYNERGY_VALUES.specializationSelf
+      Object.keys(roleAdjust).forEach(other => {
+        if (other !== role) roleAdjust[other] += SYNERGY_VALUES.specializationOther
+      })
+    }
+  })
+
+  return { globalBonus, roleAdjust }
+}
+
+function getDeckPowerModifier(card, deck, leaderId, formation) {
+  const cardRole = card.role || getCardRole(card)
+
+  const synergy = computeDeckSynergies(deck)
+  let bonus = synergy.globalBonus + (synergy.roleAdjust[cardRole] || 0)
+
+  // Leader aura
+  if (leaderId) {
+    const leader = deck.find(c => c.uniqueId === leaderId)
+    if (leader) {
+      const leaderRole = leader.role || getCardRole(leader)
+      if (leaderRole === cardRole) {
+        bonus += LEADER_AURA_VALUE
+      }
+    }
+  }
+
+  // Formation
+  if (formation && FORMATION_CONFIG[formation]) {
+    const formationConfig = FORMATION_CONFIG[formation]
+    bonus += formationConfig[cardRole] || 0
+  }
+
+  // Clamp total bonus
+  bonus = Math.max(SYNERGY_TOTAL_FLOOR, Math.min(SYNERGY_TOTAL_CAP, bonus))
+
+  return bonus
+}
+
+function calculateCardPowerOnZone(
+  card,
+  zoneModifierId,
+  allEnemyCardsOnZone = [],
+  allPlayerCardsOnZone = [],
+  isRevealed = true,
+  wasSecret = false,
+  isPlayerCard = true,
+  placementOrder = 0,
+  deckContext = null,
+  playerHpPercent = 100
+) {
+  let basePower = getCardBasePower(card)
+  const role = card.role || getCardRole(card)
+
+  const myCards = isPlayerCard ? allPlayerCardsOnZone : allEnemyCardsOnZone
+  const enemyCards = isPlayerCard ? allEnemyCardsOnZone : allPlayerCardsOnZone
+  const isGuard = role === "guard"
+  const isVandalism = zoneModifierId === "vandalism"
+  const hasIronCurtain = zoneModifierId === "iron_curtain" && isGuard
+
+  if (zoneModifierId === "equality") {
+    return { power: 150, roleMatchupBonus: 0, synergyBonus: 0 }
+  }
+
+  if (zoneModifierId === "vandalism") {
+    basePower = getCardBasePower({ ...card, rarity: "common" })
+  }
+  if (zoneModifierId === "fools_gold" && (card.rarity === "legendary" || card.rarity === "mythic")) {
+    basePower = 50
+  }
+
+  switch (zoneModifierId) {
+    case "shadow_step":
+      if (wasSecret) basePower += 100
+      break
+    case "mirage_zone":
+      if (wasSecret) basePower *= 2
+      else basePower *= 0.5
+      break
+    case "first_strike":
+      if (!wasSecret) basePower += 80
+      break
+    case "ambush_point":
+      if (wasSecret && placementOrder === 1) basePower += 120
+      break
+  }
+
+  switch (zoneModifierId) {
+    case "vanguard_ring":
+      if (role === "vanguard") basePower += 150
+      break
+    case "fortress_gate":
+      if (role === "guard") basePower += 150
+      break
+    case "speed_valley":
+      if (role === "trickster") basePower += 150
+      break
+  }
+
+  switch (zoneModifierId) {
+    case "trash_revolution":
+      if ((card.rarity === "trash" || card.rarity === "common") && !isVandalism) basePower *= 4
+      break
+    case "golden_cage":
+      if (["divine", "transcendent", "omnipotent"].includes(card.rarity) && !isVandalism) basePower *= 0.6
+      break
+    case "balanced_force":
+      if (["epic", "super_rare", "rare"].includes(card.rarity) && !isVandalism) basePower += 100
+      break
+    case "black_market":
+      if (["uncommon", "rare"].includes(card.rarity) && !isVandalism) basePower += 120
+      break
+    case "power_vacuum":
+      if (!hasIronCurtain) basePower *= 0.5
+      break
+    case "gambler_den":
+      if (card.stats.luck >= 60) basePower += 150 // Use fixed value for online play consistency
+      break
+  }
+
+  if (zoneModifierId === "duelist_honor" && myCards.length === 1 && enemyCards.length === 1) {
+    basePower += 150
+  }
+  if (zoneModifierId === "lonely_hero" && myCards.length === 1 && enemyCards.length === 2) {
+    basePower += 200
+  }
+  if (zoneModifierId === "tactical_synergy" && myCards.length === 2) {
+    const roles = new Set(myCards.map(zc => zc.card.role || getCardRole(zc.card)))
+    if (roles.size === 2) basePower += 100
+  }
+  if (zoneModifierId === "shared_fate" && enemyCards.length === 2) {
+    const roles = new Set(enemyCards.map(zc => zc.card.role || getCardRole(zc.card)))
+    if (roles.size === 1) basePower += 150
+  }
+  if (zoneModifierId === "unity" && myCards.length === 2) {
+    const animes = new Set(myCards.map(zc => zc.card.anime))
+    if (animes.size === 1) basePower += 150
+  }
+  if (zoneModifierId === "rivalry" && enemyCards.length === 2) {
+    const animes = new Set(enemyCards.map(zc => zc.card.anime))
+    if (animes.size === 2 && !hasIronCurtain) basePower -= 50
+  }
+  if (zoneModifierId === "double_bluff" && wasSecret) {
+    const enemyHasSecret = enemyCards.some(zc => zc.wasSecret)
+    if (enemyHasSecret) basePower += 200
+  }
+
+  let matchupBonusPercent = 0
+  let secretRevealBonus = 0
+  const reverseRPS = zoneModifierId === "reverse_rps"
+  const noRPS = zoneModifierId === "no_rps"
+  const doubleRPS = zoneModifierId === "double_rps"
+
+  if (!noRPS && enemyCards.length > 0) {
+    enemyCards.forEach(opposingZoneCard => {
+      if (!opposingZoneCard.isSecret) {
+        const opposingRole = opposingZoneCard.card.role || getCardRole(opposingZoneCard.card)
+        let bonus = getKNBBonusMultiplier(role, opposingRole, reverseRPS)
+        if (doubleRPS) bonus *= 2
+        matchupBonusPercent += bonus
+      }
+    })
+  }
+
+  if (wasSecret && isRevealed && matchupBonusPercent > 0 && enemyCards.length > 0) {
+    enemyCards.forEach(opposingZoneCard => {
+      if (!opposingZoneCard.isSecret) {
+        const opposingRole = opposingZoneCard.card.role || getCardRole(opposingZoneCard.card)
+        const hasAdvantage = getKNBBonusMultiplier(role, opposingRole, reverseRPS) > 0
+        if (hasAdvantage) {
+          const enemyPower = opposingZoneCard.powerAfterModifier || getCardBasePower(opposingZoneCard.card)
+          secretRevealBonus += Math.round(enemyPower * 0.15)
+        }
+      }
+    })
+  }
+
+  let finalPower = Math.round(basePower * (1 + matchupBonusPercent)) + secretRevealBonus
+
+  if (zoneModifierId === "god_domain" && card.rarity === "omnipotent" && !isVandalism) {
+    finalPower = Math.round(finalPower * 2)
+  }
+
+  // === DECK-WIDE MODIFIERS (synergies, leader, formation) ===
+  let synergyBonus = 0
+  if (isPlayerCard && deckContext) {
+    const deckBonus = getDeckPowerModifier(card, deckContext.deck, deckContext.leaderId, deckContext.formation)
+    synergyBonus = deckBonus
+    finalPower = Math.round(finalPower + deckBonus)
+  }
+
+  return { power: finalPower, roleMatchupBonus: matchupBonusPercent, synergyBonus }
+}
+
+dotenv.config()
+
+const PORT = process.env.PORT || 3001
+const SUPABASE_URL = process.env.SUPABASE_URL
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY
+const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000']
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+
+const httpServer = createServer()
+const io = new Server(httpServer, {
+  cors: {
+    origin: ALLOWED_ORIGINS,
+    methods: ['GET', 'POST'],
+    credentials: true
+  }
+})
+
+// In-memory state
+const matchmakingQueue = new Map() // userId -> { socket, mmr, deckData }
+const activeMatches = new Map() // matchId -> { player1, player2, state }
+const userSockets = new Map() // userId -> socket
+let globalMatchCounter = 0 // Match counter for cyclic empty locations
+
+// Database cached data
+let dbRules = []
+let dbLocations = []
+let lastDbUpdate = 0
+const DB_REFRESH_INTERVAL = 1000 * 60 * 5 // 5 minutes
+
+async function refreshDbCache() {
+  try {
+    const { data: rules } = await supabase.from('pvp_rules').select('*').eq('is_active', true)
+    const { data: locations } = await supabase.from('pvp_locations').select('*, rules:pvp_location_rules(rule_id)').eq('is_active', true)
+    
+    if (rules) dbRules = rules
+    if (locations) dbLocations = locations
+    lastDbUpdate = Date.now()
+    console.log(`[DB Cache] Refreshed: ${dbRules.length} rules, ${dbLocations.length} locations`)
+  } catch (err) {
+    console.error('[DB Cache] Refresh failed:', err)
+  }
+}
+
+// Initial refresh
+refreshDbCache()
+
+// Middleware: Authenticate socket connections
+io.use(async (socket, next) => {
+  try {
+    const token = socket.handshake.auth.token
+    if (!token) {
+      return next(new Error('Authentication token required'))
+    }
+
+    // Verify token with Supabase
+    const { data: { user }, error } = await supabase.auth.getUser(token)
+    
+    if (error || !user) {
+      console.error('[Auth] Authentication failed:', error?.message || 'No user found')
+      return next(new Error('Invalid authentication token'))
+    }
+
+    socket.userId = user.id
+    socket.userEmail = user.email
+
+    console.log(`[Auth] User ${socket.userId} authenticated`)
+    next()
+  } catch (err) {
+    console.error('[Auth] Authentication failed:', err.message)
+    next(new Error('Invalid authentication token'))
+  }
+})
+
+io.on('connection', (socket) => {
+  const userId = socket.userId
+  console.log(`[Connection] User ${userId} connected (${socket.id})`)
+
+  userSockets.set(userId, socket)
+
+  // Handle matchmaking queue join
+  socket.on('join_queue', async (data) => {
+    try {
+      let { deck, leaderId, formation } = data
+
+      // Validate deck
+      if (!deck || deck.length !== 8) {
+        return socket.emit('error', { message: 'Неверная колода: требуется ровно 8 карт' })
+      }
+
+      // Ensure all cards have role assigned
+      deck = deck.map(card => ({
+        ...card,
+        role: card.role || getCardRole(card)
+      }))
+
+      // Get user's MMR from database
+      const { data: ladderData, error } = await supabase
+        .from('user_ladder')
+        .select('mmr')
+        .eq('user_id', userId)
+        .single()
+
+      if (error) {
+        console.error('[Queue] Error fetching MMR:', error)
+        return socket.emit('error', { message: 'Failed to join queue' })
+      }
+
+      const mmr = ladderData?.mmr || 1000
+
+      // Add to queue
+      matchmakingQueue.set(userId, {
+        socket,
+        mmr,
+        deck,
+        leaderId,
+        formation,
+        joinedAt: Date.now()
+      })
+
+      console.log(`[Queue] User ${userId} joined (MMR: ${mmr}, Queue size: ${matchmakingQueue.size})`)
+      socket.emit('queue_joined', { queueSize: matchmakingQueue.size })
+
+      // Try to find matches for everyone in queue
+      findMatches()
+    } catch (err) {
+      console.error('[Queue] Error:', err)
+      socket.emit('error', { message: 'Failed to join queue' })
+    }
+  })
+
+  // Handle leaving queue
+  socket.on('leave_queue', () => {
+    if (matchmakingQueue.has(userId)) {
+      matchmakingQueue.delete(userId)
+      console.log(`[Queue] User ${userId} left queue`)
+      socket.emit('queue_left')
+    }
+  })
+
+  // Handle card placement during battle
+  socket.on('place_cards', (data) => {
+    const { matchId, placements } = data
+    const match = activeMatches.get(matchId)
+
+    if (!match) {
+      return socket.emit('error', { message: 'Match not found' })
+    }
+
+    const isPlayer1 = match.player1.userId === userId
+    const playerKey = isPlayer1 ? 'player1' : 'player2'
+
+    // Log placement secret status for debugging
+    console.log(`[Match ${matchId}] ${playerKey} placements:`, placements.map(p => ({ cardId: p.cardId, zoneId: p.zoneId, isSecret: p.isSecret })))
+
+    // Validate: check if placements array is valid
+    if (!Array.isArray(placements) || placements.length === 0) {
+      console.log(`[Match ${matchId}] ${playerKey} sent invalid placements: not an array or empty`)
+      return socket.emit('error', { message: 'Некорректные данные карт' })
+    }
+
+    // Validate: check if each placement has required fields
+    const invalidPlacements = placements.filter(p => !p.cardId || !p.zoneId || typeof p.isSecret !== 'boolean')
+    if (invalidPlacements.length > 0) {
+      console.log(`[Match ${matchId}] ${playerKey} sent invalid placements:`, invalidPlacements)
+      return socket.emit('error', { message: 'Некорректные данные карт: отсутствуют обязательные поля' })
+    }
+
+    // Validate: check if cards were already used in previous rounds
+    const existingCardIds = (match[playerKey].board || []).map(p => p.cardId)
+    const duplicateCardIds = placements.filter(p => existingCardIds.includes(p.cardId))
+    
+    if (duplicateCardIds.length > 0) {
+      console.log(`[Match ${matchId}] ${playerKey} tried to reuse cards:`, duplicateCardIds.map(p => p.cardId))
+      return socket.emit('error', { message: 'Эти карты уже были использованы в предыдущих раундах!' })
+    }
+
+    // Store placements with round number
+    const placementsWithRound = placements.map(p => ({ ...p, round: match.round }))
+    match[playerKey].placements = placementsWithRound
+    match[playerKey].board = [
+      ...(match[playerKey].board || []),
+      ...placementsWithRound
+    ]
+    match[playerKey].confirmed = true
+
+    console.log(`[Match ${matchId}] ${playerKey} placed cards`)
+
+    // Notify opponent that player has moved
+    const opponentSocket = isPlayer1 ? match.player2.socket : match.player1.socket
+    opponentSocket.emit('opponent_moved')
+
+    // If both players confirmed, reveal and resolve
+    if (match.player1.confirmed && match.player2.confirmed) {
+      resolveRound(matchId)
+    }
+  })
+
+  // Handle disconnection
+  socket.on('disconnect', async () => {
+    console.log(`[Disconnect] User ${userId} disconnected`)
+    
+    // Remove from queue
+    matchmakingQueue.delete(userId)
+    userSockets.delete(userId)
+
+    // Handle active match disconnection
+    for (const [matchId, match] of activeMatches.entries()) {
+      if (match.player1.userId === userId || match.player2.userId === userId) {
+        const isPlayer1 = match.player1.userId === userId
+        const winner = isPlayer1 ? match.player2 : match.player1
+        const winnerSocket = isPlayer1 ? match.player2.socket : match.player1.socket
+        
+        console.log(`[Match ${matchId}] Player disconnected, winner: ${winner.userId}`)
+        
+        // Notify the remaining player about opponent disconnect
+        if (winnerSocket && winnerSocket.connected) {
+          winnerSocket.emit('opponent_disconnect', {
+            matchId,
+            winner: winner.userId,
+            mmrChange: 10 // Small MMR gain for disconnect win
+          })
+        }
+        
+        // End match with database updates
+        await endMatch(matchId, winner.userId, 'disconnect')
+      }
+    }
+  })
+})
+
+// Matchmaking algorithm
+function findMatches() {
+  if (matchmakingQueue.size < 2) return
+
+  const userIds = Array.from(matchmakingQueue.keys())
+  const matchedUserIds = new Set()
+
+  for (let i = 0; i < userIds.length; i++) {
+    const userId1 = userIds[i]
+    if (matchedUserIds.has(userId1)) continue
+
+    const player1 = matchmakingQueue.get(userId1)
+    if (!player1) continue
+
+    const waitTime1 = Date.now() - player1.joinedAt
+    const mmrRange1 = Math.min(200 + Math.floor(waitTime1 / 10000) * 50, 500)
+
+    let bestOpponentId = null
+    let minMmrDiff = Infinity
+
+    for (let j = i + 1; j < userIds.length; j++) {
+      const userId2 = userIds[j]
+      if (matchedUserIds.has(userId2)) continue
+
+      const player2 = matchmakingQueue.get(userId2)
+      if (!player2) continue
+
+      const mmrDiff = Math.abs(player1.mmr - player2.mmr)
+      
+      const waitTime2 = Date.now() - player2.joinedAt
+      const mmrRange2 = Math.min(200 + Math.floor(waitTime2 / 10000) * 50, 500)
+      
+      const combinedMmrRange = Math.max(mmrRange1, mmrRange2)
+
+      if (mmrDiff <= combinedMmrRange) {
+        if (mmrDiff < minMmrDiff) {
+          minMmrDiff = mmrDiff
+          bestOpponentId = userId2
+        }
+      }
+    }
+
+    if (bestOpponentId) {
+      matchedUserIds.add(userId1)
+      matchedUserIds.add(bestOpponentId)
+      createMatch(userId1, bestOpponentId)
+    }
+  }
+}
+
+// Create a new match
+async function createMatch(player1Id, player2Id) {
+  const player1 = matchmakingQueue.get(player1Id)
+  const player2 = matchmakingQueue.get(player2Id)
+
+  if (!player1 || !player2) return
+
+  // Remove from queue
+  matchmakingQueue.delete(player1Id)
+  matchmakingQueue.delete(player2Id)
+
+  const matchId = `match-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+  
+  // Increment match counter
+  globalMatchCounter++
+  
+  // Every 3rd match has empty (neutral) territories
+  const shouldBeEmpty = globalMatchCounter % 3 === 0
+  const territories = shouldBeEmpty ? generateEmptyTerritories() : await generateTerritories()
+
+  // Ensure all cards have roles
+  const p1Deck = player1.deck.map(card => ({
+    ...card,
+    role: card.role || getCardRole(card)
+  }))
+  const p2Deck = player2.deck.map(card => ({
+    ...card,
+    role: card.role || getCardRole(card)
+  }))
+
+  const match = {
+    matchId,
+    player1: {
+      userId: player1Id,
+      socket: player1.socket,
+      deck: p1Deck,
+      leaderId: player1.leaderId,
+      formation: player1.formation,
+      mmr: player1.mmr,
+      placements: null,
+      board: [],
+      confirmed: false
+    },
+    player2: {
+      userId: player2Id,
+      socket: player2.socket,
+      deck: p2Deck,
+      leaderId: player2.leaderId,
+      formation: player2.formation,
+      mmr: player2.mmr,
+      placements: null,
+      board: [],
+      confirmed: false
+    },
+    territories,
+    round: 1,
+    player1Score: 0,
+    player2Score: 0,
+    startedAt: Date.now()
+  }
+
+  activeMatches.set(matchId, match)
+
+  console.log(`[Match] Created ${matchId}: ${player1Id} (${player1.mmr}) vs ${player2Id} (${player2.mmr})`)
+
+  // Notify both players
+  player1.socket.emit('match_found', {
+    matchId,
+    opponentId: player2Id,
+    territories,
+    yourDeck: player1.deck,
+    yourLeaderId: player1.leaderId,
+    yourFormation: player1.formation,
+    opponentDeck: player2.deck,
+    opponentLeaderId: player2.leaderId,
+    opponentFormation: player2.formation,
+    isPlayer1: true
+  })
+
+  player2.socket.emit('match_found', {
+    matchId,
+    opponentId: player1Id,
+    territories,
+    yourDeck: player2.deck,
+    yourLeaderId: player2.leaderId,
+    yourFormation: player2.formation,
+    opponentDeck: player1.deck,
+    opponentLeaderId: player1.leaderId,
+    opponentFormation: player1.formation,
+    isPlayer1: false
+  })
+}
+
+// Generate random territory modifiers
+async function generateTerritories() {
+  // Check if we need to refresh cache
+  if (Date.now() - lastDbUpdate > DB_REFRESH_INTERVAL) {
+    await refreshDbCache()
+  }
+
+  // Use DB locations if available
+  if (dbLocations.length >= 3) {
+    const shuffled = [...dbLocations].sort(() => Math.random() - 0.5)
+    const selectedLocations = shuffled.slice(0, 3)
+    
+    return selectedLocations.map(loc => {
+      // Find the first rule from dbRules that matches loc.rules
+      const ruleId = loc.rules && loc.rules.length > 0 ? loc.rules[0].rule_id : 'none'
+      return {
+        id: ruleId,
+        name: loc.name,
+        nameRu: loc.name_ru,
+        description: loc.description_ru
+      }
+    })
+  }
+
+  // Fallback to hardcoded modifiers if DB is empty
+  const shuffled = TERRITORY_MODIFIERS.sort(() => Math.random() - 0.5)
+  return shuffled.slice(0, 3)
+}
+
+// Generate empty territory modifiers (every 3rd match)
+function generateEmptyTerritories() {
+  const neutralModifier = {
+    id: "neutral",
+    name: "Нейтральная Территория",
+    nameRu: "Нейтральная Территория",
+    description: "Нет специальных эффектов"
+  }
+  return [neutralModifier, neutralModifier, neutralModifier]
+}
+
+// Resolve round after both players placed cards
+async function resolveRound(matchId) {
+  const match = activeMatches.get(matchId)
+  if (!match) return
+
+  console.log(`[Match ${matchId}] Resolving round ${match.round}`)
+
+  // Prepare deck contexts for synergy calculations on server
+  const p1Context = { deck: match.player1.deck, leaderId: match.player1.leaderId, formation: match.player1.formation }
+  const p2Context = { deck: match.player2.deck, leaderId: match.player2.leaderId, formation: match.player2.formation }
+
+  // Calculate zone winners
+  const zoneWinners = []
+  const zoneResults = []
+
+  // Process each zone (3 zones)
+  for (let zoneIdx = 0; zoneIdx < 3; zoneIdx++) {
+    const zoneId = `zone-${zoneIdx + 1}`
+    const territory = match.territories[zoneIdx]
+
+    // Get cards placed on this zone from the current round only
+    const p1Placements = (match.player1.board || []).filter(p => p.zoneId === zoneId && p.round === match.round)
+    const p2Placements = (match.player2.board || []).filter(p => p.zoneId === zoneId && p.round === match.round)
+
+    console.log(`[Match ${matchId}] Zone ${zoneIdx + 1}: P1 cards=${p1Placements.length}, P2 cards=${p2Placements.length}`)
+
+    // Map placements to ZoneCard structures (so they contain card objects)
+    const p1ZoneCards = p1Placements.map((p, index) => {
+      const card = match.player1.deck.find(c => c.uniqueId === p.cardId)
+      return {
+        cardId: p.cardId,
+        zoneId: p.zoneId,
+        isSecret: false,
+        wasSecret: p.isSecret,
+        card,
+        powerAfterModifier: getCardBasePower(card),
+        placementOrder: index,
+        isPlayer: true
+      }
+    })
+
+    const p2ZoneCards = p2Placements.map((p, index) => {
+      const card = match.player2.deck.find(c => c.uniqueId === p.cardId)
+      return {
+        cardId: p.cardId,
+        zoneId: p.zoneId,
+        isSecret: false,
+        wasSecret: p.isSecret,
+        card,
+        powerAfterModifier: getCardBasePower(card),
+        placementOrder: index,
+        isPlayer: false
+      }
+    })
+
+    // Calculate actual powers using calculateCardPowerOnZone
+    p1ZoneCards.forEach(zc => {
+      if (zc.card) {
+        const { power, roleMatchupBonus, synergyBonus } = calculateCardPowerOnZone(zc.card, territory.id, p2ZoneCards, p1ZoneCards, true, zc.wasSecret, true, zc.placementOrder, p1Context)
+        zc.powerAfterModifier = power
+        zc.roleMatchupBonus = roleMatchupBonus
+        zc.synergyBonus = synergyBonus
+        console.log(`[Match ${matchId}] P1 Card ${zc.card.name} final power: ${power}, synergy: ${synergyBonus}, matchup: ${roleMatchupBonus}`)
+      }
+    })
+
+    p2ZoneCards.forEach(zc => {
+      if (zc.card) {
+        const { power, roleMatchupBonus, synergyBonus } = calculateCardPowerOnZone(zc.card, territory.id, p1ZoneCards, p2ZoneCards, true, zc.wasSecret, true, zc.placementOrder, p2Context)
+        zc.powerAfterModifier = power
+        zc.roleMatchupBonus = roleMatchupBonus
+        zc.synergyBonus = synergyBonus
+        console.log(`[Match ${matchId}] P2 Card ${zc.card.name} final power: ${power}, synergy: ${synergyBonus}, matchup: ${roleMatchupBonus}`)
+      }
+    })
+
+    // Sum power for each side on this zone
+    const p1TotalPower = p1ZoneCards.reduce((acc, zc) => acc + zc.powerAfterModifier, 0)
+    const p2TotalPower = p2ZoneCards.reduce((acc, zc) => acc + zc.powerAfterModifier, 0)
+
+    // Determine zone winner
+    let winner = 'none'
+    if (p1TotalPower > p2TotalPower) {
+      winner = 'player1'
+      match.player1Score++
+    } else if (p2TotalPower > p1TotalPower) {
+      winner = 'player2'
+      match.player2Score++
+    }
+
+    console.log(`[Match ${matchId}] Zone ${zoneIdx + 1} winner: ${winner} (P1: ${p1TotalPower} vs P2: ${p2TotalPower})`)
+
+    zoneWinners.push(winner)
+    zoneResults.push({
+      zoneId,
+      zoneName: territory.nameRu,
+      winner,
+      player1Power: p1TotalPower,
+      player2Power: p2TotalPower,
+      player1Cards: p1ZoneCards,
+      player2Cards: p2ZoneCards
+    })
+  }
+
+  const results = {
+    round: match.round,
+    player1Placements: match.player1.placements,
+    player2Placements: match.player2.placements,
+    zoneWinners,
+    zoneResults,
+    player1Score: match.player1Score,
+    player2Score: match.player2Score
+  }
+
+  console.log(`[Match ${matchId}] Round ${match.round} complete. Score: P1=${match.player1Score}, P2=${match.player2Score}`)
+
+  // Broadcast results to both players
+  match.player1.socket.emit('round_resolved', results)
+  match.player2.socket.emit('round_resolved', results)
+
+  // Check if match is over (3 rounds)
+  if (match.round >= 3) {
+    // Determine winner based on zones won
+    let winnerId
+    if (match.player1Score > match.player2Score) {
+      winnerId = match.player1.userId
+    } else if (match.player2Score > match.player1Score) {
+      winnerId = match.player2.userId
+    } else {
+      // Draw - higher MMR wins
+      winnerId = match.player1.mmr >= match.player2.mmr ? match.player1.userId : match.player2.userId
+    }
+    await endMatch(matchId, winnerId, 'complete')
+  } else {
+    // Reset for next round
+    match.player1.confirmed = false
+    match.player2.confirmed = false
+    match.player1.placements = null
+    match.player2.placements = null
+    match.round++
+
+    console.log(`[Match ${matchId}] Starting round ${match.round}`)
+
+    // Notify players to start new round
+    match.player1.socket.emit('start_new_round', {
+      round: match.round,
+      yourDeck: match.player1.deck,
+      player1Score: match.player1Score,
+      player2Score: match.player2Score
+    })
+
+    match.player2.socket.emit('start_new_round', {
+      round: match.round,
+      yourDeck: match.player2.deck,
+      player1Score: match.player1Score,
+      player2Score: match.player2Score
+    })
+  }
+}
+
+// End match and update database
+async function endMatch(matchId, winnerId, reason) {
+  const match = activeMatches.get(matchId)
+  if (!match) return
+
+  const loserId = match.player1.userId === winnerId ? match.player2.userId : match.player1.userId
+  const winnerMMR = match.player1.userId === winnerId ? match.player1.mmr : match.player2.mmr
+  const loserMMR = match.player1.userId === winnerId ? match.player2.mmr : match.player1.mmr
+
+  console.log(`[Match ${matchId}] Ended - Winner: ${winnerId} (${reason})`)
+
+  try {
+    // Update MMR in database
+    console.log(`[Match ${matchId}] Updating MMR for winner ${winnerId} and loser ${loserId}`)
+    const { data: mmrData, error: mmrError } = await supabase.rpc('update_pvp_mmr', {
+      p_winner_id: winnerId,
+      p_loser_id: loserId,
+      p_winner_mmr: winnerMMR,
+      p_loser_mmr: loserMMR
+    })
+
+    if (mmrError) {
+      console.error(`[Match ${matchId}] MMR Update Error:`, mmrError.message || mmrError)
+    } else {
+      console.log(`[Match ${matchId}] MMR Update Success:`, mmrData)
+    }
+
+    const newWinnerMMR = mmrData?.[0]?.winner_new_mmr ?? (winnerMMR + 20)
+    const newLoserMMR = mmrData?.[0]?.loser_new_mmr ?? (loserMMR - 20)
+    console.log(`[Match ${matchId}] MMR values - Winner: ${newWinnerMMR}, Loser: ${newLoserMMR}`)
+
+    // Log the match
+    console.log(`[Match ${matchId}] Inserting PvP log...`)
+    const duration = match.startedAt ? Math.floor((Date.now() - match.startedAt) / 1000) : 0
+    
+    const { data: logData, error: logError } = await supabase.from('pvp_logs').insert({
+      player1_id: match.player1.userId,
+      player2_id: match.player2.userId,
+      winner_id: winnerId,
+      player1_mmr_before: match.player1.mmr,
+      player2_mmr_before: match.player2.mmr,
+      player1_mmr_after: match.player1.userId === winnerId ? newWinnerMMR : newLoserMMR,
+      player2_mmr_after: match.player2.userId === winnerId ? newWinnerMMR : newLoserMMR,
+      player1_deck: match.player1.deck,
+      player2_deck: match.player2.deck,
+      duration_seconds: duration,
+      battle_data: { 
+        reason,
+        player1_score: match.player1Score || 0,
+        player2_score: match.player2Score || 0,
+        rounds: match.round
+      }
+    }).select()
+
+    if (logError) {
+      console.error(`[Match ${matchId}] PvP Log Error:`, logError)
+    } else {
+      console.log(`[Match ${matchId}] PvP Log Success:`, logData)
+    }
+
+    // Notify players (skip if disconnect - already handled with opponent_disconnect event)
+    if (reason !== 'disconnect') {
+      match.player1.socket.emit('match_ended', {
+        winner: winnerId,
+        reason,
+        mmrChange: match.player1.userId === winnerId ? newWinnerMMR - match.player1.mmr : newLoserMMR - match.player1.mmr
+      })
+
+      match.player2.socket.emit('match_ended', {
+        winner: winnerId,
+        reason,
+        mmrChange: match.player2.userId === winnerId ? newWinnerMMR - match.player2.mmr : newLoserMMR - match.player2.mmr
+      })
+    }
+  } catch (err) {
+    console.error('[Match] Error ending match:', err)
+  }
+
+  activeMatches.delete(matchId)
+}
+
+httpServer.listen(PORT, '0.0.0.0', () => {
+  console.log(`[PvP Server] Running on port ${PORT}`)
+  console.log(`[PvP Server] Allowed origins:`, ALLOWED_ORIGINS)
+})

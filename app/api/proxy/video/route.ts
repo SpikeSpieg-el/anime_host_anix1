@@ -6,7 +6,6 @@ const ALLOWED_VIDEO_DOMAINS = [
   "kodik.info",
   "kodik.biz",
   "hentasis1.top",
-  "alloha.tv",
   "videocdn.tv",
   "tractos-files.ru",
 ]
