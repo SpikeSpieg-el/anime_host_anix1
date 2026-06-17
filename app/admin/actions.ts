@@ -111,3 +111,122 @@ export async function getAdminUsers() {
 
   return usersWithStats
 }
+
+export async function getPvPRules() {
+  const isAdmin = await checkAdminAuth()
+  if (!isAdmin) throw new Error("Unauthorized")
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  const supabase = createClient(supabaseUrl!, supabaseServiceKey!)
+
+  const { data, error } = await supabase
+    .from("pvp_rules")
+    .select("*")
+    .order("category")
+  
+  if (error) throw error
+  return data
+}
+
+export async function updatePvPRule(id: string, updates: any) {
+  const isAdmin = await checkAdminAuth()
+  if (!isAdmin) throw new Error("Unauthorized")
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  const supabase = createClient(supabaseUrl!, supabaseServiceKey!)
+
+  const { error } = await supabase
+    .from("pvp_rules")
+    .update({ ...updates, updated_at: new Date().toISOString() })
+    .eq("id", id)
+
+  if (error) throw error
+  return { success: true }
+}
+
+export async function getPvPLogs(limit = 100) {
+  const isAdmin = await checkAdminAuth()
+  if (!isAdmin) throw new Error("Unauthorized")
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  const supabase = createClient(supabaseUrl!, supabaseServiceKey!)
+
+  const { data, error } = await supabase
+    .from("pvp_logs")
+    .select(`
+      *,
+      player1:profiles!player1_id(username, avatar_url),
+      player2:profiles!player2_id(username, avatar_url)
+    `)
+    .order("created_at", { ascending: false })
+    .limit(limit)
+
+  if (error) throw error
+  return data
+}
+
+export async function getPvPLocations() {
+  const isAdmin = await checkAdminAuth()
+  if (!isAdmin) throw new Error("Unauthorized")
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  const supabase = createClient(supabaseUrl!, supabaseServiceKey!)
+
+  const { data, error } = await supabase
+    .from("pvp_locations")
+    .select("*, rules:pvp_location_rules(rule_id)")
+    .order("created_at", { ascending: false })
+
+  if (error) throw error
+  return data
+}
+
+export async function createPvPLocation(location: any, ruleIds: string[]) {
+  const isAdmin = await checkAdminAuth()
+  if (!isAdmin) throw new Error("Unauthorized")
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  const supabase = createClient(supabaseUrl!, supabaseServiceKey!)
+
+  const { data, error } = await supabase
+    .from("pvp_locations")
+    .insert([location])
+    .select()
+    .single()
+
+  if (error) throw error
+
+  if (ruleIds.length > 0) {
+    const { error: rulesError } = await supabase
+      .from("pvp_location_rules")
+      .insert(ruleIds.map(ruleId => ({
+        location_id: data.id,
+        rule_id: ruleId
+      })))
+    if (rulesError) throw rulesError
+  }
+
+  return data
+}
+
+export async function deletePvPLocation(id: string) {
+  const isAdmin = await checkAdminAuth()
+  if (!isAdmin) throw new Error("Unauthorized")
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  const supabase = createClient(supabaseUrl!, supabaseServiceKey!)
+
+  const { error } = await supabase
+    .from("pvp_locations")
+    .delete()
+    .eq("id", id)
+
+  if (error) throw error
+  return { success: true }
+}

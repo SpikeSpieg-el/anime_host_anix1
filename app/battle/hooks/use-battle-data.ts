@@ -65,6 +65,7 @@ export function useBattleData() {
   
   // PvP opponent deck context for calculating formation/synergy bonuses
   const [opponentDeckContext, setOpponentDeckContext] = useState<DeckContext | null>(null)
+  const [isPvPMode, setIsPvPMode] = useState(false)
 
   // Animation states
   const [cardEffects, setCardEffects] = useState<Map<string, { type: 'buff' | 'debuff' | 'synergy' | 'knb-win' | 'knb-loss' }>>(new Map())
@@ -348,20 +349,20 @@ export function useBattleData() {
     if (!ccgState) return
     
     console.log('[Battle] Updating PvP round with new deck:', newDeck.length, 'round:', newRound)
-    console.log('[Battle] New deck cards:', newDeck.map(c => ({ id: c.uniqueId, name: c.name })))
-    console.log('[Battle] Current hand before update:', ccgState.hand.map(c => ({ id: c.uniqueId, name: c.name })))
-    console.log('[Battle] Used card IDs:', Array.from(usedCardIdsRef.current))
+    
+    // Process new deck to ensure roles and provision costs are set
+    const processedDeck = newDeck.map(c => ({
+      ...c,
+      role: c.role || getCardRole(c),
+      provisionCost: c.provisionCost || getCardProvision(c)
+    }))
     
     // Exclude cards that have been used in previous rounds
-    const availableDeck = newDeck.filter(card => !usedCardIdsRef.current.has(card.uniqueId))
-    console.log('[Battle] Available deck after filtering:', availableDeck.map(c => ({ id: c.uniqueId, name: c.name })))
+    const availableDeck = processedDeck.filter(card => !usedCardIdsRef.current.has(card.uniqueId))
     
-    // Draw 4 cards for hand, rest stays in deck
+    // Draw 4 cards for hand (initial or after each round)
     const newHand = availableDeck.slice(0, 4)
     const remainingDeck = availableDeck.slice(4)
-    
-    console.log('[Battle] New hand:', newHand.map(c => ({ id: c.uniqueId, name: c.name })))
-    console.log('[Battle] Remaining deck:', remainingDeck.map(c => ({ id: c.uniqueId, name: c.name })))
     
     setCcgState(prev => {
       if (!prev) return null
@@ -374,7 +375,6 @@ export function useBattleData() {
       }
     })
     
-    // Reset placements
     setPlacedPlacedThisRound([])
     setAiPlacedThisRound([])
     setPlacementCounter(0)
@@ -509,8 +509,7 @@ export function useBattleData() {
     const isWinner = winnerId === user.id
     console.log('[Battle] Resolving PvP match end, winner:', winnerId, 'isUserWinner:', isWinner, 'reason:', reason)
     
-    // Do NOT recalculate scores — server data already set correct powers/synergies in zones.
-    // Just set victory flag and transition to finalizing phase.
+    // Set victory flag and transition to finalizing phase.
     setCcgState(prev => {
       if (!prev) return null
       return {
@@ -520,7 +519,10 @@ export function useBattleData() {
         endReason: reason || 'normal'
       }
     })
-  }, [user])
+
+    // In PvP, we might want to refresh profile for MMR updates immediately
+    refreshCoins()
+  }, [user, refreshCoins])
 
   const toggleCardSelection = (card: Card) => {
     setSelectedCards(prev => {
@@ -571,81 +573,61 @@ export function useBattleData() {
       setAiPlacedThisRound([])
       setPlacementCounter(0)
       setIsRoundConfirmed(false)
-      usedCardIdsRef.current = new Set() // Reset used cards for new match
+      usedCardIdsRef.current = new Set()
 
-      // Store opponent deck context for formation/synergy calculations
       if (matchData.opponentDeck) {
         const opponentDeck = matchData.opponentDeck.map((c: any) => ({
           ...c,
-          role: getCardRole(c),
-          provisionCost: getCardProvision(c)
+          role: c.role || getCardRole(c),
+          provisionCost: c.provisionCost || getCardProvision(c)
         }))
         setOpponentDeckContext({
           deck: opponentDeck,
           leaderId: matchData.opponentLeaderId,
           formation: matchData.opponentFormation
         })
-        console.log('[Battle] Opponent deck context set:', matchData.opponentFormation, matchData.opponentLeaderId)
       }
 
-      console.log('[Battle] Mapping territories...', matchData.territories)
-      // TODO: Починить синхронизацию локаций для PvP - сейчас модификаторы отключены
-      // Временно отключаем модификаторы локации в PvP для стабильности
-      const neutralModifier = {
-        id: 'neutral',
-        name: 'Нейтральная Территория',
-        nameRu: 'Нейтральная Территория',
-        description: 'Нет специальных эффектов'
-      }
-      const zones: BattleZone[] = Array(3).fill(null).map((_, idx: number) => {
-        return {
-          id: `zone-${idx + 1}`,
-          name: `Линия ${idx + 1}`,
-          nameRu: `Линия ${idx + 1}`,
-          modifier: neutralModifier,
-          playerCards: [],
-          aiCards: [],
-          playerScore: 0,
-          aiScore: 0,
-          owner: "none"
-        }
-      })
-      console.log('[Battle] Zones created:', zones)
+      const zones: BattleZone[] = matchData.territories.map((t: any, idx: number) => ({
+        id: `zone-${idx + 1}`,
+        name: t.name || `Линия ${idx + 1}`,
+        nameRu: t.nameRu || `Линия ${idx + 1}`,
+        modifier: {
+          id: t.id,
+          name: t.name,
+          nameRu: t.nameRu,
+          description: t.description
+        },
+        playerCards: [],
+        aiCards: [],
+        playerScore: 0,
+        aiScore: 0,
+        owner: "none"
+      }))
 
-      console.log('[Battle] Processing player deck...', matchData.yourDeck)
-      // Use deck from match data
       const playerDeck = matchData.yourDeck.map((c: any) => ({
         ...c,
-        role: getCardRole(c),
-        provisionCost: getCardProvision(c)
+        role: c.role || getCardRole(c),
+        provisionCost: c.provisionCost || getCardProvision(c)
       }))
-      console.log('[Battle] Player deck processed:', playerDeck)
 
-      // Draw initial hands (4 cards each)
-      const shuffledDeck = playerDeck.slice().sort(() => Math.random() - 0.5)
-      const hand = shuffledDeck.slice(0, 4)
-      const deck = shuffledDeck.slice(4)
-      console.log('[Battle] Hand drawn:', hand.length, 'cards, Deck remaining:', deck.length)
+      const hand = playerDeck.slice(0, 4)
+      const deck = playerDeck.slice(4)
 
-      // Opponent's deck will be synchronized via WebSocket
-      // For now, initialize with empty arrays
-      const newCcgState = {
+      setCcgState({
         round: 1,
         zones,
         hand,
         deck,
-        aiHand: [], // Will be hidden in PvP
+        aiHand: [],
         aiDeck: [],
-        phase: "placement" as const,
+        phase: "placement",
         victory: null,
         roundHistory: []
-      }
-      console.log('[Battle] Setting CCG state:', newCcgState)
-      setCcgState(newCcgState)
+      })
 
-      console.log('[Battle] Setting battle state to "battle"')
       setBattleState("battle")
-      console.log('[Battle] PvP battle initialization complete!')
+      setIsPvPMode(true)
     } catch (error) {
       console.error('[Battle] Error in startPvPBattle:', error)
       setError('Ошибка инициализации PvP боя')
@@ -836,7 +818,7 @@ export function useBattleData() {
 
       console.log('[Battle] Setting battleState to "battle"')
       setBattleState("battle")
-      console.log('[Battle] Battle state set to "battle"')
+      setIsPvPMode(false)
     } catch (err: any) {
       console.error('[Battle] Error in startBattle:', err)
       
@@ -882,6 +864,9 @@ export function useBattleData() {
 
     setPlacedPlacedThisRound(prev => [...prev, { cardId, zoneId, isSecret }])
     setPlacementCounter(prev => prev + 1)
+
+    // In PvP mode, we don't need AI responses
+    if (isPvPMode) return
 
     // AI responds using new AI Engine
     const aiCardIndex = aiPlacedThisRound.length
@@ -1596,31 +1581,37 @@ export function useBattleData() {
         setBattleState("result")
       }
 
-      // Process rewards and API calls in background (PvE only)
-      if (!isPvPMode && ccgState && ccgState.victory) {
+      // Process rewards and API calls in background
+      if (ccgState && ccgState.victory) {
         const token = session?.access_token
         if (token) {
           try {
-            // Send result log to the server
-            await fetch('/api/battle', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-              body: JSON.stringify({
-                action: 'finish_battle',
-                dungeonId: selectedDungeon?.id,
-                result: 'win',
-                coinsEarned: ccgState.coinsEarned || 0,
-                dustEarned: ccgState.dustEarned || 0,
-                xpEarned: ccgState.xpEarned || 0,
-                turns: 3
+            if (!isPvPMode) {
+              // Send PvE result log to the server
+              await fetch('/api/battle', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({
+                  action: 'finish_battle',
+                  dungeonId: selectedDungeon?.id,
+                  result: 'win',
+                  coinsEarned: ccgState.coinsEarned || 0,
+                  dustEarned: ccgState.dustEarned || 0,
+                  xpEarned: ccgState.xpEarned || 0,
+                  turns: 3
+                })
               })
-            })
+              await refreshCoins()
+              await refreshDust()
+            } else {
+              // In PvP, we already refreshed MMR/coins in resolvePvPMatchEnd
+              // But we can do one more refresh to be safe
+              await refreshCoins()
+            }
           } catch (e) {
             console.error("Failed to post battle logs", e)
           }
         }
-        await refreshCoins()
-        await refreshDust()
       }
       await loadBattleData()
     } finally {
@@ -1631,6 +1622,7 @@ export function useBattleData() {
   const closeBattleResult = () => {
     setBattleState("idle")
     setCcgState(null)
+    setIsPvPMode(false)
   }
 
   const teamPower = {
