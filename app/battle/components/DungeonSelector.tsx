@@ -1,5 +1,5 @@
 import React from "react"
-import { Mountain, Zap, Coins, Star, Sparkles, CheckCircle2, Lock, TrendingUp } from "lucide-react"
+import { Mountain, Zap, Coins, Star, Sparkles, CheckCircle2, Lock, TrendingUp, Swords } from "lucide-react"
 import { Dungeon, BattleProgress } from "../types"
 import { THEME_CONFIG } from "../config"
 
@@ -9,6 +9,7 @@ interface DungeonSelectorProps {
   selectedDungeon: Dungeon | null
   setSelectedDungeon: (dungeon: Dungeon) => void
   logs: any[]
+  onStartBattle?: () => void
 }
 
 export const DungeonSelector: React.FC<DungeonSelectorProps> = ({
@@ -17,6 +18,7 @@ export const DungeonSelector: React.FC<DungeonSelectorProps> = ({
   selectedDungeon,
   setSelectedDungeon,
   logs,
+  onStartBattle,
 }) => {
   return (
     <div className="flex flex-col gap-3 sm:gap-4 h-full">
@@ -41,7 +43,7 @@ export const DungeonSelector: React.FC<DungeonSelectorProps> = ({
       </div>
 
       {/* Dungeons Grid */}
-      <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent px-1 sm:px-2 pb-2">
+      <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent px-1 sm:px-2 pt-4 pb-6">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
           {dungeons.map((dungeon) => {
             const theme = THEME_CONFIG[dungeon.theme] || THEME_CONFIG.dark_forest
@@ -145,6 +147,25 @@ export const DungeonSelector: React.FC<DungeonSelectorProps> = ({
                       </div>
                     )}
                   </div>
+
+                  {/* Start Battle Button on Selected */}
+                  {isSelected && onStartBattle && (
+                    <div
+                      className="mt-3 pt-3 border-t border-indigo-500/30"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <div
+                        role="button"
+                        tabIndex={0}
+                        onClick={onStartBattle}
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onStartBattle() }}
+                        className="w-full flex items-center justify-center gap-2 py-2.5 sm:py-3 rounded-xl bg-gradient-to-r from-amber-400 via-orange-500 to-amber-500 text-black font-black text-xs sm:text-sm uppercase tracking-wider shadow-lg shadow-amber-500/30 border-b-2 border-amber-700 hover:brightness-110 transition-all active:scale-[0.97] cursor-pointer select-none"
+                      >
+                        <Swords className="w-4 h-4" />
+                        Вступить в дуэль
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Lock Overlay */}

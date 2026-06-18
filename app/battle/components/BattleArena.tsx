@@ -10,7 +10,7 @@ import { rarityConfig } from "@/types/gacha"
 interface DraggableCardProps {
   card: Card
   cardId: string
-  size: "sm" | "lg"
+  size: "xs" | "sm" | "lg"
   isPlacement?: boolean
   source: 'hand' | 'zone'
   isSecret?: boolean
@@ -74,7 +74,7 @@ const DraggableCard: React.FC<DraggableCardProps> = ({
 interface SortableCardProps {
   card: Card
   cardId: string
-  size: "sm" | "lg"
+  size: "xs" | "sm" | "lg"
   isPlacement?: boolean
   isInteractive?: boolean
   idx?: number
@@ -231,6 +231,7 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
   const [showRules, setShowRules] = useState(false)
   const [activeTerrain, setActiveTerrain] = useState<{ nameRu: string; description: string } | null>(null)
   const [activeDragId, setActiveDragId] = useState<string | null>(null)
+  const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth < 1024 : true)
   const [dragSource, setDragSource] = useState<'hand' | 'zone' | null>(null)
   const [viewedCard, setViewedCard] = useState<{ card: any; isPlayer: boolean; power?: number; bonus?: number; synergyBonus?: number; formationBonus?: number; zoneModifier?: any } | null>(null)
   
@@ -248,6 +249,14 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
   const [cardEffects, setCardEffects] = useState<Map<string, { type: 'buff' | 'debuff' | 'synergy' | 'knb-win' | 'knb-loss' }>>(new Map())
   const animationTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const floatingTextIdRef = useRef(0)
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 1024)
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
+
+  const zoneCardSize = isMobile ? 'xs' : 'sm'
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -626,7 +635,7 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
                 statusGlow={statusGlow}
               >
                 {/* КАРТЫ ПРОТИВНИКА */}
-                <div className="flex-1 flex flex-col justify-start min-h-[70px] sm:min-h-[80px] gap-1 sm:gap-1">
+                <div className="flex flex-col justify-start gap-1 sm:gap-1">
                   <div className={`flex justify-between items-center px-1.5 sm:px-1.5 text-[9px] sm:text-[9px] font-bold uppercase transition-all duration-300 ${
                     aiPower > playerPower ? 'text-rose-400 scale-105' : 'text-rose-400/70'
                   }`}>
@@ -638,13 +647,13 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
                       {aiPower}
                     </span>
                   </div>
-                  <div className="grid grid-cols-2 gap-1 sm:gap-1 justify-items-center items-center">
+                  <div className="grid grid-cols-2 gap-0.5 justify-items-center items-center">
                     {zone.aiCards.map((zc, idx) => {
                       const isRevealing = revealingCards.has(zc.card.uniqueId)
                       const isDestroying = destroyingCards.has(zc.card.uniqueId)
                       const cardEffect = cardEffects.get(zc.card.uniqueId)
                       return (
-                        <div key={idx} className={`scale-[0.8] sm:scale-[0.85] lg:scale-100 transition-all duration-500 transform-gpu will-change-transform ${
+                        <div key={idx} className={`transition-all duration-500 transform-gpu will-change-transform ${
                           isRevealing ? 'animate-[flipIn_0.6s_ease-out]' : ''
                         } ${
                           isDestroying ? 'animate-cardDestroy' : ''
@@ -661,7 +670,7 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
                         }`}>
                           <BattleCard
                             card={zc.card}
-                            size="sm"
+                            size={zoneCardSize}
                             isSecret={zc.isSecret && (!isReveal || ccgState.round < 3) && !isRevealing}
                             isPlayerCard={false}
                             powerValue={zc.powerAfterModifier}
@@ -677,10 +686,10 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
                     {aiPendingOnThisZone.map((p, idx) => {
                       if (!p.card) return null
                       return (
-                        <div key={`ai-pending-${idx}`} className="scale-[0.8] sm:scale-[0.85] lg:scale-100 transform-gpu will-change-transform">
+                        <div key={`ai-pending-${idx}`} className="transform-gpu will-change-transform">
                           <BattleCard
                             card={p.card}
-                            size="sm"
+                            size={zoneCardSize}
                             isSecret={p.isSecret && (!isReveal || ccgState.round < 3)}
                             isPlayerCard={false}
                             isPending={true}
@@ -713,14 +722,14 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
                 </div>
 
                 {/* КАРТЫ ИГРОКА */}
-                <div className="flex-1 flex flex-col justify-end min-h-[70px] sm:min-h-[80px] gap-1 sm:gap-1 border-t border-white/5 pt-1.5 sm:pt-1.5">
-                  <div className="grid grid-cols-2 gap-1 sm:gap-1 justify-items-center items-center">
+                <div className="flex flex-col justify-end gap-1 sm:gap-1 border-t border-white/5 pt-1.5 sm:pt-1.5">
+                  <div className="grid grid-cols-2 gap-0.5 justify-items-center items-center">
                     {zone.playerCards.map((zc, idx) => {
                       const isRevealing = revealingCards.has(zc.card.uniqueId)
                       const isDestroying = destroyingCards.has(zc.card.uniqueId)
                       const cardEffect = cardEffects.get(zc.card.uniqueId)
                       return (
-                        <div key={idx} className={`scale-[0.8] sm:scale-[0.85] lg:scale-100 transition-all duration-500 transform-gpu will-change-transform ${
+                        <div key={idx} className={`transition-all duration-500 transform-gpu will-change-transform ${
                           isRevealing ? 'animate-[flipIn_0.6s_ease-out]' : ''
                         } ${
                           isDestroying ? 'animate-cardDestroy' : ''
@@ -737,7 +746,7 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
                         }`}>
                           <BattleCard
                             card={zc.card}
-                            size="sm"
+                            size={zoneCardSize}
                             isSecret={zc.isSecret && (!isReveal || ccgState.round < 3) && !isRevealing}
                             powerValue={zc.powerAfterModifier}
                             roleMatchupBonus={zc.roleMatchupBonus}
@@ -754,13 +763,13 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
                       if (!p.card) return null
                       const isRecalling = recallingCards.has(p.card.uniqueId)
                       return (
-                        <div key={`pending-${idx}`} className={`scale-[0.8] sm:scale-[0.85] lg:scale-100 transition-all duration-300 transform-gpu will-change-transform ${
+                        <div key={`pending-${idx}`} className={`transition-all duration-300 transform-gpu will-change-transform ${
                           isRecalling ? 'animate-cardRecall' : ''
                         }`}>
                           <DraggableCard
                             card={p.card!}
                             cardId={p.card!.uniqueId}
-                            size="sm"
+                            size={zoneCardSize}
                             isSecret={p.isSecret && (!isReveal || ccgState.round < 3)}
                             isPlayerCard={true}
                             isPending={true}

@@ -1,10 +1,11 @@
 "use client"
 
 import { useState, useRef, useCallback, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import Image from "next/image"
 import { Navbar } from "@/components/layout/navbar"
 import { Footer } from "@/components/layout/footer"
-import { Swords, AlertCircle, X, RefreshCcw, Star, Crown, Lock, LogIn, Share } from "lucide-react"
+import { Swords, AlertCircle, X, RefreshCcw, Star, Crown, Lock, LogIn, Share, Sparkles } from "lucide-react"
 import { useBattleData } from "./hooks/use-battle-data"
 import { useAuth } from "@/components/auth/auth-provider"
 import { AuthModal } from "@/components/auth/auth-modal"
@@ -288,6 +289,7 @@ const InteractiveCard = ({ card }: { card: Card }) => {
 }
 
 export default function BattlePage() {
+  const router = useRouter()
   const { user, sessionLoading } = useAuth()
   const [showAuthModal, setShowAuthModal] = useState(false)
   const [showLocationSelector, setShowLocationSelector] = useState(false)
@@ -519,6 +521,13 @@ export default function BattlePage() {
             <p className="mt-2 text-slate-400 text-xs md:text-sm max-w-xl mx-auto font-medium">
               Собери колоду, сочетай КНБ роли и побеждай на 3-х линиях!
             </p>
+            <button
+              onClick={() => router.push("/gacha")}
+              className="mt-4 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 border border-indigo-500/20 hover:border-indigo-500/40 font-bold text-sm transition-all hover:scale-[1.02] active:scale-[0.98]"
+            >
+              <Sparkles className="w-4 h-4" />
+              Перейти в Гачу
+            </button>
           </div>
         )}
 
@@ -701,6 +710,10 @@ export default function BattlePage() {
               selectedDungeon={selectedDungeon}
               setSelectedDungeon={setSelectedDungeon}
               logs={logs}
+              onStartBattle={() => {
+                setShowLocationSelector(false)
+                startBattle()
+              }}
             />
           </div>
         </div>

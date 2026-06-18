@@ -1483,7 +1483,7 @@ export default function GachaPage() {
           <button
             type="button"
             onClick={() => setGachaMainTab("gacha")}
-            className={`flex flex-col items-center justify-center gap-1 w-1/2 h-full rounded-xl transition-all duration-300 ${
+            className={`flex flex-col items-center justify-center gap-1 w-1/3 h-full rounded-xl transition-all duration-300 ${
               gachaMainTab === "gacha"
                 ? "bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 shadow-inner"
                 : "text-slate-400 hover:text-slate-300 hover:bg-white/5 active:scale-95"
@@ -1495,7 +1495,7 @@ export default function GachaPage() {
           <button
             type="button"
             onClick={() => setGachaMainTab("market")}
-            className={`flex flex-col items-center justify-center gap-1 w-1/2 h-full rounded-xl transition-all duration-300 ${
+            className={`flex flex-col items-center justify-center gap-1 w-1/3 h-full rounded-xl transition-all duration-300 ${
               gachaMainTab === "market"
                 ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 shadow-inner"
                 : "text-slate-400 hover:text-slate-300 hover:bg-white/5 active:scale-95"
@@ -1503,6 +1503,14 @@ export default function GachaPage() {
           >
             <Store className="w-5 h-5 sm:w-6 sm:h-6" />
             <span className="text-[10px] sm:text-xs font-bold tracking-wide">Маркет</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => router.push("/battle")}
+            className="flex flex-col items-center justify-center gap-1 w-1/3 h-full rounded-xl transition-all duration-300 text-slate-400 hover:text-slate-300 hover:bg-white/5 active:scale-95"
+          >
+            <Swords className="w-5 h-5 sm:w-6 sm:h-6" />
+            <span className="text-[10px] sm:text-xs font-bold tracking-wide">Битвы</span>
           </button>
         </div>
       </div>
@@ -1533,6 +1541,14 @@ export default function GachaPage() {
           >
             <Store className="w-5 h-5" />
             Маркет
+          </button>
+          <button
+            type="button"
+            onClick={() => router.push("/battle")}
+            className="flex items-center gap-2.5 px-8 py-3 rounded-xl text-sm font-black uppercase tracking-wider transition-all duration-300 text-slate-400 hover:text-slate-200 hover:bg-white/5 border border-transparent"
+          >
+            <Swords className="w-5 h-5" />
+            Битвы
           </button>
         </div>
       </div>

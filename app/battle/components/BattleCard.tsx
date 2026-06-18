@@ -8,7 +8,7 @@ interface BattleCardProps {
   card: Card
   isSecret?: boolean
   isPlayerCard?: boolean
-  size?: "sm" | "md" | "lg"
+  size?: "xs" | "sm" | "md" | "lg"
   className?: string
   onClick?: () => void
   onRemove?: () => void
@@ -71,12 +71,14 @@ export const BattleCard: React.FC<BattleCardProps> = ({
   const hasSynergyBonus = synergyBonus > 0
 
   const sizeClasses = {
+    xs: "w-[48px] h-[72px] lg:w-[60px] lg:h-[90px]",
     sm: "w-[72px] h-[108px] lg:w-[90px] lg:h-[135px]",
     md: "w-[100px] h-[150px] lg:w-[120px] lg:h-[180px]",
     lg: "w-[140px] h-[210px] lg:w-[160px] lg:h-[240px]",
   }
 
   const baseDimensions = {
+    xs: { width: 60, height: 90 },
     sm: { width: 90, height: 135 },
     md: { width: 120, height: 180 },
     lg: { width: 160, height: 240 },
