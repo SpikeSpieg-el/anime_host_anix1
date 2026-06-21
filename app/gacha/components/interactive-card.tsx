@@ -52,9 +52,9 @@ export const InteractiveCard = ({ card, forceFlipped = false }: InteractiveCardP
   }, [forceFlipped])
 
   useEffect(() => {
+    setIsImageLoading(true)
     setImageStartedLoading(false)
     const timer = setTimeout(() => {
-      setIsImageLoading(true)
       setImageStartedLoading(true)
     }, 50)
 

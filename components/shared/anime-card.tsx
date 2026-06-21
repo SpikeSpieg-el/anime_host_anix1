@@ -92,7 +92,7 @@ export function AnimeCard({ anime, className, variant = 'default', showUpdateBad
                 setImageError(true)
                 setImageLoading(false)
               }}
-              unoptimized={imageError}
+              unoptimized={imageError || posterSrc.startsWith('data:image')}
             />
 
             {imageLoading && (
@@ -100,7 +100,7 @@ export function AnimeCard({ anime, className, variant = 'default', showUpdateBad
                 <div className="w-4 h-4 rounded-full border border-orange-500/20 border-t-orange-500 animate-spin" />
               </div>
             )}
-            
+
             {/* Status badge */}
             <div className="absolute top-1 right-1 flex flex-col items-end gap-1">
               <span className={cn(
@@ -190,7 +190,7 @@ export function AnimeCard({ anime, className, variant = 'default', showUpdateBad
             setImageError(true)
             setImageLoading(false)
           }}
-          unoptimized={imageError}
+          unoptimized={imageError || posterSrc.startsWith('data:image')}
         />
 
         {imageLoading && (

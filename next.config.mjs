@@ -6,8 +6,8 @@ const nextConfig = {
       { protocol: 'https', hostname: '**' },
       { protocol: 'http', hostname: '**' },
     ],
-    // Добавляем 80 в список
-    qualities: [35, 50, 60, 75, 80, 90],
+    // Два уровня качества для снижения количества трансформаций
+    qualities: [50, 60, 80],
   },
   async headers() {
     return [

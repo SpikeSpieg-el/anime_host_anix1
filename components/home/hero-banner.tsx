@@ -410,9 +410,9 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime, recommendationRea
                          fill
                          className="object-cover"
                          sizes="(max-width: 768px) 160px, 350px"
-                         quality={90}
+                         quality={80}
                          onError={() => setPosterImageError(true)}
-                         unoptimized={posterImageError}
+                         unoptimized={posterImageError || posterImage.startsWith('data:image')}
                       />
                       <div className="absolute bottom-0 left-0 right-0 p-2 lg:p-4 bg-gradient-to-t from-black/90 via-black/60 to-transparent backdrop-blur-[1px]">
                          <div className="flex justify-between items-end">
@@ -610,13 +610,14 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime, recommendationRea
                     
                     {/* Картинка */}
                     <div className="shrink-0 h-32 sm:h-52 md:h-full md:col-span-5 relative">
-                      <Image 
-                        src={posterImage} 
-                        fill 
-                        className="object-cover" 
-                        alt="" 
+                      <Image
+                        src={posterImage}
+                        fill
+                        className="object-cover"
+                        alt=""
+                        quality={60}
                         onError={() => setPosterImageError(true)}
-                        unoptimized={posterImageError}
+                        unoptimized={posterImageError || posterImage.startsWith('data:image')}
                       />
                       <div className="absolute inset-0 bg-gradient-to-t from-background via-background/20 to-transparent md:bg-gradient-to-r md:from-transparent md:to-background/95 dark:from-zinc-950 dark:via-zinc-950/20 dark:md:to-zinc-950/95" />
                     </div>

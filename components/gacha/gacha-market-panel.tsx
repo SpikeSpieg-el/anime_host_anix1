@@ -843,7 +843,7 @@ export function GachaMarketPanel({
                     unoptimized={isPinterestUrl(c.imageUrl)}
                     className="object-cover group-hover:scale-105 transition-transform duration-500 ease-out"
                     sizes="(max-width: 640px) 45vw, 18vw"
-                    quality={50}
+                    quality={60}
                     loading="lazy"
                     referrerPolicy="no-referrer"
                     onLoad={() => setLoadingImages(prev => ({ ...prev, [L.listingId]: false }))}

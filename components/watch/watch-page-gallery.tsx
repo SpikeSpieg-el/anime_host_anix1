@@ -390,7 +390,7 @@ export function WatchPageGallery({ anime }: WatchPageGalleryProps) {
                   fill
                   className="object-contain"
                   priority
-                  quality={90}
+                  quality={80}
                 />
               </div>
             )}

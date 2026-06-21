@@ -251,12 +251,13 @@ export function CoverProvider({ children }: { children: React.ReactNode }) {
     animes: Array<{ id: string; shikimoriUrl: string; romajiName: string; russianName: string }>
   ) => {
     // Фильтруем те, которых нет в кэше и нет в активных запросах
+    // Ограничиваем 30, чтобы не тратить лимит трансформаций на всё подряд
     const toFetch = animes.filter(anime => {
       const cached = cache[anime.id];
       if (cached && cached.poster) return false;
       if (pendingRequestsRef.current.has(anime.id)) return false;
       return true;
-    });
+    }).slice(0, 30);
 
     if (toFetch.length === 0) return;
 

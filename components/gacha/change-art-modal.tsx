@@ -326,6 +326,7 @@ export function ChangeArtModal({ card, onClose, onArtChanged, dust, refreshDust:
                     sizes="(max-width: 640px) 50vw, 33vw"
                     quality={60}
                     referrerPolicy="no-referrer"
+                    unoptimized={isPinterestUrl(previewArt)}
                     onLoad={() => setIsPreviewLoading(false)}
                     onError={handleImageError}
                   />

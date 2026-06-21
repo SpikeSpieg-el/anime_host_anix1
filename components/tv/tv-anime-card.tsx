@@ -37,6 +37,7 @@ export function TVAnimeCard({ id, title, imageUrl, episodesCurrent, episodesTota
         fill
         className="object-cover"
         sizes="(max-width: 768px) 50vw, 25vw"
+        unoptimized={!imageUrl || imageUrl.startsWith('data:image') || imageUrl === '/placeholder.png'}
         onLoad={() => setImageLoading(false)}
         onError={() => setImageLoading(false)}
       />
