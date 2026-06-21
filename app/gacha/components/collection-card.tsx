@@ -93,6 +93,7 @@ export const CollectionCard = ({ card, onClick }: CollectionCardProps) => {
           quality={50}
           loading="lazy"
           referrerPolicy="no-referrer"
+          style={card.artPosition ? { objectPosition: `${card.artPosition.x}% ${card.artPosition.y}%` } : undefined}
           onError={(e) => {
             handleImageError(e, card, true)
             setIsImageLoading(false)

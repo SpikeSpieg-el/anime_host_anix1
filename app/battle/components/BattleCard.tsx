@@ -251,10 +251,12 @@ export const BattleCard: React.FC<BattleCardProps> = ({
 
           if (imgRatio > cardRatio) {
             sWidth = img.height * cardRatio
-            sx = (img.width - sWidth) / 2
+            const maxSx = img.width - sWidth
+            sx = ((card.artPosition?.x ?? 50) / 100) * maxSx
           } else {
             sHeight = img.width / cardRatio
-            sy = (img.height - sHeight) / 2
+            const maxSy = img.height - sHeight
+            sy = ((card.artPosition?.y ?? 50) / 100) * maxSy
           }
 
           ctx.drawImage(img, sx, sy, sWidth, sHeight, 0, 0, width, height)

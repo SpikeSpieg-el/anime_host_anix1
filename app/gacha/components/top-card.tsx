@@ -22,6 +22,7 @@ export const TopCard = ({ card, onClick }: TopCardProps) => {
         className="absolute inset-0 w-full h-full object-cover"
         alt={card.name}
         referrerPolicy="no-referrer"
+        style={card.artPosition ? { objectPosition: `${card.artPosition.x}% ${card.artPosition.y}%` } : undefined}
         onError={(e) => handleImageError(e, card, true)}
         onLoad={() => setIsImageLoading(false)}
       />

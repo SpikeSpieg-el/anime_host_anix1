@@ -11,6 +11,7 @@ interface CanvasImageProps {
   onError?: (e: any) => void
   objectFit?: 'cover' | 'contain'
   opacity?: number
+  objectPosition?: { x: number; y: number }
 }
 
 export function CanvasImage({
@@ -21,7 +22,8 @@ export function CanvasImage({
   onLoad,
   onError,
   objectFit = 'cover',
-  opacity = 1
+  opacity = 1,
+  objectPosition = { x: 50, y: 50 }
 }: CanvasImageProps) {
   const isGif = src.toLowerCase().includes('.gif')
 
@@ -103,11 +105,13 @@ export function CanvasImage({
         if (imgRatio > canvasRatio) {
           // Изображение шире - обрезаем по бокам
           sWidth = img.height * canvasRatio
-          sx = (img.width - sWidth) / 2
+          const maxSx = img.width - sWidth
+          sx = (objectPosition.x / 100) * maxSx
         } else {
           // Изображение выше - обрезаем сверху/снизу
           sHeight = img.width / canvasRatio
-          sy = (img.height - sHeight) / 2
+          const maxSy = img.height - sHeight
+          sy = (objectPosition.y / 100) * maxSy
         }
       } else if (objectFit === 'contain') {
         // Вписываем изображение целиком
@@ -171,7 +175,7 @@ export function CanvasImage({
         imageRef.current.onerror = null
       }
     }
-  }, [src, objectFit, opacity, isGif])
+  }, [src, objectFit, opacity, isGif, objectPosition])
 
   return (
     <canvas

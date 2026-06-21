@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation"
 import { useState } from "react"
 import { Navbar } from "@/components/layout/navbar"
 import { Footer } from "@/components/layout/footer"
-import { Sparkles, Star, Heart, Loader2, X, ZoomIn, ExternalLink, RefreshCcw, Trash, Trash2, Crown, Package, Coins, Search, Database, Store, Share, Swords, Wrench } from "lucide-react"
+import { Sparkles, Star, Heart, Loader2, X, ZoomIn, ExternalLink, RefreshCcw, Trash, Trash2, Crown, Package, Coins, Search, Database, Store, Share, Swords, Wrench, Move } from "lucide-react"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { ANIME_PACKS } from "@/lib/gacha-packs"
 import { ModifierStyles, frameNames, coatingNames } from "@/components/gacha/card-modifiers"
@@ -22,6 +22,7 @@ import { rarityConfig, getDismantleValue } from "@/types/gacha"
 import { GachaMarketPanel } from "@/components/gacha/gacha-market-panel"
 import { GachaSellMarketModal } from "@/components/gacha/gacha-sell-market-modal"
 import { ChangeArtModal } from "@/components/gacha/change-art-modal"
+import { ArtPositionModal } from "@/components/gacha/art-position-modal"
 
 // Newly created/extracted modular helpers
 import { useGachaState } from "./hooks/use-gacha-state"
@@ -126,6 +127,9 @@ export default function GachaPage() {
     setCardToSell,
     cardToChangeArt,
     setCardToChangeArt,
+    cardToPositionArt,
+    setCardToPositionArt,
+    handleArtPositionChanged,
     showDeleteConfirm,
     setShowDeleteConfirm,
     collectionRating,
@@ -792,6 +796,21 @@ export default function GachaPage() {
                 </button>
               )}
 
+              {session?.user && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCardToPositionArt(viewedCard)
+                    setViewedCard(null)
+                  }}
+                  className="px-3 py-2 sm:px-4 sm:py-2.5 rounded-lg sm:rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 font-bold text-[10px] sm:text-xs flex items-center justify-center gap-1.5 sm:gap-2 transition-colors border border-cyan-500/30"
+                  title="Изменить позицию арта"
+                >
+                  <Move className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                  <span className="truncate">Позиция</span>
+                </button>
+              )}
+
               {isDev && (
                 <button
                   type="button"
@@ -950,25 +969,29 @@ export default function GachaPage() {
             <div className="flex flex-col items-center w-full max-w-md mx-auto">
               <button 
                 onClick={handleRoll} 
-                disabled={userCoins < (selectedPack ? selectedPack.price : 50)}
+                disabled={coinsLoading || userCoins < (selectedPack ? selectedPack.price : 50)}
                 className={`group relative w-[260px] sm:w-72 md:w-80 h-[380px] sm:h-[420px] md:h-[480px] rounded-[2rem] sm:rounded-[2.5rem] border-2 border-dashed backdrop-blur-md flex flex-col items-center justify-center transition-all duration-300 overflow-hidden shadow-2xl ${
-                  userCoins < (selectedPack ? selectedPack.price : 50)
+                  coinsLoading || userCoins < (selectedPack ? selectedPack.price : 50)
                     ? 'border-red-500/50 bg-red-900/40 cursor-not-allowed opacity-60'
                     : 'border-slate-700/50 bg-slate-900/40 hover:bg-slate-800/60 hover:border-indigo-500/50'
                 }`}
               >
                 <div className="absolute inset-0 bg-gradient-to-b from-transparent to-indigo-500/5 group-hover:to-indigo-500/10 transition-colors" />
-                {userCoins < (selectedPack ? selectedPack.price : 50) ? (
+                {coinsLoading ? (
+                  <Loader2 className="w-8 h-8 sm:w-12 sm:h-12 text-slate-400 mb-4 sm:mb-5 animate-spin" />
+                ) : userCoins < (selectedPack ? selectedPack.price : 50) ? (
                   <Coins className="w-8 h-8 sm:w-12 sm:h-12 text-red-400 mb-4 sm:mb-5" />
                 ) : (
                   <Sparkles className="w-8 h-8 sm:w-12 sm:h-12 text-indigo-500/70 group-hover:text-indigo-400 mb-4 sm:mb-5 animate-pulse" />
                 )}
                 <span className={`font-black uppercase tracking-widest text-xs sm:text-base text-center px-4 relative z-10 ${
-                  userCoins < (selectedPack ? selectedPack.price : 50)
+                  coinsLoading || userCoins < (selectedPack ? selectedPack.price : 50)
                     ? 'text-red-400'
                     : 'text-slate-400 group-hover:text-indigo-300'
                 }`}>
-                  {userCoins < (selectedPack ? selectedPack.price : 50)
+                  {coinsLoading
+                    ? 'Загрузка...'
+                    : userCoins < (selectedPack ? selectedPack.price : 50)
                     ? `Недостаточно монет (нужно ${selectedPack ? selectedPack.price : 50})`
                     : (selectedPack ? `Призвать (${selectedPack.price})` : "Призвать (50)")
                   }
@@ -1364,6 +1387,14 @@ export default function GachaPage() {
           onArtChanged={handleArtChanged}
           dust={dust}
           refreshDust={refreshDust}
+        />
+      )}
+
+      {cardToPositionArt && (
+        <ArtPositionModal
+          card={cardToPositionArt}
+          onClose={() => setCardToPositionArt(null)}
+          onPositionChanged={handleArtPositionChanged}
         />
       )}
       

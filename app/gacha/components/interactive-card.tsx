@@ -357,6 +357,7 @@ export const InteractiveCard = ({ card, forceFlipped = false }: InteractiveCardP
               className="absolute inset-0 w-full h-full scale-[1.02]"
               style={{ willChange: 'transform', transform: 'translateZ(0)' }}
               objectFit="cover"
+              objectPosition={card.artPosition || { x: 50, y: 50 }}
               onError={(e) => handleImageError(e, card, false)}
               onLoad={() => setIsImageLoading(false)}
             />

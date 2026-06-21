@@ -8,51 +8,6 @@ export interface ArtResult {
   tag: string;
 }
 
-function extractPinterestUrls(html: string): string[] {
-  if (!html) return[];
-
-  // Pinterest pages commonly embed image URLs as i.pinimg.com/{width}x/... or i.pinimg.com/originals/...
-  const matches = html.match(/https:\/\/i\.pinimg\.com\/(?:originals|\d+x)\/[^"'\\\s)]+\.(?:jpg|jpeg|png|webp)/gi) ||[];
-  const unique = Array.from(new Set(matches));
-
-  // Filter out suspicious URLs that might be placeholders
-  const filtered = unique.filter(url => {
-    // Exclude very small image sizes (likely placeholders)
-    const sizeMatch = url.match(/\/(\d+)x\//i);
-    if (sizeMatch) {
-      const size = parseInt(sizeMatch[1], 10);
-      if (size < 236) return false; // Pinterest thumbnails smaller than 236x are often placeholders
-    }
-    
-    // Exclude URLs with placeholder-like patterns
-    if (url.includes('236x') && url.length < 80) return false; // Short 236x URLs are often placeholders
-    
-    // Exclude URLs that look like Pinterest's gradient placeholders
-    // These often have specific patterns in the filename
-    if (url.match(/\/[a-f0-9]{32}\./i)) return false; // Hex hash filenames are often placeholders
-    
-    // Prefer originals over sized versions
-    if (!url.includes('/originals/') && url.includes('/236x/')) return false; // Prefer higher quality
-    
-    return true;
-  });
-
-  // Prefer originals first, then larger widths
-  filtered.sort((a, b) => {
-    const aIsOriginal = a.includes('/originals/');
-    const bIsOriginal = b.includes('/originals/');
-    if (aIsOriginal !== bIsOriginal) return aIsOriginal ? -1 : 1;
-
-    const aSize = a.match(/\/([0-9]+)x\//i);
-    const bSize = b.match(/\/([0-9]+)x\//i);
-    const aNum = aSize ? parseInt(aSize[1], 10) : 0;
-    const bNum = bSize ? parseInt(bSize[1], 10) : 0;
-    return bNum - aNum;
-  });
-
-  return filtered;
-}
-
 interface CacheEntry {
   pool: ArtResult[];
   pages: Record<string, number>;
@@ -140,9 +95,8 @@ async function fetchFromSource(
       url = `https://konachan.net/post.json?tags=${encodedTag}+rating:s&limit=${limit}&page=${page}`;
     } else if (source === 'zerochan') {
       url = `https://www.zerochan.net/${encodeURIComponent(tag)}?json&l=${limit}&p=${page}`;
-    } else if (source === 'pinterest') {
-      const query = tag.replace(/[_+]/g, ' ').trim();
-      url = `https://www.pinterest.com/search/pins/?q=${encodeURIComponent(query)}&rs=typed&term_meta[]=${encodeURIComponent(query)}|typed`;
+    } else if (source === 'yandere') {
+      url = `https://yande.re/post.json?tags=${encodedTag}+rating:s&limit=${limit}&page=${page}`;
     }
     
     console.log(`[Art Engine] Requesting ${source}: ${url}`);
@@ -152,15 +106,6 @@ async function fetchFromSource(
     if (!res.ok) {
       console.warn(`[Art Engine] ${source} returned ${res.status}`);
       return[];
-    }
-
-    if (source === 'pinterest') {
-      const html = await res.text();
-      const urls = extractPinterestUrls(html);
-      urls.forEach(u => {
-        if (!ignoredUrls.includes(u)) results.push({ url: u, source, tag });
-      });
-      return results;
     }
 
     let data;
@@ -241,8 +186,7 @@ export async function fetchHighQualityArt(
     console.log(`[Art Engine] Infinite Scour: Searching deeper for ${characterName}...`);
     
     const sourceBuckets = new Map<string, ArtResult[]>();
-    // Pinterest moved to end as fallback due to placeholder issues
-    const sources =['zerochan', 'konachan', 'danbooru', 'safebooru', 'pinterest'];
+    const sources = ['zerochan', 'konachan', 'danbooru', 'safebooru', 'yandere'];
 
     const tasks: Promise<{src: string, results: ArtResult[]}>[] =[];
 

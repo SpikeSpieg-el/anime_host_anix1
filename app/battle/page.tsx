@@ -196,6 +196,7 @@ const InteractiveCard = ({ card }: { card: Card }) => {
           quality={80}
           priority={true}
           referrerPolicy="no-referrer"
+          style={card.artPosition ? { objectPosition: `${card.artPosition.x}% ${card.artPosition.y}%` } : undefined}
           onLoad={() => setIsImageLoading(false)}
         />
         

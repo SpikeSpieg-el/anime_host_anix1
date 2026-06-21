@@ -455,13 +455,56 @@ export async function POST(request: NextRequest) {
         }, { status: 400 })
       }
 
-      const { result, coinsEarned, dustEarned, xpEarned, turns } = body
+      const { result, battleToken, turns } = body
 
       if (result !== 'win' && result !== 'loss') {
         return NextResponse.json({
           success: false,
           message: "Неверный результат боя"
         }, { status: 400 })
+      }
+
+      // Validate battle session token (anti-replay protection)
+      let sessionValid = false
+      if (battleToken) {
+        const { data: session } = await supabaseAdmin
+          .from('battle_sessions')
+          .select('id, status, dungeon_id, created_at')
+          .eq('token', battleToken)
+          .eq('user_id', user.id)
+          .single()
+
+        if (session && session.status === 'active' && session.dungeon_id === dungeonId) {
+          // Check session hasn't expired (30 min timeout)
+          const sessionAge = Date.now() - new Date(session.created_at).getTime()
+          if (sessionAge < 30 * 60 * 1000) {
+            sessionValid = true
+            // Mark session as completed
+            await supabaseAdmin
+              .from('battle_sessions')
+              .update({ status: 'completed', completed_at: new Date().toISOString() })
+              .eq('id', session.id)
+          }
+        }
+      }
+
+      // If no valid session, check if table exists (graceful fallback)
+      if (!sessionValid) {
+        // Try without token - check if battle_sessions table exists
+        const { error: tableCheck } = await supabaseAdmin
+          .from('battle_sessions')
+          .select('id')
+          .limit(1)
+
+        if (!tableCheck || tableCheck.code !== 'PGRST115') {
+          // Table exists but session is invalid - reject
+          return NextResponse.json({
+            success: false,
+            message: "Недействительная или истёкшая сессия боя. Начните новый бой."
+          }, { status: 403 })
+        }
+        // Table doesn't exist yet - allow without token (backward compat)
+        console.warn('[Battle API] battle_sessions table not found, allowing finish_battle without token')
       }
 
       // Get user progress
@@ -479,6 +522,54 @@ export async function POST(request: NextRequest) {
           .single()
         progress = newProgress
       }
+
+      // SERVER-SIDE reward calculation based on dungeon config
+      let baseCoins = 50
+      let baseDust = 10
+      let baseXp = 25
+      let energyCost = 1
+
+      if (dungeonId === 'tutorial_forest') {
+        baseCoins = 50; baseDust = 10; baseXp = 30; energyCost = 1
+      } else if (dungeonId === 'peaceful_meadow') {
+        baseCoins = 75; baseDust = 20; baseXp = 50; energyCost = 1
+      } else if (dungeonId === 'dark_forest') {
+        baseCoins = 100; baseDust = 30; baseXp = 80; energyCost = 2
+      } else if (dungeonId.startsWith('daily-market-')) {
+        baseCoins = 300; baseDust = 80; baseXp = 150; energyCost = 2
+      } else if (dungeonId.startsWith('daily-')) {
+        energyCost = 1
+        const today = new Date().toISOString().split('T')[0]
+        const { data: dailyBattle } = await supabaseAdmin
+          .from('battle_daily')
+          .select('coins_reward, dust_reward, xp_reward, energy_cost')
+          .eq('date', today)
+          .eq('is_active', true)
+          .single()
+        if (dailyBattle) {
+          baseCoins = dailyBattle.coins_reward || 200
+          baseDust = dailyBattle.dust_reward || 50
+          baseXp = dailyBattle.xp_reward || 100
+          energyCost = dailyBattle.energy_cost || 1
+        }
+      } else {
+        const { data: dungeonData } = await supabaseAdmin
+          .from('battle_dungeons')
+          .select('coins_reward_base, dust_reward_base, xp_reward_base, energy_cost')
+          .eq('id', dungeonId)
+          .single()
+        if (dungeonData) {
+          baseCoins = dungeonData.coins_reward_base || 50
+          baseDust = dungeonData.dust_reward_base || 10
+          baseXp = dungeonData.xp_reward_base || 25
+          energyCost = dungeonData.energy_cost || 1
+        }
+      }
+
+      // Server-side random multipliers (same formula as client had)
+      const coinsEarned = result === 'win' ? Math.round(baseCoins * (1 + Math.random() * 0.3)) : 0
+      const dustEarned = result === 'win' ? Math.round(baseDust * (1 + Math.random() * 0.2)) : 0
+      const xpEarned = result === 'win' ? Math.round(baseXp * (1 + Math.random() * 0.1)) : Math.round(baseXp * 0.2)
 
       // Apply rewards for wins
       if (result === 'win') {
@@ -575,41 +666,25 @@ export async function POST(request: NextRequest) {
       }
 
       // Save battle log
-      // Get dungeon energy cost
-      let energyCost = 1
-      if (dungeonId === 'tutorial_forest' || dungeonId === 'peaceful_meadow') {
-        energyCost = 1
-      } else if (dungeonId === 'dark_forest') {
-        energyCost = 2
-      } else if (dungeonId.startsWith('daily-market-')) {
-        energyCost = 2
-      } else if (dungeonId.startsWith('daily-')) {
-        energyCost = 1
-      } else {
-        const { data: dungeonData } = await supabaseAdmin
-          .from('battle_dungeons')
-          .select('energy_cost')
-          .eq('id', dungeonId)
-          .single()
-        if (dungeonData) {
-          energyCost = dungeonData.energy_cost || 1
-        }
-      }
-
       await supabaseAdmin
         .from('battle_logs')
         .insert({
           user_id: user.id,
           dungeon_id: dungeonId,
           result: result,
-          coins_earned: coinsEarned || 0,
-          dust_earned: dustEarned || 0,
-          xp_earned: xpEarned || 0,
+          coins_earned: coinsEarned,
+          dust_earned: dustEarned,
+          xp_earned: xpEarned,
           battle_turns: turns || 3,
           energy_cost: energyCost,
         })
 
-      return NextResponse.json({ success: true })
+      return NextResponse.json({ 
+        success: true,
+        coinsEarned,
+        dustEarned,
+        xpEarned,
+      })
     }
 
     // ==========================================
@@ -825,9 +900,27 @@ export async function POST(request: NextRequest) {
         })
         .eq('user_id', user.id)
 
+      // Generate battle session token for anti-replay protection
+      let battleToken: string | null = null
+      try {
+        battleToken = `${user.id}-${Date.now()}-${Math.random().toString(36).substring(2, 15)}`
+        await supabaseAdmin
+          .from('battle_sessions')
+          .insert({
+            user_id: user.id,
+            dungeon_id: dungeonId,
+            token: battleToken,
+            status: 'active',
+          })
+      } catch (e) {
+        console.warn('[Battle API] Failed to create battle session:', e)
+        // Continue without token - backward compat
+      }
+
       return NextResponse.json({
         success: true,
         staminaUsed: dungeon.energy_cost,
+        battleToken,
       })
     }
 

@@ -573,6 +573,7 @@ export const PvPArena: React.FC<PvPArenaProps> = ({
                           src={card.imageUrl}
                           alt={card.name}
                           className="w-full h-full object-cover select-none pointer-events-none"
+                          style={card.artPosition ? { objectPosition: `${card.artPosition.x}% ${card.artPosition.y}%` } : undefined}
                         />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent">
                           <div className="absolute bottom-0 left-0 right-0 p-2">

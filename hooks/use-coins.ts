@@ -200,6 +200,8 @@ export function useCoins() {
         return true
       } else {
         console.error('[useCoins] Failed to spend coins:', result.message)
+        // Refresh balance from server to sync stale client state
+        loadCoins()
         return false
       }
     } catch (error: any) {
@@ -260,7 +262,7 @@ export function useCoins() {
       console.error('[useCoins] Error adding coins:', error)
       return false
     }
-  }, [user, coins])
+  }, [user, coins, session])
 
   // Отслеживаем монтирование/размонтирование компонента
   useEffect(() => {

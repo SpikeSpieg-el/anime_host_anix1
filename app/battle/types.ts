@@ -38,6 +38,7 @@ export interface Card {
   provisionCost?: number
   frameModifier?: string
   coatingModifier?: string
+  artPosition?: { x: number; y: number }
 }
 
 export interface Dungeon {

@@ -234,6 +234,7 @@ const InteractiveCard = ({ card, forceFlipped = false }: { card: MarketListingAp
           className="absolute inset-0 w-full h-full scale-[1.02]"
           style={{ willChange: 'transform', transform: 'translateZ(0)' }}
           objectFit="cover"
+          objectPosition={card.artPosition || { x: 50, y: 50 }}
           onLoad={() => setIsImageLoading(false)}
           onError={(e) => {
             handleListingImageError(e, card)
@@ -846,6 +847,7 @@ export function GachaMarketPanel({
                     quality={60}
                     loading="lazy"
                     referrerPolicy="no-referrer"
+                    style={c.artPosition ? { objectPosition: `${c.artPosition.x}% ${c.artPosition.y}%` } : undefined}
                     onLoad={() => setLoadingImages(prev => ({ ...prev, [L.listingId]: false }))}
                     onError={(e) => {
                       handleListingImageError(e, c)

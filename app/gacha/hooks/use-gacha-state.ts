@@ -137,6 +137,7 @@ export function useGachaState() {
   const [cardToSell, setCardToSell] = useState<Card | null>(null)
   const [listedCardIds, setListedCardIds] = useState<Set<string>>(new Set())
   const [cardToChangeArt, setCardToChangeArt] = useState<Card | null>(null)
+  const [cardToPositionArt, setCardToPositionArt] = useState<Card | null>(null)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
   const collectionRating = useMemo(() => calculateCollectionRating(collectedCards), [collectedCards])
@@ -259,6 +260,28 @@ export function useGachaState() {
         : card
     ))
   }, [cardToChangeArt?.uniqueId])
+
+  const handleArtPositionChanged = useCallback((artPosition: { x: number; y: number }) => {
+    setCollectedCards(prev => prev.map(card =>
+      card.uniqueId === cardToPositionArt?.uniqueId
+        ? { ...card, artPosition }
+        : card
+    ))
+    try {
+      const localData = localStorage.getItem('gacha-collection')
+      if (localData) {
+        const localCards: Card[] = JSON.parse(localData)
+        const updated = localCards.map(c =>
+          c.uniqueId === cardToPositionArt?.uniqueId
+            ? { ...c, artPosition }
+            : c
+        )
+        localStorage.setItem('gacha-collection', JSON.stringify(updated))
+      }
+    } catch (e) {
+      console.error('[handleArtPositionChanged] Error updating localStorage:', e)
+    }
+  }, [cardToPositionArt?.uniqueId])
 
   useEffect(() => {
     const handleVisibilityChange = () => {
@@ -564,6 +587,22 @@ export function useGachaState() {
       setShowCard(false)
       setIsSavingCard(false)
 
+      // SECURE: Spend coins BEFORE rolling to prevent getting cards without paying
+      if (authUser) {
+        const spendSuccess = await spendCoins(rollCost)
+        if (!spendSuccess) {
+          setErrorPopupConfig({
+            title: "Недостаточно монет",
+            message: `Не удалось списать ${rollCost} монет. Проверьте баланс и попробуйте снова!`,
+            type: "error"
+          })
+          setShowErrorPopup(true)
+          setIsRolling(false)
+          operationStartTime.current = null
+          return
+        }
+      }
+
       const currentBadLuckStreak = pityData?.bad_luck_streak || 0
 
       const rollPromise = selectedPack
@@ -602,6 +641,10 @@ export function useGachaState() {
           })
           setShowErrorPopup(true)
           setIsRolling(false)
+          // Refund coins since no card was obtained
+          if (authUser) {
+            await addCoins(rollCost).catch(e => console.error('[handleRoll] Refund failed:', e))
+          }
           return 
         }
 
@@ -614,6 +657,10 @@ export function useGachaState() {
           })
           setShowErrorPopup(true)
           setIsRolling(false)
+          // Refund coins since no card was obtained
+          if (authUser) {
+            await addCoins(rollCost).catch(e => console.error('[handleRoll] Refund failed:', e))
+          }
           return
         }
 
@@ -640,24 +687,22 @@ export function useGachaState() {
 
         setRevealedCard(newCard)
         
-        spendCoins(rollCost).catch(error => {
-          console.error('[handleRoll] Failed to spend coins:', error)
-          setErrorPopupConfig({
-            title: "Ошибка списания монет",
-            message: "Карта получена, но произошла ошибка при списании монет. Обратитесь к администратору.",
-            type: "warning"
-          })
-          setShowErrorPopup(true)
-        })
-        
         console.log('[handleRoll] Roll result ready, waiting for animation:', newCard.name)
       } else {
+        // No result - refund coins
+        if (authUser) {
+          await addCoins(rollCost).catch(e => console.error('[handleRoll] Refund failed:', e))
+        }
         await handleEmptyResult() 
       }
 
     } catch (error: any) {
       console.error("Gacha error:", error)
       setIsRolling(false)
+      // Refund coins on error if we already spent them
+      if (authUser) {
+        await addCoins(rollCost).catch(e => console.error('[handleRoll] Refund failed:', e))
+      }
       setErrorPopupConfig({
         title: "Ошибка",
         message: error.message === "TIMEOUT" ? "Сервер не ответил вовремя. Попробуйте еще раз!" : "Не удалось призвать персонажа.",
@@ -1305,6 +1350,9 @@ export function useGachaState() {
     listedCardIds,
     cardToChangeArt,
     setCardToChangeArt,
+    cardToPositionArt,
+    setCardToPositionArt,
+    handleArtPositionChanged,
     showDeleteConfirm,
     setShowDeleteConfirm,
     collectionRating,

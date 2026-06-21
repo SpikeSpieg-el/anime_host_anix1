@@ -82,6 +82,7 @@ export function useBattleData() {
   const [error, setError] = useState<string | null>(null)
   const [staminaTime, setStaminaTime] = useState("")
   const [isFinishing, setIsFinishing] = useState(false)
+  const battleTokenRef = useRef<string | null>(null)
 
   // AI Engine instance
   const aiEngineRef = useRef<ReturnType<typeof createAI> | null>(null)
@@ -136,7 +137,7 @@ export function useBattleData() {
       } else {
         const { data: fallbackData } = await supabase
           .from('user_cards')
-          .select('unique_id, name, anime, rarity, image_url, stats_hp, stats_atk, stats_def, stats_spd, stats_luck, is_main_character, score')
+          .select('unique_id, name, anime, rarity, image_url, stats_hp, stats_atk, stats_def, stats_spd, stats_luck, is_main_character, score, art_position')
         if (fallbackData) rawCards = fallbackData
       }
 
@@ -145,6 +146,7 @@ export function useBattleData() {
           uniqueId: c.unique_id, name: c.name, anime: c.anime, rarity: c.rarity as Rarity, imageUrl: c.image_url,
           stats: { hp: c.stats_hp, atk: c.stats_atk, def: c.stats_def, spd: c.stats_spd, luck: c.stats_luck },
           isMainCharacter: c.is_main_character || false, score: c.score,
+          artPosition: c.art_position || undefined,
         }
         mappedCard.role = getCardRole(mappedCard)
         mappedCard.provisionCost = getCardProvision(mappedCard)
@@ -723,6 +725,11 @@ export function useBattleData() {
         setBattleState("idle")
         return
       }
+
+      // Store battle session token for anti-replay protection
+      const spendData = await spendRes.json()
+      battleTokenRef.current = spendData.battleToken || null
+      console.log('[Battle] Battle token stored:', !!battleTokenRef.current)
 
       // Generate AI Deck from pre-defined deck for this dungeon
       console.log('[Battle] Generating AI deck for dungeon:', selectedDungeon.id)
@@ -1587,20 +1594,37 @@ export function useBattleData() {
         if (token) {
           try {
             if (!isPvPMode) {
-              // Send PvE result log to the server
-              await fetch('/api/battle', {
+              // Send PvE result log to the server with battle token
+              const finishRes = await fetch('/api/battle', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                 body: JSON.stringify({
                   action: 'finish_battle',
                   dungeonId: selectedDungeon?.id,
                   result: 'win',
-                  coinsEarned: ccgState.coinsEarned || 0,
-                  dustEarned: ccgState.dustEarned || 0,
-                  xpEarned: ccgState.xpEarned || 0,
+                  battleToken: battleTokenRef.current,
                   turns: 3
                 })
               })
+
+              // Use server-returned reward values
+              if (finishRes.ok) {
+                const finishData = await finishRes.json()
+                if (finishData.success && finishData.coinsEarned !== undefined) {
+                  // Update displayed rewards with server-calculated values
+                  setCcgState(prev => {
+                    if (!prev) return null
+                    return {
+                      ...prev,
+                      coinsEarned: finishData.coinsEarned,
+                      dustEarned: finishData.dustEarned,
+                      xpEarned: finishData.xpEarned,
+                    }
+                  })
+                }
+              }
+
+              battleTokenRef.current = null
               await refreshCoins()
               await refreshDust()
             } else {
@@ -1623,6 +1647,7 @@ export function useBattleData() {
     setBattleState("idle")
     setCcgState(null)
     setIsPvPMode(false)
+    battleTokenRef.current = null
   }
 
   const teamPower = {

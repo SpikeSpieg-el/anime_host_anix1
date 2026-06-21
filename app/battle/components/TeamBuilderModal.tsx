@@ -256,6 +256,7 @@ export const TeamBuilderModal: React.FC<TeamBuilderModalProps> = ({
                           fill
                           sizes="(max-width: 640px) 56px, 56px"
                           quality={85}
+                          style={card.artPosition ? { objectPosition: `${card.artPosition.x}% ${card.artPosition.y}%` } : undefined}
                         />
                         {isSelected && (
                           <div className="absolute inset-0 bg-indigo-500/40 backdrop-blur-[0.5px] rounded-lg flex items-center justify-center z-30">
@@ -354,6 +355,7 @@ export const TeamBuilderModal: React.FC<TeamBuilderModalProps> = ({
                       fill
                       sizes="(max-width: 640px) 56px, 56px"
                       quality={85}
+                      style={card.artPosition ? { objectPosition: `${card.artPosition.x}% ${card.artPosition.y}%` } : undefined}
                     />
                     {isSelected && (
                       <div className="absolute inset-0 bg-indigo-500/40 backdrop-blur-[0.5px] rounded-lg flex items-center justify-center z-30">

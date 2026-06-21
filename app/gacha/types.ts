@@ -31,6 +31,7 @@ export interface Card {
   isArtBlacklisted?: boolean
   orderIndex?: number // Индекс порядка добавления в коллекцию
   imageLayers?: [string, string, string] // PNG layers for 3D effect
+  artPosition?: { x: number; y: number } // Object position offset in percentages (0-100), default { x: 50, y: 50 }
 }
 
 export interface CollectionRating {

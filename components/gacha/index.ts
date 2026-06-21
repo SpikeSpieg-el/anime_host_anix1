@@ -8,6 +8,7 @@ export {
   type StatType, type ModifierStats, type ModifierConfig,
 } from './card-modifiers'
 export { ChangeArtModal } from './change-art-modal'
+export { ArtPositionModal } from './art-position-modal'
 export { CollectionCardSkeleton } from './collection-skeleton'
 export { DismantleConfirmPopup } from './dismantle-confirm-popup'
 export { DismantleSuccessPopup } from './dismantle-success-popup'
