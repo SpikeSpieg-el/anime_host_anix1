@@ -9,7 +9,8 @@ import {
   searchGachaPacks, 
   createCustomGachaPack, 
   checkPackAvailability, 
-  updateUserPityAfterRoll 
+  updateUserPityAfterRoll,
+  generateStatsForRarity
 } from "../actions"
 import { 
   saveCardToDatabase, 
@@ -32,6 +33,7 @@ export function useGachaState() {
   const pathname = usePathname()
   
   const [isRolling, setIsRolling] = useState(false)
+  const [devForcedRarity, setDevForcedRarity] = useState<Rarity | null>(null)
   const [isPackLoading, setIsPackLoading] = useState(true)
   const [isCustomPackLoading, setIsCustomPackLoading] = useState(false)
   const [revealedCard, setRevealedCard] = useState<Card | null>(null)
@@ -555,7 +557,7 @@ export function useGachaState() {
     if (!selectedPack) return
     
     setErrorPopupConfig({
-      title: "Пак пуст или персонаж не найден",
+      title: "набор пуст или персонаж не найден",
       message: "Похоже, вы собрали всех доступных героев из этого набора.",
       type: "info"
     })
@@ -636,7 +638,7 @@ export function useGachaState() {
         if (result.allFanArtBanned) {
           setErrorPopupConfig({
             title: "Персонаж найден, но...",
-            message: "Все доступные арты для этого героя вами отклонены. Попробуйте другой пакет!",
+            message: "Все доступные арты для этого героя вами отклонены. Попробуйте другой наборет!",
             type: "info"
           })
           setShowErrorPopup(true)
@@ -664,19 +666,28 @@ export function useGachaState() {
           return
         }
 
+        let finalRarity = result.rarity as Rarity
+        let finalStats = result.stats
+
+        if (devForcedRarity) {
+          finalRarity = devForcedRarity
+          finalStats = await generateStatsForRarity(finalRarity)
+          console.log(`[DEV] Forced rarity: ${finalRarity}`)
+        }
+
         const newCard: Card = {
           id: Date.now(),
           uniqueId: generateCardUniqueId(result.characterId, result.packId),
           serialId: result.characterId.toString(),
           name: result.characterName,
           anime: result.animeName,
-          rarity: result.rarity as Rarity,
+          rarity: finalRarity,
           imageUrl: result.imageUrl || '',
           originalUrl: result.originalUrl || '',
           score: result.score,
           shikiId: result.shikiId,
           characterId: result.characterId,
-          stats: result.stats,
+          stats: finalStats,
           isMainCharacter: result.isMainCharacter || false,
           packId: result.packId,
           packName: result.packName,
@@ -794,7 +805,7 @@ export function useGachaState() {
       }
     } catch (error) {
       console.error("Custom gacha pack action error:", error)
-      alert("Ошибка при создании пака. Попробуйте снова.")
+      alert("Ошибка при создании набора. Попробуйте снова.")
     } finally {
       setIsCreatingCustomPack(false)
     }
@@ -822,7 +833,7 @@ export function useGachaState() {
 
   const handleCreateCustomPackFromSelected = async () => {
     if (selectedAnimeIds.size === 0) {
-      alert("Выберите хотя бы одно аниме для создания пака")
+      alert("Выберите хотя бы одно аниме для создания набора")
       return
     }
 
@@ -849,7 +860,7 @@ export function useGachaState() {
       setCustomPackSearchResults(selectedAnime) 
     } catch (error) {
       console.error("Custom pack creation error:", error)
-      alert("Ошибка при создании пака. Попробуйте снова.")
+      alert("Ошибка при создании набора. Попробуйте снова.")
     } finally {
       setIsCreatingCustomPack(false)
     }
@@ -1364,6 +1375,8 @@ export function useGachaState() {
     handleMarketNotify,
     handleArtChanged,
     handleRoll,
+    devForcedRarity,
+    setDevForcedRarity,
     saveCard,
     handlePackSelect,
     handleRandomRoll,

@@ -221,17 +221,17 @@ export async function searchAnimeByTitle(query: string): Promise<ShikimoriAnimeR
   }
 }
 
-// Создание кастомного пака из найденных аниме
+// Создание кастомного набора из найденных аниме
 export function createCustomPack(query: string, animeResults: ShikimoriAnimeResult[]): CustomAnimePack {
   const animeIds = animeResults.map(anime => anime.id);
   const validScores = animeResults.map(a => a.score).filter((s): s is number => typeof s === 'number');
   const topScore = validScores.length > 0 ? Math.max(...validScores) : 0;
   
-  // Берем название первого аниме для названия пака
+  // Берем название первого аниме для названия набора
   const primaryAnime = animeResults[0];
   const packName = primaryAnime?.russian || primaryAnime?.name || query;
   
-  // Базовая цена 2000 для кастомных паков + динамическая надбавка за рейтинг
+  // Базовая цена 2000 для кастомных наборов + динамическая надбавка за рейтинг
   const avgScore = validScores.length > 0 
     ? validScores.reduce((sum, s) => sum + s, 0) / validScores.length 
     : 0;
@@ -254,7 +254,7 @@ export function createCustomPack(query: string, animeResults: ShikimoriAnimeResu
   return {
     id: `custom_${Date.now()}`,
     name: packName,
-    description: `Кастомный пак из ${animeResults.length} аниме по запросу "${query}" (база: 2000 + бонус за рейтинг)`,
+    description: `Кастомный набор из ${animeResults.length} аниме по запросу "${query}" (база: 2000 + бонус за рейтинг)`,
     animeIds,
     price,
     color,
@@ -286,10 +286,10 @@ export async function getAnimeByYearRange(startYear: number, endYear: number, li
   }
 }
 
-// Динамическое заполнение пакетов по годам
+// Динамическое заполнение наборетов по годам
 export async function loadYearBasedPacks(): Promise<void> {
   try {
-    // Заполняем паки аниме ID по годовым диапазонам
+    // Заполняем набори аниме ID по годовым диапазонам
     const pack2000_2010 = ANIME_PACKS.find(pack => pack.id === "main_characters_2000_2010");
     const pack2010_2020 = ANIME_PACKS.find(pack => pack.id === "main_characters_2010_2020");
     const pack2015_2026 = ANIME_PACKS.find(pack => pack.id === "main_characters_2015_2026");

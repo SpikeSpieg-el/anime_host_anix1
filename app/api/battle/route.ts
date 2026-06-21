@@ -488,24 +488,14 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // If no valid session, check if table exists (graceful fallback)
-      if (!sessionValid) {
-        // Try without token - check if battle_sessions table exists
-        const { error: tableCheck } = await supabaseAdmin
-          .from('battle_sessions')
-          .select('id')
-          .limit(1)
-
-        if (!tableCheck || tableCheck.code !== 'PGRST115') {
-          // Table exists but session is invalid - reject
-          return NextResponse.json({
-            success: false,
-            message: "Недействительная или истёкшая сессия боя. Начните новый бой."
-          }, { status: 403 })
-        }
-        // Table doesn't exist yet - allow without token (backward compat)
-        console.warn('[Battle API] battle_sessions table not found, allowing finish_battle without token')
+      // If token was provided but invalid, reject (anti-replay)
+      if (!sessionValid && battleToken) {
+        return NextResponse.json({
+          success: false,
+          message: "Недействительная или истёкшая сессия боя. Начните новый бой."
+        }, { status: 403 })
       }
+      // No token provided (table missing or insert failed) - allow (backward compat)
 
       // Get user progress
       let { data: progress } = await supabaseAdmin
@@ -914,7 +904,7 @@ export async function POST(request: NextRequest) {
           })
       } catch (e) {
         console.warn('[Battle API] Failed to create battle session:', e)
-        // Continue without token - backward compat
+        battleToken = null
       }
 
       return NextResponse.json({

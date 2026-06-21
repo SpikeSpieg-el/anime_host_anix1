@@ -114,14 +114,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const maxRetries = 3
     const baseDelay = 1000 // 1 секунда
 
+    let currentToken = session?.access_token
+
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         console.log(`[Auth] Profile fetch attempt ${attempt}/${maxRetries}...`)
         const fetchStart = Date.now()
-        
-        // Используем API вместо прямого запроса к Supabase
-        const accessToken = session?.access_token
-        if (!accessToken) {
+
+        if (!currentToken) {
           console.warn('[Auth] No access token, skipping profile fetch')
           clearTimeout(timeoutId)
           setProfileLoading(false)
@@ -130,7 +130,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         
         const res = await fetch('/api/profile', {
           headers: {
-            'Authorization': `Bearer ${accessToken}`
+            'Authorization': `Bearer ${currentToken}`
           }
         })
         
@@ -178,6 +178,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             })
           }
           return
+        }
+
+        // При 401 пытаемся обновить сессию перед следующей попыткой
+        if (error.message?.includes('401')) {
+          loggers.auth.info('Got 401, attempting session refresh...')
+          const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession()
+          if (refreshError || !refreshData.session) {
+            loggers.auth.error('Session refresh failed:', refreshError)
+            clearTimeout(timeoutId)
+            setProfileLoading(false)
+            toast({
+              title: "Сессия истекла",
+              description: "Пожалуйста, войдите снова.",
+              variant: "destructive"
+            })
+            await hardSignOut()
+            return
+          }
+          setSession(refreshData.session)
+          currentToken = refreshData.session.access_token
+          loggers.auth.info('Session refreshed successfully, retrying profile fetch...')
+          // Небольшая задержка перед retry
+          await new Promise(resolve => setTimeout(resolve, 500))
+          continue
         }
 
         // Экспоненциальная задержка перед следующей попыткой

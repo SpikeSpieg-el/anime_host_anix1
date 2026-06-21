@@ -71,8 +71,8 @@ export const getCardProvision = (card: Card): number => {
 
 export const getCardBasePower = (card: Card): number => {
   // Base power formula representing card's overall stat weight
-  // Reduced multipliers to keep power in reasonable range (30-100 for early game)
-  return Math.round((card.stats.hp / 8 + card.stats.atk * 0.5 + card.stats.def * 0.3 + card.stats.spd * 0.3 + card.stats.luck * 0.2))
+  // Max possible: 100×0.4 + 100×0.5 + 100×0.4 + 100×0.4 + 100×0.3 = 200 (Omnipotent)
+  return Math.round((card.stats.hp * 0.4 + card.stats.atk * 0.5 + card.stats.def * 0.4 + card.stats.spd * 0.4 + card.stats.luck * 0.3))
 }
 
 // ==========================================

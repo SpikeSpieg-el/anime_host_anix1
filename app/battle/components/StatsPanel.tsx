@@ -20,11 +20,13 @@ export const StatsPanelSkeleton: React.FC = () => {
 interface StatsPanelProps {
   progress: BattleProgress | null
   userCoins: number
+  coinsLoading: boolean
   dust: number
+  dustLoading: boolean
   staminaTime: string
 }
 
-export const StatsPanel: React.FC<StatsPanelProps> = ({ progress, userCoins, dust, staminaTime }) => {
+export const StatsPanel: React.FC<StatsPanelProps> = ({ progress, userCoins, coinsLoading, dust, dustLoading, staminaTime }) => {
   if (!progress) return <StatsPanelSkeleton />
 
   return (
@@ -67,7 +69,9 @@ export const StatsPanel: React.FC<StatsPanelProps> = ({ progress, userCoins, dus
           <Coins className="w-3 h-3 text-yellow-500" />
           <span className="text-[9px] font-bold uppercase tracking-wider">Монеты</span>
         </div>
-        <span className="text-xl font-black text-white">{userCoins.toLocaleString()}</span>
+        <span className="text-xl font-black text-white">
+          {coinsLoading ? <span className="inline-block w-16 h-5 bg-white/10 rounded animate-pulse align-middle" /> : userCoins.toLocaleString()}
+        </span>
       </div>
 
       {/* Пыль */}
@@ -76,7 +80,9 @@ export const StatsPanel: React.FC<StatsPanelProps> = ({ progress, userCoins, dus
           <Sparkles className="w-3 h-3 text-amber-300" />
           <span className="text-[9px] font-bold uppercase tracking-wider">Пыль</span>
         </div>
-        <span className="text-xl font-black text-white">{dust.toLocaleString()}</span>
+        <span className="text-xl font-black text-white">
+          {dustLoading ? <span className="inline-block w-10 h-5 bg-white/10 rounded animate-pulse align-middle" /> : dust.toLocaleString()}
+        </span>
       </div>
 
       {/* Дейлики */}

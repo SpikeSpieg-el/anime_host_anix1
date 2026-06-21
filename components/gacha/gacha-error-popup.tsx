@@ -82,12 +82,12 @@ export function GachaErrorPopup({
               <div className="p-3 bg-slate-800/50 rounded-lg border border-slate-600/50">
                 <div className="flex items-center gap-2 mb-2">
                   <Package className="w-4 h-4 text-indigo-400" />
-                  <span className="font-semibold text-indigo-300">Статистика пака "{packName}"</span>
+                  <span className="font-semibold text-indigo-300">Статистика набора "{packName}"</span>
                 </div>
                 <div className="space-y-1 text-sm text-slate-400">
                   <div>Собрано персонажей: <span className="text-white font-medium">{collectedCount}</span></div>
                   <div>Доступно персонажей: <span className="text-green-400 font-medium">{availableCount}</span></div>
-                  <div>Всего персонажей в паке: <span className="text-slate-300 font-medium">{totalCharacters}</span></div>
+                  <div>Всего персонажей в наборе: <span className="text-slate-300 font-medium">{totalCharacters}</span></div>
                   <div>Прогресс коллекции: <span className="text-yellow-400 font-medium">{Math.round((collectedCount / totalCharacters) * 100)}%</span></div>
                 </div>
               </div>

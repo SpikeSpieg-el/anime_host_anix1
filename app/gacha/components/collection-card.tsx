@@ -45,7 +45,7 @@ export const CollectionCard = ({ card, onClick }: CollectionCardProps) => {
                 handleImageError(e, card, true)
                 setIsImageLoading(false)
               }}
-              onLoadingComplete={() => setIsImageLoading(false)}
+              onLoad={() => setIsImageLoading(false)}
             />
           )}
 
@@ -98,7 +98,7 @@ export const CollectionCard = ({ card, onClick }: CollectionCardProps) => {
             handleImageError(e, card, true)
             setIsImageLoading(false)
           }}
-          onLoadingComplete={() => setIsImageLoading(false)}
+          onLoad={() => setIsImageLoading(false)}
         />
       )}
       

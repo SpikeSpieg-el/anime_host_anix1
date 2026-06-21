@@ -303,7 +303,9 @@ export default function BattlePage() {
   const {
     sessionLoading: battleSessionLoading,
     userCoins,
+    coinsLoading,
     dust,
+    dustLoading,
     progress,
     dungeons,
     enemies,
@@ -533,7 +535,7 @@ export default function BattlePage() {
         )}
 
         {/* Top bar indicators */}
-        {battleState === "idle" && (battleSessionLoading || !progress ? <StatsPanelSkeleton /> : <StatsPanel progress={progress} userCoins={userCoins} dust={dust} staminaTime={staminaTime} />)}
+        {battleState === "idle" && (battleSessionLoading || !progress ? <StatsPanelSkeleton /> : <StatsPanel progress={progress} userCoins={userCoins} coinsLoading={coinsLoading} dust={dust} dustLoading={dustLoading} staminaTime={staminaTime} />)}
 
         {/* Error notification */}
         {error && (

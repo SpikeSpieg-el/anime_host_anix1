@@ -7,7 +7,7 @@ const nextConfig = {
       { protocol: 'http', hostname: '**' },
     ],
     // Два уровня качества для снижения количества трансформаций
-    qualities: [50, 60, 80],
+    qualities: [50, 60, 70, 80, 85],
   },
   async headers() {
     return [

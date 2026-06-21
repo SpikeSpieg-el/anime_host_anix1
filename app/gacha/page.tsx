@@ -158,6 +158,8 @@ export default function GachaPage() {
     handleMarketNotify,
     handleArtChanged,
     handleRoll,
+    devForcedRarity,
+    setDevForcedRarity,
     saveCard,
     handlePackSelect,
     handleRandomRoll,
@@ -285,7 +287,7 @@ export default function GachaPage() {
           >
             <div className="flex justify-between items-start gap-3 mb-5 sm:mb-8">
               <div className="pr-8 sm:pr-0">
-                <h2 className="text-xl sm:text-2xl md:text-3xl font-black text-white tracking-tight mb-3">Создать Кастомный Пак</h2>
+                <h2 className="text-xl sm:text-2xl md:text-3xl font-black text-white tracking-tight mb-3">Создать Кастомный набор</h2>
                 {selectedAnimeIds.size > 0 && (
                   <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-sm">
                     <div className="flex items-center gap-1.5 bg-yellow-500/10 border border-yellow-500/20 px-2.5 sm:px-3 py-1.5 rounded-full">
@@ -440,7 +442,7 @@ export default function GachaPage() {
                     ) : (
                       <>
                         <Package className="w-4 h-4 sm:w-5 sm:h-5" />
-                        Создать пак ({selectedAnimeIds.size} аниме)
+                        Создать набор ({selectedAnimeIds.size} аниме)
                       </>
                     )}
                   </button>
@@ -482,7 +484,7 @@ export default function GachaPage() {
                   disabled={userCoins < createdCustomPack.price}
                   className="w-full py-3.5 sm:py-5 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-800 disabled:text-slate-500 text-white font-black uppercase tracking-wider rounded-xl sm:rounded-2xl transition-all shadow-lg shadow-indigo-500/25 flex items-center justify-center text-sm sm:text-base"
                 >
-                  {userCoins < createdCustomPack.price ? "Недостаточно монет" : "Выбрать этот пак"}
+                  {userCoins < createdCustomPack.price ? "Недостаточно монет" : "Выбрать этот набор"}
                 </button>
               </div>
             )}
@@ -1004,7 +1006,7 @@ export default function GachaPage() {
                   <div className="flex items-center justify-center gap-1.5 sm:gap-2">
                     <Star className="w-3 h-3 sm:w-4 sm:h-4 text-amber-400" />
                     <span className="text-amber-300 font-semibold text-xs sm:text-sm truncate">
-                      Серия неудач: {pityData.bad_luck_streak}
+                      Заряд удачи: {pityData.bad_luck_streak}
                     </span>
                     <Star className="w-3 h-3 sm:w-4 sm:h-4 text-amber-400" />
                   </div>
@@ -1013,6 +1015,32 @@ export default function GachaPage() {
                       +{Math.floor(pityData.bad_luck_streak / 5)}% шанс на редкую карту
                     </div>
                   )}
+                </div>
+              )}
+
+              {/* Dev: Force Rarity Selector */}
+              {isDev && (
+                <div className="mt-4 px-3 py-2 bg-purple-900/30 border border-purple-500/30 rounded-xl max-w-[260px] sm:max-w-full">
+                  <div className="text-purple-300 text-[10px] font-bold uppercase tracking-wider mb-1.5 text-center">
+                    DEV: Подкрутить редкость
+                  </div>
+                  <div className="flex flex-wrap gap-1 justify-center">
+                    <button
+                      onClick={() => setDevForcedRarity(null)}
+                      className={`px-2 py-1 rounded text-[10px] font-bold transition-all ${!devForcedRarity ? 'bg-purple-500 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}
+                    >
+                      Случайно
+                    </button>
+                    {RARITY_ORDER.map(r => (
+                      <button
+                        key={r}
+                        onClick={() => setDevForcedRarity(r)}
+                        className={`px-2 py-1 rounded text-[10px] font-bold transition-all ${devForcedRarity === r ? 'bg-purple-500 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}
+                      >
+                        {r}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               )}
               
@@ -1030,7 +1058,7 @@ export default function GachaPage() {
                   className="flex-1 flex items-center justify-center gap-2 px-4 py-3 sm:py-3.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white font-bold rounded-xl transition-all shadow-lg text-xs sm:text-base w-full"
                 >
                   <Search className="w-4 h-4 sm:w-5 sm:h-5 text-purple-400 shrink-0" />
-                  Создать пак
+                  Создать набор
                 </button>
               </div>
             </div>

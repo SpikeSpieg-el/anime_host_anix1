@@ -19,8 +19,19 @@ CREATE INDEX IF NOT EXISTS idx_battle_sessions_token ON battle_sessions(token);
 ALTER TABLE battle_sessions ENABLE ROW LEVEL SECURITY;
 
 -- Policy: users can only see their own sessions
+DROP POLICY IF EXISTS "Users can view own battle sessions" ON battle_sessions;
 CREATE POLICY "Users can view own battle sessions" ON battle_sessions
   FOR SELECT USING (auth.uid() = user_id);
+
+-- Policy: users can insert their own sessions
+DROP POLICY IF EXISTS "Users can insert own battle sessions" ON battle_sessions;
+CREATE POLICY "Users can insert own battle sessions" ON battle_sessions
+  FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+-- Policy: users can update their own sessions
+DROP POLICY IF EXISTS "Users can update own battle sessions" ON battle_sessions;
+CREATE POLICY "Users can update own battle sessions" ON battle_sessions
+  FOR UPDATE USING (auth.uid() = user_id);
 
 -- Auto-expire sessions older than 30 minutes
 -- (handled in application logic, but this is a safety net)

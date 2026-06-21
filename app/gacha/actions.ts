@@ -15,6 +15,10 @@ function isDivineOrBetter(rarity: string): boolean {
   return rarityIndex >= divineIndex;
 }
 
+export async function generateStatsForRarity(rarity: string) {
+  return generateStats(rarity);
+}
+
 function generateStats(rarity: string) {
   const index = RARITY_ORDER.indexOf(rarity);
   

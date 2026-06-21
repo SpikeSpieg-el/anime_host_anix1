@@ -144,8 +144,12 @@ export function generateRandomAIDeck(difficultyModifier: number = 0, targetProvi
   }
 
   // If we still don't have enough cards, fill with trash/common cards
-  while (deck.length < DECK_SIZE) {
-    const fillerCard = generateRandomCard(-2, deck.length + 100) // Very easy rolls
+  let fillerAttempts = 0
+  while (deck.length < DECK_SIZE && fillerAttempts < 50) {
+    fillerAttempts++
+    const fillerCard = generateRandomCard(-2, deck.length + fillerAttempts) // Very easy rolls
+    // Prevent duplicate characters (same name + anime)
+    if (deck.some(c => c.name === fillerCard.name && c.anime === fillerCard.anime)) continue
     deck.push(fillerCard)
   }
 
@@ -374,11 +378,31 @@ export function generateAdaptiveAIDeck(
   // Fallback: return base deck with some counter cards mixed in
   const mixedDeck = [...baseDeck]
   const counterCount = Math.min(counterCards.length, 2)
+  const usedIndices = new Set<number>()
   
-  // Replace some cards with counter cards
+  // Replace some cards with counter cards (avoid duplicates)
   for (let i = 0; i < counterCount; i++) {
-    const randomIndex = Math.floor(Math.random() * mixedDeck.length)
-    mixedDeck[randomIndex] = counterCards[i]
+    // Find an index to replace that isn't already the same counter card
+    // and isn't already used for another replacement
+    const counterCard = counterCards[i]
+    // Skip if counter card is already in the deck at a position we haven't replaced
+    const existingIndex = mixedDeck.findIndex((c, idx) => 
+      c.name === counterCard.name && c.anime === counterCard.anime && !usedIndices.has(idx)
+    )
+    if (existingIndex >= 0) {
+      usedIndices.add(existingIndex)
+      continue // Card already in deck, no need to add again
+    }
+    // Find a random index to replace that hasn't been used yet
+    let attempts = 0
+    let randomIndex = Math.floor(Math.random() * mixedDeck.length)
+    while (usedIndices.has(randomIndex) && attempts < 10) {
+      randomIndex = Math.floor(Math.random() * mixedDeck.length)
+      attempts++
+    }
+    if (usedIndices.has(randomIndex)) break
+    usedIndices.add(randomIndex)
+    mixedDeck[randomIndex] = counterCard
   }
   
   return mixedDeck.slice(0, DECK_SIZE)

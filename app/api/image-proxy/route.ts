@@ -1,19 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 const ALLOWED_HOSTS = [
-  'i.pinimg.com',
-  'pinterest.com',
   'konachan.net',
   'safebooru.org',
   'zerochan.net',
   's3.zerochan.net',
+  'yande.re',
+  'files.yande.re',
   'shikimori.one',
   'mixlib.me',
   'mangalib.me',
   'remanga.org',
   'reimg2.org',
   'img.reimg.org',
-  'uploads.mangadex.org'
+  'uploads.mangadex.org',
+  'pinimg.com',
+  'i.pinimg.com'
 ];
 
 export async function GET(req: NextRequest) {
@@ -37,7 +39,7 @@ export async function GET(req: NextRequest) {
 
   try {
     // Set appropriate headers based on the domain
-    let referer = 'https://www.pinterest.com/'
+    let referer = ''
     let origin: string | undefined = undefined;
     if (parsed.hostname.includes('konachan.net')) {
       referer = 'https://konachan.net/'
@@ -54,6 +56,10 @@ export async function GET(req: NextRequest) {
       origin = 'https://remanga.org'
     } else if (parsed.hostname.includes('uploads.mangadex.org')) {
       referer = 'https://mangadex.org/'
+    } else if (parsed.hostname.includes('yande.re') || parsed.hostname.includes('files.yande.re')) {
+      referer = 'https://yande.re/'
+    } else if (parsed.hostname.includes('pinimg.com')) {
+      referer = 'https://www.pinterest.com/'
     }
 
     const headers: Record<string, string> = {
@@ -89,7 +95,21 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    const res = await fetch(url, { headers });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+    let res: Response;
+    try {
+      res = await fetch(url, { headers, signal: controller.signal });
+    } catch (err: any) {
+      if (err.name === 'AbortError') {
+        console.error('[image-proxy] Timeout fetching:', url);
+        return NextResponse.json({ error: 'Upstream timeout' }, { status: 504 });
+      }
+      throw err;
+    } finally {
+      clearTimeout(timeoutId);
+    }
 
     if (!res.ok) {
       console.error('[image-proxy] Upstream error:', res.status, res.statusText);

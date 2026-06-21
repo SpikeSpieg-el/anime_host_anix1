@@ -38,8 +38,8 @@ const preloadCardImages = (cards: Card[]) => {
 
 export function useBattleData() {
   const { user, session, sessionLoading } = useAuth()
-  const { coins: userCoins, addCoins, refresh: refreshCoins } = useCoins()
-  const { dust, addDust, refresh: refreshDust } = useDust()
+  const { coins: userCoins, loading: coinsLoading, addCoins, refresh: refreshCoins } = useCoins()
+  const { dust, loading: dustLoading, addDust, refresh: refreshDust } = useDust()
 
   const [progress, setProgress] = useState<BattleProgress | null>(null)
   const [dungeons, setDungeons] = useState<Dungeon[]>([])
@@ -779,7 +779,15 @@ export function useBattleData() {
       console.log('[Battle] AI engine initialized')
       
       console.log('[Battle] Processing AI deck')
-      const aiDeck = predefinedDeck
+      // Deduplicate by name + anime to prevent identical characters in AI deck
+      const seenChars = new Set<string>()
+      const dedupedPredefined = predefinedDeck.filter(c => {
+        const key = `${c.name}|${c.anime}`
+        if (seenChars.has(key)) return false
+        seenChars.add(key)
+        return true
+      })
+      const aiDeck = dedupedPredefined
         .slice()
         .sort(() => Math.random() - 0.5)
         .slice(0, DECK_SIZE)
@@ -1397,6 +1405,7 @@ export function useBattleData() {
     console.log(`[Battle Round ${ccgState.round}] Final zone ownership calculation...`)
     nextZones.forEach(zone => {
       if (zone.modifier.id === "reversal_gate") {
+        // In Paradox Gate, the side with LOWER score wins
         zone.owner = zone.playerScore < zone.aiScore ? "player" : zone.aiScore < zone.playerScore ? "ai" : "none"
       } else {
         zone.owner = zone.playerScore > zone.aiScore ? "player" : zone.aiScore > zone.playerScore ? "ai" : "none"
@@ -1566,11 +1575,27 @@ export function useBattleData() {
       })
 
       setBattleState("result")
+
+      // Automatically call finishBattle to process rewards on server
+      // Pass the results directly to avoid closure issues with stale state
+      const dungeonIdToSave = selectedDungeon?.id
+      const isVictoryToSave = victory
+      setTimeout(async () => {
+        console.log('[Battle] Triggering automatic finishBattle with result:', isVictoryToSave ? 'win' : 'loss', 'Dungeon:', dungeonIdToSave)
+        await finishBattle(false, isVictoryToSave ? 'win' : 'loss', dungeonIdToSave)
+      }, 800)
     }
   }
 
-  const finishBattle = async (isPvPMode: boolean = false) => {
+  const finishBattle = async (isPvPMode: boolean = false, overrideResult?: 'win' | 'loss', overrideDungeonId?: string) => {
+    if (isFinishing) return
     setIsFinishing(true)
+    
+    // Use provided data or fallback to state
+    const dungeonIdToFinish = overrideDungeonId || selectedDungeon?.id
+    const resultToFinish = overrideResult || (ccgState?.victory ? 'win' : 'loss')
+    const isVictoryToFinish = resultToFinish === 'win'
+    
     try {
       // Transition from finalizing to ended phase to show results modal
       if (ccgState) {
@@ -1589,8 +1614,9 @@ export function useBattleData() {
       }
 
       // Process rewards and API calls in background
-      if (ccgState && ccgState.victory) {
+      if (isVictoryToFinish) {
         const token = session?.access_token
+        console.log('[Battle] Processing victory rewards. Dungeon:', dungeonIdToFinish, 'Token:', !!token)
         if (token) {
           try {
             if (!isPvPMode) {
@@ -1600,16 +1626,19 @@ export function useBattleData() {
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                 body: JSON.stringify({
                   action: 'finish_battle',
-                  dungeonId: selectedDungeon?.id,
+                  dungeonId: dungeonIdToFinish,
                   result: 'win',
                   battleToken: battleTokenRef.current,
                   turns: 3
                 })
               })
 
+              console.log('[Battle] Finish API response status:', finishRes.status)
+
               // Use server-returned reward values
               if (finishRes.ok) {
                 const finishData = await finishRes.json()
+                console.log('[Battle] Reward data from server:', finishData)
                 if (finishData.success && finishData.coinsEarned !== undefined) {
                   // Update displayed rewards with server-calculated values
                   setCcgState(prev => {
@@ -1677,7 +1706,9 @@ export function useBattleData() {
     user,
     sessionLoading,
     userCoins,
+    coinsLoading,
     dust,
+    dustLoading,
     progress,
     dungeons,
     enemies,
