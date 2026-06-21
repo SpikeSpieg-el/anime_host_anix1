@@ -730,7 +730,7 @@ export function GachaAnimation({ isRolling, revealedCard, onComplete }: GachaAni
                 </span>
                 {revealedCard?.stats && (
                   <span className="text-xs font-black tabular-nums text-slate-900 ml-1">
-                    {ccgPower}
+                    Сила {ccgPower}
                   </span>
                 )}
               </div>
@@ -740,14 +740,31 @@ export function GachaAnimation({ isRolling, revealedCard, onComplete }: GachaAni
           {/* CCG Power — shown when not main character */}
           {!isMainCharacter && revealedCard?.stats && (
             <div
-              className="absolute top-8 left-1/2 -translate-x-1/2 z-20"
+              className="absolute top-8 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center"
               style={{ animation: 'climbLabelIn 0.4s ease-out 0.5s both' }}
             >
               <span
-                className="text-lg font-black tabular-nums"
+                className="text-[10px] font-bold uppercase tracking-widest text-white/60"
+              >
+                Сила
+              </span>
+              <span
+                className="text-lg font-black tabular-nums leading-none"
                 style={{ color: `rgb(${rarityRgb})`, textShadow: `0 0 10px rgba(${rarityRgb},0.5)` }}
               >
                 {ccgPower}
+              </span>
+            </div>
+          )}
+
+          {/* Tap to continue hint */}
+          {canDismiss && (
+            <div
+              className="absolute bottom-6 left-1/2 -translate-x-1/2 z-30"
+              style={{ animation: 'tapHint 1.2s ease-in-out infinite' }}
+            >
+              <span className="text-white/70 text-xs font-bold uppercase tracking-widest">
+                Тап чтобы продолжить
               </span>
             </div>
           )}
