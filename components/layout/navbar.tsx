@@ -6,7 +6,7 @@ import { useState, useEffect, useMemo, useRef } from "react"
 import {
   Flame, Tv, Compass, Home, BookMarked, History, Calendar,
   Settings, GraduationCap, LogOut, Search, MoreHorizontal, X, ArrowUp,
-  Sparkles, Swords, Wrench
+  Sparkles, Swords, Wrench, MessageCircle
 } from "lucide-react"
 import { SearchSuggestions } from "@/components/catalog/search-suggestions"
 import { EpisodeUpdateBadge } from "@/components/watch/episode-update-badge"
@@ -220,6 +220,9 @@ export function Navbar() {
                   <Link href="/history" className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-accent transition text-sm font-medium text-muted-foreground hover:text-foreground"><History size={14} /> История</Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
+                  <a href="https://t.me/evangelion_chat" target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-accent transition text-sm font-medium text-blue-500 hover:text-blue-600"><MessageCircle size={14} /> Telegram чат</a>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
                   <Link href="/battle" className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-accent transition text-sm font-medium text-red-500 hover:text-red-600"><Swords size={14} /> PVE Бои</Link>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
@@ -388,6 +391,9 @@ export function Navbar() {
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
                 <Link href="/battle" className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-accent transition text-sm font-medium text-red-500 hover:text-red-600"><Swords size={14} /> PVE Бои</Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <a href="https://t.me/evangelion_chat" target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-accent transition text-sm font-medium text-blue-500 hover:text-blue-600"><MessageCircle size={14} /> Telegram чат</a>
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

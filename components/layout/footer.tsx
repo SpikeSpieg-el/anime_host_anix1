@@ -119,6 +119,7 @@ export function Footer() {
               <li><a className="text-zinc-500 hover:text-white transition-colors text-sm sm:text-[15px] font-bold" href="/dmca">Правообладателям (DMCA)</a></li>
               <li><a className="text-zinc-500 hover:text-white transition-colors text-sm sm:text-[15px] font-bold" href="/terms">Пользовательское соглашение</a></li>
               <li><a className="text-zinc-500 hover:text-white transition-colors text-sm sm:text-[15px] font-bold" href="/contacts">Контакты</a></li>
+              <li><a href="https://t.me/evangelion_chat" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-blue-500 hover:text-blue-600 transition-colors text-sm sm:text-[15px] font-bold"><MessageCircle className="w-4 h-4" /> Telegram чат</a></li>
             </ul>
           </div>
 
