@@ -1,4 +1,4 @@
-import { ShikimoriAnime, Anime, NewsItem } from "./types";
+import { ShikimoriAnime, Anime, NewsItem, LinkedAnime } from "./types";
 import { resolveBestPoster } from "./images";
 import { SITE_URL } from "./config";
 import { normalizeShikimoriUrl, upgradeShikimoriUrl } from "./utils";
@@ -83,6 +83,30 @@ export function transformTopic(topic: any): NewsItem {
       if (imageUrl && !imageUrl.startsWith("http")) imageUrl = normalizeShikimoriUrl(imageUrl);
     }
   }
+  // Also check html_footer for images if no image found in body
+  if (!imageUrl && topic.html_footer) {
+    const match = topic.html_footer.match(/<img[^>]+src="([^"]+)"/);
+    if (match && match[1]) {
+      imageUrl = match[1];
+      if (imageUrl && !imageUrl.startsWith("http")) imageUrl = normalizeShikimoriUrl(imageUrl);
+    }
+  }
+
+  let linkedAnime: LinkedAnime | undefined;
+  if (topic.linked && topic.linked_type === 'Anime' && topic.linked.id) {
+    const linked = topic.linked;
+    linkedAnime = {
+      id: linked.id,
+      name: linked.name || '',
+      russian: linked.russian || '',
+      image: linked.image || undefined,
+      url: linked.url || undefined,
+      kind: linked.kind || undefined,
+      score: linked.score || undefined,
+      status: linked.status || undefined,
+      episodes: linked.episodes || undefined,
+    };
+  }
 
   return {
     id: String(topic.id),
@@ -94,5 +118,7 @@ export function transformTopic(topic: any): NewsItem {
     comments: topic.comments_count,
     url: `${SITE_URL}${topic.forum.url}/${topic.id}`,
     htmlBody: topic.html_body || undefined,
+    htmlFooter: topic.html_footer || undefined,
+    linkedAnime,
   };
 }

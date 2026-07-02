@@ -59,6 +59,18 @@ export interface CatalogFilters {
   disableExternalAPIs?: boolean;
 }
 
+export interface LinkedAnime {
+  id: number;
+  name: string;
+  russian: string;
+  image?: { original?: string; preview?: string; x96?: string; x48?: string };
+  url?: string;
+  kind?: string;
+  score?: string;
+  status?: string;
+  episodes?: number;
+}
+
 export interface NewsItem {
   id: string;
   title: string;
@@ -69,6 +81,8 @@ export interface NewsItem {
   comments: number;
   url: string;
   htmlBody?: string;
+  htmlFooter?: string;
+  linkedAnime?: LinkedAnime;
 }
 
 export interface FranchiseItem {
