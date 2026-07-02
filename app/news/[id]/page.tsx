@@ -7,6 +7,7 @@ import { Calendar, User, MessageSquare, Newspaper, ExternalLink, Globe } from "l
 import type { Metadata } from "next"
 import { BackButton } from "./back-button"
 import { LinkedAnimeCard } from "./linked-anime-card"
+import { TranslateButton } from "./translate-button"
 import type { LinkedAnime } from "@/lib/shikimori/types"
 
 interface Props {
@@ -374,9 +375,14 @@ export default async function NewsItemPage({ params }: Props) {
               </span>
             </div>
 
-            <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-white leading-tight drop-shadow-[0_2px_12px_rgba(0,0,0,0.6)]">
+            <h1 data-news-title className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-white leading-tight drop-shadow-[0_2px_12px_rgba(0,0,0,0.6)]">
               {news.title}
             </h1>
+            {isJikan && (
+              <div className="mt-3">
+                <TranslateButton title={news.title} excerpt={textBody} htmlBody={bodyHtml || undefined} />
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -437,7 +443,7 @@ export default async function NewsItemPage({ params }: Props) {
                   />
                 </div>
               )}
-              <p className="text-muted-foreground leading-relaxed dark:text-zinc-300">
+              <p className="news-excerpt-text text-muted-foreground leading-relaxed dark:text-zinc-300">
                 {textBody}
               </p>
               {linked && (

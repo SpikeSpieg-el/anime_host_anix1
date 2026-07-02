@@ -755,6 +755,32 @@
     border-color: rgba(96, 165, 250, 0.25);
   }
 
+  .news-translate-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.55rem 1rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #f97316;
+    background: rgba(249, 115, 22, 0.08);
+    border: 1px solid rgba(249, 115, 22, 0.2);
+    border-radius: 0.5rem;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .news-translate-btn:hover:not(:disabled) {
+    color: #fb923c;
+    background: rgba(249, 115, 22, 0.15);
+    border-color: rgba(249, 115, 22, 0.35);
+  }
+
+  .news-translate-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
   /* Linked anime card (bottom of article) */
   .news-linked-anime-card {
     display: flex;
