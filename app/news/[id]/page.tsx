@@ -1,8 +1,9 @@
-import { getNewsById, getAnimeById } from "@/lib/shikimori"
+import { getAnimeById } from "@/lib/shikimori"
+import { getAggregatedNewsById } from "@/lib/news/aggregator"
 import { Navbar } from "@/components/layout/navbar"
 import { Footer } from "@/components/layout/footer"
 import { notFound } from "next/navigation"
-import { Calendar, User, MessageSquare, Newspaper, ExternalLink } from "lucide-react"
+import { Calendar, User, MessageSquare, Newspaper, ExternalLink, Globe } from "lucide-react"
 import type { Metadata } from "next"
 import { BackButton } from "./back-button"
 import { LinkedAnimeCard } from "./linked-anime-card"
@@ -14,7 +15,7 @@ interface Props {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params
-  const news = await getNewsById(id)
+  const news = await getAggregatedNewsById(id)
   if (!news) return { title: "Новость не найдена — Weeb.X" }
   return {
     title: `${news.title} — Weeb.X`,
@@ -280,12 +281,14 @@ function getKindLabel(kind?: string): string {
 
 export default async function NewsItemPage({ params }: Props) {
   const { id } = await params
-  const news = await getNewsById(id)
+  const news = await getAggregatedNewsById(id)
 
   if (!news) notFound()
 
-  // Parse anime IDs from data-attrs in htmlBody to fetch posters
-  const animeLinks = news.htmlBody ? parseAnimeDataAttrs(news.htmlBody) : []
+  const isJikan = news.source === 'jikan'
+
+  // Parse anime IDs from data-attrs in htmlBody to fetch posters (Shikimori only)
+  const animeLinks = !isJikan && news.htmlBody ? parseAnimeDataAttrs(news.htmlBody) : []
   const animePosters = new Map<number, string>()
 
   // Also include linked anime if present
@@ -312,7 +315,7 @@ export default async function NewsItemPage({ params }: Props) {
     })
   )
 
-  const bodyHtml = news.htmlBody ? sanitizeShikimoriHtml(news.htmlBody, animePosters) : null
+  const bodyHtml = news.htmlBody ? (isJikan ? news.htmlBody : sanitizeShikimoriHtml(news.htmlBody, animePosters)) : null
   const footerHtml = news.htmlFooter ? sanitizeShikimoriFooter(news.htmlFooter) : null
   const textBody = news.excerpt.replace(/\[.*?\]/g, "").replace(/<[^>]+>/g, "")
 
@@ -320,6 +323,9 @@ export default async function NewsItemPage({ params }: Props) {
   const linkedPoster = linked ? getLinkedAnimePoster(linked) : undefined
   const kindLabel = linked ? getKindLabel(linked.kind) : ''
   const statusLabel = linked ? getStatusLabel(linked.status) : ''
+
+  const sourceLabel = isJikan ? 'MAL' : 'Shikimori'
+  const sourceUrl = news.url
 
   return (
     <main className="min-h-screen bg-background text-foreground relative">
@@ -349,6 +355,10 @@ export default async function NewsItemPage({ params }: Props) {
               <span className="news-pill news-pill-accent">
                 <Newspaper className="w-3.5 h-3.5" />
                 Новость
+              </span>
+              <span className={`news-pill ${isJikan ? 'text-orange-400' : 'text-blue-400'}`}>
+                <Globe className="w-3.5 h-3.5" />
+                {sourceLabel}
               </span>
               <span className="news-pill">
                 <Calendar className="w-3.5 h-3.5" />
@@ -404,18 +414,29 @@ export default async function NewsItemPage({ params }: Props) {
 
               <div className="mt-8 pt-6 border-t border-border/50 dark:border-zinc-800">
                 <a
-                  href={news.url}
+                  href={sourceUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="news-source-link"
                 >
                   <ExternalLink className="w-4 h-4" />
-                  Открыть на Shikimori
+                  Открыть на {sourceLabel}
                 </a>
               </div>
             </>
           ) : (
             <>
+              {/* Jikan news: show anime image + excerpt */}
+              {isJikan && news.animeImage && (
+                <div className="mb-6 flex justify-center">
+                  <img
+                    src={news.animeImage}
+                    alt={news.animeTitle || news.title}
+                    className="max-h-80 rounded-xl object-contain"
+                    loading="lazy"
+                  />
+                </div>
+              )}
               <p className="text-muted-foreground leading-relaxed dark:text-zinc-300">
                 {textBody}
               </p>
@@ -433,6 +454,17 @@ export default async function NewsItemPage({ params }: Props) {
                   />
                 </div>
               )}
+              <div className="mt-8 pt-6 border-t border-border/50 dark:border-zinc-800">
+                <a
+                  href={sourceUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="news-source-link"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                  Открыть на {sourceLabel}
+                </a>
+              </div>
             </>
           )}
         </article>

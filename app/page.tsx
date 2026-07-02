@@ -3,11 +3,11 @@ import {
   getPopularNow,
   getPopularAlways,
   getOngoingList,
-  getForumNews,
   getAnnouncements,
   getTopOfWeek,
   type Anime,
 } from "@/lib/shikimori"
+import { getAggregatedNews } from "@/lib/news/aggregator"
 import { cookies } from "next/headers"
 import type { Metadata } from "next"
 
@@ -92,7 +92,7 @@ export default async function HomePage() {
     withTimeout(getTopOfWeek(30), []),
     withTimeout(getPopularAlways(12), []),
     withTimeout(getOngoingList(12), []),
-    withTimeout(getForumNews(5), []),
+    withTimeout(getAggregatedNews(1, 5).then(r => r.items), []),
     withTimeout(getAnnouncements(3), []),
   ])
 

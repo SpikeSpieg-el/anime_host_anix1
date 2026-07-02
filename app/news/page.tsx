@@ -1,8 +1,8 @@
-import { getForumNewsPaginated } from "@/lib/shikimori"
+import { getAggregatedNews } from "@/lib/news/aggregator"
 import { Navbar } from "@/components/layout/navbar"
 import { Footer } from "@/components/layout/footer"
 import Link from "next/link"
-import { Newspaper, ArrowLeft, Calendar, User, MessageSquare, ArrowRight } from "lucide-react"
+import { Newspaper, ArrowLeft, Calendar, User, MessageSquare, ArrowRight, Globe } from "lucide-react"
 import type { Metadata } from "next"
 
 export const metadata: Metadata = {
@@ -18,9 +18,7 @@ export default async function NewsPage({
   const params = await searchParams
   const page = Math.max(1, parseInt(params.page || "1", 10))
   const limit = 12
-  const rawNews = await getForumNewsPaginated(page, limit + 1)
-  const hasNextPage = rawNews.length > limit
-  const news = rawNews.slice(0, limit)
+  const { items: news, hasNextPage } = await getAggregatedNews(page, limit)
 
   return (
     <main className="min-h-screen bg-background text-foreground pb-20 md:pb-24 relative">
@@ -83,16 +81,26 @@ export default async function NewsPage({
                 )}
 
                 <div className="flex flex-col flex-1 p-4 sm:p-5">
-                  <div className="flex items-center gap-2 mb-2 sm:mb-3">
+                  <div className="flex items-center gap-2 mb-2 sm:mb-3 flex-wrap">
                     <span className="inline-flex items-center gap-1 text-[10px] sm:text-xs font-medium text-muted-foreground bg-secondary/50 px-2 py-1 rounded-md dark:text-zinc-500 dark:bg-zinc-800/50">
                       <Calendar className="w-3 h-3" />
                       {item.date}
+                    </span>
+                    <span className={`inline-flex items-center gap-1 text-[10px] sm:text-xs font-medium px-2 py-1 rounded-md ${item.source === 'jikan' ? 'bg-orange-500/10 text-orange-400 dark:bg-orange-500/15 dark:text-orange-400' : 'bg-blue-500/10 text-blue-400 dark:bg-blue-500/15 dark:text-blue-400'}`}>
+                      <Globe className="w-3 h-3" />
+                      {item.source === 'jikan' ? 'MAL' : 'Shikimori'}
                     </span>
                   </div>
 
                   <h3 className="font-bold text-sm sm:text-base text-foreground leading-snug mb-2 group-hover:text-blue-400 transition-colors line-clamp-2 sm:line-clamp-3 dark:text-zinc-100">
                     {item.title}
                   </h3>
+
+                  {item.animeTitle && (
+                    <p className="text-[11px] sm:text-xs font-medium text-blue-400/80 mb-1.5 line-clamp-1">
+                      {item.animeTitle}
+                    </p>
+                  )}
 
                   <p className="text-xs sm:text-sm text-muted-foreground line-clamp-3 mb-3 sm:mb-4 flex-1 leading-relaxed dark:text-zinc-400">
                     {item.excerpt.replace(/\[.*?\]/g, "").replace(/<[^>]+>/g, "")}

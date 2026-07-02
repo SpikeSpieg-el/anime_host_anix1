@@ -71,6 +71,19 @@ export async function transformAnime(item: ShikimoriAnime, enableGenreFallback: 
   };
 }
 
+export function toLinkedAnimeFromShikimori(item: ShikimoriAnime): LinkedAnime {
+  return {
+    id: item.id,
+    name: item.name || '',
+    russian: item.russian || '',
+    image: item.image || undefined,
+    kind: item.kind || undefined,
+    score: item.score || undefined,
+    status: item.status || undefined,
+    episodes: item.episodes || undefined,
+  };
+}
+
 export function transformTopic(topic: any): NewsItem {
   const rawText = topic.body || "";
   const excerpt = rawText.length > 150 ? rawText.slice(0, 150) + "..." : rawText;

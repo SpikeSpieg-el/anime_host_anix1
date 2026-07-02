@@ -118,6 +118,93 @@ export async function searchAnime(query: string, allowNsfw: boolean = false, ena
   return getAnimeCatalog({ search: query, allowNsfw, limit: 20, enableGenreFallback });
 }
 
+function normalizeAnimeMatchTitle(t: string): string {
+  return t
+    .toLowerCase()
+    .replace(/[^a-z0-9а-яё]/gi, '')
+    .trim();
+}
+
+/**
+ * Find a Shikimori anime that matches a title coming from an external source (e.g. Jikan/MAL).
+ * Only returns a result when the titles genuinely match (exact or confident partial match),
+ * to avoid linking news to the wrong anime.
+ */
+export async function findShikimoriAnimeMatch(title: string, altTitles: string[] = []): Promise<ShikimoriAnime | null> {
+  try {
+    const queries = [title, ...altTitles].filter(Boolean);
+    const normalizedInputs = new Set(queries.map(normalizeAnimeMatchTitle).filter(Boolean));
+    if (normalizedInputs.size === 0) return null;
+
+    const seen = new Set<number>();
+    const allResults: ShikimoriAnime[] = [];
+
+    for (const query of queries.slice(0, 3)) {
+      const url = `${BASE_URL}/animes?search=${encodeURIComponent(query)}&limit=10&order=popularity`;
+      try {
+        const res = await shikimoriJson<ShikimoriAnime[]>(url, { next: { revalidate: 3600 } }, { fallback: [] });
+        if (Array.isArray(res)) {
+          for (const item of res) {
+            if (!seen.has(item.id)) {
+              seen.add(item.id);
+              allResults.push(item);
+            }
+          }
+        }
+      } catch (error) {
+        console.error(`[ShikimoriAnime] Error searching for "${query}":`, error);
+      }
+    }
+
+    // Exact title match first
+    for (const item of allResults) {
+      const normRus = normalizeAnimeMatchTitle(item.russian || '');
+      const normEn = normalizeAnimeMatchTitle(item.name || '');
+      if (normalizedInputs.has(normRus) || normalizedInputs.has(normEn)) {
+        return item;
+      }
+    }
+
+    // Confident partial match (avoid very short substrings causing false positives)
+    for (const item of allResults) {
+      const normRus = normalizeAnimeMatchTitle(item.russian || '');
+      const normEn = normalizeAnimeMatchTitle(item.name || '');
+      for (const input of normalizedInputs) {
+        if (input.length > 5 && (normRus.includes(input) || normEn.includes(input) || input.includes(normRus) || input.includes(normEn))) {
+          return item;
+        }
+      }
+    }
+
+    return null;
+  } catch (error) {
+    console.error('[ShikimoriAnime] Error matching anime by title:', error);
+    return null;
+  }
+}
+
+/**
+ * Look up a Shikimori anime directly by its MyAnimeList ID.
+ * Shikimori's anime IDs historically mirror MAL IDs and the API exposes the
+ * source `myanimelist_id` on the anime detail endpoint, so we can verify the
+ * match with a single request instead of a fuzzy title search.
+ */
+export async function findShikimoriAnimeByMalId(malId: number): Promise<ShikimoriAnime | null> {
+  if (!malId) return null;
+  try {
+    const data = await shikimoriJson<(ShikimoriAnime & { myanimelist_id?: number }) | null>(
+      `${BASE_URL}/animes/${malId}`,
+      { next: { revalidate: 86400 } },
+      { fallback: null }
+    );
+    if (data && data.myanimelist_id === malId) return data;
+    return null;
+  } catch (error) {
+    console.error(`[ShikimoriAnime] Error looking up anime by MAL id ${malId}:`, error);
+    return null;
+  }
+}
+
 // --- Specific Lists ---
 
 export async function getPopularNow(limit = 12): Promise<Anime[]> {
