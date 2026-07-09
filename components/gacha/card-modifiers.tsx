@@ -170,8 +170,7 @@ export const FrameOverlay = memo(({ frame, className = "" }: { frame?: string, c
       };
       case "crystal": return {
         border: "2px solid rgba(255, 255, 255, 0.6)",
-        boxShadow: "inset 0 0 15px rgba(186, 230, 253, 0.4)",
-        backdropFilter: "blur(1px)"
+        boxShadow: "inset 0 0 15px rgba(186, 230, 253, 0.4)"
       };
       case "dark": return {
         boxShadow: "inset 0 0 30px 5px #000, 0 0 15px #000",

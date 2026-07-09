@@ -1382,11 +1382,11 @@ export default function GachaPage() {
               {filteredAndSortedCards.length > displayedCardsCount && (
                 <div className="flex justify-center mt-8">
                   <button
-                    onClick={() => setDisplayedCardsCount(prev => prev + 60)}
+                    onClick={() => setDisplayedCardsCount(prev => prev + 10)}
                     className="px-8 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold rounded-xl transition-all shadow-lg border border-white/10 flex items-center gap-2"
                   >
                     <Sparkles className="w-5 h-5" />
-                    Показать ещё
+                    Открыть ещё 10
                   </button>
                 </div>
               )}

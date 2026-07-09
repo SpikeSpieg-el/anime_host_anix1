@@ -21,41 +21,27 @@ export async function POST(request: Request) {
 
   const { user, supabaseAdmin } = auth
 
-  const { data: rpcData, error: rpcErr } = await supabaseAdmin.rpc("market_execute_purchase", {
+  const { data: rpcData, error: rpcErr } = await supabaseAdmin.rpc("market_reserve_listing", {
     p_listing_id: listingId,
-    p_buyer_id: user.id,
+    p_user_id: user.id,
   })
 
   if (rpcErr) {
-    console.error("[market/buy]", rpcErr)
-    return NextResponse.json({ error: "Purchase failed" }, { status: 500 })
+    console.error("[market/reserve]", rpcErr)
+    return NextResponse.json({ error: "Reserve failed" }, { status: 500 })
   }
 
-  const result = rpcData as {
-    ok?: boolean
-    error?: string
-    need?: number
-    have?: number
-  }
+  const result = rpcData as { ok?: boolean; error?: string }
 
   if (!result?.ok) {
-    if (result?.error === "insufficient_coins") {
-      return NextResponse.json(
-        { error: "insufficient_coins", need: result.need, have: result.have },
-        { status: 402 }
-      )
-    }
-    if (result?.error === "own_listing") {
-      return NextResponse.json({ error: "own_listing" }, { status: 400 })
-    }
     if (result?.error === "listing_not_found") {
       return NextResponse.json({ error: "listing_not_found" }, { status: 404 })
     }
     if (result?.error === "already_reserved") {
       return NextResponse.json({ error: "already_reserved" }, { status: 409 })
     }
-    return NextResponse.json({ error: result?.error || "purchase_rejected" }, { status: 409 })
+    return NextResponse.json({ error: result?.error || "reserve_rejected" }, { status: 409 })
   }
 
-  return NextResponse.json({ success: true })
+  return NextResponse.json({ success: true, expiresIn: 15 })
 }

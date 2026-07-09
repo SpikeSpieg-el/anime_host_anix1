@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState, useRef, useMemo } from "react"
 import { createPortal } from "react-dom"
 import Image from "next/image"
-import { Loader2, ShoppingCart, XCircle, Store, RefreshCcw, ZoomIn, ExternalLink, X, Trash, Crown, Star, Filter, ChevronDown, Search, Swords } from "lucide-react"
+import { Loader2, ShoppingCart, XCircle, Store, RefreshCcw, ZoomIn, ExternalLink, X, Trash, Crown, Star, Filter, ChevronDown, Search, Swords, Lock } from "lucide-react"
 import type { Card } from "@/app/gacha/types"
 import { rarityConfig, type Rarity } from "@/types/gacha"
 import { useAuth } from "@/components/auth/auth-provider"
@@ -19,6 +19,8 @@ type MarketListingApi = {
   price: number
   minPriceAtList: number
   isMine: boolean
+  reservedByMe?: boolean
+  reservedByOther?: boolean
   card: Omit<Card, "id" | "orderIndex"> & { uniqueId: string }
 }
 
@@ -385,6 +387,9 @@ export function GachaMarketPanel({
   const [viewedCard, setViewedCard] = useState<MarketListingApi | null>(null)
   const [loadingImages, setLoadingImages] = useState<Record<string, boolean>>({})
   const [showConfirmBuy, setShowConfirmBuy] = useState(false)
+  const [reservedListingId, setReservedListingId] = useState<string | null>(null)
+  const [reserveCountdown, setReserveCountdown] = useState(0)
+  const reserveTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const [showFilters, setShowFilters] = useState(false)
   const [filters, setFilters] = useState<MarketFilters>({
     search: "",
@@ -397,6 +402,8 @@ export function GachaMarketPanel({
     isMainCharacter: null
   })
   const [animeList, setAnimeList] = useState<string[]>([])
+  const silentRefreshRef = useRef<AbortController | null>(null)
+  const isMountedRef = useRef(true)
 
   const authHeader = useCallback(() => {
     if (!session?.access_token) return null
@@ -466,19 +473,52 @@ export function GachaMarketPanel({
       if (!res.ok) {
         throw new Error(data.error || "Ошибка загрузки")
       }
+      if (!isMountedRef.current) return
       setListings(data.listings || [])
     } catch (e) {
       console.error(e)
       onNotify("Маркет", e instanceof Error ? e.message : "Не удалось загрузить лоты", "error")
       setListings([])
     } finally {
-      setLoading(false)
+      if (isMountedRef.current) setLoading(false)
     }
   }, [authHeader, onNotify, tab])
 
+  const silentRefresh = useCallback(async () => {
+    if (silentRefreshRef.current) silentRefreshRef.current.abort()
+    const ac = new AbortController()
+    silentRefreshRef.current = ac
+    try {
+      const headers = authHeader()
+      const mine = tab === "mine"
+      const url = `/api/market/listings?mine=${mine ? "1" : "0"}&limit=80`
+      const res = await fetch(url, {
+        headers: headers ?? {},
+        signal: ac.signal,
+      })
+      const data = await res.json()
+      if (!res.ok || !isMountedRef.current) return
+      setListings(data.listings || [])
+    } catch (e) {
+      if ((e as Error).name !== "AbortError") {
+        console.warn("[market] silent refresh failed", e)
+      }
+    }
+  }, [authHeader, tab])
+
   useEffect(() => {
+    isMountedRef.current = true
     void load()
-  }, [load])
+    const interval = setInterval(() => {
+      void silentRefresh()
+    }, 30000)
+    return () => {
+      isMountedRef.current = false
+      clearInterval(interval)
+      if (silentRefreshRef.current) silentRefreshRef.current.abort()
+      if (reserveTimerRef.current) clearInterval(reserveTimerRef.current)
+    }
+  }, [load, silentRefresh])
 
   const resetFilters = () => {
     setFilters({
@@ -539,11 +579,32 @@ export function GachaMarketPanel({
           )
           return
         }
+        if (data.error === "listing_not_found") {
+          onNotify(
+            "Уже продано",
+            "Эту карту уже купил другой игрок.",
+            "warning"
+          )
+          setListings(prev => prev.filter(l => l.listingId !== listingId))
+          void silentRefresh()
+          return
+        }
+        if (data.error === "already_reserved") {
+          onNotify(
+            "Забронировано",
+            "Другой игрок уже оформляет покупку этой карты.",
+            "warning"
+          )
+          setListings(prev => prev.filter(l => l.listingId !== listingId))
+          void silentRefresh()
+          return
+        }
         throw new Error(data.error || "Покупка не удалась")
       }
       onNotify("Маркет", "Карта добавлена в коллекцию.", "info")
+      setListings(prev => prev.filter(l => l.listingId !== listingId))
       void onTradeComplete()
-      void load()
+      void silentRefresh()
     } catch (e) {
       onNotify("Маркет", e instanceof Error ? e.message : "Ошибка покупки", "error")
     } finally {
@@ -551,9 +612,108 @@ export function GachaMarketPanel({
     }
   }
 
+  const releaseReservation = useCallback(async (listingId: string) => {
+    const headers = authHeader()
+    if (!headers) return
+    try {
+      await fetch("/api/market/release", {
+        method: "POST",
+        headers: { ...headers, "Content-Type": "application/json" },
+        body: JSON.stringify({ listingId }),
+      })
+    } catch {
+      // silent
+    }
+  }, [authHeader])
+
+  const stopReserveTimer = useCallback(() => {
+    if (reserveTimerRef.current) {
+      clearInterval(reserveTimerRef.current)
+      reserveTimerRef.current = null
+    }
+    setReserveCountdown(0)
+  }, [])
+
+  const startReserveTimer = useCallback((listingId: string) => {
+    stopReserveTimer()
+    setReserveCountdown(15)
+    reserveTimerRef.current = setInterval(() => {
+      setReserveCountdown(prev => {
+        if (prev <= 1) {
+          if (reserveTimerRef.current) clearInterval(reserveTimerRef.current)
+          reserveTimerRef.current = null
+          setReservedListingId(null)
+          setViewedCard(null)
+          setShowConfirmBuy(false)
+          onNotify("Время истекло", "Бронь карты истекла. Начните заново.", "warning")
+          void releaseReservation(listingId)
+          void silentRefresh()
+          return 0
+        }
+        return prev - 1
+      })
+    }, 1000)
+  }, [stopReserveTimer, releaseReservation, onNotify, silentRefresh])
+
+  const openCardModal = useCallback(async (L: MarketListingApi) => {
+    if (L.isMine || !user) {
+      setViewedCard(L)
+      return
+    }
+    if (L.reservedByOther) {
+      onNotify("Забронировано", "Другой игрок уже оформляет покупку этой карты.", "warning")
+      return
+    }
+    const headers = authHeader()
+    if (!headers) {
+      onNotify("Маркет", "Сессия недоступна", "error")
+      return
+    }
+    try {
+      const res = await fetch("/api/market/reserve", {
+        method: "POST",
+        headers: { ...headers, "Content-Type": "application/json" },
+        body: JSON.stringify({ listingId: L.listingId }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        if (data.error === "already_reserved") {
+          onNotify("Забронировано", "Другой игрок уже оформляет покупку этой карты.", "warning")
+          void silentRefresh()
+          return
+        }
+        if (data.error === "listing_not_found") {
+          onNotify("Уже продано", "Эту карту уже купили.", "warning")
+          setListings(prev => prev.filter(l => l.listingId !== L.listingId))
+          void silentRefresh()
+          return
+        }
+        onNotify("Маркет", data.error || "Не удалось забронировать карту", "error")
+        return
+      }
+      setReservedListingId(L.listingId)
+      setViewedCard(L)
+      startReserveTimer(L.listingId)
+    } catch {
+      onNotify("Маркет", "Ошибка бронирования", "error")
+    }
+  }, [authHeader, user, onNotify, silentRefresh, startReserveTimer])
+
+  const closeCardModal = useCallback(() => {
+    if (reservedListingId) {
+      void releaseReservation(reservedListingId)
+      setReservedListingId(null)
+    }
+    stopReserveTimer()
+    setViewedCard(null)
+    setShowConfirmBuy(false)
+  }, [reservedListingId, releaseReservation, stopReserveTimer])
+
   const confirmBuy = async () => {
     if (!viewedCard) return
     await buy(viewedCard.listingId, viewedCard.price, viewedCard.card.name)
+    stopReserveTimer()
+    setReservedListingId(null)
     setViewedCard(null)
     setShowConfirmBuy(false)
   }
@@ -577,8 +737,9 @@ export function GachaMarketPanel({
         throw new Error(data.error || "Не удалось снять лот")
       }
       onNotify("Маркет", "Лот снят, карта снова у вас в коллекции.", "info")
+      setListings(prev => prev.filter(l => l.listingId !== listingId))
       void onTradeComplete()
-      void load()
+      void silentRefresh()
     } catch (e) {
       onNotify("Маркет", e instanceof Error ? e.message : "Ошибка", "error")
     } finally {
@@ -836,7 +997,7 @@ export function GachaMarketPanel({
                   boxShadow: `0 0 0 1px rgba(${rarityConfig[c.rarity].rgb}, 0.12), 0 12px 40px rgba(0,0,0,0.55), 0 0 32px rgba(${rarityConfig[c.rarity].rgb}, 0.18)`,
                 }}
               >
-                <div className="aspect-[2/3] relative w-full cursor-pointer" onClick={() => setViewedCard(L)}>
+                <div className="aspect-[2/3] relative w-full cursor-pointer" onClick={() => openCardModal(L)}>
                   <Image
                     src={getProxiedSrc(c.imageUrl)}
                     alt={c.name}
@@ -872,6 +1033,11 @@ export function GachaMarketPanel({
                   >
                     {rarityConfig[c.rarity].label}
                   </div>
+                  {L.reservedByOther && (
+                    <div className="absolute top-2 left-2 px-2 py-0.5 rounded-lg text-[10px] font-black uppercase bg-amber-600/90 border border-amber-400 text-amber-950 z-20">
+                      🔒 Бронь
+                    </div>
+                  )}
                   {(c.frameModifier || c.coatingModifier) && (
                     <div className="absolute bottom-2 left-2 flex flex-col gap-1">
                       {c.frameModifier && (
@@ -927,15 +1093,14 @@ export function GachaMarketPanel({
                     {tab === "vitrine" && !L.isMine && user && (
                       <button
                         type="button"
-                        disabled={busy}
+                        disabled={busy || L.reservedByOther}
                         onClick={() => {
-                          setViewedCard(L)
+                          openCardModal(L)
                           setShowConfirmBuy(false)
                         }}
-                        className="w-full py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-black uppercase disabled:opacity-50 flex items-center justify-center gap-2"
+                        className={`w-full py-2 rounded-xl text-white text-xs font-black uppercase disabled:opacity-50 flex items-center justify-center gap-2 ${L.reservedByOther ? 'bg-amber-700/50' : 'bg-cyan-600 hover:bg-cyan-500'}`}
                       >
-                        {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShoppingCart className="w-4 h-4" />}
-                        Купить
+                        {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : L.reservedByOther ? <><Lock className="w-4 h-4" /> Забронировано</> : <><ShoppingCart className="w-4 h-4" /> Купить</>}
                       </button>
                     )}
                     {tab === "vitrine" && L.isMine && (
@@ -968,13 +1133,11 @@ export function GachaMarketPanel({
         <div 
           className="fixed inset-0 z-[120] flex flex-col items-center justify-center p-4 sm:p-6 bg-slate-950/90 backdrop-blur-xl animate-in fade-in duration-200 overflow-y-auto"
           onClick={() => {
-            setViewedCard(null)
-            setShowConfirmBuy(false)
+            closeCardModal()
           }}
         >
           <button onClick={() => {
-            setViewedCard(null)
-            setShowConfirmBuy(false)
+            closeCardModal()
           }} className="fixed top-4 right-4 sm:top-6 sm:right-6 p-2.5 sm:p-3 rounded-full bg-white/5 hover:bg-white/10 text-white transition-colors border border-white/10 z-[130] shadow-xl backdrop-blur-md touch-manipulation">
             <X className="w-5 h-5 sm:w-6 sm:h-6" />
           </button>
@@ -1006,7 +1169,7 @@ export function GachaMarketPanel({
                 {tab === "mine" && (
                   <button
                     onClick={() => {
-                      setViewedCard(null)
+                      closeCardModal()
                       cancel(viewedCard.listingId, viewedCard.card.name)
                     }}
                     className="px-4 py-2.5 sm:px-5 sm:py-3 rounded-xl bg-red-500/15 hover:bg-red-500/25 text-red-300 font-bold text-xs sm:text-sm flex items-center gap-2 transition-colors border border-red-500/30"
@@ -1022,6 +1185,13 @@ export function GachaMarketPanel({
                   <h3 className="text-xl sm:text-2xl font-black text-white uppercase tracking-tight">
                     Подтверждение покупки
                   </h3>
+
+                  {reserveCountdown > 0 && (
+                    <div className={`text-sm font-bold flex items-center justify-center gap-1.5 ${reserveCountdown <= 5 ? 'text-red-400' : 'text-amber-400'}`}>
+                      <span className={`inline-block w-2 h-2 rounded-full ${reserveCountdown <= 5 ? 'bg-red-400' : 'bg-amber-400'} animate-pulse`} />
+                      Бронь истекает через {reserveCountdown}с
+                    </div>
+                  )}
 
                   <div className="bg-slate-900/50 border border-slate-700 rounded-xl p-4 sm:p-5 space-y-3">
                     <div className="flex items-center justify-between text-sm">

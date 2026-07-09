@@ -41,13 +41,23 @@ export async function GET(request: Request) {
 
   const viewerId = auth?.user.id ?? null
 
-  const listings = (data || []).map((row) => ({
+  const now = Date.now()
+
+  const listings = (data || []).map((row) => {
+    const reservedAt = row.reserved_at ? new Date(row.reserved_at).getTime() : 0
+    const isReservationActive = reservedAt > 0 && (now - reservedAt) < 15000
+    const reservedByMe = isReservationActive && row.reserved_by === viewerId
+    const reservedByOther = isReservationActive && row.reserved_by !== viewerId
+
+    return {
     listingId: row.id,
     price: row.price,
     minPriceAtList: row.min_price_at_list,
     sellerId: row.seller_id,
     createdAt: row.created_at,
     isMine: viewerId !== null && row.seller_id === viewerId,
+    reservedByMe,
+    reservedByOther,
     card: {
       uniqueId: row.unique_id,
       serialId: row.serial_id,
@@ -74,7 +84,8 @@ export async function GET(request: Request) {
       frameModifier: row.frame_modifier || undefined,
       coatingModifier: row.coating_modifier || undefined,
     },
-  }))
+  }
+  })
 
   return NextResponse.json({ listings })
 }

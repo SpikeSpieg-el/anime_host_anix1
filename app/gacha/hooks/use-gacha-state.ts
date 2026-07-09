@@ -73,7 +73,7 @@ export function useGachaState() {
   const [isFixingCoins, setIsFixingCoins] = useState(false)
   const [isSavingCard, setIsSavingCard] = useState(false)
   const [isLoaded, setIsLoaded] = useState(false)
-  const [displayedCardsCount, setDisplayedCardsCount] = useState(60)
+  const [displayedCardsCount, setDisplayedCardsCount] = useState(10)
   const [isSyncingCards, setIsSyncingCards] = useState(false)
   const [pendingSyncCount, setPendingSyncCount] = useState(0)
   const [prioritizeMainCharacters, setPrioritizeMainCharacters] = useState(false)
