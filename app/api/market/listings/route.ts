@@ -83,6 +83,7 @@ export async function GET(request: Request) {
       isArtBlacklisted: row.is_art_blacklisted || false,
       frameModifier: row.frame_modifier || undefined,
       coatingModifier: row.coating_modifier || undefined,
+      artPosition: row.art_position || undefined,
     },
   }
   })

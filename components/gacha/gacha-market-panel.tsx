@@ -404,6 +404,7 @@ export function GachaMarketPanel({
   const [animeList, setAnimeList] = useState<string[]>([])
   const silentRefreshRef = useRef<AbortController | null>(null)
   const isMountedRef = useRef(true)
+  const silentRefreshCbRef = useRef<() => void>(() => {})
 
   const authHeader = useCallback(() => {
     if (!session?.access_token) return null
@@ -507,6 +508,10 @@ export function GachaMarketPanel({
   }, [authHeader, tab])
 
   useEffect(() => {
+    silentRefreshCbRef.current = silentRefresh
+  }, [silentRefresh])
+
+  useEffect(() => {
     isMountedRef.current = true
     void load()
     const interval = setInterval(() => {
@@ -519,6 +524,68 @@ export function GachaMarketPanel({
       if (reserveTimerRef.current) clearInterval(reserveTimerRef.current)
     }
   }, [load, silentRefresh])
+
+  // Supabase Realtime: instant updates when other users buy/list/cancel cards
+  useEffect(() => {
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null
+    const debouncedRefresh = () => {
+      if (debounceTimer) clearTimeout(debounceTimer)
+      debounceTimer = setTimeout(() => {
+        if (isMountedRef.current) silentRefreshCbRef.current()
+      }, 300)
+    }
+
+    const channel = supabase
+      .channel("market-listings-realtime")
+      .on("postgres_changes", {
+        event: "DELETE",
+        schema: "public",
+        table: "market_listings",
+      }, (payload: any) => {
+        const deletedId = payload.old_record?.id
+        if (!deletedId || !isMountedRef.current) return
+        setListings(prev => prev.filter(l => l.listingId !== deletedId))
+      })
+      .on("postgres_changes", {
+        event: "INSERT",
+        schema: "public",
+        table: "market_listings",
+      }, () => {
+        if (isMountedRef.current) debouncedRefresh()
+      })
+      .on("postgres_changes", {
+        event: "UPDATE",
+        schema: "public",
+        table: "market_listings",
+      }, (payload: any) => {
+        const newRow = payload.new
+        const oldRow = payload.old_record
+        if (!isMountedRef.current) return
+
+        // Update reservation status locally without full refetch
+        if (newRow && oldRow && (newRow.reserved_by !== oldRow.reserved_by || newRow.reserved_at !== oldRow.reserved_at)) {
+          const now = Date.now()
+          const reservedAt = newRow.reserved_at ? new Date(newRow.reserved_at).getTime() : 0
+          const isReservationActive = reservedAt > 0 && (now - reservedAt) < 15000
+          setListings(prev => prev.map(l => {
+            if (l.listingId !== newRow.id) return l
+            return {
+              ...l,
+              reservedByMe: isReservationActive && newRow.reserved_by === user?.id,
+              reservedByOther: isReservationActive && newRow.reserved_by !== user?.id,
+            }
+          }))
+        } else {
+          debouncedRefresh()
+        }
+      })
+      .subscribe()
+
+    return () => {
+      if (debounceTimer) clearTimeout(debounceTimer)
+      supabase.removeChannel(channel)
+    }
+  }, [user?.id])
 
   const resetFilters = () => {
     setFilters({
