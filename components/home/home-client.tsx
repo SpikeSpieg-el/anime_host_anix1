@@ -5,7 +5,6 @@ import { UserHistory } from '@/components/shared/user-history'
 import { BookmarksSection } from '@/components/shared/bookmarks-section'
 import { AiAdvisor } from '@/components/shared/ai-advisor'
 import { UpdatesBanner } from '@/components/home/updates-banner'
-import { Footer } from '@/components/layout/footer'
 import { UpdatesBannerSkeleton } from '@/components/shared/skeleton'
 import type { Anime } from '@/lib/shikimori'
 import Link from "next/link"
@@ -281,7 +280,6 @@ export function HomePageClient({ initialData }: HomePageClientProps) {
           ) : null}
         </section>
       </div>
-      <Footer />
     </main>
     </>
   )
