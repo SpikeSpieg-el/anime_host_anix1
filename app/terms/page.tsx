@@ -6,6 +6,17 @@ import { Footer } from "@/components/layout/footer"
 export const metadata: Metadata = {
   title: "Пользовательское соглашение — Weeb-X",
   description: "Пользовательское соглашение Weeb-X. Правила использования сайта и права пользователей.",
+  alternates: {
+    canonical: "https://weeb-x.com/terms",
+  },
+  openGraph: {
+    title: "Пользовательское соглашение — Weeb-X",
+    description: "Пользовательское соглашение Weeb-X. Правила использования сайта и права пользователей.",
+    type: "website",
+    url: "https://weeb-x.com/terms",
+    siteName: "Weeb-X",
+    locale: "ru_RU",
+  },
 }
 
 export default function TermsPage() {

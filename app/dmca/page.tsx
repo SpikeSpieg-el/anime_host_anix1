@@ -6,6 +6,17 @@ import { Footer } from "@/components/layout/footer"
 export const metadata: Metadata = {
   title: "Правообладателям (DMCA) — Weeb-X",
   description: "Информация для правообладателей. Процедура подачи DMCA-запросов на удаление контента.",
+  alternates: {
+    canonical: "https://weeb-x.com/dmca",
+  },
+  openGraph: {
+    title: "Правообладателям (DMCA) — Weeb-X",
+    description: "Информация для правообладателей. Процедура подачи DMCA-запросов на удаление контента.",
+    type: "website",
+    url: "https://weeb-x.com/dmca",
+    siteName: "Weeb-X",
+    locale: "ru_RU",
+  },
 }
 
 export default function DMCAPage() {

@@ -3,7 +3,7 @@
 import Image from "next/image"
 import { useState, useEffect, useRef, useCallback } from "react"
 import type { LucideIcon } from "lucide-react"
-import { Sparkles, Package, Search, Coins, Star, Swords, Heart, ArrowRight, ArrowLeft, X, Database, Check, MousePointerClick, ShoppingCart, Tag, TrendingUp, Users } from "lucide-react"
+import { Sparkles, Package, Search, Coins, Star, Swords, Heart, ArrowRight, ArrowLeft, X, Database, Check, MousePointerClick, ShoppingCart, Tag, TrendingUp, Users, Shield, Zap, Target, Crown, Dumbbell, Info } from "lucide-react"
 
 export interface GachaTutorialState {
   isRolling: boolean
@@ -12,7 +12,7 @@ export interface GachaTutorialState {
   collectedCardsCount: number
 }
 
-export type TutorialType = "gacha" | "marketplace"
+export type TutorialType = "gacha" | "marketplace" | "battle"
 
 type TutorialAccent = "pink" | "amber" | "indigo" | "red"
 
@@ -232,6 +232,165 @@ const MARKETPLACE_TUTORIAL_STEPS: TutorialStep[] = [
   },
 ]
 
+const BATTLE_TUTORIAL_STEPS: TutorialStep[] = [
+  {
+    selector: "",
+    isIntro: true,
+    title: "Добро пожаловать на Арену",
+    message: "Ня~ Здесь твои карты сражаются в тактических дуэлях! Собери колоду, выбери формацию и побеждай на трёх линиях боя.",
+    icon: Swords,
+    accent: "red",
+    details: ["Узнай, как собрать колоду", "Разберись с весом и формацией", "Пойми, как начать бой"],
+  },
+  {
+    selector: "",
+    isIntro: true,
+    title: "Как проходит обучение",
+    message: "Я буду подсвечивать нужные элементы лапкой, ня~ Просто листай шаги кнопками и изучай интерфейс арены!",
+    icon: MousePointerClick,
+    accent: "indigo",
+    details: ["Подсказка закреплена снизу на телефоне", "Обучение можно пропустить", "Прогресс сохранится после завершения"],
+  },
+  {
+    selector: "[data-tutorial='battle-stats']",
+    title: "Твои показатели",
+    message: "Здесь виден твой уровень, опыт, монеты, пыль и энергия, ня~ Энергия тратится на каждый бой и восстанавливается со временем.",
+    icon: Crown,
+    accent: "amber",
+    highlightPadding: 10,
+  },
+  {
+    selector: "[data-tutorial='battle-deck']",
+    title: "Твоя колода",
+    message: "Для боя нужно собрать колоду из 6 карт, ня~ Нажми на пустой слот или кнопку «Изменить состав», чтобы выбрать персонажей.",
+    icon: Shield,
+    accent: "indigo",
+    highlightPadding: 10,
+  },
+  {
+    selector: "[data-tutorial='battle-provision']",
+    title: "Вес колоды",
+    message: "У каждой карты есть вес в зависимости от редкости, ня~ Суммарный вес не должен превышать 30 очков. Сильные карты весят больше!",
+    icon: Dumbbell,
+    accent: "amber",
+    highlightPadding: 10,
+  },
+  {
+    selector: "[data-tutorial='battle-formation']",
+    title: "Формация",
+    message: "Выбери формацию, чтобы усилить определённые роли карт, ня~ Каждая формация даёт бонус разным типам персонажей.",
+    icon: Zap,
+    accent: "indigo",
+    highlightPadding: 8,
+  },
+  {
+    selector: "[data-tutorial='battle-power']",
+    title: "Сила колоды",
+    message: "Здесь показана общая сила твоей колоды, ня~ Она зависит от статов карт, синергий, ауры лидера и формации. Чем выше — тем лучше!",
+    icon: Zap,
+    accent: "amber",
+    highlightPadding: 10,
+  },
+  {
+    selector: "[data-tutorial='battle-start']",
+    title: "Кнопка начала боя",
+    message: "Когда колода собрана и локация выбрана, нажми «Вступить в дуэль», ня~ Если кнопка неактивна — проверь вес колоды и энергию.",
+    icon: Swords,
+    accent: "red",
+    highlightPadding: 10,
+  },
+  {
+    selector: "[data-tutorial='battle-location']",
+    title: "Выбор локации",
+    message: "Нажми сюда, чтобы выбрать локацию для боя, ня~ Разные локации имеют разную сложность и награды. Начни с лёгких!",
+    icon: Target,
+    accent: "indigo",
+    highlightPadding: 10,
+  },
+  {
+    selector: "",
+    title: "Как проходит бой",
+    message: "Бой длится 3 раунда на 3 линиях, ня~ Каждый раунд ты выставляешь 2 карты: одну открыто, другую вслепую. После раскрытия применяются модификаторы и КНБ-бонусы!",
+    icon: Info,
+    accent: "indigo",
+    details: ["3 раунда, 3 линии", "1 карта открыто, 1 вслепую", "Побеждай на 2 из 3 линий"],
+  },
+  {
+    selector: "",
+    title: "КНБ-роли карт",
+    message: "У каждой карты есть роль, ня~ Авангард бьёт Плутов, Страж бьёт Авангардов, а Плут бьёт Стражей. Используй это для преимущества!",
+    icon: Swords,
+    accent: "red",
+    details: ["Авангард → Плут (+50%)", "Страж → Авангард (+50%)", "Плут → Страж (+50%)"],
+  },
+  {
+    selector: "",
+    title: "Обучение завершено",
+    message: "Отлично, мяу! Теперь ты знаешь, как работает арена. Собирай сильную колоду, используй КНБ-роли и побеждай!",
+    icon: Check,
+    accent: "indigo",
+    details: ["Арена изучена", "Готов к дуэлям", "Удачи в битвах!"],
+  },
+]
+
+// === Typewriter hook ===
+function useTypewriter(text: string, speed = 22) {
+  const [displayed, setDisplayed] = useState("")
+  const [done, setDone] = useState(false)
+  const indexRef = useRef(0)
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    setDisplayed("")
+    setDone(false)
+    indexRef.current = 0
+    if (timerRef.current) clearTimeout(timerRef.current)
+
+    const tick = () => {
+      if (indexRef.current >= text.length) {
+        setDone(true)
+        return
+      }
+      indexRef.current++
+      setDisplayed(text.slice(0, indexRef.current))
+      timerRef.current = setTimeout(tick, speed)
+    }
+    timerRef.current = setTimeout(tick, speed)
+
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current)
+    }
+  }, [text, speed])
+
+  const skip = useCallback(() => {
+    if (timerRef.current) clearTimeout(timerRef.current)
+    setDisplayed(text)
+    setDone(true)
+    indexRef.current = text.length
+  }, [text])
+
+  return { displayed, done, skip }
+}
+
+const TypewriterText = ({ text, className, speed = 22 }: { text: string; className?: string; speed?: number }) => {
+  const { displayed, done, skip } = useTypewriter(text, speed)
+  return (
+    <span className={className} onClick={done ? undefined : skip} style={{ cursor: done ? "default" : "pointer" }}>
+      {displayed}
+      {!done && (
+        <span
+          className="inline-block w-[2px] ml-0.5 align-middle"
+          style={{
+            height: "1.1em",
+            background: "currentColor",
+            animation: "blink-cursor 0.8s step-end infinite",
+          }}
+        />
+      )}
+    </span>
+  )
+}
+
 export function GachaTutorial({ onComplete, gachaState, tutorialType = "gacha" }: { onComplete: () => void; gachaState?: GachaTutorialState; tutorialType?: TutorialType }) {
   const [currentStep, setCurrentStep] = useState(0)
   const [highlightRect, setHighlightRect] = useState<DOMRect | null>(null)
@@ -242,7 +401,7 @@ export function GachaTutorial({ onComplete, gachaState, tutorialType = "gacha" }
   const rafRef = useRef<number | null>(null)
   const observedRollingRef = useRef(false)
 
-  const tutorialSteps = tutorialType === "marketplace" ? MARKETPLACE_TUTORIAL_STEPS : GACHA_TUTORIAL_STEPS
+  const tutorialSteps = tutorialType === "marketplace" ? MARKETPLACE_TUTORIAL_STEPS : tutorialType === "battle" ? BATTLE_TUTORIAL_STEPS : GACHA_TUTORIAL_STEPS
   const step = tutorialSteps[currentStep]
   const isLastStep = currentStep === tutorialSteps.length - 1
   const StepIcon = step.icon
@@ -546,7 +705,7 @@ export function GachaTutorial({ onComplete, gachaState, tutorialType = "gacha" }
                     <span className="text-xs font-bold uppercase tracking-[0.16em] text-slate-400">Кошкодевочка-проводник</span>
                   </div>
                   <h2 id="gacha-tutorial-title" className="text-balance text-2xl font-black tracking-tight text-white sm:text-3xl">{step.title}</h2>
-                  <p className="mt-3 text-sm leading-6 text-slate-300 sm:text-base">{step.message}</p>
+                  <p className="mt-3 text-sm leading-6 text-slate-300 sm:text-base"><TypewriterText text={step.message} /></p>
                 </div>
 
                 {step.details && (
@@ -603,7 +762,7 @@ export function GachaTutorial({ onComplete, gachaState, tutorialType = "gacha" }
                 <StepIcon className="size-4 motion-safe:animate-spin" />
                 <h2 className="text-sm font-black text-white">{step.title}</h2>
               </div>
-              <p className="mt-1 text-xs leading-5 text-slate-300 sm:text-sm">{step.message}</p>
+              <p className="mt-1 text-xs leading-5 text-slate-300 sm:text-sm"><TypewriterText text={step.message} speed={18} /></p>
             </div>
           </div>
         </div>
@@ -645,7 +804,7 @@ export function GachaTutorial({ onComplete, gachaState, tutorialType = "gacha" }
                     </div>
                     <button type="button" onClick={handleSkip} aria-label="Закрыть обучение" className="grid size-10 shrink-0 place-items-center rounded-xl text-slate-400 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60 sm:hidden"><X className="size-5" /></button>
                   </div>
-                  <p className="mt-3 text-sm leading-5 text-slate-300">{step.message}</p>
+                  <p className="mt-3 text-sm leading-5 text-slate-300"><TypewriterText text={step.message} /></p>
                 </div>
               </div>
 

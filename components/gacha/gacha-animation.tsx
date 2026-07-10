@@ -16,11 +16,10 @@ interface GachaAnimationProps {
 }
 
 export function GachaAnimation({ isRolling, revealedCard, onComplete }: GachaAnimationProps) {
-  const [phase, setPhase] = useState<'idle' | 'drop' | 'shake' | 'loading' | 'reveal'>('idle')
+  const [phase, setPhase] = useState<'idle' | 'drop' | 'shake' | 'loading' | 'reveal' | 'transition'>('idle')
   const [imageLoaded, setImageLoaded] = useState(false)
   const [climbIndex, setClimbIndex] = useState(0)
   const [showFlash, setShowFlash] = useState(false)
-  const [canDismiss, setCanDismiss] = useState(false)
   const completedRef = useRef(false)
   const imagePreloadedRef = useRef(false)
   const onCompleteRef = useRef(onComplete)
@@ -81,19 +80,6 @@ export function GachaAnimation({ isRolling, revealedCard, onComplete }: GachaAni
     }
   }
 
-  const handleRevealTap = () => {
-    if (phase === 'reveal' && canDismiss && !completedRef.current) {
-      completedRef.current = true
-      onCompleteRef.current()
-    }
-  }
-
-  const handleRevealSkipTap = () => {
-    if (phase === 'reveal' && !completedRef.current && !canDismiss) {
-      setCanDismiss(true)
-    }
-  }
-
   // Loading phase — image already preloading since shake, just wait for it + flash
   useEffect(() => {
     if (phase !== 'loading' || !revealedCard) return
@@ -129,16 +115,31 @@ export function GachaAnimation({ isRolling, revealedCard, onComplete }: GachaAni
     return () => { cancelled = true }
   }, [phase, revealedCard])
 
-  // Reveal phase — mandatory tap to continue, no auto-complete
+  // Reveal phase — auto-transition after effects play, no tap required
   useEffect(() => {
     if (phase !== 'reveal') return
-    setCanDismiss(false)
-    const delay = isUltraRarity ? 3000 : 1500
-    const t1 = setTimeout(() => setCanDismiss(true), delay)
+    const revealDuration = isUltraRarity ? 3000 : isHighRarity ? 2500 : 1800
+    const t1 = setTimeout(() => {
+      setPhase('transition')
+    }, revealDuration)
     return () => clearTimeout(t1)
-  }, [phase, isUltraRarity])
+  }, [phase, isUltraRarity, isHighRarity])
+
+  // Transition phase — fade out effects, scale card up, then auto-complete
+  useEffect(() => {
+    if (phase !== 'transition') return
+    const t1 = setTimeout(() => {
+      if (!completedRef.current) {
+        completedRef.current = true
+        onCompleteRef.current()
+      }
+    }, 600)
+    return () => clearTimeout(t1)
+  }, [phase])
 
   if (phase === 'idle') return null
+
+  const isTransitioning = phase === 'transition'
 
   const rarityRgb = (phase === 'shake' && revealedCard ? currentRarityInfo : rarityInfo)?.rgb || '129, 140, 248'
   const activeRarityInfo = phase === 'shake' && revealedCard ? currentRarityInfo : rarityInfo
@@ -342,6 +343,18 @@ export function GachaAnimation({ isRolling, revealedCard, onComplete }: GachaAni
           0%, 100% { opacity: 0.4; transform: scale(1); }
           50% { opacity: 0.75; transform: scale(1.15); }
         }
+        @keyframes revealCardZoom {
+          0% { transform: scale(1); }
+          100% { transform: scale(1.15); }
+        }
+        @keyframes effectsFadeOut {
+          0% { opacity: 1; }
+          100% { opacity: 0; }
+        }
+        @keyframes bgFadeOut {
+          0% { opacity: 1; }
+          100% { opacity: 0; }
+        }
       `}</style>
 
       {/* Screen flash transition between loading and reveal */}
@@ -504,15 +517,21 @@ export function GachaAnimation({ isRolling, revealedCard, onComplete }: GachaAni
         </div>
       )}
 
-      {/* Card reveal phase — with jackpot effects */}
-      {phase === 'reveal' && rarityInfo && (
+      {/* Card reveal phase — with jackpot effects, also visible during transition */}
+      {(phase === 'reveal' || phase === 'transition') && rarityInfo && (
         <div
-          className="absolute inset-0 flex flex-col items-center justify-center cursor-pointer"
-          style={{ animation: isUltraRarity ? 'ultraScreenShake 0.6s ease-out' : 'winShake 0.5s ease-out' }}
-          onClick={() => { if (canDismiss) handleRevealTap(); else handleRevealSkipTap(); }}
+          className="absolute inset-0 flex flex-col items-center justify-center"
+          style={{ 
+            animation: phase === 'reveal' 
+              ? (isUltraRarity ? 'ultraScreenShake 0.6s ease-out' : 'winShake 0.5s ease-out') 
+              : 'effectsFadeOut 0.6s ease-out forwards',
+          }}
         >
           {/* Rarity glow background — stronger for high rarity */}
-          <div className={`absolute inset-0 ${isHighRarity ? 'opacity-40' : 'opacity-25'} bg-gradient-to-t ${rarityInfo.color}`} />
+          <div 
+            className={`absolute inset-0 ${isHighRarity ? 'opacity-40' : 'opacity-25'} bg-gradient-to-t ${rarityInfo.color}`}
+            style={isTransitioning ? { animation: 'bgFadeOut 0.5s ease-out forwards' } : undefined}
+          />
 
           {/* Ultra rarity — multi-flash sequence */}
           {isUltraRarity && (
@@ -641,7 +660,9 @@ export function GachaAnimation({ isRolling, revealedCard, onComplete }: GachaAni
             <div
                            className="w-40 h-56 rounded-xl overflow-hidden border-2 shadow-2xl"
               style={{
-                animation: isUltraRarity
+                animation: isTransitioning
+                  ? 'revealCardZoom 0.6s cubic-bezier(0.4,0,0.2,1) forwards'
+                  : isUltraRarity
                   ? 'cardGlowIn 0.8s cubic-bezier(0.34,1.56,0.64,1) forwards, ultraCardPulse 2s ease-in-out 1s infinite'
                   : isLegendaryRarity
                     ? 'legendaryCardEntrance 1s cubic-bezier(0.34,1.56,0.64,1) forwards, legendaryGlowPulse 2s ease-in-out 1.2s infinite'
@@ -753,18 +774,6 @@ export function GachaAnimation({ isRolling, revealedCard, onComplete }: GachaAni
                 style={{ color: `rgb(${rarityRgb})`, textShadow: `0 0 10px rgba(${rarityRgb},0.5)` }}
               >
                 {ccgPower}
-              </span>
-            </div>
-          )}
-
-          {/* Tap to continue hint */}
-          {canDismiss && (
-            <div
-              className="absolute bottom-6 left-1/2 -translate-x-1/2 z-30"
-              style={{ animation: 'tapHint 1.2s ease-in-out infinite' }}
-            >
-              <span className="text-white/70 text-xs font-bold uppercase tracking-widest">
-                Тап чтобы продолжить
               </span>
             </div>
           )}

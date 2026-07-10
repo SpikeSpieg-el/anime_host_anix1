@@ -47,14 +47,19 @@ export async function generateMetadata({
     ? `${anime.description.slice(0, 160)}${anime.description.length > 160 ? "..." : ""}`
     : `Смотреть ${anime.title} онлайн в хорошем качестве. ${anime.year} • ${anime.genres.join(", ")} • Рейтинг: ${anime.rating}`
 
+  const canonicalUrl = `https://weeb-x.com/watch/${id}${episode ? `?episode=${episode}` : ""}`
+
   return {
     title,
     description,
+    alternates: {
+      canonical: canonicalUrl,
+    },
     openGraph: {
       title,
       description,
       type: "video.tv_show",
-      url: `/watch/${id}${episode ? `?episode=${episode}` : ""}`,
+      url: canonicalUrl,
       images: [
         {
           url: anime.poster,

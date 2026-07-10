@@ -189,7 +189,7 @@ export const SelectedTeamPanel: React.FC<SelectedTeamPanelProps> = ({
   return (
     <div className="w-full flex flex-col gap-4 p-2 sm:p-4">
       {/* Основной контейнер колоды */}
-      <div className={`rounded-3xl p-5 lg:p-8 ${glassCard} border border-white/10 backdrop-blur-xl relative overflow-hidden shadow-2xl`}>
+      <div data-tutorial="battle-deck" className={`rounded-3xl p-5 lg:p-8 ${glassCard} border border-white/10 backdrop-blur-xl relative overflow-hidden shadow-2xl`}>
         {/* Фоновое декоративное свечение */}
         <div className="absolute -top-12 -left-12 w-32 h-32 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
 
@@ -209,7 +209,7 @@ export const SelectedTeamPanel: React.FC<SelectedTeamPanelProps> = ({
         </div>
 
         {/* Шкала лимита веса (Provision) */}
-        <div className="mb-5 bg-black/40 rounded-2xl p-3 border border-white/5 relative z-10">
+        <div data-tutorial="battle-provision" className="mb-5 bg-black/40 rounded-2xl p-3 border border-white/5 relative z-10">
           <div className="flex justify-between items-center text-[10px] lg:text-xs font-bold mb-1.5 uppercase tracking-wider">
             <span className="text-slate-400 flex items-center gap-1">
               <Dumbbell className="w-3.5 h-3.5 text-indigo-400" /> Вес колоды
@@ -276,7 +276,7 @@ export const SelectedTeamPanel: React.FC<SelectedTeamPanelProps> = ({
           {/* ПРАВАЯ КОЛОНКА — Управление и статы */}
           <div className="lg:col-span-2 flex flex-col gap-4 mt-4 lg:mt-0 lg:gap-5">
             {/* Formation Selector */}
-            <div className="bg-black/40 rounded-2xl p-3 lg:p-4 border border-white/5 relative z-10">
+            <div data-tutorial="battle-formation" className="bg-black/40 rounded-2xl p-3 lg:p-4 border border-white/5 relative z-10">
               <div className="flex items-center justify-between text-[10px] lg:text-sm font-bold mb-2 lg:mb-3 uppercase tracking-wider">
                 <span className="text-slate-400 flex items-center gap-1">
                   <Zap className="w-3.5 h-3.5 lg:w-5 lg:h-5 text-amber-400" /> Формация
@@ -364,7 +364,7 @@ export const SelectedTeamPanel: React.FC<SelectedTeamPanelProps> = ({
             )}
 
             {/* Сводка силы колоды */}
-            <div className="bg-black/40 rounded-2xl p-3.5 lg:p-5 border border-white/5 space-y-3 relative z-10 flex-1">
+            <div data-tutorial="battle-power" className="bg-black/40 rounded-2xl p-3.5 lg:p-5 border border-white/5 space-y-3 relative z-10 flex-1">
               {selectedDungeon && (
                 <div className="flex items-center justify-between pb-2.5 border-b border-white/5">
                   <div className="flex items-center gap-2">
@@ -445,6 +445,7 @@ export const SelectedTeamPanel: React.FC<SelectedTeamPanelProps> = ({
             {/* Главная кнопка боя */}
             {!selectedDungeon ? (
               <button
+                data-tutorial="battle-location"
                 onClick={onOpenLocationSelector}
                 className="w-full py-4 lg:py-5 rounded-2xl font-black uppercase tracking-widest text-xs lg:text-base transition-all duration-300 active:scale-95
                   bg-gradient-to-r from-indigo-400 via-blue-500 to-indigo-500 text-white shadow-[0_4px_20px_rgba(99,102,241,0.4)] border-b-4 border-indigo-700 hover:brightness-110"
@@ -454,6 +455,7 @@ export const SelectedTeamPanel: React.FC<SelectedTeamPanelProps> = ({
             ) : (
               <div className="flex gap-3">
                 <button
+                  data-tutorial="battle-start"
                   onClick={startBattle}
                   disabled={!isDeckValid || (progress ? progress.current_stamina < selectedDungeon.energy_cost : false)}
                   className="flex-1 py-4 lg:py-5 rounded-2xl font-black uppercase tracking-widest text-xs lg:text-base transition-all duration-300 active:scale-95 disabled:pointer-events-none disabled:opacity-40
@@ -468,6 +470,7 @@ export const SelectedTeamPanel: React.FC<SelectedTeamPanelProps> = ({
                     : 'Вступить в дуэль'}
                 </button>
                 <button
+                  data-tutorial="battle-location"
                   onClick={onOpenLocationSelector}
                   className="px-4 py-4 lg:px-6 lg:py-5 rounded-2xl font-black uppercase tracking-widest text-[10px] lg:text-sm transition-all duration-300 active:scale-95
                     bg-gradient-to-r from-indigo-400 via-blue-500 to-indigo-500 text-white shadow-[0_4px_20px_rgba(99,102,241,0.4)] border-b-4 border-indigo-700 hover:brightness-110"

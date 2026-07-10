@@ -9,6 +9,7 @@ import { Swords, AlertCircle, X, RefreshCcw, Star, Crown, Lock, LogIn, Share, Sp
 import { useBattleData } from "./hooks/use-battle-data"
 import { useAuth } from "@/components/auth/auth-provider"
 import { AuthModal } from "@/components/auth/auth-modal"
+import { GachaTutorial } from "@/components/gacha/gacha-tutorial"
 import { StatsPanel, StatsPanelSkeleton } from "./components/StatsPanel"
 import { DungeonSelector } from "./components/DungeonSelector"
 import { ModeSelector } from "./components/ModeSelector"
@@ -299,6 +300,7 @@ export default function BattlePage() {
   const [showLeaderboard, setShowLeaderboard] = useState(false)
   const [viewedCard, setViewedCard] = useState<Card | null>(null)
   const [isPvPMode, setIsPvPMode] = useState(false)
+  const [showBattleTutorial, setShowBattleTutorial] = useState(false)
   const prevRoundResultsRef = useRef<any>(null)
   const {
     sessionLoading: battleSessionLoading,
@@ -387,6 +389,21 @@ export default function BattlePage() {
       isPlayer1Ref.current = pvpState.matchData.isPlayer1
     }
   }, [pvpState.matchData])
+
+  const handleBattleTutorialComplete = useCallback(() => {
+    setShowBattleTutorial(false)
+    localStorage.setItem("battle-tutorial-seen", "true")
+  }, [])
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    if (!user || sessionLoading) return
+    const seen = localStorage.getItem("battle-tutorial-seen")
+    if (!seen) {
+      const timer = setTimeout(() => setShowBattleTutorial(true), 800)
+      return () => clearTimeout(timer)
+    }
+  }, [user, sessionLoading])
 
   // Handle PvP match found - transition to battle
   useEffect(() => {
@@ -825,6 +842,13 @@ export default function BattlePage() {
             <InteractiveCard card={viewedCard} />
           </div>
         </div>
+      )}
+
+      {showBattleTutorial && battleState === "idle" && (
+        <GachaTutorial
+          onComplete={handleBattleTutorialComplete}
+          tutorialType="battle"
+        />
       )}
     </div>
   )

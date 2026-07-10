@@ -6,6 +6,17 @@ import { Footer } from "@/components/layout/footer"
 export const metadata: Metadata = {
   title: "Контакты — Weeb-X",
   description: "Свяжитесь с командой Weeb-X. Обратная связь, поддержка и сотрудничество.",
+  alternates: {
+    canonical: "https://weeb-x.com/contacts",
+  },
+  openGraph: {
+    title: "Контакты — Weeb-X",
+    description: "Свяжитесь с командой Weeb-X. Обратная связь, поддержка и сотрудничество.",
+    type: "website",
+    url: "https://weeb-x.com/contacts",
+    siteName: "Weeb-X",
+    locale: "ru_RU",
+  },
 }
 
 const contactMethods = [

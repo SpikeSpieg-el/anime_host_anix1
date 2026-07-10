@@ -249,6 +249,34 @@ export function useEpisodeUpdates() {
         }
       })
 
+      // Удаляем уведомления для аниме, которых больше нет ни в истории, ни в закладках
+      const validIds = new Set(idsToCheck.map(String))
+      const staleUpdates = newUpdatesList.filter(u => !validIds.has(String(u.animeId)))
+      if (staleUpdates.length > 0) {
+        newUpdatesList = newUpdatesList.filter(u => validIds.has(String(u.animeId)))
+        hasChanges = true
+
+        // Также очищаем snapshot для этих аниме
+        try {
+          const snapshotRaw = localStorage.getItem(BOOKMARK_SNAPSHOT_KEY)
+          if (snapshotRaw) {
+            const snapshot = JSON.parse(snapshotRaw)
+            let snapshotChanged = false
+            staleUpdates.forEach(u => {
+              if (snapshot[u.animeId]) {
+                delete snapshot[u.animeId]
+                snapshotChanged = true
+              }
+            })
+            if (snapshotChanged) {
+              localStorage.setItem(BOOKMARK_SNAPSHOT_KEY, JSON.stringify(snapshot))
+            }
+          }
+        } catch (e) {
+          console.error("Snapshot cleanup error", e)
+        }
+      }
+
       // Сохраняем, если были изменения
       if (hasChanges) {
         if (user) {

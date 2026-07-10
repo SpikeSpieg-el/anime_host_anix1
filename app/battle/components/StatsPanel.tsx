@@ -30,7 +30,7 @@ export const StatsPanel: React.FC<StatsPanelProps> = ({ progress, userCoins, coi
   if (!progress) return <StatsPanelSkeleton />
 
   return (
-    <div className="flex overflow-x-auto pb-2 md:pb-0 mb-6 md:mb-8 snap-x scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0 md:justify-center gap-2">
+    <div data-tutorial="battle-stats" className="flex overflow-x-auto pb-2 md:pb-0 mb-6 md:mb-8 snap-x scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0 md:justify-center gap-2">
       {/* Уровень */}
       <div className={`shrink-0 snap-center flex flex-col justify-center px-3 py-2 rounded-xl ${glassCard} min-w-[100px]`}>
         <div className="flex items-center gap-1.5 mb-1 text-slate-400">

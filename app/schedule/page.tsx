@@ -10,6 +10,17 @@ import { CoverProvider } from "@/components/providers/cover-provider"
 export const metadata: Metadata = {
   title: "Расписание выхода серий | Weeb-X",
   description: "Календарь выхода новых серий аниме. Узнайте, что посмотреть сегодня.",
+  alternates: {
+    canonical: "https://weeb-x.com/schedule",
+  },
+  openGraph: {
+    title: "Расписание выхода серий | Weeb-X",
+    description: "Календарь выхода новых серий аниме. Узнайте, что посмотреть сегодня.",
+    type: "website",
+    url: "https://weeb-x.com/schedule",
+    siteName: "Weeb-X",
+    locale: "ru_RU",
+  },
 }
 
 export default async function SchedulePage() {

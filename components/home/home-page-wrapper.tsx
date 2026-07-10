@@ -8,7 +8,6 @@ import { FloatingNav } from '@/components/layout/floating-nav'
 import { HeroBanner } from './hero-banner'
 import { HeroBannerSkeleton } from '@/components/shared/skeleton'
 import { HomePageClient } from './home-client'
-import { SEOContent } from './seo-content'
 import { useState, useEffect } from 'react'
 import type { Anime, RecommendationReason } from '@/lib/shikimori'
 
@@ -124,7 +123,6 @@ export function HomePageWrapper({
           <HeroBannerSkeleton />
         )}
       </section>
-      <SEOContent />
       <HomePageClient initialData={initialData} />
       <Footer />
     </main>

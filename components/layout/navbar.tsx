@@ -129,9 +129,9 @@ export function Navbar() {
             )}
           >
              <div className="flex flex-col justify-center">
-               <h1 className="text-xl sm:text-2xl font-black tracking-tighter text-foreground leading-none font-unbounded">
+               <span className="text-xl sm:text-2xl font-black tracking-tighter text-foreground leading-none font-unbounded">
                  Weeb.<span className="text-primary">X</span>
-               </h1>
+               </span>
              </div>
           </Link>
 
@@ -193,24 +193,12 @@ export function Navbar() {
             >
               <Tv size={16} /> Онгоинги
             </Link>
-            <Link 
-              href="/manga" 
-              className={cn(
-                "px-5 py-2 rounded-full text-sm font-medium transition-all flex items-center gap-2",
-                pathname === "/manga"
-                  ? "bg-secondary text-foreground shadow-lg" 
-                  : "text-muted-foreground hover:text-foreground hover:bg-secondary/50"
-              )}
-            >
-              <BookMarked size={16} /> Манга
-            </Link>
-
             {/* Dropdown "Ещё" Desktop */}
             <DropdownMenu open={isDropdownOpen} onOpenChange={setIsDropdownOpen}>
               <DropdownMenuTrigger asChild>
                 <button className={cn(
                   "px-4 py-2 rounded-full text-sm font-medium transition-all flex items-center gap-2",
-                  (pathname.includes("genre") || pathname === "/bookmarks" || pathname === "/schedule" || pathname === "/history") 
+                  (pathname.includes("genre") || pathname === "/bookmarks" || pathname === "/schedule" || pathname === "/history" || pathname === "/manga") 
                     ? "bg-secondary text-foreground shadow-lg" 
                     : "text-muted-foreground hover:text-foreground hover:bg-secondary/50"
                 )}>
@@ -218,6 +206,9 @@ export function Navbar() {
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="center" className="w-56 bg-background/95 backdrop-blur-xl border rounded-2xl p-2 shadow-2xl">
+                <DropdownMenuItem asChild>
+                  <Link href="/manga" className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-accent transition text-sm font-medium text-muted-foreground hover:text-foreground"><BookMarked size={14} /> Манга</Link>
+                </DropdownMenuItem>
                 <DropdownMenuItem asChild>
                   <Link href="/beginners" className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-accent transition text-sm font-medium text-muted-foreground hover:text-foreground"><GraduationCap size={14} /> Для новичков</Link>
                 </DropdownMenuItem>
@@ -369,13 +360,7 @@ export function Navbar() {
             </span>
           </Link>
 
-          {/* 4. Манга */}
-          <Link href="/manga" className={navIconClass(pathname === "/manga")}>
-            <BookMarked size={20} className={pathname === "/manga" ? "animate-pulse" : ""} />
-            <span className="text-[10px] font-medium">Манга</span>
-          </Link>
-
-          {/* 5. Закладки */}
+          {/* 4. Закладки */}
           <Link href="/bookmarks" className={navIconClass(pathname === "/bookmarks")}>
             <BookMarked size={20} className={pathname === "/bookmarks" ? "animate-pulse" : ""} />
             <span className="text-[10px] font-medium">Моё</span>
@@ -398,6 +383,9 @@ export function Navbar() {
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
                 <Link href="/beginners" className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-accent transition text-sm font-medium text-muted-foreground hover:text-foreground"><GraduationCap size={14} /> Новичкам</Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/manga" className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-accent transition text-sm font-medium text-muted-foreground hover:text-foreground"><BookMarked size={14} /> Манга</Link>
               </DropdownMenuItem>
               <DropdownMenuSeparator className="bg-border/50" />
               <DropdownMenuItem asChild>

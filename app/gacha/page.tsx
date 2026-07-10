@@ -1213,10 +1213,10 @@ export default function GachaPage() {
 
           {/* Revealed Card State */}
           {showCard && revealedCard && (
-            <div className="flex flex-col items-center animate-in zoom-in-95 duration-500 w-full">
+            <div className="flex flex-col items-center animate-in fade-in zoom-in-95 duration-700 w-full">
               <InteractiveCard card={revealedCard} />
 
-              <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 mt-8 sm:mt-10 w-full max-w-xs sm:max-w-md mx-auto">
+              <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 mt-8 sm:mt-10 w-full max-w-xs sm:max-w-md mx-auto animate-in fade-in slide-in-from-bottom-4 duration-700 delay-300">
                 <button
                   data-tutorial="save-card"
                   onClick={() => {

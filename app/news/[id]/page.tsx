@@ -18,13 +18,27 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params
   const news = await getAggregatedNewsById(id)
   if (!news) return { title: "Новость не найдена — Weeb-X" }
+  const cleanDescription = news.excerpt.replace(/\[.*?\]/g, "").replace(/<[^>]+>/g, "").slice(0, 160)
   return {
     title: `${news.title} — Weeb-X`,
-    description: news.excerpt.replace(/\[.*?\]/g, "").replace(/<[^>]+>/g, "").slice(0, 160),
+    description: cleanDescription,
+    alternates: {
+      canonical: `https://weeb-x.com/news/${id}`,
+    },
     openGraph: {
       title: news.title,
-      description: news.excerpt.replace(/\[.*?\]/g, "").replace(/<[^>]+>/g, "").slice(0, 160),
+      description: cleanDescription,
+      url: `https://weeb-x.com/news/${id}`,
+      type: "article",
+      siteName: "Weeb-X",
+      locale: "ru_RU",
       images: news.imageUrl ? [{ url: news.imageUrl }] : [],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: news.title,
+      description: cleanDescription,
+      images: news.imageUrl ? [news.imageUrl] : [],
     },
   }
 }

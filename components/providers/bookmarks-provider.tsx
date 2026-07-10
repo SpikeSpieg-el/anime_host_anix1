@@ -169,6 +169,11 @@ export function BookmarksProvider({ children }: { children: React.ReactNode }) {
         loggers.bookmarks.error('Failed to remove bookmark', error)
       }
     }
+
+    // Trigger episode updates recheck after bookmark removal
+    setTimeout(() => {
+      window.dispatchEvent(new CustomEvent('episode-updates-check-needed'))
+    }, 500)
   }, [user?.id])
 
   const toggle = useCallback(async (anime: BookmarkAnime) => {

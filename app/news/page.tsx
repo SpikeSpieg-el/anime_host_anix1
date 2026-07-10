@@ -8,6 +8,31 @@ import type { Metadata } from "next"
 export const metadata: Metadata = {
   title: "Новости аниме — Weeb-X",
   description: "Последние новости мира аниме. Анонсы, релизы, события.",
+  alternates: {
+    canonical: "https://weeb-x.com/news",
+  },
+  openGraph: {
+    title: "Новости аниме — Weeb-X",
+    description: "Последние новости мира аниме. Анонсы, релизы, события.",
+    type: "website",
+    url: "https://weeb-x.com/news",
+    siteName: "Weeb-X",
+    locale: "ru_RU",
+    images: [
+      {
+        url: "/og-image.svg",
+        width: 1200,
+        height: 630,
+        alt: "Новости аниме — Weeb-X",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Новости аниме — Weeb-X",
+    description: "Последние новости мира аниме. Анонсы, релизы, события.",
+    images: ["/og-image.svg"],
+  },
 }
 
 export default async function NewsPage({

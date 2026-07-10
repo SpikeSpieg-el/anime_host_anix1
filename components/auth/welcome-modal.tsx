@@ -1,377 +1,143 @@
 "use client"
 
-import React, { useState, useEffect, useRef } from "react"
-import { Zap, ChevronRight, PlayCircle, Star, Shield } from "lucide-react"
+import { useState, useEffect, useCallback } from "react"
+import { ChevronRight, Play, Sparkles, Swords } from "lucide-react"
 import { AuthModal } from "@/components/auth/auth-modal"
 
-// Вспомогательный компонент для скрытия заголовка (для a11y)
-const VisuallyHidden = ({ children }: { children: React.ReactNode }) => (
-  <span className="sr-only">{children}</span>
-)
-
-// --- CSS Анимации для специфичных эффектов ---
-// Мы добавляем их через стиль-тег, чтобы не настраивать tailwind.config.js
 const customStyles = `
-  @keyframes slow-zoom {
-    0%, 100% { transform: scale(1); }
-    50% { transform: scale(1.1); }
-  }
-  .animate-slow-zoom {
-    animation: slow-zoom 20s infinite alternate ease-in-out;
-  }
-  .no-scrollbar::-webkit-scrollbar {
-    display: none;
-  }
-  .no-scrollbar {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
-  }
-  @media (max-width: 360px) {
-    .welcome-card-content {
-      padding: 1rem !important;
-    }
-    .welcome-text-container {
-      gap: 0.75rem !important;
-    }
-    .welcome-features-container {
-      gap: 0.5rem !important;
-    }
-    .welcome-features-container > div {
-      padding: 0.625rem 0.75rem !important;
-      gap: 0.625rem !important;
-    }
-    .welcome-features-container > div > div:first-child {
-      width: 1.75rem !important;
-      height: 1.75rem !important;
-    }
-    .welcome-features-container > div > div:first-child svg {
-      width: 0.875rem !important;
-      height: 0.875rem !important;
-    }
-  }
-  @media (max-width: 375px) {
-    .welcome-card-content {
-      padding: 1.125rem !important;
-    }
-    .welcome-text-container {
-      gap: 0.875rem !important;
-    }
-    .welcome-features-container {
-      gap: 0.625rem !important;
-    }
-  }
-  @media (max-width: 400px) {
-    .welcome-card-content {
-      padding: 1.25rem !important;
-    }
-  }
-  @media (max-height: 500px) {
-    .welcome-card-content {
-      padding: 0.75rem !important;
-    }
-    .welcome-text-container {
-      gap: 0.5rem !important;
-    }
-    .welcome-features-container {
-      gap: 0.375rem !important;
-    }
-    .welcome-features-container > div {
-      padding: 0.5rem 0.625rem !important;
-    }
-  }
-  @media (max-height: 600px) {
-    .welcome-card-content {
-      padding: 1rem !important;
-    }
-    .welcome-text-container {
-      gap: 0.75rem !important;
-    }
-    .welcome-features-container {
-      gap: 0.5rem !important;
-    }
-    .welcome-features-container > div {
-      padding: 0.625rem 0.75rem !important;
-    }
-  }
-  @media (max-height: 720px) {
-    .welcome-card-content {
-      padding: 1.25rem !important;
-    }
-    .welcome-text-container {
-      gap: 1rem !important;
-    }
-    .welcome-features-container {
-      gap: 0.75rem !important;
-    }
-  }
-  @media (min-width: 1280px) {
-    .welcome-card-content {
-      padding: 2.5rem !important;
-    }
-  }
-  @media (min-width: 1536px) {
-    .welcome-card-content {
-      padding: 3rem !important;
-    }
-  }
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 `
-
-// --- Класс Частицы ---
-class Particle {
-  x: number
-  y: number
-  size: number
-  speedX: number
-  speedY: number
-  opacity: number
-  fadeDirection: number
-
-  constructor(w: number, h: number) {
-    this.x = Math.random() * w
-    this.y = Math.random() * h
-    this.size = Math.random() * 2 + 0.5
-    this.speedX = Math.random() * 0.5 - 0.25
-    this.speedY = Math.random() * 0.5 - 0.25
-    this.opacity = Math.random() * 0.5 + 0.1
-    this.fadeDirection = Math.random() > 0.5 ? 0.005 : -0.005
-  }
-
-  update(w: number, h: number) {
-    this.x += this.speedX
-    this.y += this.speedY
-
-    // Мерцание
-    this.opacity += this.fadeDirection
-    if (this.opacity > 0.8 || this.opacity < 0.1) {
-      this.fadeDirection = -this.fadeDirection
-    }
-
-    // Границы
-    if (this.x < 0 || this.x > w || this.y < 0 || this.y > h) {
-      this.x = Math.random() * w
-      this.y = Math.random() * h
-    }
-  }
-
-  draw(ctx: CanvasRenderingContext2D) {
-    ctx.fillStyle = `rgba(249, 115, 22, ${this.opacity})` // Orange-500
-    ctx.beginPath()
-    ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2)
-    ctx.fill()
-  }
-}
 
 export function WelcomeModal() {
   const [isOpen, setIsOpen] = useState(false)
   const [mounted, setMounted] = useState(false)
   const [showAuthModal, setShowAuthModal] = useState(false)
-  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const [closing, setClosing] = useState(false)
 
-  // --- Эффект монтирования и проверки LocalStorage ---
   useEffect(() => {
     setMounted(true)
-    const hasVisited = localStorage.getItem("Weeb-X-visited-v2")
-
+    const hasVisited = localStorage.getItem("Weeb-X-visited-v3")
     if (!hasVisited) {
-      // Небольшая задержка для плавности появления
-      const timer = setTimeout(() => setIsOpen(true), 600)
+      const timer = setTimeout(() => setIsOpen(true), 400)
       return () => clearTimeout(timer)
     }
   }, [])
 
-  // --- Логика частиц (Canvas) ---
   useEffect(() => {
-    if (!isOpen || !canvasRef.current) return
-
-    const canvas = canvasRef.current
-    const ctx = canvas.getContext("2d")
-    if (!ctx) return
-
-    let animationFrameId: number
-    const particles: Particle[] = []
-    const particleCount = 40
-
-    const resize = () => {
-      if (canvas.parentElement) {
-        canvas.width = canvas.parentElement.clientWidth
-        canvas.height = canvas.parentElement.clientHeight
-      }
+    if (isOpen) {
+      document.body.style.overflow = "hidden"
+    } else {
+      document.body.style.overflow = ""
     }
-
-    resize()
-    window.addEventListener("resize", resize)
-
-    for (let i = 0; i < particleCount; i++) {
-      particles.push(new Particle(canvas.width, canvas.height))
-    }
-
-    const animate = () => {
-      ctx.clearRect(0, 0, canvas.width, canvas.height)
-      particles.forEach((p) => {
-        p.update(canvas.width, canvas.height)
-        p.draw(ctx)
-      })
-      animationFrameId = requestAnimationFrame(animate)
-    }
-
-    animate()
-
-    return () => {
-      window.removeEventListener("resize", resize)
-      cancelAnimationFrame(animationFrameId)
-    }
+    return () => { document.body.style.overflow = "" }
   }, [isOpen])
 
+  const handleClose = useCallback(() => {
+    setClosing(true)
+    setTimeout(() => {
+      setIsOpen(false)
+      setClosing(false)
+    }, 300)
+  }, [])
+
   const handleStart = () => {
-    setIsOpen(false)
-    localStorage.setItem("Weeb-X-visited-v2", "true")
+    localStorage.setItem("Weeb-X-visited-v3", "true")
+    handleClose()
   }
 
   const handleSignUp = () => {
-    setIsOpen(false)
-    localStorage.setItem("Weeb-X-visited-v2", "true")
-    setShowAuthModal(true)
+    localStorage.setItem("Weeb-X-visited-v3", "true")
+    handleClose()
+    setTimeout(() => setShowAuthModal(true), 350)
   }
 
-  // Предотвращаем рендер на сервере (Next.js) до проверки состояния
   if (!mounted) return null
+
+  const show = isOpen && !closing
 
   return (
     <>
       <style>{customStyles}</style>
-      
-      {/* Оверлей / Backdrop */}
-      <div 
-        className={`fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-background/80 backdrop-blur-sm transition-all duration-300 ${
-          isOpen ? "opacity-100 visible" : "opacity-0 invisible pointer-events-none"
+      <div
+        className={`fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-md transition-opacity duration-300 ${
+          show ? "opacity-100" : "opacity-0 pointer-events-none"
         }`}
+        style={{ padding: "env(safe-area-inset-top, 0px) env(safe-area-inset-right, 12px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 12px)" }}
+        onClick={handleStart}
       >
-        {/* Сама карточка модалки */}
-        <div 
-          className={`relative w-full h-auto max-h-[95vh] sm:max-h-[90vh] md:max-h-[85vh] lg:max-h-[80vh] max-w-[95vw] sm:max-w-[400px] md:max-w-[450px] lg:max-w-[480px] bg-card rounded-[1.25rem] sm:rounded-[1.5rem] md:rounded-[2rem] overflow-y-auto no-scrollbar shadow-2xl border border-border transition-all duration-500 ease-out transform ${
-            isOpen ? "scale-100 opacity-100" : "scale-95 opacity-0"
+        <div
+          className={`relative w-full max-w-[400px] max-h-[90vh] rounded-2xl overflow-hidden shadow-2xl border border-white/15 transition-all duration-300 ease-out ${
+            show ? "scale-100 opacity-100 translate-y-0" : "scale-95 opacity-0 translate-y-4"
           }`}
+          onClick={(e) => e.stopPropagation()}
         >
-          <VisuallyHidden>
-            <h2>Добро пожаловать в Weeb-X STREAM</h2>
-          </VisuallyHidden>
-
-          {/* --- ВИЗУАЛЬНАЯ ЧАСТЬ (ФОН) --- */}
+          {/* Background image — tall, not cropped */}
           <div className="absolute inset-0 z-0">
-            {/* Фоновая картинка (замените url на свой) */}
-            <div 
-              className="absolute inset-0 bg-cover bg-center animate-slow-zoom opacity-80"
-              style={{ backgroundImage: "url('../anix2.png')" }}
+            <div
+              className="absolute inset-0 bg-cover bg-top opacity-50"
+              style={{ backgroundImage: "url('/anix2.png')" }}
             />
-
-            {/* Canvas с частицами */}
-            <canvas 
-              ref={canvasRef} 
-              className="absolute inset-0 z-5 pointer-events-none opacity-60 mix-blend-screen" 
-            />
-
-            {/* Градиенты для читаемости текста */}
-            <div className="absolute inset-0 bg-gradient-to-b from-background/70 via-transparent to-background z-10 pointer-events-none" />
-            <div className="absolute inset-0 bg-gradient-to-t from-background via-background/90 to-transparent z-10 pointer-events-none" />
+            <div className="absolute inset-0 bg-gradient-to-b from-zinc-950/30 via-zinc-950/60 to-zinc-950" />
           </div>
 
-          {/* --- КОНТЕНТ --- */}
-          <div className="relative z-20 flex flex-col justify-between min-h-full p-3 sm:p-5 md:p-7 lg:p-8 welcome-card-content">
-            
-            {/* Текст и кнопки */}
-            <div className="flex flex-col items-center text-center space-y-4 sm:space-y-6 md:space-y-8 pb-2 sm:pb-4 welcome-text-container">
-              
-              {/* Заголовки */}
-              <div className="space-y-1.5 sm:space-y-2 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-100">
-                <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-black text-foreground tracking-tighter leading-none drop-shadow-2xl font-unbounded">
-                  Weeb.<span className="text-transparent bg-clip-text bg-gradient-to-br from-orange-400 via-orange-500 to-purple-600">X</span>
-                </h2>
+          {/* Glassmorphism content layer */}
+          <div className="relative z-10 flex flex-col bg-white/[0.03] backdrop-blur-xl max-h-[90vh] overflow-y-auto no-scrollbar">
+            {/* Top: Logo + tagline */}
+            <div className="flex flex-col items-center text-center pt-8 px-6 sm:pt-10">
+              <h2 className="text-3xl sm:text-4xl font-black tracking-tighter leading-none font-unbounded animate-in fade-in slide-in-from-bottom-2 duration-500">
+                Weeb.<span className="text-transparent bg-clip-text bg-gradient-to-br from-orange-400 to-orange-600">X</span>
+              </h2>
+              <p className="mt-2.5 text-sm text-zinc-300/80 animate-in fade-in slide-in-from-bottom-2 duration-500 delay-75">
+                Стриминг аниме · Гача · PvP · Манга
+              </p>
+            </div>
+
+            {/* Feature pills */}
+            <div className="px-5 sm:px-6 pt-6 pb-5">
+              <div className="grid grid-cols-3 gap-2 animate-in fade-in slide-in-from-bottom-2 duration-500 delay-100">
+                {[
+                  { icon: Play, label: "Стриминг", color: "text-orange-400" },
+                  { icon: Sparkles, label: "Гача", color: "text-amber-400" },
+                  { icon: Swords, label: "PvP", color: "text-red-400" },
+                ].map((f) => (
+                  <div key={f.label} className="flex flex-col items-center gap-1.5 bg-white/[0.04] border border-white/10 rounded-xl py-2.5">
+                    <f.icon className={`w-4 h-4 ${f.color}`} />
+                    <span className="text-[10px] text-zinc-300 font-medium">{f.label}</span>
+                  </div>
+                ))}
               </div>
+            </div>
 
-              {/* Преимущества (Список) */}
-              <div className="w-full space-y-2 sm:space-y-2.5 md:space-y-3 welcome-features-container animate-in fade-in slide-in-from-bottom-4 duration-700 delay-200">
-                {/* Карточка 1 */}
-                <div className="flex items-center gap-2.5 sm:gap-3 md:gap-4 bg-muted/5 border border-border p-2.5 sm:p-3 md:p-3.5 rounded-2xl backdrop-blur-sm hover:bg-muted/10 transition-colors cursor-default group">
-                  <div className="w-7 h-7 sm:w-8 sm:h-8 md:w-9 md:h-9 rounded-full bg-orange-500/10 flex items-center justify-center shrink-0 border border-orange-500/20">
-                    <PlayCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4 md:w-5 md:h-5 text-orange-500" />
-                  </div>
-                  <div className="text-left">
-                    <div className="text-foreground text-[10px] sm:text-xs md:text-sm font-bold group-hover:text-orange-200 transition-colors">Без рекламы</div>
-                    <div className="text-muted-foreground text-[9px] sm:text-[10px] md:text-xs">Смотри без прерываний</div>
-                  </div>
-                </div>
-                
-                {/* Карточка 2 */}
-                <div className="flex items-center gap-2.5 sm:gap-3 md:gap-4 bg-muted/5 border border-border p-2.5 sm:p-3 md:p-3.5 rounded-2xl backdrop-blur-sm hover:bg-muted/10 transition-colors cursor-default group">
-                  <div className="w-7 h-7 sm:w-8 sm:h-8 md:w-9 md:h-9 rounded-full bg-purple-500/10 flex items-center justify-center shrink-0 border border-purple-500/20">
-                    <Star className="w-3.5 h-3.5 sm:w-4 sm:h-4 md:w-5 md:h-5 text-purple-400" />
-                  </div>
-                  <div className="text-left">
-                    <div className="text-foreground text-[10px] sm:text-xs md:text-sm font-bold group-hover:text-purple-200 transition-colors">HD качество</div>
-                    <div className="text-muted-foreground text-[9px] sm:text-[10px] md:text-xs">Кристально чистая картинка</div>
-                  </div>
-                </div>
+            {/* Info text */}
+            <div className="px-6 pb-5 animate-in fade-in slide-in-from-bottom-2 duration-500 delay-150">
+              <p className="text-xs text-zinc-400/70 leading-relaxed text-center">
+                Смотрите аниме в HD с русской озвучкой, собирайте карты
+                персонажей, сражайтесь на арене и читайте мангу — всё в одном месте.
+              </p>
+            </div>
 
-                {/* Карточка 3 */}
-                <div className="flex items-center gap-2.5 sm:gap-3 md:gap-4 bg-muted/5 border border-border p-2.5 sm:p-3 md:p-3.5 rounded-2xl backdrop-blur-sm hover:bg-muted/10 transition-colors cursor-default group">
-                  <div className="w-7 h-7 sm:w-8 sm:h-8 md:w-9 md:h-9 rounded-full bg-blue-500/10 flex items-center justify-center shrink-0 border border-blue-500/20">
-                    <Zap className="w-3.5 h-3.5 sm:w-4 sm:h-4 md:w-5 md:h-5 text-blue-400" />
-                  </div>
-                  <div className="text-left">
-                    <div className="text-foreground text-[10px] sm:text-xs md:text-sm font-bold group-hover:text-blue-200 transition-colors">Быстрый стрим</div>
-                    <div className="text-muted-foreground text-[9px] sm:text-[10px] md:text-xs">Мгновенная загрузка</div>
-                  </div>
-                </div>
-              </div>
-
-              {/* VPN Notification Banner */}
-              <div className="w-full animate-in fade-in slide-in-from-bottom-4 duration-700 delay-250">
-                <div className="relative bg-gradient-to-r from-purple-900/30 via-blue-900/30 to-purple-900/30 backdrop-blur-sm rounded-xl p-3 sm:p-3.5 border border-purple-500/40 shadow-lg shadow-purple-500/20">
-                  <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-purple-500/10 via-pink-500/10 to-purple-500/10 pointer-events-none"></div>
-                  <div className="relative flex items-center gap-2.5 sm:gap-3">
-                    <div className="flex-shrink-0 bg-gradient-to-br from-purple-500 to-pink-500 p-1.5 sm:p-2 rounded-lg shadow-lg shadow-purple-500/30">
-                      <Shield className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-[10px] sm:text-xs font-semibold text-white mb-0.5">
-                        Рекомендуем включить VPN
-                      </p>
-                      <p className="text-[8px] sm:text-[9px] text-zinc-300">
-                        Для стабильного доступа
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Кнопка действия */}
-              <div className="w-full pt-1 sm:pt-2 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-300">
-                <button
-                  onClick={handleStart}
-                  className="w-full h-10 sm:h-12 md:h-14 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white hover:scale-[1.02] active:scale-[0.98] text-[10px] sm:text-xs md:text-sm font-bold rounded-2xl shadow-xl shadow-orange-500/30 transition-all duration-300 flex items-center justify-center gap-2 group outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 focus:ring-offset-card"
-                >
-                  Начать смотреть
-                  <ChevronRight className="w-3 h-3 sm:w-3.5 sm:h-3.5 md:w-4 md:h-4 group-hover:translate-x-1 transition-transform" />
-                </button>
-              </div>
-
-              {/* Кнопка регистрации */}
-              <div className="w-full animate-in fade-in slide-in-from-bottom-4 duration-700 delay-400">
-                <button
-                  onClick={handleSignUp}
-                  className="w-full h-9 sm:h-10 md:h-12 bg-transparent text-foreground hover:bg-muted/10 hover:border-orange-500/50 border border-border text-[10px] sm:text-xs md:text-sm font-medium rounded-2xl transition-all duration-300 flex items-center justify-center gap-2 group outline-none focus:ring-2 focus:ring-border focus:ring-offset-2 focus:ring-offset-card"
-                >
-                  Войти в аккаунт
-                  <ChevronRight className="w-3 h-3 sm:w-3.5 sm:h-3.5 md:w-4 md:h-4 group-hover:translate-x-1 transition-transform" />
-                </button>
-              </div>
-
+            {/* Buttons */}
+            <div className="px-6 pb-7 space-y-2.5 animate-in fade-in slide-in-from-bottom-2 duration-500 delay-200">
+              <button
+                onClick={handleStart}
+                className="w-full h-12 bg-orange-500 hover:bg-orange-600 text-white text-sm font-bold rounded-xl shadow-lg shadow-orange-500/20 transition-all active:scale-[0.98] flex items-center justify-center gap-2 group"
+              >
+                Начать смотреть
+                <ChevronRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
+              </button>
+              <button
+                onClick={handleSignUp}
+                className="w-full h-11 bg-white/[0.06] hover:bg-white/[0.1] text-zinc-200 hover:text-white border border-white/10 hover:border-white/20 text-sm font-medium rounded-xl transition-all flex items-center justify-center gap-2 group backdrop-blur-sm"
+              >
+                Войти в аккаунт
+                <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+              </button>
             </div>
           </div>
         </div>
       </div>
-      
-      {/* Auth Modal */}
+
       {showAuthModal && (
         <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} />
       )}

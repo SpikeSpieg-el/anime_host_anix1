@@ -1,8 +1,9 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
+import { createPortal } from "react-dom"
 import { Search, Clock, X, ChevronRight } from "lucide-react"
-import { Anime, searchAnime } from "@/lib/shikimori"
+import { Anime } from "@/lib/shikimori"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/components/auth/auth-provider"
 import { SearchResultsSkeleton } from "@/components/shared/skeleton"
@@ -53,10 +54,12 @@ export function SearchSuggestions({
 
   const inputRef = useRef<HTMLInputElement>(null)
   const debounceRef = useRef<NodeJS.Timeout | null>(null)
+  const abortRef = useRef<AbortController | null>(null)
 
   // Поиск с дебаунсом
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current)
+    if (abortRef.current) abortRef.current.abort()
 
     if (value.trim().length < 2) {
       setSuggestions([])
@@ -64,25 +67,35 @@ export function SearchSuggestions({
       return
     }
 
+    const controller = new AbortController()
+    abortRef.current = controller
+
     debounceRef.current = setTimeout(async () => {
       setLoading(true)
       try {
         const allowNsfw = profile?.allow_nsfw_search || false
-        const results = await searchAnime(value.trim(), allowNsfw)
+        const res = await fetch(`/api/anime/search?q=${encodeURIComponent(value.trim())}&allowNsfw=${allowNsfw}`, {
+          signal: controller.signal,
+        })
+        const data = await res.json()
+        const results: Anime[] = data.results || []
         setSuggestions(results.slice(0, 5))
         setIsOpen(true)
-      } catch (error) {
-        console.error("Search error:", error)
-        setSuggestions([])
+      } catch (error: any) {
+        if (error?.name !== "AbortError") {
+          console.error("Search error:", error)
+          setSuggestions([])
+        }
       } finally {
-        setLoading(false)
+        if (!controller.signal.aborted) setLoading(false)
       }
-    }, 300)
+    }, 250)
 
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current)
+      controller.abort()
     }
-  }, [value])
+  }, [value, profile?.allow_nsfw_search])
 
   const handleAnimeClick = (animeId: string) => {
     saveSearchHistory(value)
@@ -156,11 +169,11 @@ export function SearchSuggestions({
         )}
       </div>
 
-      {isOpen && (
+      {isOpen && typeof document !== "undefined" && createPortal(
         <>
           <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
           
-          <div className="absolute top-full left-0 right-0 mt-2 bg-background/95 backdrop-blur-xl border rounded-xl shadow-2xl z-50 max-h-[80vh] overflow-y-auto overflow-x-hidden">
+          <div className="fixed left-3 right-3 top-14 bg-background/95 backdrop-blur-xl border rounded-xl shadow-2xl z-50 max-h-[80vh] overflow-y-auto overflow-x-hidden md:absolute md:left-0 md:right-0 md:top-full md:mt-2 md:rounded-xl">
             
             {/* Результаты поиска */}
             {suggestions.length > 0 ? (
@@ -231,7 +244,8 @@ export function SearchSuggestions({
               </div>
             )}
           </div>
-        </>
+        </>,
+        document.body
       )}
     </div>
   )

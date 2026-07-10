@@ -24,8 +24,8 @@ const _unbounded = Unbounded({ subsets: ["latin"] })
 const siteUrl = "https://weeb-x.com"
 
 export const metadata: Metadata = {
-  title: "Weeb-X",
-  description: "Your distraction-free streaming destination for anime and movies",
+  title: "Weeb-X — Смотреть аниме онлайн",
+  description: "Стриминг аниме в HD с русской озвучкой. Гача-крутки, PvP-арена, каталог манги и новости аниме. Бесплатно на Weeb-X.",
   generator: "Weeb-X_stream",
   icons: {
     icon: [
@@ -47,6 +47,28 @@ export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   alternates: {
     canonical: "/",
+  },
+  openGraph: {
+    title: "Weeb-X — Смотреть аниме онлайн",
+    description: "Стриминг аниме в HD с русской озвучкой. Гача-крутки, PvP-арена, каталог манги и новости аниме.",
+    type: "website",
+    url: siteUrl,
+    siteName: "Weeb-X",
+    locale: "ru_RU",
+    images: [
+      {
+        url: "/og-image.svg",
+        width: 1200,
+        height: 630,
+        alt: "Weeb-X — аниме стриминг платформа",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Weeb-X — Смотреть аниме онлайн",
+    description: "Стриминг аниме в HD с русской озвучкой. Гача-крутки, PvP-арена, каталог манги.",
+    images: ["/og-image.svg"],
   },
 }
 

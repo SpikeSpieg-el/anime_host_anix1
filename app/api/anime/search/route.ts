@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { searchAnime } from '@/lib/shikimori'
+import { getAnimeCatalog } from '@/lib/shikimori'
 
 export async function GET(request: NextRequest) {
   try {
@@ -11,7 +11,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ results: [] })
     }
 
-    const results = await searchAnime(query, allowNsfw, false)
+    const results = await getAnimeCatalog({
+      search: query,
+      allowNsfw,
+      limit: 10,
+      enableGenreFallback: false,
+      disableExternalAPIs: true,
+    })
 
     return NextResponse.json({ results })
   } catch (error) {

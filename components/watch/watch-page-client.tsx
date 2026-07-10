@@ -134,15 +134,6 @@ export function WatchPageClient({
     }
   }, [initialEpisode, isStarted, lastWatchedInfo, selectedEpisode])
 
-  // Record history on initial mount (page load counts as watching)
-  useEffect(() => {
-    recordWatchStart(
-      { id: anime.id, title: anime.title, poster: anime.poster },
-      { episode: selectedEpisode, episodesTotal: availableEpisodes }
-    )
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
   useEffect(() => {
     if (!isStarted || isUpdatingFromPlayer) return
 

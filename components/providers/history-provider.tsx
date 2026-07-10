@@ -355,6 +355,11 @@ export function HistoryProvider({ children }: { children: React.ReactNode }) {
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(filtered))
       console.log('[remove] localStorage updated')
     }
+
+    // Trigger episode updates recheck after removal
+    setTimeout(() => {
+      window.dispatchEvent(new CustomEvent('episode-updates-check-needed'))
+    }, 500)
   }, [user?.id])
 
   const value = useMemo<HistoryContextValue>(() => ({ items, isLoading, add, clear, remove, toggleArchived, moveToArchive }), [items, isLoading, add, clear, remove, toggleArchived, moveToArchive])

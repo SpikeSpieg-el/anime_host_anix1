@@ -6,6 +6,17 @@ import { Footer } from "@/components/layout/footer"
 export const metadata: Metadata = {
   title: "Помощь — Weeb-X",
   description: "Центр помощи пользователей Weeb-X. Узнайте, как использовать все функции нашего аниме-стриминга.",
+  alternates: {
+    canonical: "https://weeb-x.com/help",
+  },
+  openGraph: {
+    title: "Помощь — Weeb-X",
+    description: "Центр помощи пользователей Weeb-X. Узнайте, как использовать все функции нашего аниме-стриминга.",
+    type: "website",
+    url: "https://weeb-x.com/help",
+    siteName: "Weeb-X",
+    locale: "ru_RU",
+  },
 }
 
 const helpSections = [
