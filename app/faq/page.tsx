@@ -2,10 +2,43 @@ import { Metadata } from "next"
 import Link from "next/link"
 import { ArrowLeft, HelpCircle } from "lucide-react"
 import { Footer } from "@/components/layout/footer"
+import { FAQStructuredData } from "@/components/seo/structured-data"
 
 export const metadata: Metadata = {
-  title: "Часто задаваемые вопросы — Weeb.X",
-  description: "Ответы на часто задаваемые вопросы о Weeb.X. Узнайте больше о нашем аниме-стриминге.",
+  title: "FAQ — Weeb.X. Ответы на вопросы о гаче, PvP и аниме",
+  description: "Часто задаваемые вопросы о Weeb.X: как работает гача, как участвовать в PvP-арене, как смотреть аниме онлайн бесплатно.",
+  keywords: [
+    "faq",
+    "вопросы и ответы",
+    "гача как работает",
+    "pvp арена правила",
+    "как смотреть аниме",
+    "регистрация на сайте",
+    "бесплатно аниме",
+  ],
+  alternates: {
+    canonical: "https://weeb.x/faq",
+  },
+  openGraph: {
+    title: "FAQ — Weeb.X. Ответы на вопросы",
+    description: "Часто задаваемые вопросы о Weeb.X: гача, PvP, аниме-стриминг.",
+    type: "website",
+    url: "https://weeb.x/faq",
+    images: [
+      {
+        url: "/og-image.svg",
+        width: 1200,
+        height: 630,
+        alt: "Weeb.X FAQ",
+      },
+    ],
+    siteName: "Weeb.X",
+    locale: "ru_RU",
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
 }
 
 const faqCategories = [
@@ -90,6 +123,36 @@ const faqCategories = [
     ],
   },
   {
+    title: "Гача и PvP",
+    questions: [
+      {
+        question: "Как работает гача-система?",
+        answer:
+          "Гача-система — это механика получения персонажей через крутки. Вы тратите игровую валюту или реальные деньги на паки и получаете карты разной редкости: N, R, SR, SSR. Чем выше редкость, тем сильнее персонаж. Система пити гарантирует легендарный дроп после определённого количества круток.",
+      },
+      {
+        question: "Как получить бесплатную гачу?",
+        answer:
+          "Новые игроки получают стартовый пакет с бесплатной круткой. Ежедневные бонусы также включают бесплатные крутки. Участвуйте в ивентах и PvP-битвах для получения дополнительной валюты.",
+      },
+      {
+        question: "Как участвовать в PvP-арене?",
+        answer:
+          "Для участия в PvP-арене нужна авторизация. Соберите команду из 5 персонажей с балансом ролей (танки, дамагеры, саппорты). Сражайтесь с другими игроками, поднимайтесь в рейтинге и получайте награды. Чем выше ранг, тем больше валюты и эксклюзивных призов.",
+      },
+      {
+        question: "Что такое синергия персонажей?",
+        answer:
+          "Синергия — это бонус, который активируется при использовании определённых персонажей вместе. Некоторые герои усиливают друг друга при совместном использовании в команде. Изучайте описания карт для максимальной эффективности.",
+      },
+      {
+        question: "Как фармить игровую валюту?",
+        answer:
+          "Выполняйте ежедневные задания, участвуйте в PvP-битвах, входите каждый день для получения бонуса входа. Участвуйте в сезонных ивентах с увеличенными наградами. Чем выше ваш ранг в PvP, тем больше валюты вы получаете.",
+      },
+    ],
+  },
+  {
     title: "Технические вопросы",
     questions: [
       {
@@ -112,8 +175,13 @@ const faqCategories = [
 ]
 
 export default function FAQPage() {
+  const faqItems = faqCategories.flatMap(category => 
+    category.questions.map(q => ({ question: q.question, answer: q.answer }))
+  )
+
   return (
     <div className="min-h-screen bg-background text-foreground">
+      <FAQStructuredData items={faqItems} />
       <div className="container mx-auto px-4 py-8 max-w-4xl">
         <div className="mb-8">
           <Link

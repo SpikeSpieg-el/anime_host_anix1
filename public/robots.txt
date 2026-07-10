@@ -1,0 +1,18 @@
+User-agent: *
+Allow: /
+
+# Закрытые разделы
+Disallow: /admin/
+Disallow: /18+/
+Disallow: /private/
+Disallow: /api/
+Disallow: /_next/
+
+# Избегаем дубликатов контента
+Disallow: /*?sort=
+Disallow: /*?filter=
+Disallow: /*?page=
+Disallow: /*?search=
+
+# Sitemap
+Sitemap: https://weeb.x/sitemap.xml

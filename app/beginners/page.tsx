@@ -46,6 +46,7 @@ import {
 import { Navbar } from "@/components/layout/navbar"
 import { Footer } from "@/components/layout/footer"
 import { ScrollToTop } from "@/components/layout/scroll-to-top"
+import { GameGuideContent } from "@/components/beginners/game-guide-content"
 
 const navItems = [
   { id: "icons", label: "Значки", icon: BadgeCheck },
@@ -672,6 +673,8 @@ export default function BeginnersPage() {
             ))}
           </div>
         </section>
+
+        <GameGuideContent />
 
         {/* --- CTA Section --- */}
         <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-orange-500 to-purple-600 p-8 md:p-12 text-center">
