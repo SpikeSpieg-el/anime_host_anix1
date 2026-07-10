@@ -8,13 +8,9 @@ import {
   type Anime,
 } from "@/lib/shikimori"
 import { getAggregatedNews } from "@/lib/news/aggregator"
-import { cookies } from "next/headers"
 import type { Metadata } from "next"
 
 export async function generateMetadata(): Promise<Metadata> {
-  const popularNow = await getPopularNow(1)
-  const featuredAnime = popularNow[0]
-
   const title = "Weeb-x — Гача-крутки и PvP-арена с аниме-героями"
   const description = "Крути гачу и собирай легендарных аниме-персонажей! Высокий шанс SSR, ежедневные бонусы, PvP-арена. Получи первый дроп бесплатно на Weeb-x!"
 
@@ -45,19 +41,12 @@ export async function generateMetadata(): Promise<Metadata> {
       description,
       type: "website",
       url: "https://weeb-x.com",
-      images: featuredAnime ? [
-        {
-          url: featuredAnime.poster,
-          width: 400,
-          height: 600,
-          alt: featuredAnime.title,
-        },
-      ] : [
+      images: [
         {
           url: "/og-image.svg",
           width: 1200,
           height: 630,
-          alt: "Weeb-X — Аниме streaming",
+          alt: "Weeb-X — Гача-крутки и PvP-арена с аниме-героями",
         },
       ],
       siteName: "Weeb-X",
@@ -67,7 +56,7 @@ export async function generateMetadata(): Promise<Metadata> {
       card: "summary_large_image",
       title,
       description,
-      images: featuredAnime ? [featuredAnime.poster] : ["/og-image.svg"],
+      images: ["/og-image.svg"],
     },
     robots: {
       index: true,

@@ -14,13 +14,14 @@ export function StructuredData({ type, data }: StructuredDataProps) {
 
 export function OrganizationStructuredData() {
   const organizationData: Record<string, any> = {
+    '@context': 'https://schema.org',
     '@type': 'Organization',
     name: 'Weeb-x',
     url: 'https://weeb-x.com',
     logo: 'https://weeb-x.com/icon.svg',
     description: 'Аниме-стриминговая платформа с гача-крутками и PvP-ареной',
     sameAs: [
-      // Добавьте ссылки на соцсети при наличии
+      'https://t.me/evangelion_chat',
     ],
   }
 
@@ -29,6 +30,7 @@ export function OrganizationStructuredData() {
 
 export function WebSiteStructuredData() {
   const websiteData: Record<string, any> = {
+    '@context': 'https://schema.org',
     '@type': 'WebSite',
     name: 'Weeb-x',
     url: 'https://weeb-x.com',

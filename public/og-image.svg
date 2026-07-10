@@ -1,7 +1,14 @@
-<!-- Simple OG image placeholder -->
 <svg width="1200" height="630" viewBox="0 0 1200 630" fill="none" xmlns="http://www.w3.org/2000/svg">
   <rect width="1200" height="630" fill="#0a0a0a"/>
-  <text x="600" y="280" text-anchor="middle" fill="white" font-size="72" font-family="system-ui, -apple-system, sans-serif" font-weight="bold">Weeb.X</text>
-  <text x="600" y="350" text-anchor="middle" fill="#f97316" font-size="32" font-family="system-ui, -apple-system, sans-serif">Аниме streaming без отвлекающих факторов</text>
-  <text x="600" y="420" text-anchor="middle" fill="#9ca3af" font-size="24" font-family="system-ui, -apple-system, sans-serif">Смотри аниме онлайн в высоком качестве</text>
+  <rect x="0" y="0" width="1200" height="630" fill="url(#grad)" opacity="0.15"/>
+  <defs>
+    <linearGradient id="grad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#7c3aed"/>
+      <stop offset="100%" stop-color="#4f46e5"/>
+    </linearGradient>
+  </defs>
+  <text x="600" y="270" text-anchor="middle" fill="white" font-size="80" font-family="system-ui, -apple-system, sans-serif" font-weight="bold">Weeb-X</text>
+  <text x="600" y="340" text-anchor="middle" fill="#a78bfa" font-size="34" font-family="system-ui, -apple-system, sans-serif" font-weight="600">Гача-крутки и PvP-арена</text>
+  <text x="600" y="400" text-anchor="middle" fill="#9ca3af" font-size="26" font-family="system-ui, -apple-system, sans-serif">Собирай легендарных аниме-героев и сражайся на арене</text>
+  <text x="600" y="470" text-anchor="middle" fill="#f97316" font-size="22" font-family="system-ui, -apple-system, sans-serif">Высокий шанс SSR · Ежедневные бонусы · PvP-арена</text>
 </svg>

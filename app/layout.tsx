@@ -60,11 +60,10 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="ru" suppressHydrationWarning>
 <head>
     <OrganizationStructuredData />
     <WebSiteStructuredData />
-    <link rel="canonical" href={siteUrl} />
   </head>
       <body className={`font-sans antialiased min-h-screen`}>
         <ThemeProvider

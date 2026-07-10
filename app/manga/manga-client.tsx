@@ -7,7 +7,6 @@ import { cn } from '@/lib/utils';
 import { MultiSelect } from '@/components/ui/multi-select';
 import { MANGADEX_TAGS_MAP } from '@/lib/mangadex/api';
 import { Footer } from '@/components/layout/footer';
-import { MangaSEOLinks } from '@/components/manga/seo-links';
 
 interface Manga {
   id: string;
@@ -338,7 +337,6 @@ export default function MangaClient() {
           </div>
         )}
       </div>
-      <MangaSEOLinks />
       <Footer />
     </div>
   );

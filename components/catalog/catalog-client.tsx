@@ -14,7 +14,6 @@ import { Search, Filter, Loader2, X, RotateCcw, LayoutGrid, Grid3x3, Table, Arro
 import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/components/auth/auth-provider'
-import { CatalogSEOLinks } from './seo-links'
 
 // ... (Ваши константы OPTIONS остаются без изменений)
 const ORDER_OPTIONS = [
@@ -406,7 +405,6 @@ export function CatalogClient({ initialFilters }: { initialFilters: CatalogFilte
             </div>
           )}
 
-          <CatalogSEOLinks />
         </div>
       </div>
 
