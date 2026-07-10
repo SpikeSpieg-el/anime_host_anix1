@@ -1,7 +1,7 @@
 "use client"
 
 import { useRouter } from "next/navigation"
-import { useState } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Navbar } from "@/components/layout/navbar"
 import { Footer } from "@/components/layout/footer"
 import { Sparkles, Star, Heart, Loader2, X, ZoomIn, ExternalLink, RefreshCcw, Trash, Trash2, Crown, Package, Coins, Search, Database, Store, Share, Swords, Wrench, Move } from "lucide-react"
@@ -23,6 +23,8 @@ import { GachaMarketPanel } from "@/components/gacha/gacha-market-panel"
 import { GachaSellMarketModal } from "@/components/gacha/gacha-sell-market-modal"
 import { ChangeArtModal } from "@/components/gacha/change-art-modal"
 import { ArtPositionModal } from "@/components/gacha/art-position-modal"
+import { GachaTutorial } from "@/components/gacha/gacha-tutorial"
+import { RollRecommendationModal } from "@/components/gacha/roll-recommendation-modal"
 
 // Newly created/extracted modular helpers
 import { useGachaState } from "./hooks/use-gacha-state"
@@ -105,6 +107,7 @@ export default function GachaPage() {
     showErrorPopup,
     setShowErrorPopup,
     errorPopupConfig,
+    setErrorPopupConfig,
     showDismantleConfirm,
     showDismantleSuccess,
     setShowDismantleSuccess,
@@ -186,6 +189,108 @@ export default function GachaPage() {
   } = useGachaState()
 
   const router = useRouter()
+
+  const [showTutorial, setShowTutorial] = useState(false)
+  const [showMarketTutorial, setShowMarketTutorial] = useState(false)
+  const [standardRollsCount, setStandardRollsCount] = useState(0)
+  const [tutorialSeen, setTutorialSeen] = useState(false)
+  const [showRollRecommendation, setShowRollRecommendation] = useState(false)
+  const [recommendationTarget, setRecommendationTarget] = useState<"battle" | "market">("battle")
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    const seen = localStorage.getItem("gacha-tutorial-seen")
+    setTutorialSeen(!!seen)
+    if (!seen) {
+      const timer = setTimeout(() => setShowTutorial(true), 800)
+      return () => clearTimeout(timer)
+    }
+    // Load standard rolls count after tutorial is seen
+    const rollsCount = localStorage.getItem("gacha-standard-rolls-count")
+    setStandardRollsCount(rollsCount ? parseInt(rollsCount, 10) : 0)
+  }, [])
+
+  const handleMarketTutorialComplete = useCallback(() => {
+    setShowMarketTutorial(false)
+    localStorage.setItem("market-tutorial-seen", "true")
+  }, [])
+
+  const handleTutorialComplete = useCallback(() => {
+    setShowTutorial(false)
+    setTutorialSeen(true)
+    localStorage.setItem("gacha-tutorial-seen", "true")
+    localStorage.setItem("gacha-standard-rolls-count", "0")
+  }, [])
+
+  const handleRollWithTracking = async () => {
+    await handleRoll()
+    // Only count standard rolls (when no pack is selected)
+    if (!selectedPack) {
+      const newCount = standardRollsCount + 1
+      setStandardRollsCount(newCount)
+      localStorage.setItem("gacha-standard-rolls-count", newCount.toString())
+    }
+  }
+
+  const handleNavigateToBattle = () => {
+    const tutorialSeen = localStorage.getItem("gacha-tutorial-seen")
+    if (!tutorialSeen) {
+      // Allow navigation if tutorial hasn't been seen yet
+      router.push("/battle")
+      return
+    }
+
+    if (collectedCards.length < 1) {
+      setErrorPopupConfig({
+        title: "Сначала сделай 1 крутку",
+        message: "Сделай хотя бы одну стандартную крутку и сохрани карту, чтобы получить команду!",
+        type: "info"
+      })
+      setShowErrorPopup(true)
+      return
+    }
+
+    if (collectedCards.length < 8) {
+      setRecommendationTarget("battle")
+      setShowRollRecommendation(true)
+      return
+    }
+
+    router.push("/battle")
+  }
+
+  const handleNavigateToMarket = () => {
+    const tutorialSeen = localStorage.getItem("gacha-tutorial-seen")
+    if (!tutorialSeen) {
+      setGachaMainTab("market")
+      return
+    }
+
+    if (collectedCards.length < 8) {
+      setRecommendationTarget("market")
+      setShowRollRecommendation(true)
+      return
+    }
+
+    setGachaMainTab("market")
+    const marketTutorialSeen = localStorage.getItem("market-tutorial-seen")
+    if (!marketTutorialSeen) {
+      setTimeout(() => setShowMarketTutorial(true), 600)
+    }
+  }
+
+  const handleContinueToTarget = () => {
+    setShowRollRecommendation(false)
+    if (recommendationTarget === "battle") {
+      router.push("/battle")
+    } else {
+      setGachaMainTab("market")
+      const marketTutorialSeen = localStorage.getItem("market-tutorial-seen")
+      if (!marketTutorialSeen) {
+        setTimeout(() => setShowMarketTutorial(true), 600)
+      }
+    }
+  }
 
   return (
     <div className="min-h-screen bg-[#020617] relative text-slate-100 selection:bg-indigo-500/30 font-sans pb-24 overflow-x-hidden">
@@ -865,7 +970,7 @@ export default function GachaPage() {
           </p>
           
           <div className="flex flex-wrap justify-center items-center gap-2 sm:gap-4 mt-6 sm:mt-8 px-2 sm:px-0">
-            <div className="flex items-center gap-2 px-3 py-2 sm:px-5 sm:py-2.5 rounded-xl sm:rounded-2xl bg-slate-900/80 backdrop-blur-md border border-slate-800 shadow-xl shadow-yellow-500/5">
+            <div data-tutorial="coins" className="flex items-center gap-2 px-3 py-2 sm:px-5 sm:py-2.5 rounded-xl sm:rounded-2xl bg-slate-900/80 backdrop-blur-md border border-slate-800 shadow-xl shadow-yellow-500/5">
               <Coins className="w-4 h-4 sm:w-6 sm:h-6 text-yellow-400" />
               {coinsLoading ? (
                 <Loader2 className="w-4 h-4 sm:w-6 sm:h-6 text-yellow-400 animate-spin" />
@@ -874,7 +979,7 @@ export default function GachaPage() {
               )}
             </div>
 
-            <div className="flex items-center gap-2 px-3 py-2 sm:px-5 sm:py-2.5 rounded-xl sm:rounded-2xl bg-slate-900/80 backdrop-blur-md border border-slate-800 shadow-xl shadow-amber-500/5">
+            <div data-tutorial="dust" className="flex items-center gap-2 px-3 py-2 sm:px-5 sm:py-2.5 rounded-xl sm:rounded-2xl bg-slate-900/80 backdrop-blur-md border border-slate-800 shadow-xl shadow-amber-500/5">
               <Sparkles className="w-4 h-4 sm:w-6 sm:h-6 text-amber-400" />
               {dustLoading ? (
                 <Loader2 className="w-4 h-4 sm:w-6 sm:h-6 text-amber-400 animate-spin" />
@@ -969,8 +1074,9 @@ export default function GachaPage() {
           {/* Default Empty State */}
           {isLoaded && !showCard && !isRolling && (
             <div className="flex flex-col items-center w-full max-w-md mx-auto">
-              <button 
-                onClick={handleRoll} 
+              <button
+                data-tutorial="roll-button"
+                onClick={handleRollWithTracking}
                 disabled={coinsLoading || userCoins < (selectedPack ? selectedPack.price : 50)}
                 className={`group relative w-[260px] sm:w-72 md:w-80 h-[380px] sm:h-[420px] md:h-[480px] rounded-[2rem] sm:rounded-[2.5rem] border-2 border-dashed backdrop-blur-md flex flex-col items-center justify-center transition-all duration-300 overflow-hidden shadow-2xl ${
                   coinsLoading || userCoins < (selectedPack ? selectedPack.price : 50)
@@ -999,7 +1105,32 @@ export default function GachaPage() {
                   }
                 </span>
               </button>
-              
+
+              {/* Tutorial Progress Indicator */}
+              {tutorialSeen && collectedCards.length < 8 && !selectedPack && (
+                <div className="mt-4 px-3 py-1.5 sm:px-4 sm:py-2 bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/20 rounded-xl max-w-[260px] sm:max-w-full text-center">
+                  <div className="flex items-center justify-center gap-1.5 sm:gap-2">
+                    <Swords className="w-3 h-3 sm:w-4 sm:h-4 text-amber-400" />
+                    <span className="text-amber-300 font-semibold text-xs sm:text-sm truncate">
+                      Рекомендуется: {collectedCards.length}/8 карт
+                    </span>
+                    <Swords className="w-3 h-3 sm:w-4 sm:h-4 text-amber-400" />
+                  </div>
+                  <div className="mt-1.5 h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-gradient-to-r from-amber-500 to-orange-500 transition-all duration-500"
+                      style={{ width: `${(collectedCards.length / 8) * 100}%` }}
+                    />
+                  </div>
+                  <div className="text-center mt-1 text-[10px] sm:text-xs text-amber-200">
+                    {collectedCards.length === 0
+                      ? "Сделай хотя бы 1 крутку для доступа к битвам"
+                      : `Рекомендуется ещё ${8 - collectedCards.length} карт для туториала битв`
+                    }
+                  </div>
+                </div>
+              )}
+
               {/* Pity System Indicator */}
               {pityData && pityData.bad_luck_streak > 0 && (
                 <div className="mt-4 px-3 py-1.5 sm:px-4 sm:py-2 bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/20 rounded-xl max-w-[260px] sm:max-w-full text-center">
@@ -1046,6 +1177,7 @@ export default function GachaPage() {
               
               <div className="flex flex-col sm:flex-row gap-2 sm:gap-4 mt-4 sm:mt-8 w-full max-w-[260px] sm:max-w-full">
                 <button
+                  data-tutorial="select-pack"
                   onClick={() => setShowPacks(true)}
                   className="flex-1 flex items-center justify-center gap-2 px-4 py-3 sm:py-3.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white font-bold rounded-xl transition-all shadow-lg text-xs sm:text-base w-full"
                 >
@@ -1054,6 +1186,7 @@ export default function GachaPage() {
                 </button>
 
                 <button
+                  data-tutorial="create-pack"
                   onClick={() => setShowCustomPackCreator(true)}
                   className="flex-1 flex items-center justify-center gap-2 px-4 py-3 sm:py-3.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white font-bold rounded-xl transition-all shadow-lg text-xs sm:text-base w-full"
                 >
@@ -1085,6 +1218,7 @@ export default function GachaPage() {
 
               <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 mt-8 sm:mt-10 w-full max-w-xs sm:max-w-md mx-auto">
                 <button
+                  data-tutorial="save-card"
                   onClick={() => {
                     saveCard(revealedCard);
                   }}
@@ -1147,7 +1281,7 @@ export default function GachaPage() {
               
               {/* Collection Header */}
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                <div className="flex items-center gap-3">
+                <div data-tutorial="collection" className="flex items-center gap-3">
                   <h2 className="text-2xl sm:text-3xl font-black uppercase tracking-tight flex items-center gap-3">
                     <Star className="w-6 sm:w-8 h-6 sm:h-8 text-yellow-400" />
                     Коллекция <span className="text-slate-500 text-xl sm:text-2xl">({collectedCards.length})</span>
@@ -1170,6 +1304,7 @@ export default function GachaPage() {
                   </button>
 
                   <button
+                    data-tutorial="filters"
                     onClick={() => setShowFilters(!showFilters)}
                     className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm transition-all border ${showFilters ? 'bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-500/25' : 'bg-slate-800 border-slate-700 hover:bg-slate-700 text-white'}`}
                   >
@@ -1553,7 +1688,7 @@ export default function GachaPage() {
           </button>
           <button
             type="button"
-            onClick={() => setGachaMainTab("market")}
+            onClick={handleNavigateToMarket}
             className={`flex flex-col items-center justify-center gap-1 w-1/3 h-full rounded-xl transition-all duration-300 ${
               gachaMainTab === "market"
                 ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 shadow-inner"
@@ -1565,7 +1700,8 @@ export default function GachaPage() {
           </button>
           <button
             type="button"
-            onClick={() => router.push("/battle")}
+            data-tutorial="nav-battle"
+            onClick={handleNavigateToBattle}
             className="flex flex-col items-center justify-center gap-1 w-1/3 h-full rounded-xl transition-all duration-300 text-slate-400 hover:text-slate-300 hover:bg-white/5 active:scale-95"
           >
             <Swords className="w-5 h-5 sm:w-6 sm:h-6" />
@@ -1591,7 +1727,7 @@ export default function GachaPage() {
           </button>
           <button
             type="button"
-            onClick={() => setGachaMainTab("market")}
+            onClick={handleNavigateToMarket}
             className={`flex items-center gap-2.5 px-8 py-3 rounded-xl text-sm font-black uppercase tracking-wider transition-all duration-300 ${
               gachaMainTab === "market"
                 ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 shadow-lg shadow-cyan-500/10"
@@ -1603,7 +1739,8 @@ export default function GachaPage() {
           </button>
           <button
             type="button"
-            onClick={() => router.push("/battle")}
+            data-tutorial="nav-battle"
+            onClick={handleNavigateToBattle}
             className="flex items-center gap-2.5 px-8 py-3 rounded-xl text-sm font-black uppercase tracking-wider transition-all duration-300 text-slate-400 hover:text-slate-200 hover:bg-white/5 border border-transparent"
           >
             <Swords className="w-5 h-5" />
@@ -1611,6 +1748,35 @@ export default function GachaPage() {
           </button>
         </div>
       </div>
+
+      {showTutorial && (
+        <GachaTutorial
+          onComplete={handleTutorialComplete}
+          gachaState={{
+            isRolling,
+            showCard,
+            revealedCard,
+            collectedCardsCount: collectedCards.length,
+          }}
+        />
+      )}
+
+      {showMarketTutorial && (
+        <GachaTutorial
+          onComplete={handleMarketTutorialComplete}
+          tutorialType="marketplace"
+        />
+      )}
+
+      {showRollRecommendation && (
+        <RollRecommendationModal
+          isOpen={showRollRecommendation}
+          onClose={() => setShowRollRecommendation(false)}
+          onContinue={handleContinueToTarget}
+          target={recommendationTarget}
+          currentCards={collectedCards.length}
+        />
+      )}
 
       <Footer />
     </div>

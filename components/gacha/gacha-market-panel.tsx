@@ -826,6 +826,7 @@ export function GachaMarketPanel({
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
+            data-tutorial="market-vitrine-tab"
             onClick={() => setTab("vitrine")}
             className={`px-4 py-2 rounded-xl text-sm font-bold border transition-all ${
               tab === "vitrine"
@@ -837,6 +838,7 @@ export function GachaMarketPanel({
           </button>
           <button
             type="button"
+            data-tutorial="market-mine-tab"
             onClick={() => setTab("mine")}
             className={`px-4 py-2 rounded-xl text-sm font-bold border transition-all ${
               tab === "mine"
@@ -848,6 +850,7 @@ export function GachaMarketPanel({
           </button>
           <button
             type="button"
+            data-tutorial="market-filters"
             onClick={() => setShowFilters(!showFilters)}
             className={`px-4 py-2 rounded-xl text-sm font-bold border transition-all flex items-center gap-2 ${
               showFilters || hasActiveFilters
@@ -1050,14 +1053,15 @@ export function GachaMarketPanel({
               </button>
             </div>
           )}
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4">
-            {filteredListings.map((L) => {
+          <div data-tutorial={tab === "mine" ? "market-your-listings" : "market-listings"} className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4">
+            {filteredListings.map((L, idx) => {
             const c = L.card
             const busy = actionId === L.listingId
             const topStat = getTopStat(c.stats)
             return (
               <div
                 key={L.listingId}
+                data-tutorial={idx === 0 ? "market-card" : undefined}
                 className={`group rounded-2xl overflow-hidden border bg-slate-900/90 relative flex flex-col transition-transform duration-200 hover:-translate-y-0.5 ${rarityConfig[c.rarity].glow}`}
                 style={{
                   borderColor: `rgba(${rarityConfig[c.rarity].rgb}, 0.35)`,
@@ -1160,6 +1164,7 @@ export function GachaMarketPanel({
                     {tab === "vitrine" && !L.isMine && user && (
                       <button
                         type="button"
+                        data-tutorial={idx === 0 ? "market-buy-button" : undefined}
                         disabled={busy || L.reservedByOther}
                         onClick={() => {
                           openCardModal(L)
