@@ -15,6 +15,7 @@ import { LogoutLoadingScreen } from "@/components/layout/logout-loading-screen"
 import { CookieConsent } from "@/components/layout/cookie-consent"
 import { ThemeProvider } from "@/components/providers/theme-provider"
 import { Toaster } from "sonner"
+import { OrganizationStructuredData, WebSiteStructuredData } from "@/components/seo/structured-data"
 
 const _geist = Geist({ subsets: ["latin"] })
 const _geistMono = Geist_Mono({ subsets: ["latin"] })
@@ -41,6 +42,11 @@ export const metadata: Metadata = {
     ],
     apple: "/apple-icon.png",
   },
+  url: "https://weeb.x",
+}
+
+export const viewport: Viewport = {
+  themeColor: "#0a0a0a",
 }
 
 export const viewport: Viewport = {
@@ -54,6 +60,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
+<head>
+    <OrganizationStructuredData />
+    <WebSiteStructuredData />
+    <link rel="canonical" href={metadata.url} />
+  </head>
       <body className={`font-sans antialiased min-h-screen`}>
         <ThemeProvider
           attribute="class"

@@ -14,6 +14,7 @@ import { Search, Filter, Loader2, X, RotateCcw, LayoutGrid, Grid3x3, Table, Arro
 import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/components/auth/auth-provider'
+import { CatalogSEOLinks } from './seo-links'
 
 // ... (Ваши константы OPTIONS остаются без изменений)
 const ORDER_OPTIONS = [
@@ -326,44 +327,59 @@ export function CatalogClient({ initialFilters }: { initialFilters: CatalogFilte
               
               {/* Первая строка: Одиночные селекты (Сортировка, Статус, Тип, Рейтинг) */}
               <div className="col-span-1">
-                <Select value={filters.order || 'popularity'} onValueChange={(v) => updateFilter('order', v)}>
-                  <SelectTrigger className="w-full bg-secondary border-border text-foreground h-10 dark:bg-zinc-800 dark:border-zinc-700 dark:text-white"><SelectValue placeholder="Сортировка" /></SelectTrigger>
-                  <SelectContent className="bg-background border text-foreground z-50 dark:bg-zinc-800 dark:border-zinc-700 dark:text-white">
-                    {ORDER_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                <Select value={filters.order || 'popularity'} onValueChange={(v: string) => updateFilter('order', v)}>
+                  <SelectTrigger className="h-9 sm:h-10 text-sm sm:text-base bg-background border-border dark:bg-zinc-900 dark:border-zinc-800 dark:text-white">
+                    <SelectValue placeholder="Сортировка" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-background border-border dark:bg-zinc-900 dark:border-zinc-800">
+                    {ORDER_OPTIONS.map(opt => (
+                      <SelectItem key={opt.value} value={opt.value} className="dark:text-white dark:focus:bg-zinc-800">{opt.label}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
 
               <div className="col-span-1">
-                <Select value={filters.status || 'all'} onValueChange={(v) => updateFilter('status', v)}>
-                  <SelectTrigger className="w-full bg-secondary border-border text-foreground h-10 dark:bg-zinc-800 dark:border-zinc-700 dark:text-white"><SelectValue placeholder="Статус" /></SelectTrigger>
-                  <SelectContent className="bg-background border text-foreground z-50 dark:bg-zinc-800 dark:border-zinc-700 dark:text-white">
-                    {STATUS_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                <Select value={filters.status || 'all'} onValueChange={(v: string) => updateFilter('status', v)}>
+                  <SelectTrigger className="h-9 sm:h-10 text-sm sm:text-base bg-background border-border dark:bg-zinc-900 dark:border-zinc-800 dark:text-white">
+                    <SelectValue placeholder="Статус" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-background border-border dark:bg-zinc-900 dark:border-zinc-800">
+                    {STATUS_OPTIONS.map(opt => (
+                      <SelectItem key={opt.value} value={opt.value} className="dark:text-white dark:focus:bg-zinc-800">{opt.label}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
 
               <div className="col-span-1">
-                <Select value={filters.kind || 'all'} onValueChange={(v) => updateFilter('kind', v)}>
-                  <SelectTrigger className="w-full bg-secondary border-border text-foreground h-10 dark:bg-zinc-800 dark:border-zinc-700 dark:text-white"><SelectValue placeholder="Тип" /></SelectTrigger>
-                  <SelectContent className="bg-background border text-foreground z-50 dark:bg-zinc-800 dark:border-zinc-700 dark:text-white">
-                    {KIND_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                <Select value={filters.kind || 'all'} onValueChange={(v: string) => updateFilter('kind', v)}>
+                  <SelectTrigger className="h-9 sm:h-10 text-sm sm:text-base bg-background border-border dark:bg-zinc-900 dark:border-zinc-800 dark:text-white">
+                    <SelectValue placeholder="Тип" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-background border-border dark:bg-zinc-900 dark:border-zinc-800">
+                    {KIND_OPTIONS.map(opt => (
+                      <SelectItem key={opt.value} value={opt.value} className="dark:text-white dark:focus:bg-zinc-800">{opt.label}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
 
               <div className="col-span-1">
-                <Select value={filters.score || 'all'} onValueChange={(v) => updateFilter('score', v)}>
-                  <SelectTrigger className="w-full bg-secondary border-border text-foreground h-10 dark:bg-zinc-800 dark:border-zinc-700 dark:text-white"><SelectValue placeholder="Рейтинг" /></SelectTrigger>
-                  <SelectContent className="bg-background border text-foreground z-50 dark:bg-zinc-800 dark:border-zinc-700 dark:text-white">
-                    {SCORE_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                <Select value={filters.score || 'all'} onValueChange={(v: string) => updateFilter('score', v)}>
+                  <SelectTrigger className="h-9 sm:h-10 text-sm sm:text-base bg-background border-border dark:bg-zinc-900 dark:border-zinc-800 dark:text-white">
+                    <SelectValue placeholder="Рейтинг" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-background border-border dark:bg-zinc-900 dark:border-zinc-800">
+                    {SCORE_OPTIONS.map(opt => (
+                      <SelectItem key={opt.value} value={opt.value} className="dark:text-white dark:focus:bg-zinc-800">{opt.label}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
 
-              {/* Вторая строка: Жанры и Годы на всю ширину (или половину на десктопе) */}
-              {/* Обратите внимание: h-auto и min-h-10 вместо жесткого h-10 */}
-              <div className="col-span-2">
+              {/* Вторая строка: Жанры и Годы (мульти-селекты) */}
+              <div className="col-span-2 lg:col-span-2">
                  <MultiSelect
                   options={[
                     { value: 'all', label: 'Все жанры' },
@@ -372,24 +388,25 @@ export function CatalogClient({ initialFilters }: { initialFilters: CatalogFilte
                       .map(([name, id]) => ({ value: id, label: name }))
                   ]}
                   selected={Array.isArray(filters.genre) ? filters.genre : (filters.genre && filters.genre !== 'all' ? [filters.genre] : [])}
-                  onChange={(selected) => updateFilter('genre', selected.includes('all') ? [] : selected)}
+                  onChange={(selected: string[]) => updateFilter('genre', selected.includes('all') ? [] : selected)}
                   placeholder="Жанры"
                   className="w-full bg-secondary border-border text-foreground min-h-[2.5rem] h-auto py-1 dark:bg-zinc-800 dark:border-zinc-700 dark:text-white" 
                 />
               </div>
 
-              <div className="col-span-2">
+              <div className="col-span-2 lg:col-span-2">
                 <MultiSelect
                   options={YEAR_OPTIONS}
                   selected={Array.isArray(filters.year) ? filters.year : (filters.year && filters.year !== 'all' ? [filters.year] : [])}
-                  onChange={(selected) => updateFilter('year', selected.includes('all') ? [] : selected)}
+                  onChange={(selected: string[]) => updateFilter('year', selected.includes('all') ? [] : selected)}
                   placeholder="Годы"
                   className="w-full bg-secondary border-border text-foreground min-h-[2.5rem] h-auto py-1 dark:bg-zinc-800 dark:border-zinc-700 dark:text-white"
                 />
               </div>
-              
             </div>
           )}
+
+          <CatalogSEOLinks />
         </div>
       </div>
 

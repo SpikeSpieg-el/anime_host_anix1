@@ -8,7 +8,7 @@ import { UpdatesBanner } from '@/components/home/updates-banner'
 import { UpdatesBannerSkeleton } from '@/components/shared/skeleton'
 import type { Anime } from '@/lib/shikimori'
 import Link from "next/link"
-import { MessageSquare, User, ChevronRight, Newspaper, TrendingUp, Play, Star } from "lucide-react"
+import { MessageSquare, User, ChevronRight, Newspaper, TrendingUp, Play, Star} from "lucide-react"
 import { useEffect, useState } from "react"
 import { useSearchParams } from "next/navigation"
 import { easterEggs } from "@/lib/easter-eggs"

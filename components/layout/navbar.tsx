@@ -193,6 +193,17 @@ export function Navbar() {
             >
               <Tv size={16} /> Онгоинги
             </Link>
+            <Link 
+              href="/manga" 
+              className={cn(
+                "px-5 py-2 rounded-full text-sm font-medium transition-all flex items-center gap-2",
+                pathname === "/manga"
+                  ? "bg-secondary text-foreground shadow-lg" 
+                  : "text-muted-foreground hover:text-foreground hover:bg-secondary/50"
+              )}
+            >
+              <BookMarked size={16} /> Манга
+            </Link>
 
             {/* Dropdown "Ещё" Desktop */}
             <DropdownMenu open={isDropdownOpen} onOpenChange={setIsDropdownOpen}>
@@ -358,7 +369,13 @@ export function Navbar() {
             </span>
           </Link>
 
-          {/* 4. Закладки */}
+          {/* 4. Манга */}
+          <Link href="/manga" className={navIconClass(pathname === "/manga")}>
+            <BookMarked size={20} className={pathname === "/manga" ? "animate-pulse" : ""} />
+            <span className="text-[10px] font-medium">Манга</span>
+          </Link>
+
+          {/* 5. Закладки */}
           <Link href="/bookmarks" className={navIconClass(pathname === "/bookmarks")}>
             <BookMarked size={20} className={pathname === "/bookmarks" ? "animate-pulse" : ""} />
             <span className="text-[10px] font-medium">Моё</span>

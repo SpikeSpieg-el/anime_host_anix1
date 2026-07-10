@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useState, useEffect, useRef } from "react"
-import { Zap, ChevronRight, PlayCircle, Star } from "lucide-react"
+import { Zap, ChevronRight, PlayCircle, Star, Shield } from "lucide-react"
 import { AuthModal } from "@/components/auth/auth-modal"
 
 // Вспомогательный компонент для скрытия заголовка (для a11y)
@@ -26,38 +26,92 @@ const customStyles = `
     -ms-overflow-style: none;
     scrollbar-width: none;
   }
-  @media (max-height: 720px) {
+  @media (max-width: 360px) {
     .welcome-card-content {
       padding: 1rem !important;
     }
-    .welcome-logo-container {
-      padding-top: 0.25rem !important;
-    }
     .welcome-text-container {
-      margin-top: 0.5rem !important;
-    }
-    .welcome-text-container > * + * {
-      margin-top: 0.5rem !important;
+      gap: 0.75rem !important;
     }
     .welcome-features-container {
-      margin-top: 0.5rem !important;
-    }
-    .welcome-features-container > * + * {
-      margin-top: 0.35rem !important;
+      gap: 0.5rem !important;
     }
     .welcome-features-container > div {
-      padding: 0.5rem 0.75rem !important;
+      padding: 0.625rem 0.75rem !important;
+      gap: 0.625rem !important;
     }
-    .welcome-text-container button {
-      height: 2.75rem !important;
+    .welcome-features-container > div > div:first-child {
+      width: 1.75rem !important;
+      height: 1.75rem !important;
+    }
+    .welcome-features-container > div > div:first-child svg {
+      width: 0.875rem !important;
+      height: 0.875rem !important;
     }
   }
-  @media (max-width: 380px) {
+  @media (max-width: 375px) {
+    .welcome-card-content {
+      padding: 1.125rem !important;
+    }
+    .welcome-text-container {
+      gap: 0.875rem !important;
+    }
+    .welcome-features-container {
+      gap: 0.625rem !important;
+    }
+  }
+  @media (max-width: 400px) {
+    .welcome-card-content {
+      padding: 1.25rem !important;
+    }
+  }
+  @media (max-height: 500px) {
     .welcome-card-content {
       padding: 0.75rem !important;
     }
+    .welcome-text-container {
+      gap: 0.5rem !important;
+    }
+    .welcome-features-container {
+      gap: 0.375rem !important;
+    }
     .welcome-features-container > div {
-      padding: 0.4rem 0.6rem !important;
+      padding: 0.5rem 0.625rem !important;
+    }
+  }
+  @media (max-height: 600px) {
+    .welcome-card-content {
+      padding: 1rem !important;
+    }
+    .welcome-text-container {
+      gap: 0.75rem !important;
+    }
+    .welcome-features-container {
+      gap: 0.5rem !important;
+    }
+    .welcome-features-container > div {
+      padding: 0.625rem 0.75rem !important;
+    }
+  }
+  @media (max-height: 720px) {
+    .welcome-card-content {
+      padding: 1.25rem !important;
+    }
+    .welcome-text-container {
+      gap: 1rem !important;
+    }
+    .welcome-features-container {
+      gap: 0.75rem !important;
+    }
+  }
+  @media (min-width: 1280px) {
+    .welcome-card-content {
+      padding: 2.5rem !important;
+    }
+  }
+  @media (min-width: 1536px) {
+    .welcome-card-content {
+      padding: 3rem !important;
     }
   }
 `
@@ -224,19 +278,6 @@ export function WelcomeModal() {
           {/* --- КОНТЕНТ --- */}
           <div className="relative z-20 flex flex-col justify-between min-h-full p-3 sm:p-5 md:p-7 lg:p-8 welcome-card-content">
             
-            {/* Логотип */}
-            <div className="flex justify-center pt-1 sm:pt-3 md:pt-4 welcome-logo-container">
-              <div className="relative group cursor-default">
-                {/* Свечение */}
-                <div className="absolute -inset-2 sm:-inset-3 bg-gradient-to-r from-orange-500 via-orange-600 to-purple-600 rounded-2xl blur-xl opacity-30 group-hover:opacity-50 transition duration-1000 animate-pulse" />
-                
-                {/* Иконка */}
-                <div className="relative w-14 h-14 sm:w-16 sm:h-16 md:w-20 md:h-20 bg-gradient-to-br from-orange-500/20 to-purple-500/20 backdrop-blur-xl border-2 border-orange-500/30 rounded-2xl flex items-center justify-center shadow-2xl">
-                  <Zap className="w-7 h-7 sm:w-8 sm:h-8 md:w-10 md:h-10 text-orange-400 fill-orange-400/20" />
-                </div>
-              </div>
-            </div>
-
             {/* Текст и кнопки */}
             <div className="flex flex-col items-center text-center space-y-4 sm:space-y-6 md:space-y-8 pb-2 sm:pb-4 welcome-text-container">
               
@@ -245,9 +286,6 @@ export function WelcomeModal() {
                 <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-black text-foreground tracking-tighter leading-none drop-shadow-2xl font-unbounded">
                   Weeb.<span className="text-transparent bg-clip-text bg-gradient-to-br from-orange-400 via-orange-500 to-purple-600">X</span>
                 </h2>
-                <p className="text-muted-foreground text-[9px] sm:text-[10px] md:text-xs font-bold uppercase tracking-[0.15em] sm:tracking-[0.2em] md:tracking-[0.3em]">
-                  Аниме без границ
-                </p>
               </div>
 
               {/* Преимущества (Список) */}
@@ -282,6 +320,26 @@ export function WelcomeModal() {
                   <div className="text-left">
                     <div className="text-foreground text-[10px] sm:text-xs md:text-sm font-bold group-hover:text-blue-200 transition-colors">Быстрый стрим</div>
                     <div className="text-muted-foreground text-[9px] sm:text-[10px] md:text-xs">Мгновенная загрузка</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* VPN Notification Banner */}
+              <div className="w-full animate-in fade-in slide-in-from-bottom-4 duration-700 delay-250">
+                <div className="relative bg-gradient-to-r from-purple-900/30 via-blue-900/30 to-purple-900/30 backdrop-blur-sm rounded-xl p-3 sm:p-3.5 border border-purple-500/40 shadow-lg shadow-purple-500/20">
+                  <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-purple-500/10 via-pink-500/10 to-purple-500/10 pointer-events-none"></div>
+                  <div className="relative flex items-center gap-2.5 sm:gap-3">
+                    <div className="flex-shrink-0 bg-gradient-to-br from-purple-500 to-pink-500 p-1.5 sm:p-2 rounded-lg shadow-lg shadow-purple-500/30">
+                      <Shield className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-[10px] sm:text-xs font-semibold text-white mb-0.5">
+                        Рекомендуем включить VPN
+                      </p>
+                      <p className="text-[8px] sm:text-[9px] text-zinc-300">
+                        Для стабильного доступа
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>

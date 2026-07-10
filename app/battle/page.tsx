@@ -23,6 +23,7 @@ import { glassCard } from "./config"
 import { computeDeckSynergies } from "./utils"
 import { Card } from "./types"
 import { rarityConfig } from "@/types/gacha"
+import { BattleSEOContent } from "@/components/battle/seo-content"
 
 const isPinterestUrl = (url: string) => url?.includes("i.pinimg.com") || url?.includes("pinimg.com")
 
@@ -533,6 +534,8 @@ export default function BattlePage() {
             </button>
           </div>
         )}
+
+        {battleState === "idle" && <BattleSEOContent />}
 
         {/* Top bar indicators */}
         {battleState === "idle" && (battleSessionLoading || !progress ? <StatsPanelSkeleton /> : <StatsPanel progress={progress} userCoins={userCoins} coinsLoading={coinsLoading} dust={dust} dustLoading={dustLoading} staminaTime={staminaTime} />)}

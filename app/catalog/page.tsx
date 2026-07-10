@@ -55,8 +55,8 @@ export async function generateMetadata({
     ? (params.year.includes(',') ? params.year.split(',').join(', ') : params.year) 
     : undefined
 
-  let title = "Каталог аниме — Weeb.X"
-  let description = "Откройте для себя тысячи аниме в нашем каталоге. Фильтруйте по жанрам, годам, рейтингам и находите свои любимые аниме."
+  let title = "Weeb.x — Смотреть аниме онлайн бесплатно. Топ тайтлы на русском"
+  let description = "Смотри тысячи аниме онлайн в HD с русской озвучкой. Удобный каталог по жанрам, топ года и расписание новых серий. Бесплатно на Weeb.x!"
 
   if (search) {
     title = `Поиск: ${search} — Weeb.X`
@@ -72,11 +72,28 @@ export async function generateMetadata({
   return {
     title,
     description,
+    keywords: [
+      "смотреть аниме",
+      "аниме онлайн",
+      "аниме бесплатно",
+      "аниме сезон",
+      "аниме все серии",
+      "смотреть бесплатно аниме",
+      "аниме онлайн бесплатно",
+      "аниме девушки",
+      "аниме топ",
+      "аниме новинки",
+      "аниме в hd",
+      "аниме на русском",
+    ],
+    alternates: {
+      canonical: `https://weeb.x/catalog${Object.keys(params).length > 0 ? '?' + new URLSearchParams(params as Record<string, string>).toString() : ''}`,
+    },
     openGraph: {
       title,
       description,
       type: "website",
-      url: `/catalog${Object.keys(params).length > 0 ? '?' + new URLSearchParams(params as Record<string, string>).toString() : ''}`,
+      url: `https://weeb.x/catalog${Object.keys(params).length > 0 ? '?' + new URLSearchParams(params as Record<string, string>).toString() : ''}`,
       images: [
         {
           url: "/og-image.svg",
@@ -93,6 +110,10 @@ export async function generateMetadata({
       title,
       description,
       images: ["/og-image.svg"],
+    },
+    robots: {
+      index: true,
+      follow: true,
     },
   }
 }

@@ -15,31 +15,36 @@ export async function generateMetadata(): Promise<Metadata> {
   const popularNow = await getPopularNow(1)
   const featuredAnime = popularNow[0]
 
-  const title = "Weeb.X — Аниме streaming без отвлекающих факторов"
-  const description = featuredAnime 
-    ? `Смотреть аниме онлайн в высоком качестве. Сейчас в топе: ${featuredAnime.title}. Тысячи аниме, фильмы и сериалы без рекламы и отвлечений.`
-    : "Смотреть аниме онлайн в высоком качестве. Тысячи аниме, фильмы и сериалы без рекламы и отвлечений. Лучший стриминг для аниме-фанов."
+  const title = "Weeb.x — Гача-крутки и PvP-арена с аниме-героями"
+  const description = "Крути гачу и собирай легендарных аниме-персонажей! Высокий шанс SSR, ежедневные бонусы, PvP-арена. Получи первый дроп бесплатно на Weeb.x!"
 
   return {
     title,
     description,
     keywords: [
-      "аниме онлайн",
+      "гача",
+      "гача игры",
+      "аниме гача",
+      "PvP арена",
+      "бои аниме онлайн",
+      "гача лайф",
+      "гача клуб",
+      "лучшие гача игры",
+      "топ гача игр",
+      "аниме лутбоксы",
+      "аниме игры как геншин",
+      "аниме игры онлайн",
       "смотреть аниме",
-      "аниме streaming",
-      "anime online",
-      "без рекламы",
-      "высокое качество",
-      "субтитры",
-      "озвучка",
-      featuredAnime?.title || "",
-      ...(featuredAnime?.genres || [])
+      "аниме онлайн",
     ].filter(Boolean),
+    alternates: {
+      canonical: "https://weeb.x",
+    },
     openGraph: {
       title,
       description,
       type: "website",
-      url: "/",
+      url: "https://weeb.x",
       images: featuredAnime ? [
         {
           url: featuredAnime.poster,
