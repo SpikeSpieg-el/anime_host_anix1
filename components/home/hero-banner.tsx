@@ -452,7 +452,7 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime, recommendationRea
           >
 
             {/* 1. ЗАГОЛОВОК (ДОБАВЛЕН font-unbounded) */}
-            <h1
+            <h2
               className={`
                 ${getTitleClass(anime.title)}
                 font-black font-unbounded text-foreground mb-3 lg:mb-4 dark:text-white
@@ -468,7 +468,7 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime, recommendationRea
               }}
             >
               {anime.title}
-            </h1>
+            </h2>
 
             {/* 2. ТАБЫ */}
             <div 
@@ -614,7 +614,7 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime, recommendationRea
                         src={posterImage}
                         fill
                         className="object-cover"
-                        alt=""
+                        alt={`Постер: ${anime.title}`}
                         quality={60}
                         onError={() => setPosterImageError(true)}
                         unoptimized={posterImageError || posterImage.startsWith('data:image')}
