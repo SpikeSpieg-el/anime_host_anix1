@@ -17,9 +17,9 @@ interface Props {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params
   const news = await getAggregatedNewsById(id)
-  if (!news) return { title: "Новость не найдена — Weeb.X" }
+  if (!news) return { title: "Новость не найдена — Weeb-X" }
   return {
-    title: `${news.title} — Weeb.X`,
+    title: `${news.title} — Weeb-X`,
     description: news.excerpt.replace(/\[.*?\]/g, "").replace(/<[^>]+>/g, "").slice(0, 160),
     openGraph: {
       title: news.title,

@@ -3,70 +3,70 @@
 
   <!-- Main pages -->
   <url>
-    <loc>https://weeb.x/</loc>
+    <loc>https://weeb-x.com/</loc>
     <lastmod>2026-07-07</lastmod>
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
   </url>
   
   <url>
-    <loc>https://weeb.x/pvp</loc>
+    <loc>https://weeb-x.com/pvp</loc>
     <lastmod>2026-07-07</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
   </url>
   
   <url>
-    <loc>https://weeb.x/battle</loc>
+    <loc>https://weeb-x.com/battle</loc>
     <lastmod>2026-07-07</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
   
   <url>
-    <loc>https://weeb.x/catalog</loc>
+    <loc>https://weeb-x.com/catalog</loc>
     <lastmod>2026-07-07</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
   
   <url>
-    <loc>https://weeb.x/manga</loc>
+    <loc>https://weeb-x.com/manga</loc>
     <lastmod>2026-07-07</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
   
   <url>
-    <loc>https://weeb.x/gacha</loc>
+    <loc>https://weeb-x.com/gacha</loc>
     <lastmod>2026-07-07</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   
   <url>
-    <loc>https://weeb.x/help</loc>
+    <loc>https://weeb-x.com/help</loc>
     <lastmod>2026-07-07</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   
   <url>
-    <loc>https://weeb.x/faq</loc>
+    <loc>https://weeb-x.com/faq</loc>
     <lastmod>2026-07-07</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   
   <url>
-    <loc>https://weeb.x/terms</loc>
+    <loc>https://weeb-x.com/terms</loc>
     <lastmod>2026-07-07</lastmod>
     <changefreq>yearly</changefreq>
     <priority>0.5</priority>
   </url>
   
   <url>
-    <loc>https://weeb.x/contacts</loc>
+    <loc>https://weeb-x.com/contacts</loc>
     <lastmod>2026-07-07</lastmod>
     <changefreq>yearly</changefreq>
     <priority>0.5</priority>

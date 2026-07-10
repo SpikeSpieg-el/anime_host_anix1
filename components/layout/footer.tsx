@@ -107,7 +107,7 @@ export function Footer() {
               <li><a className="text-zinc-500 hover:text-orange-500 transition-colors text-sm sm:text-[15px] font-bold" href="/catalog?status=ongoing">Расписание онгоингов</a></li>
               <li><a className="text-zinc-500 hover:text-orange-500 transition-colors text-sm sm:text-[15px] font-bold" href="/catalog?sort=popular">Популярные хиты</a></li>
               <li><a className="text-zinc-500 hover:text-orange-500 transition-colors text-sm sm:text-[15px] font-bold" href="/catalog?kind=movie">Полнометражные фильмы</a></li>
-              <li><a className="text-zinc-500 hover:text-orange-500 transition-colors text-sm sm:text-[15px] font-bold" href="/gacha">WEEB.X Гача</a></li>
+              <li><a className="text-zinc-500 hover:text-orange-500 transition-colors text-sm sm:text-[15px] font-bold" href="/gacha">WEEB-X Гача</a></li>
               <li><a className="text-zinc-500 hover:text-orange-500 transition-colors text-sm sm:text-[15px] font-bold" href="/market-dashboard">Рынок карт</a></li>
             </ul>
           </div>
@@ -136,7 +136,7 @@ export function Footer() {
       <div className="border-t border-border dark:border-white/5">
         <div className="container mx-auto px-3 sm:px-4">
           <div className="py-6 sm:py-8 flex flex-col md:flex-row justify-between items-center gap-3 sm:gap-4">
-            <p className="text-muted-foreground text-[9px] sm:text-[10px] font-bold tracking-widest uppercase text-center md:text-left dark:text-zinc-600">© {currentYear} Weeb.X STREAM. MADE BY ANIME FANS FOR ANIME FANS.</p>
+            <p className="text-muted-foreground text-[9px] sm:text-[10px] font-bold tracking-widest uppercase text-center md:text-left dark:text-zinc-600">© {currentYear} Weeb-X STREAM. MADE BY ANIME FANS FOR ANIME FANS.</p>
             <div className="flex items-center gap-6">
               <Dialog>
                 <DialogTrigger asChild>

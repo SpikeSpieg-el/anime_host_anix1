@@ -4,8 +4,8 @@ import { ArrowLeft, FileText, Shield, UserCheck, AlertTriangle } from "lucide-re
 import { Footer } from "@/components/layout/footer"
 
 export const metadata: Metadata = {
-  title: "Пользовательское соглашение — Weeb.X",
-  description: "Пользовательское соглашение Weeb.X. Правила использования сайта и права пользователей.",
+  title: "Пользовательское соглашение — Weeb-X",
+  description: "Пользовательское соглашение Weeb-X. Правила использования сайта и права пользователей.",
 }
 
 export default function TermsPage() {
@@ -25,7 +25,7 @@ export default function TermsPage() {
             <h1 className="text-3xl font-bold text-foreground">Пользовательское соглашение</h1>
           </div>
           <p className="text-muted-foreground">
-            Правила использования сайта Weeb.X. Пожалуйста, внимательно ознакомьтесь с условиями.
+            Правила использования сайта Weeb-X. Пожалуйста, внимательно ознакомьтесь с условиями.
           </p>
         </div>
 
@@ -38,7 +38,7 @@ export default function TermsPage() {
             <div className="space-y-3 text-muted-foreground">
               <p className="leading-relaxed">
                 1.1. Настоящее Пользовательское соглашение (далее — «Соглашение») регулирует отношения 
-                между пользователями сайта Weeb.X (далее — «Сайт») и администрацией Сайта.
+                между пользователями сайта Weeb-X (далее — «Сайт») и администрацией Сайта.
               </p>
               <p className="leading-relaxed">
                 1.2. Используя Сайт, вы подтверждаете, что прочитали, поняли и принимаете условия 

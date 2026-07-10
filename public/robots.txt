@@ -15,4 +15,4 @@ Disallow: /*?page=
 Disallow: /*?search=
 
 # Sitemap
-Sitemap: https://weeb.x/sitemap.xml
+Sitemap: https://weeb-x.com/sitemap.xml

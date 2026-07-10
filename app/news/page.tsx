@@ -6,7 +6,7 @@ import { Newspaper, ArrowLeft, Calendar, User, MessageSquare, ArrowRight, Globe 
 import type { Metadata } from "next"
 
 export const metadata: Metadata = {
-  title: "Новости аниме — Weeb.X",
+  title: "Новости аниме — Weeb-X",
   description: "Последние новости мира аниме. Анонсы, релизы, события.",
 }
 

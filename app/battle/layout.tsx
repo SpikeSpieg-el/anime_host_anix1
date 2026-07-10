@@ -1,8 +1,8 @@
 import type { Metadata } from "next"
 
 export const metadata: Metadata = {
-  title: "Weeb.x — PvP-арена аниме битв. Сразись и возглавь рейтинг",
-  description: "Участвуй в PvP-сражениях с аниме-персонажами! Рейтинговая система, награды за победы, таблица лидеров. Собери команду и стань чемпионом на Weeb.x!",
+  title: "Weeb-x — PvP-арена аниме битв. Сразись и возглавь рейтинг",
+  description: "Участвуй в PvP-сражениях с аниме-персонажами! Рейтинговая система, награды за победы, таблица лидеров. Собери команду и стань чемпионом на Weeb-x!",
   keywords: [
     "пвп арена",
     "аниме битвы",
@@ -18,27 +18,27 @@ export const metadata: Metadata = {
     "аниме игры как геншин",
   ],
   alternates: {
-    canonical: "https://weeb.x/battle",
+    canonical: "https://weeb-x.com/battle",
   },
   openGraph: {
-    title: "Weeb.x — PvP-арена аниме битв",
+    title: "Weeb-x — PvP-арена аниме битв",
     description: "Участвуй в PvP-сражениях с аниме-персонажами! Рейтинговая система, награды за победы.",
     type: "website",
-    url: "https://weeb.x/battle",
+    url: "https://weeb-x.com/battle",
     images: [
       {
         url: "/og-image.svg",
         width: 1200,
         height: 630,
-        alt: "Weeb.x PvP-арена",
+        alt: "Weeb-x PvP-арена",
       },
     ],
-    siteName: "Weeb.X",
+    siteName: "Weeb-X",
     locale: "ru_RU",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Weeb.x — PvP-арена аниме битв",
+    title: "Weeb-x — PvP-арена аниме битв",
     description: "Участвуй в PvP-сражениях с аниме-персонажами! Рейтинговая система, награды за победы.",
     images: ["/og-image.svg"],
   },

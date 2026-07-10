@@ -15,9 +15,9 @@ export function StructuredData({ type, data }: StructuredDataProps) {
 export function OrganizationStructuredData() {
   const organizationData: Record<string, any> = {
     '@type': 'Organization',
-    name: 'Weeb.x',
-    url: 'https://weeb.x',
-    logo: 'https://weeb.x/icon.svg',
+    name: 'Weeb-x',
+    url: 'https://weeb-x.com',
+    logo: 'https://weeb-x.com/icon.svg',
     description: 'Аниме-стриминговая платформа с гача-крутками и PvP-ареной',
     sameAs: [
       // Добавьте ссылки на соцсети при наличии
@@ -30,12 +30,12 @@ export function OrganizationStructuredData() {
 export function WebSiteStructuredData() {
   const websiteData: Record<string, any> = {
     '@type': 'WebSite',
-    name: 'Weeb.x',
-    url: 'https://weeb.x',
+    name: 'Weeb-x',
+    url: 'https://weeb-x.com',
     description: 'Аниме-стриминговая платформа с гача-крутками и PvP-ареной',
     potentialAction: {
       '@type': 'SearchAction',
-      target: 'https://weeb.x/catalog?search={search_term_string}',
+      target: 'https://weeb-x.com/catalog?search={search_term_string}',
       'query-input': 'required name=search_term_string',
     },
   }

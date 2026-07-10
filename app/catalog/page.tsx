@@ -55,17 +55,17 @@ export async function generateMetadata({
     ? (params.year.includes(',') ? params.year.split(',').join(', ') : params.year) 
     : undefined
 
-  let title = "Weeb.x — Смотреть аниме онлайн бесплатно. Топ тайтлы на русском"
-  let description = "Смотри тысячи аниме онлайн в HD с русской озвучкой. Удобный каталог по жанрам, топ года и расписание новых серий. Бесплатно на Weeb.x!"
+  let title = "Weeb-x — Смотреть аниме онлайн бесплатно. Топ тайтлы на русском"
+  let description = "Смотри тысячи аниме онлайн в HD с русской озвучкой. Удобный каталог по жанрам, топ года и расписание новых серий. Бесплатно на Weeb-x!"
 
   if (search) {
-    title = `Поиск: ${search} — Weeb.X`
+    title = `Поиск: ${search} — Weeb-X`
     description = `Результаты поиска по запросу "${search}". Найдите лучшие аниме по вашему запросу в высоком качестве.`
   } else if (genre) {
-    title = `${genre} — Каталог аниме — Weeb.X`
+    title = `${genre} — Каталог аниме — Weeb-X`
     description = `Смотреть аниме в жанре ${genre} онлайн. Большой выбор аниме в жанре ${genre} в высоком качестве.`
   } else if (year) {
-    title = `${year} — Каталог аниме — Weeb.X`
+    title = `${year} — Каталог аниме — Weeb-X`
     description = `Аниме ${year} года. Смотрите лучшие аниме ${year} года онлайн в высоком качестве.`
   }
 
@@ -87,13 +87,13 @@ export async function generateMetadata({
       "аниме на русском",
     ],
     alternates: {
-      canonical: `https://weeb.x/catalog${Object.keys(params).length > 0 ? '?' + new URLSearchParams(params as Record<string, string>).toString() : ''}`,
+      canonical: `https://weeb-x.com/catalog${Object.keys(params).length > 0 ? '?' + new URLSearchParams(params as Record<string, string>).toString() : ''}`,
     },
     openGraph: {
       title,
       description,
       type: "website",
-      url: `https://weeb.x/catalog${Object.keys(params).length > 0 ? '?' + new URLSearchParams(params as Record<string, string>).toString() : ''}`,
+      url: `https://weeb-x.com/catalog${Object.keys(params).length > 0 ? '?' + new URLSearchParams(params as Record<string, string>).toString() : ''}`,
       images: [
         {
           url: "/og-image.svg",
@@ -102,7 +102,7 @@ export async function generateMetadata({
           alt: title,
         },
       ],
-      siteName: "Weeb.X",
+      siteName: "Weeb-X",
       locale: "ru_RU",
     },
     twitter: {

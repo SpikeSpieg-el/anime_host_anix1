@@ -212,7 +212,7 @@ export function usePvPBattle(options?: {
   }, [session?.access_token])
 
   // Join matchmaking queue
-  const joinQueue = useCallback((deck: Card[], leaderId: string | null, formation: string) => {
+  const joinQueue = useCallback((deck: Card[] = [], leaderId: string | null = null, formation: string = 'default') => {
     if (!socketRef.current?.connected) {
       setPvpState(prev => ({ 
         ...prev, 

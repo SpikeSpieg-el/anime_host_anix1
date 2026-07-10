@@ -4,8 +4,8 @@ import { ArrowLeft, HelpCircle, Search, Bookmark, History, Settings, Shield, Mai
 import { Footer } from "@/components/layout/footer"
 
 export const metadata: Metadata = {
-  title: "Помощь — Weeb.X",
-  description: "Центр помощи пользователей Weeb.X. Узнайте, как использовать все функции нашего аниме-стриминга.",
+  title: "Помощь — Weeb-X",
+  description: "Центр помощи пользователей Weeb-X. Узнайте, как использовать все функции нашего аниме-стриминга.",
 }
 
 const helpSections = [
@@ -72,7 +72,7 @@ export default function HelpPage() {
             <h1 className="text-3xl font-bold text-foreground">Помощь</h1>
           </div>
           <p className="text-muted-foreground">
-            Центр помощи пользователей Weeb.X. Найдите ответы на вопросы о функциях сайта.
+            Центр помощи пользователей Weeb-X. Найдите ответы на вопросы о функциях сайта.
           </p>
         </div>
 

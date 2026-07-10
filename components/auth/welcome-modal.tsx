@@ -170,7 +170,7 @@ export function WelcomeModal() {
   // --- Эффект монтирования и проверки LocalStorage ---
   useEffect(() => {
     setMounted(true)
-    const hasVisited = localStorage.getItem("Weeb.X-visited-v2")
+    const hasVisited = localStorage.getItem("Weeb-X-visited-v2")
 
     if (!hasVisited) {
       // Небольшая задержка для плавности появления
@@ -224,12 +224,12 @@ export function WelcomeModal() {
 
   const handleStart = () => {
     setIsOpen(false)
-    localStorage.setItem("Weeb.X-visited-v2", "true")
+    localStorage.setItem("Weeb-X-visited-v2", "true")
   }
 
   const handleSignUp = () => {
     setIsOpen(false)
-    localStorage.setItem("Weeb.X-visited-v2", "true")
+    localStorage.setItem("Weeb-X-visited-v2", "true")
     setShowAuthModal(true)
   }
 
@@ -253,7 +253,7 @@ export function WelcomeModal() {
           }`}
         >
           <VisuallyHidden>
-            <h2>Добро пожаловать в Weeb.X STREAM</h2>
+            <h2>Добро пожаловать в Weeb-X STREAM</h2>
           </VisuallyHidden>
 
           {/* --- ВИЗУАЛЬНАЯ ЧАСТЬ (ФОН) --- */}

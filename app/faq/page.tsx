@@ -5,8 +5,8 @@ import { Footer } from "@/components/layout/footer"
 import { FAQStructuredData } from "@/components/seo/structured-data"
 
 export const metadata: Metadata = {
-  title: "FAQ — Weeb.X. Ответы на вопросы о гаче, PvP и аниме",
-  description: "Часто задаваемые вопросы о Weeb.X: как работает гача, как участвовать в PvP-арене, как смотреть аниме онлайн бесплатно.",
+  title: "FAQ — Weeb-X. Ответы на вопросы о гаче, PvP и аниме",
+  description: "Часто задаваемые вопросы о Weeb-X: как работает гача, как участвовать в PvP-арене, как смотреть аниме онлайн бесплатно.",
   keywords: [
     "faq",
     "вопросы и ответы",
@@ -17,22 +17,22 @@ export const metadata: Metadata = {
     "бесплатно аниме",
   ],
   alternates: {
-    canonical: "https://weeb.x/faq",
+    canonical: "https://weeb-x.com/faq",
   },
   openGraph: {
-    title: "FAQ — Weeb.X. Ответы на вопросы",
-    description: "Часто задаваемые вопросы о Weeb.X: гача, PvP, аниме-стриминг.",
+    title: "FAQ — Weeb-X. Ответы на вопросы",
+    description: "Часто задаваемые вопросы о Weeb-X: гача, PvP, аниме-стриминг.",
     type: "website",
-    url: "https://weeb.x/faq",
+    url: "https://weeb-x.com/faq",
     images: [
       {
         url: "/og-image.svg",
         width: 1200,
         height: 630,
-        alt: "Weeb.X FAQ",
+        alt: "Weeb-X FAQ",
       },
     ],
-    siteName: "Weeb.X",
+    siteName: "Weeb-X",
     locale: "ru_RU",
   },
   robots: {
@@ -46,9 +46,9 @@ const faqCategories = [
     title: "Общие вопросы",
     questions: [
       {
-        question: "Что такое Weeb.X?",
+        question: "Что такое Weeb-X?",
         answer:
-          "Weeb.X — это бесплатная платформа для просмотра аниме онлайн в высоком качестве. Мы предлагаем удобный интерфейс без отвлекающих факторов, персонализированные рекомендации и возможность отслеживать историю просмотра.",
+          "Weeb-X — это бесплатная платформа для просмотра аниме онлайн в высоком качестве. Мы предлагаем удобный интерфейс без отвлекающих факторов, персонализированные рекомендации и возможность отслеживать историю просмотра.",
       },
       {
         question: "Нужно ли регистрироваться для просмотра?",
@@ -58,7 +58,7 @@ const faqCategories = [
       {
         question: "Бесплатно ли использование сайта?",
         answer:
-          "Да, Weeb.X полностью бесплатен. Мы не показываем навязчивую рекламу и не требуем подписку для доступа к контенту.",
+          "Да, Weeb-X полностью бесплатен. Мы не показываем навязчивую рекламу и не требуем подписку для доступа к контенту.",
       },
     ],
   },
@@ -158,7 +158,7 @@ const faqCategories = [
       {
         question: "Какие браузеры поддерживаются?",
         answer:
-          "Weeb.X работает во всех современных браузерах: Chrome, Firefox, Safari, Edge. Для лучшей производительности рекомендуем использовать последнюю версию браузера.",
+          "Weeb-X работает во всех современных браузерах: Chrome, Firefox, Safari, Edge. Для лучшей производительности рекомендуем использовать последнюю версию браузера.",
       },
       {
         question: "Работает ли сайт на мобильных устройствах?",
@@ -196,7 +196,7 @@ export default function FAQPage() {
             <h1 className="text-3xl font-bold text-foreground">Часто задаваемые вопросы</h1>
           </div>
           <p className="text-muted-foreground">
-            Найдите ответы на популярные вопросы о Weeb.X.
+            Найдите ответы на популярные вопросы о Weeb-X.
           </p>
         </div>
 

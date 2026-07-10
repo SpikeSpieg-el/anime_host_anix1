@@ -15,8 +15,8 @@ export async function generateMetadata(): Promise<Metadata> {
   const popularNow = await getPopularNow(1)
   const featuredAnime = popularNow[0]
 
-  const title = "Weeb.x — Гача-крутки и PvP-арена с аниме-героями"
-  const description = "Крути гачу и собирай легендарных аниме-персонажей! Высокий шанс SSR, ежедневные бонусы, PvP-арена. Получи первый дроп бесплатно на Weeb.x!"
+  const title = "Weeb-x — Гача-крутки и PvP-арена с аниме-героями"
+  const description = "Крути гачу и собирай легендарных аниме-персонажей! Высокий шанс SSR, ежедневные бонусы, PvP-арена. Получи первый дроп бесплатно на Weeb-x!"
 
   return {
     title,
@@ -38,13 +38,13 @@ export async function generateMetadata(): Promise<Metadata> {
       "аниме онлайн",
     ].filter(Boolean),
     alternates: {
-      canonical: "https://weeb.x",
+      canonical: "https://weeb-x.com",
     },
     openGraph: {
       title,
       description,
       type: "website",
-      url: "https://weeb.x",
+      url: "https://weeb-x.com",
       images: featuredAnime ? [
         {
           url: featuredAnime.poster,
@@ -57,10 +57,10 @@ export async function generateMetadata(): Promise<Metadata> {
           url: "/og-image.svg",
           width: 1200,
           height: 630,
-          alt: "Weeb.X — Аниме streaming",
+          alt: "Weeb-X — Аниме streaming",
         },
       ],
-      siteName: "Weeb.X",
+      siteName: "Weeb-X",
       locale: "ru_RU",
     },
     twitter: {

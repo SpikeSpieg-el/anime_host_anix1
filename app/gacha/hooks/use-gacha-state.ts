@@ -887,14 +887,14 @@ export function useGachaState() {
 
   const handleSharePage = async () => {
     const shareText = gachaMainTab === "market"
-      ? `🎲 WEEB.X ГАЧА - Крути гачу, продавай и покупай карты на маркете! Собери коллекцию любимых героев аниме!`
-      : `🎲 WEEB.X ГАЧА - Призывай любимых персонажей, крути гачу и находи любых героев аниме! Зарегистрируй аккаунт и начни коллекцию! За первую регистрацию получи 10,000 монет бесплатно.`
+      ? `🎲 WEEB-X ГАЧА - Крути гачу, продавай и покупай карты на маркете! Собери коллекцию любимых героев аниме!`
+      : `🎲 WEEB-X ГАЧА - Призывай любимых персонажей, крути гачу и находи любых героев аниме! Зарегистрируй аккаунт и начни коллекцию! За первую регистрацию получи 10,000 монет бесплатно.`
     const shareUrl = typeof window !== 'undefined' ? window.location.href : ''
 
     if (navigator.share) {
       try {
         await navigator.share({
-          title: 'WEEB.X ГАЧА',
+          title: 'WEEB-X ГАЧА',
           text: shareText,
           url: shareUrl
         })

@@ -8,7 +8,7 @@ import { CoverProvider } from "@/components/providers/cover-provider"
 
 
 export const metadata: Metadata = {
-  title: "Расписание выхода серий | Weeb.X",
+  title: "Расписание выхода серий | Weeb-X",
   description: "Календарь выхода новых серий аниме. Узнайте, что посмотреть сегодня.",
 }
 

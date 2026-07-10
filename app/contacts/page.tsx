@@ -4,8 +4,8 @@ import { ArrowLeft, Mail, MessageCircle, Github, ShieldAlert, FileText, Clock } 
 import { Footer } from "@/components/layout/footer"
 
 export const metadata: Metadata = {
-  title: "Контакты — Weeb.X",
-  description: "Свяжитесь с командой Weeb.X. Обратная связь, поддержка и сотрудничество.",
+  title: "Контакты — Weeb-X",
+  description: "Свяжитесь с командой Weeb-X. Обратная связь, поддержка и сотрудничество.",
 }
 
 const contactMethods = [
@@ -13,22 +13,22 @@ const contactMethods = [
     icon: Mail,
     title: "Email для общих вопросов",
     description: "По вопросам сотрудничества, предложений и общим вопросам",
-    value: "support@weeb.x",
-    href: "mailto:support@weeb.x",
+    value: "support@weeb-x.com",
+    href: "mailto:support@weeb-x.com",
   },
   {
     icon: ShieldAlert,
     title: "DMCA и авторские права",
     description: "Для правообладателей и вопросов об авторском праве",
-    value: "dmca@weeb.x",
-    href: "mailto:dmca@weeb.x",
+    value: "dmca@weeb-x.com",
+    href: "mailto:dmca@weeb-x.com",
   },
   {
     icon: MessageCircle,
     title: "Техническая поддержка",
     description: "По техническим проблемам и ошибкам на сайте",
-    value: "tech@weeb.x",
-    href: "mailto:tech@weeb.x",
+    value: "tech@weeb-x.com",
+    href: "mailto:tech@weeb-x.com",
   },
   {
     icon: Github,
@@ -154,7 +154,7 @@ export default function ContactsPage() {
               <span>
                 По вопросам авторских прав и DMCA используйте специальный email{' '}
                 <Link href="/dmca" className="text-primary hover:underline">
-                  dmca@weeb.x
+                  dmca@weeb-x.com
                 </Link>
               </span>
             </li>

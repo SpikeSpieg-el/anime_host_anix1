@@ -1,17 +1,12 @@
 "use client";
 
-import { Metadata } from "next";
+import { useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Shield } from "lucide-react";
-import { usePvPBattle } from "@/hooks/use-pvp-battle";
+import { usePvPBattle } from "@/app/battle/hooks/use-pvp-battle";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useRouter } from "next/navigation";
-
-export const metadata: Metadata = {
-  title: "PvP Арена — Weeb.X",
-  description: "Онлайн арена для поединков между игроками. Сражайтесь, поднимайтесь в рейтинге и получайте награды.",
-  canonical: "https://weeb.x/pvp",
-};
+import { Footer } from "@/components/layout/footer";
 
 const navItems = [
   { id: "pvp", label: "PvP", icon: Shield },
@@ -46,13 +41,13 @@ export default function PvPPage() {
   });
 
   const handleSharePage = async () => {
-    const shareText = `⚔️ WEEB.X PVP - Сражайся с реальными игроками в онлайн-арене! Поднимайся в рейтинге и докажи своё мастерство! Зарегистрируй аккаунт и начни бой! За первую регистрацию получи 10,000 монет бесплатно.`;
+    const shareText = `⚔️ WEEB-X PVP - Сражайся с реальными игроками в онлайн-арене! Поднимайся в рейтинге и докажи своё мастерство! Зарегистрируй аккаунт и начни бой! За первую регистрацию получи 10,000 монет бесплатно.`;
     const shareUrl = typeof window !== "undefined" ? window.location.href : "";
     
     if (navigator.share) {
       try {
         await navigator.share({
-          title: "WEEB.X PvP",
+          title: "WEEB-X PvP",
           text: shareText,
           url: shareUrl,
         });

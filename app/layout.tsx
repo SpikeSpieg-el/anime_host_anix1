@@ -21,10 +21,12 @@ const _geist = Geist({ subsets: ["latin"] })
 const _geistMono = Geist_Mono({ subsets: ["latin"] })
 const _unbounded = Unbounded({ subsets: ["latin"] })
 
+const siteUrl = "https://weeb-x.com"
+
 export const metadata: Metadata = {
-  title: "Weeb.X",
+  title: "Weeb-X",
   description: "Your distraction-free streaming destination for anime and movies",
-  generator: "Weeb.X_stream",
+  generator: "Weeb-X_stream",
   icons: {
     icon: [
       {
@@ -42,11 +44,10 @@ export const metadata: Metadata = {
     ],
     apple: "/apple-icon.png",
   },
-  url: "https://weeb.x",
-}
-
-export const viewport: Viewport = {
-  themeColor: "#0a0a0a",
+  metadataBase: new URL(siteUrl),
+  alternates: {
+    canonical: "/",
+  },
 }
 
 export const viewport: Viewport = {
@@ -63,7 +64,7 @@ export default function RootLayout({
 <head>
     <OrganizationStructuredData />
     <WebSiteStructuredData />
-    <link rel="canonical" href={metadata.url} />
+    <link rel="canonical" href={siteUrl} />
   </head>
       <body className={`font-sans antialiased min-h-screen`}>
         <ThemeProvider
