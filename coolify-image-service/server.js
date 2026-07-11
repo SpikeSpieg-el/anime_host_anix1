@@ -55,7 +55,14 @@ const ALLOWED_HOSTS = [
   'githubusercontent.com',
   'raw.githubusercontent.com',
   'cdn.myanimelist.net',
-  'api.jikan.moe'
+  'api.jikan.moe',
+  'anilist.co',
+  's4.anilist.co',
+  'kitsu.app',
+  'media.kitsu.app',
+  'kodikapi.com',
+  'kodik.info',
+  'cdn.kodik.info'
 ]
 
 // Domain-specific referer headers
@@ -75,7 +82,16 @@ function getReferer(hostname) {
     'yande.re': 'https://yande.re/',
     'files.yande.re': 'https://yande.re/',
     'pinimg.com': 'https://www.pinterest.com/',
-    'i.pinimg.com': 'https://www.pinterest.com/'
+    'i.pinimg.com': 'https://www.pinterest.com/',
+    'anilist.co': 'https://anilist.co/',
+    's4.anilist.co': 'https://anilist.co/',
+    'kitsu.app': 'https://kitsu.io/',
+    'media.kitsu.app': 'https://kitsu.io/',
+    'kodikapi.com': 'https://kodik.info/',
+    'kodik.info': 'https://kodik.info/',
+    'cdn.kodik.info': 'https://kodik.info/',
+    'cdn.myanimelist.net': 'https://myanimelist.net/',
+    'myanimelist.net': 'https://myanimelist.net/'
   }
   for (const [key, val] of Object.entries(referers)) {
     if (hostname.includes(key)) return val

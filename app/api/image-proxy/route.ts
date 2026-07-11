@@ -15,7 +15,16 @@ const ALLOWED_HOSTS = [
   'img.reimg.org',
   'uploads.mangadex.org',
   'pinimg.com',
-  'i.pinimg.com'
+  'i.pinimg.com',
+  'anilist.co',
+  's4.anilist.co',
+  'kitsu.app',
+  'media.kitsu.app',
+  'kodikapi.com',
+  'kodik.info',
+  'cdn.kodik.info',
+  'cdn.myanimelist.net',
+  'myanimelist.net'
 ];
 
 export const maxDuration = 15;

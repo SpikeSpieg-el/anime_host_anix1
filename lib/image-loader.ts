@@ -36,7 +36,16 @@ export function isExternalImageUrl(url: string): boolean {
     'safebooru.org',
     'zerochan.net',
     's3.zerochan.net',
-    'shikimori.one'
+    'shikimori.one',
+    'anilist.co',
+    's4.anilist.co',
+    'kitsu.app',
+    'media.kitsu.app',
+    'kodikapi.com',
+    'kodik.info',
+    'cdn.kodik.info',
+    'cdn.myanimelist.net',
+    'myanimelist.net'
   ]
   return externalDomains.some(domain => url.includes(domain))
 }
