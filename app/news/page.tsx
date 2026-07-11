@@ -3,6 +3,7 @@ import { Navbar } from "@/components/layout/navbar"
 import { Footer } from "@/components/layout/footer"
 import Link from "next/link"
 import { Newspaper, ArrowLeft, Calendar, User, MessageSquare, ArrowRight, Globe } from "lucide-react"
+import { getProxiedSrc } from "@/lib/image-loader"
 import type { Metadata } from "next"
 
 export const metadata: Metadata = {
@@ -97,7 +98,7 @@ export default async function NewsPage({
                 {item.imageUrl && (
                   <div className="relative w-full h-44 overflow-hidden bg-zinc-900 flex-shrink-0">
                     <img
-                      src={item.imageUrl}
+                      src={getProxiedSrc(item.imageUrl)}
                       alt={item.title}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                     />

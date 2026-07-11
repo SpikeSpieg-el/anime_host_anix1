@@ -8,6 +8,7 @@ import type { Metadata } from "next"
 import { BackButton } from "./back-button"
 import { LinkedAnimeCard } from "./linked-anime-card"
 import { TranslateButton } from "./translate-button"
+import { getProxiedSrc } from "@/lib/image-loader"
 import type { LinkedAnime } from "@/lib/shikimori/types"
 
 interface Props {
@@ -93,7 +94,7 @@ function sanitizeShikimoriHtml(html: string, animePosters: Map<number, string>):
           const nameRu = attrs.russian || ''
           const poster = animePosters.get(id)
           const posterHtml = poster
-            ? `<img src="${poster}" alt="${nameRu || nameEn}" class="news-anime-poster" loading="lazy" />`
+            ? `<img src="${getProxiedSrc(poster)}" alt="${nameRu || nameEn}" class="news-anime-poster" loading="lazy" />`
             : `<div class="news-anime-poster-placeholder"></div>`
           return `<a href="/watch/${id}" class="news-anime-card">${posterHtml}<span class="news-anime-titles"><span class="name-ru">${nameRu}</span><span class="name-en">${nameEn}</span></span></a>`
         }
@@ -245,7 +246,7 @@ function sanitizeShikimoriFooter(html: string): string {
     (_full, inner) => {
       const imgMatch = inner.match(/<img[^>]+src="([^"]+)"[^>]*>/)
       if (imgMatch) {
-        return `<img src="${imgMatch[1]}" class="news-footer-image" loading="lazy" />`
+        return `<img src="${getProxiedSrc(imgMatch[1])}" class="news-footer-image" loading="lazy" />`
       }
       return ''
     }
@@ -350,7 +351,7 @@ export default async function NewsItemPage({ params }: Props) {
       <div className="relative w-full h-[38vh] min-h-[260px] max-h-[460px] overflow-hidden bg-zinc-950">
         {news.imageUrl ? (
           <img
-            src={news.imageUrl}
+            src={getProxiedSrc(news.imageUrl)}
             alt={news.title}
             className="absolute inset-0 w-full h-full object-cover scale-105 blur-[1px]"
           />
@@ -450,7 +451,7 @@ export default async function NewsItemPage({ params }: Props) {
               {isJikan && news.animeImage && (
                 <div className="mb-6 flex justify-center">
                   <img
-                    src={news.animeImage}
+                    src={getProxiedSrc(news.animeImage)}
                     alt={news.animeTitle || news.title}
                     className="max-h-80 rounded-xl object-contain"
                     loading="lazy"

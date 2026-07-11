@@ -7,6 +7,7 @@ import type { Rarity } from "@/types/gacha"
 import { frameNames, coatingNames } from "@/components/gacha/card-modifiers"
 import { Footer } from "@/components/layout/footer"
 import { MarketDashboardSkeleton } from "@/components/gacha/market-dashboard-skeleton"
+import { getProxiedSrc } from "@/lib/image-loader"
 
 interface MarketListing {
   listingId: string
@@ -406,7 +407,7 @@ export default function MarketDashboardPage() {
                             <div className="relative shrink-0">
                               <div className={`absolute inset-0 ${config.bgColor.replace('/20', '/40')} blur-xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity`} />
                               <img 
-                                src={listing.card.imageUrl || undefined} 
+                                src={listing.card.imageUrl ? getProxiedSrc(listing.card.imageUrl) : undefined}
                                 alt={listing.card.name}
                                 className="w-20 h-20 md:w-24 md:h-24 object-cover rounded-2xl border-2 border-slate-800 shadow-xl relative"
                               />
@@ -512,13 +513,13 @@ export default function MarketDashboardPage() {
                             <div className="relative shrink-0">
                               <div className={`absolute inset-0 ${config.bgColor.replace('/20', '/40')} blur-xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity`} />
                               <img 
-                                src={sale.card.imageUrl || (sale.card.characterId ? `https://shikimori.one/system/characters/original/${sale.card.characterId}.jpg` : undefined)} 
+                                src={getProxiedSrc(sale.card.imageUrl || (sale.card.characterId ? `https://shikimori.one/system/characters/original/${sale.card.characterId}.jpg` : '')) || undefined}
                                 alt={sale.card.name}
                                 className="w-16 h-16 object-cover rounded-xl border border-slate-800 shadow-xl grayscale-[0.3] group-hover:grayscale-0 transition-all duration-300"
                                 onError={(e) => {
                                   const img = e.target as HTMLImageElement;
                                   if (!img.src.includes('missing_character_original.png')) {
-                                    img.src = "https://shikimori.one/assets/globals/missing_character_original.png";
+                                    img.src = getProxiedSrc("https://shikimori.one/assets/globals/missing_character_original.png");
                                   }
                                 }}
                               />

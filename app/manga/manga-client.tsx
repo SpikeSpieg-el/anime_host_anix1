@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils';
 import { MultiSelect } from '@/components/ui/multi-select';
 import { MANGADEX_TAGS_MAP } from '@/lib/mangadex/api';
 import { Footer } from '@/components/layout/footer';
+import { getProxiedSrc } from '@/lib/image-loader';
 
 interface Manga {
   id: string;
@@ -44,7 +45,7 @@ function MangaCard({ manga }: { manga: Manga }) {
 
         {imageUrl && !hasError ? (
           <img
-            src={imageUrl}
+            src={getProxiedSrc(imageUrl)}
             alt={manga.title}
             onLoad={() => setIsLoaded(true)}
             onError={() => setHasError(true)}

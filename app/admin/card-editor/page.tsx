@@ -6,6 +6,7 @@ import { Card, CardStats } from "@/app/gacha/types"
 import { Rarity, rarityConfig } from "@/types/gacha"
 import { saveCardToDatabase } from "@/app/gacha/client-actions"
 import { useAuth } from "@/components/auth/auth-provider"
+import { getProxiedSrc } from "@/lib/image-loader"
 import { frameNames, coatingNames, FrameOverlay, CoatingOverlay } from "@/components/gacha/card-modifiers"
 import { 
   Sparkles, 
@@ -189,33 +190,33 @@ export default function CardEditorPage() {
                 <div className="absolute inset-0">
                   {/* BG Layer */}
                   {card.imageLayers[0] && (
-                    <img 
-                      src={card.imageLayers[0]} 
-                      alt="bg" 
+                    <img
+                      src={getProxiedSrc(card.imageLayers[0])}
+                      alt="bg"
                       className="absolute inset-0 w-full h-full object-cover"
                     />
                   )}
                   {/* Character Layer */}
                   {card.imageLayers[1] && (
-                    <img 
-                      src={card.imageLayers[1]} 
-                      alt="char" 
+                    <img
+                      src={getProxiedSrc(card.imageLayers[1])}
+                      alt="char"
                       className="absolute inset-0 w-full h-full object-contain z-10"
                     />
                   )}
                   {/* Foreground Layer */}
                   {card.imageLayers[2] && (
-                    <img 
-                      src={card.imageLayers[2]} 
-                      alt="vfx" 
+                    <img
+                      src={getProxiedSrc(card.imageLayers[2])}
+                      alt="vfx"
                       className="absolute inset-0 w-full h-full object-cover z-20 opacity-80"
                     />
                   )}
                 </div>
               ) : card.imageUrl ? (
-                <img 
-                  src={card.imageUrl} 
-                  alt={card.name} 
+                <img
+                  src={getProxiedSrc(card.imageUrl)}
+                  alt={card.name}
                   className="absolute inset-0 w-full h-full object-cover"
                 />
               ) : (

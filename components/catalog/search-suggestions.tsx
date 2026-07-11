@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react"
 import { createPortal } from "react-dom"
 import { Search, Clock, X, ChevronRight } from "lucide-react"
+import { getProxiedSrc } from "@/lib/image-loader"
 import { Anime } from "@/lib/shikimori"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/components/auth/auth-provider"
@@ -188,7 +189,7 @@ export function SearchSuggestions({
                     className="w-full text-left p-2 rounded-lg hover:bg-secondary transition-colors group flex items-start gap-3 mb-1"
                   >
                     <img
-                        src={anime.poster}
+                        src={getProxiedSrc(anime.poster)}
                         alt={anime.title}
                         className="w-10 h-14 object-cover rounded shadow-lg group-hover:scale-105 transition-transform"
                     />

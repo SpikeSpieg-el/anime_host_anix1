@@ -4,6 +4,7 @@ import { Card } from '../types'
 import { glassCard, DECK_SIZE } from '../config'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/components/auth/auth-provider'
+import { getProxiedSrc } from '@/lib/image-loader'
 
 interface PvPArenaProps {
   selectedCards: Card[]
@@ -570,7 +571,7 @@ export const PvPArena: React.FC<PvPArenaProps> = ({
                     >
                       <div className="relative aspect-[2/3] rounded-xl overflow-hidden border border-white/[0.08] bg-zinc-950 shadow-lg">
                         <img
-                          src={card.imageUrl}
+                          src={getProxiedSrc(card.imageUrl)}
                           alt={card.name}
                           className="w-full h-full object-cover select-none pointer-events-none"
                           style={card.artPosition ? { objectPosition: `${card.artPosition.x}% ${card.artPosition.y}%` } : undefined}
