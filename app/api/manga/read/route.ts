@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
           console.log('[MangaRead] Remanga has no pages, falling back to Mangalib chapter:', mangalibId);
           const mangalibPages = await getMangalibChapterPages(mangalibId);
           if (mangalibPages.length > 0) {
-            pages = mangalibPages.map(url => `/api/image-proxy?url=${encodeURIComponent(url)}`);
+            pages = mangalibPages;
             usedProvider = 'mangalib';
           } else if (comickId) {
             console.log('[MangaRead] Mangalib also has no pages, falling back to Comick chapter:', comickId);
@@ -81,7 +81,7 @@ export async function GET(request: NextRequest) {
           console.warn('[MangaRead] Remanga has no pages and no fallbacks available');
         }
       } else {
-        pages = rawPages.map(url => `/api/image-proxy?url=${encodeURIComponent(url)}`);
+        pages = rawPages;
       }
     } else if (provider === 'mangalib') {
       const rawPages = await getMangalibChapterPages(chapterId);
@@ -130,7 +130,7 @@ export async function GET(request: NextRequest) {
           console.warn('[MangaRead] Mangalib has no pages and no MangaDex fallback available');
         }
       } else {
-        pages = rawPages.map(url => `/api/image-proxy?url=${encodeURIComponent(url)}`);
+        pages = rawPages;
       }
     } else if (provider === 'comick') {
       const rawPages = await getComickChapterPages(chapterId);

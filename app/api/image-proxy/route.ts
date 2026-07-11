@@ -16,6 +16,8 @@ const ALLOWED_HOSTS = [
   'reimg2.org',
   'img.reimg.org',
   'uploads.mangadex.org',
+  'meo.comick.pictures',
+  'cdn.mangaeden.com',
   'pinimg.com',
   'i.pinimg.com',
   'anilist.co',

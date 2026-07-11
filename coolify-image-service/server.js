@@ -64,6 +64,8 @@ const ALLOWED_HOSTS = [
   'reimg2.org',
   'img.reimg.org',
   'uploads.mangadex.org',
+  'meo.comick.pictures',
+  'cdn.mangaeden.com',
   // Pinterest (custom arts)
   'pinimg.com',
   'i.pinimg.com',

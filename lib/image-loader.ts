@@ -49,6 +49,8 @@ export function isExternalImageUrl(url: string): boolean {
     'cdn.kodik.info',
     'cdn.myanimelist.net',
     'myanimelist.net',
+    'meo.comick.pictures',
+    'cdn.mangaeden.com',
     'imgur.com',
     'i.imgur.com',
     'discordapp.com',

@@ -26,8 +26,8 @@ function MangaCard({ manga }: { manga: Manga }) {
   const [isLoaded, setIsLoaded] = useState(false);
   const [hasError, setHasError] = useState(false);
 
-  // Use proxy for manga cover images to avoid CORS issues
-  const imageUrl = manga.image ? `/api/image-proxy?url=${encodeURIComponent(manga.image)}` : undefined;
+  // Image URL — proxying handled by getProxiedSrc() in the img tag
+  const imageUrl = manga.image || undefined;
 
   return (
     <Link
