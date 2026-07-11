@@ -113,7 +113,8 @@ if (!fs.existsSync(DISK_CACHE_DIR)) {
 }
 
 function getCacheKey(url, width, quality, format) {
-  return `${Buffer.from(url).toString('base64')}_${width}_${quality}_${format}`
+  // Use URL-safe base64 (replace / with _ and + with -) to avoid path separator issues
+  return `${Buffer.from(url).toString('base64').replace(/\//g, '_').replace(/\+/g, '-')}_${width}_${quality}_${format}`
 }
 
 function getDiskCachePath(cacheKey) {
@@ -326,7 +327,7 @@ app.get('/proxy', async (req, res) => {
   const url = req.query.url
   if (!url) return res.status(400).json({ error: 'Missing url' })
 
-  const cacheKey = 'proxy_' + Buffer.from(url).toString('base64')
+  const cacheKey = 'proxy_' + Buffer.from(url).toString('base64').replace(/\//g, '_').replace(/\+/g, '-')
 
   // Check memory cache
   const memCached = cache.get(cacheKey)
