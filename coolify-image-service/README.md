@@ -1,44 +1,44 @@
 # WEEB-X Image Service
 
-Image optimization and proxy service for WEEB-X, deployed on Coolify.
+Сервис оптимизации и проксирования картинок для WEEB-X, деплоится на Coolify.
 
-## Features
+## Возможности
 
-- **`/optimize?url=...&w=...&q=...&f=...`** — Optimizes and resizes images (replaces Vercel's `/_next/image`)
-- **`/proxy?url=...`** — Pass-through proxy for external images (replaces `/api/image-proxy`)
-- **Memory + Disk caching** — LRU cache (100MB memory) + persistent disk cache
-- **Sharp optimization** — AVIF/WebP/JPEG with mozjpeg
-- **Domain-specific referer headers** — bypasses hotlink protection
+- **`/optimize?url=...&w=...&q=...&f=...`** — оптимизация и ресайз картинок (заменяет Vercel `/_next/image`)
+- **`/proxy?url=...`** — проксирование внешних картинок (заменяет `/api/image-proxy`)
+- **Кэш в памяти + на диске** — LRU кэш (100MB в оперативке) + постоянный кэш на диске
+- **Оптимизация через sharp** — AVIF/WebP/JPEG с mozjpeg
+- **Правильные Referer заголовки** — обходит защиту от хотлинкинга для каждого домена
 
-## Deploy on Coolify
+## Деплой на Coolify
 
-1. Create a new service in Coolify (Dockerfile or Nixpacks)
-2. Set environment variables:
+1. Создай новый сервис в Coolify (Dockerfile или Nixpacks)
+2. Укажи переменные окружения:
    ```
    PORT=3100
    CORS_ORIGIN=https://weeb-x.com
    ```
-3. Deploy
+3. Задеплой
 
-## Environment Variables
+## Переменные окружения
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `PORT` | `3100` | Server port |
-| `CORS_ORIGIN` | `https://weeb-x.com` | Allowed CORS origin |
+| Переменная | По умолчанию | Описание |
+|-----------|-------------|----------|
+| `PORT` | `3100` | Порт сервера |
+| `CORS_ORIGIN` | `https://weeb-x.com` | Разрешённый CORS origin |
 
-## Endpoints
+## Эндпоинты
 
 ### GET /optimize
-Query params:
-- `url` — source image URL (required)
-- `w` — target width in px (default: 384)
-- `q` — quality 1-100 (default: 60)
-- `f` — format: `webp`, `avif`, `jpeg` (default: webp)
+Параметры запроса:
+- `url` — URL исходной картинки (обязательно)
+- `w` — целевая ширина в пикселях (по умолчанию: 384)
+- `q` — качество 1-100 (по умолчанию: 60)
+- `f` — формат: `webp`, `avif`, `jpeg` (по умолчанию: webp)
 
 ### GET /proxy
-Query params:
-- `url` — source image URL (required)
+Параметры запроса:
+- `url` — URL исходной картинки (обязательно)
 
 ### GET /health
-Returns service status and cache info.
+Возвращает статус сервиса и информацию о кэше.
