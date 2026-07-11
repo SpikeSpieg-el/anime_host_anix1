@@ -37,7 +37,10 @@ const ALLOWED_HOSTS = [
   'catbox.moe',
   'files.catbox.moe',
   'postimg.cc',
-  'postimg.org'
+  'postimg.org',
+  'github.com',
+  'githubusercontent.com',
+  'raw.githubusercontent.com'
 ];
 
 export const maxDuration = 15;

@@ -3,6 +3,7 @@ const sharp = require('sharp')
 const { LRUCache } = require('lru-cache')
 const path = require('path')
 const fs = require('fs')
+const crypto = require('crypto')
 const dns = require('dns').promises
 
 const app = express()
@@ -77,6 +78,8 @@ const ALLOWED_HOSTS = [
   'media.discordapp.net',
   'githubusercontent.com',
   'raw.githubusercontent.com',
+  'github.com',
+  'objects.githubusercontent.com',
   'picsum.photos',
   'catbox.moe',
   'files.catbox.moe',
@@ -135,8 +138,9 @@ if (!fs.existsSync(DISK_CACHE_DIR)) {
 }
 
 function getCacheKey(url, width, quality, format) {
-  // Use URL-safe base64 (replace / with _ and + with -) to avoid path separator issues
-  return `${Buffer.from(url).toString('base64').replace(/\//g, '_').replace(/\+/g, '-')}_${width}_${quality}_${format}`
+  // Use MD5 hash to keep filenames short and avoid ENAMETOOLONG errors
+  const hash = crypto.createHash('md5').update(url).digest('hex')
+  return `${hash}_${width}_${quality}_${format}`
 }
 
 function getDiskCachePath(cacheKey) {
@@ -286,12 +290,20 @@ app.get('/test-connectivity', async (req, res) => {
 
 // --- Optimize endpoint — replaces /_next/image ---
 app.get('/optimize', async (req, res) => {
-  const url = req.query.url
+  let url = req.query.url
   const width = parseInt(req.query.w || req.query.width || '384', 10)
   const quality = parseInt(req.query.q || req.query.quality || '60', 10)
   const format = req.query.f || req.query.format || 'webp'
 
   if (!url) return res.status(400).json({ error: 'Missing url' })
+
+  // Unwrap self-referencing URLs (e.g. img.weeb-x.com:8443/proxy?url=...)
+  try {
+    const parsed = new URL(url)
+    if (parsed.pathname === '/proxy' && parsed.searchParams.get('url')) {
+      url = parsed.searchParams.get('url')
+    }
+  } catch {}
 
   const cacheKey = getCacheKey(url, width, quality, format)
 
@@ -349,7 +361,7 @@ app.get('/proxy', async (req, res) => {
   const url = req.query.url
   if (!url) return res.status(400).json({ error: 'Missing url' })
 
-  const cacheKey = 'proxy_' + Buffer.from(url).toString('base64').replace(/\//g, '_').replace(/\+/g, '-')
+  const cacheKey = 'proxy_' + crypto.createHash('md5').update(url).digest('hex')
 
   // Check memory cache
   const memCached = cache.get(cacheKey)

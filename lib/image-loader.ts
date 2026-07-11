@@ -57,7 +57,10 @@ export function isExternalImageUrl(url: string): boolean {
     'cdn.discordapp.com',
     'catbox.moe',
     'postimg.cc',
-    'postimg.org'
+    'postimg.org',
+    'github.com',
+    'githubusercontent.com',
+    'raw.githubusercontent.com'
   ]
   return externalDomains.some(domain => url.includes(domain))
 }
