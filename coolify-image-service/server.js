@@ -60,7 +60,7 @@ function getReferer(hostname) {
 
 // In-memory cache for optimized images (100MB)
 const cache = new LRUCache({
-  max: 100 * 1024 * 1024,
+  maxSize: 100 * 1024 * 1024,
   sizeCalculation: (value) => value.length,
   ttl: 1000 * 60 * 60 * 24 * 7 // 7 days
 })
