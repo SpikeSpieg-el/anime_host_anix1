@@ -93,6 +93,7 @@ KODIK_API_TOKEN=your_kodik_api_token
 NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
+NEXT_PUBLIC_PVP_SERVER_URL=https://your-pvp-server-url:port
 ```
 
 ### Запуск разработки
@@ -313,7 +314,29 @@ npm start
 3. Разверните проект
 
 ### PvP-сервер (опционально)
-Для онлайн-PvP требуется отдельный Socket.io сервер. См. `pvp-server/` (если присутствует) для инструкций по запуску.
+Для онлайн-PvP требуется отдельный Socket.io сервер, расположенный в `pvp-server/`.
+
+#### Запуск сервера
+```bash
+cd pvp-server
+npm install
+cp .env.example .env
+# Отредактируйте .env — укажите SUPABASE_URL, SUPABASE_SERVICE_KEY или SUPABASE_SERVICE_ROLE_KEY,
+# и при необходимости ALLOWED_ORIGINS
+npm start
+```
+
+#### Переменные окружения сервера
+```env
+SUPABASE_URL=your_supabase_url
+SUPABASE_SERVICE_KEY=your_supabase_service_role_key
+# или
+SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
+PORT=3001
+ALLOWED_ORIGINS=http://localhost:3000,https://weeb-x.com,https://www.weeb-x.com
+```
+
+`ALLOWED_ORIGINS` должен содержать домен фронтенда, с которого подключаются игроки (например, `https://weeb-x.com`).
 
 ## 📄 Лицензия
 

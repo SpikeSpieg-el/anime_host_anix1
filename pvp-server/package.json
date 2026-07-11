@@ -1,0 +1,19 @@
+{
+  "name": "weeb-x-pvp-server",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "server.mjs",
+  "scripts": {
+    "start": "node server.mjs",
+    "dev": "node server.mjs"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.91.0",
+    "dotenv": "^16.4.7",
+    "socket.io": "^4.8.3",
+    "ws": "^8.18.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

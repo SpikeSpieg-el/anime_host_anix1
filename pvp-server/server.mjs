@@ -1,6 +1,7 @@
 import { Server } from 'socket.io'
 import { createServer } from 'http'
 import { createClient } from '@supabase/supabase-js'
+import { WebSocket } from 'ws'
 import dotenv from 'dotenv'
 
 // Helper functions for card power calculation
@@ -378,10 +379,19 @@ dotenv.config()
 
 const PORT = process.env.PORT || 3001
 const SUPABASE_URL = process.env.SUPABASE_URL
-const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY
-const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000']
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY
+const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS?.split(',').map(o => o.trim()).filter(Boolean) || [
+  'http://localhost:3000',
+  'http://localhost',
+  'https://weeb-x.com',
+  'https://www.weeb-x.com'
+]
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
+  realtime: {
+    transport: WebSocket
+  }
+})
 
 const httpServer = createServer()
 const io = new Server(httpServer, {
