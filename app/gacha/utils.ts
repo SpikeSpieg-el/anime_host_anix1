@@ -88,14 +88,22 @@ export function calculateCollectionRating(cards: Card[]): CollectionRating {
 
 export const isPinterestUrl = (url: string) => url.includes('i.pinimg.com') || url.includes('pinimg.com')
 
+const IMAGE_SERVER_URL = process.env.NEXT_PUBLIC_IMAGE_SERVER_URL || ''
+
 export const getProxiedSrc = (url: string) => {
   if (!url) return url
+  if (IMAGE_SERVER_URL) {
+    return `${IMAGE_SERVER_URL}/proxy?url=${encodeURIComponent(url)}`
+  }
   if (isPinterestUrl(url)) return `/api/image-proxy?url=${encodeURIComponent(url)}`
   return url
 }
 
 export const getOptimizedThumbSrc = (url: string, width: number = 384, quality: number = 60) => {
   if (!url) return url
+  if (IMAGE_SERVER_URL) {
+    return `${IMAGE_SERVER_URL}/optimize?url=${encodeURIComponent(url)}&w=${width}&q=${quality}&f=webp`
+  }
   if (isPinterestUrl(url)) return `/api/image-proxy?url=${encodeURIComponent(url)}`
   return `/_next/image?url=${encodeURIComponent(url)}&w=${width}&q=${quality}`
 }

@@ -3,6 +3,7 @@ import { Lock } from "lucide-react"
 import { Card, CardRole } from "../types"
 import { rarityConfig } from "@/types/gacha"
 import { getCardBasePower, getCardRole } from "../utils"
+import { loadImage, getCachedImage } from "@/lib/image-loader"
 
 interface BattleCardProps {
   card: Card
@@ -19,30 +20,6 @@ interface BattleCardProps {
   synergyBonus?: number
   isInteractive?: boolean
   forceHidden?: boolean
-}
-
-// Глобальный кэш изображений для предотвращения повторных сетевых запросов при рендере
-const imageCache: Record<string, HTMLImageElement> = {}
-
-const isExternalUrl = (url: string) => {
-  if (!url) return false
-  // Check if URL is from external domains that need proxy
-  const externalDomains = [
-    'i.pinimg.com',
-    'pinimg.com',
-    'konachan.net',
-    'safebooru.org',
-    'zerochan.net',
-    's3.zerochan.net',
-    'shikimori.one'
-  ]
-  return externalDomains.some(domain => url.includes(domain))
-}
-
-const getProxiedSrc = (url: string) => {
-  if (!url) return ""
-  if (isExternalUrl(url)) return `/api/image-proxy?url=${encodeURIComponent(url)}`
-  return url
 }
 
 export const BattleCard: React.FC<BattleCardProps> = ({
@@ -93,38 +70,31 @@ export const BattleCard: React.FC<BattleCardProps> = ({
   }
   const theme = themeColors[role] || themeColors.vanguard
 
-  // Оптимизированный загрузчик изображений без CORS-запросов
+  // Оптимизированный загрузчик изображений с ограничением параллельности
   useEffect(() => {
-    const src = getProxiedSrc(card.imageUrl)
-    if (!src) return
+    if (!card.imageUrl) return
 
-    if (imageCache[src]) {
-      imageRef.current = imageCache[src]
+    const cached = getCachedImage(card.imageUrl)
+    if (cached) {
+      imageRef.current = cached
       setRedrawTrigger(prev => prev + 1)
       return
     }
 
-    const img = new Image()
-    // НЕ устанавливаем crossOrigin, чтобы избежать CORS блокировок внешних серверов
-    img.src = src
+    let cancelled = false
 
-    const handleLoad = () => {
-      imageCache[src] = img
-      imageRef.current = img
-      setRedrawTrigger(prev => prev + 1)
-    }
-
-    if (img.complete && img.naturalWidth > 0) {
-      handleLoad()
-    } else {
-      img.addEventListener("load", handleLoad)
-      img.addEventListener("error", (e) => {
-        console.warn("Не удалось загрузить арт карты на canvas:", src, e)
+    loadImage(card.imageUrl)
+      .then((img) => {
+        if (cancelled) return
+        imageRef.current = img
+        setRedrawTrigger(prev => prev + 1)
       })
-    }
+      .catch(() => {
+        // Fallback - silent, canvas will show placeholder
+      })
 
     return () => {
-      img.removeEventListener("load", handleLoad)
+      cancelled = true
     }
   }, [card.imageUrl])
 

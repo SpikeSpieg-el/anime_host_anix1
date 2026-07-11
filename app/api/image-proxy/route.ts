@@ -18,11 +18,20 @@ const ALLOWED_HOSTS = [
   'i.pinimg.com'
 ];
 
+export const maxDuration = 15;
+
+const IMAGE_SERVER_URL = process.env.IMAGE_SERVER_URL || '';
+
 export async function GET(req: NextRequest) {
   const url = req.nextUrl.searchParams.get('url');
 
   if (!url) {
     return NextResponse.json({ error: 'Missing url' }, { status: 400 });
+  }
+
+  // Delegate to Coolify image service if configured (saves Vercel serverless time)
+  if (IMAGE_SERVER_URL) {
+    return NextResponse.redirect(`${IMAGE_SERVER_URL}/proxy?url=${encodeURIComponent(url)}`, { status: 302, headers: { 'Cache-Control': 'public, max-age=86400' } });
   }
 
   let parsed: URL;
@@ -96,7 +105,7 @@ export async function GET(req: NextRequest) {
     }
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000);
+    const timeoutId = setTimeout(() => controller.abort(), 14000);
 
     let res: Response;
     try {

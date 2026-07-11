@@ -73,8 +73,9 @@ export function usePvPBattle(options?: {
         token: session.access_token
       },
       reconnection: true,
-      reconnectionAttempts: 5,
-      reconnectionDelay: 1000
+      reconnectionAttempts: 3,
+      reconnectionDelay: 2000,
+      reconnectionDelayMax: 5000
     })
 
     socketRef.current = socket
@@ -90,13 +91,18 @@ export function usePvPBattle(options?: {
     })
 
     socket.on('connect_error', (err) => {
-      console.log('[PvP] Connection failed:', err)
-      // Check if it's a CORS error
-      const isCorsError = err.message?.includes('CORS') || err.message?.includes('Access-Control-Allow-Origin')
-      const errorMessage = isCorsError 
+      const isCorsError = err.message?.includes('CORS') || err.message?.includes('Access-Control-Allow-Origin') || err.message?.includes('xhr poll error')
+      console.log('[PvP] Connection failed:', isCorsError ? 'CORS/Network error' : err)
+
+      if (isCorsError) {
+        socket.disconnect()
+        socket.io.opts.reconnection = false
+      }
+
+      const errorMessage = isCorsError
         ? 'PvP сервер недоступен. Ведутся технические работы.'
         : 'Не удалось подключиться к PvP серверу'
-      
+
       setPvpState(prev => ({
         ...prev,
         status: 'idle',
