@@ -34,8 +34,11 @@ export function isExternalImageUrl(url: string): boolean {
     'pinimg.com',
     'konachan.net',
     'safebooru.org',
+    'danbooru.donmai.us',
     'zerochan.net',
     's3.zerochan.net',
+    'static.zerochan.net',
+    'yande.re',
     'shikimori.one',
     'anilist.co',
     's4.anilist.co',
@@ -45,7 +48,14 @@ export function isExternalImageUrl(url: string): boolean {
     'kodik.info',
     'cdn.kodik.info',
     'cdn.myanimelist.net',
-    'myanimelist.net'
+    'myanimelist.net',
+    'imgur.com',
+    'i.imgur.com',
+    'discordapp.com',
+    'cdn.discordapp.com',
+    'catbox.moe',
+    'postimg.cc',
+    'postimg.org'
   ]
   return externalDomains.some(domain => url.includes(domain))
 }

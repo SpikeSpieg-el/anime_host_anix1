@@ -3,8 +3,10 @@ import { NextRequest, NextResponse } from 'next/server';
 const ALLOWED_HOSTS = [
   'konachan.net',
   'safebooru.org',
+  'danbooru.donmai.us',
   'zerochan.net',
   's3.zerochan.net',
+  'static.zerochan.net',
   'yande.re',
   'files.yande.re',
   'shikimori.one',
@@ -24,7 +26,16 @@ const ALLOWED_HOSTS = [
   'kodik.info',
   'cdn.kodik.info',
   'cdn.myanimelist.net',
-  'myanimelist.net'
+  'myanimelist.net',
+  'imgur.com',
+  'i.imgur.com',
+  'discordapp.com',
+  'cdn.discordapp.com',
+  'media.discordapp.net',
+  'catbox.moe',
+  'files.catbox.moe',
+  'postimg.cc',
+  'postimg.org'
 ];
 
 export const maxDuration = 15;

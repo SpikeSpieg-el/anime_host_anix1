@@ -36,33 +36,51 @@ function releaseFetchSlot() {
 
 // --- Allowed hosts for proxying ---
 const ALLOWED_HOSTS = [
+  // Booru/image boards
   'konachan.net',
   'safebooru.org',
+  'danbooru.donmai.us',
   'zerochan.net',
   's3.zerochan.net',
+  'static.zerochan.net',
   'yande.re',
   'files.yande.re',
+  // Anime databases
   'shikimori.one',
+  'anilist.co',
+  's4.anilist.co',
+  'kitsu.app',
+  'media.kitsu.app',
+  'cdn.myanimelist.net',
+  'myanimelist.net',
+  'api.jikan.moe',
+  'kodikapi.com',
+  'kodik.info',
+  'cdn.kodik.info',
+  // Manga
   'mixlib.me',
   'mangalib.me',
   'remanga.org',
   'reimg2.org',
   'img.reimg.org',
   'uploads.mangadex.org',
+  // Pinterest (custom arts)
   'pinimg.com',
   'i.pinimg.com',
-  'picsum.photos',
+  // Common image hosts for custom arts
+  'imgur.com',
+  'i.imgur.com',
+  'discordapp.com',
+  'cdn.discordapp.com',
+  'media.discordapp.net',
   'githubusercontent.com',
   'raw.githubusercontent.com',
-  'cdn.myanimelist.net',
-  'api.jikan.moe',
-  'anilist.co',
-  's4.anilist.co',
-  'kitsu.app',
-  'media.kitsu.app',
-  'kodikapi.com',
-  'kodik.info',
-  'cdn.kodik.info'
+  'picsum.photos',
+  'catbox.moe',
+  'files.catbox.moe',
+  'litterbox.catbox.moe',
+  'postimg.cc',
+  'postimg.org'
 ]
 
 // Domain-specific referer headers
@@ -91,7 +109,9 @@ function getReferer(hostname) {
     'kodik.info': 'https://kodik.info/',
     'cdn.kodik.info': 'https://kodik.info/',
     'cdn.myanimelist.net': 'https://myanimelist.net/',
-    'myanimelist.net': 'https://myanimelist.net/'
+    'myanimelist.net': 'https://myanimelist.net/',
+    'danbooru.donmai.us': 'https://danbooru.donmai.us/',
+    'static.zerochan.net': 'https://www.zerochan.net/'
   }
   for (const [key, val] of Object.entries(referers)) {
     if (hostname.includes(key)) return val
