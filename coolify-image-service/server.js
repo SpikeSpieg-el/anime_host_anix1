@@ -48,16 +48,22 @@ const ALLOWED_HOSTS = [
   'files.yande.re',
   // Anime databases
   'shikimori.one',
+  'shikimori.io',
+  'shikimori.org',
   'anilist.co',
   's4.anilist.co',
   'kitsu.app',
   'media.kitsu.app',
+  'media.kitsu.io',
   'cdn.myanimelist.net',
   'myanimelist.net',
   'api.jikan.moe',
   'kodikapi.com',
   'kodik.info',
   'cdn.kodik.info',
+  'img.youtube.com',
+  'i.ytimg.com',
+  'api.anilibria.tv',
   // Manga
   'mixlib.me',
   'mangalib.me',
@@ -98,6 +104,8 @@ function getReferer(hostname) {
     'mixlib.me': 'https://mangalib.me/',
     'mangalib.me': 'https://mangalib.me/',
     'shikimori.one': 'https://shikimori.one/',
+    'shikimori.io': 'https://shikimori.io/',
+    'shikimori.org': 'https://shikimori.org/',
     'remanga.org': 'https://remanga.org/',
     'reimg2.org': 'https://remanga.org/',
     'img.reimg.org': 'https://remanga.org/',
@@ -110,13 +118,17 @@ function getReferer(hostname) {
     's4.anilist.co': 'https://anilist.co/',
     'kitsu.app': 'https://kitsu.io/',
     'media.kitsu.app': 'https://kitsu.io/',
+    'media.kitsu.io': 'https://kitsu.io/',
     'kodikapi.com': 'https://kodik.info/',
     'kodik.info': 'https://kodik.info/',
     'cdn.kodik.info': 'https://kodik.info/',
     'cdn.myanimelist.net': 'https://myanimelist.net/',
     'myanimelist.net': 'https://myanimelist.net/',
     'danbooru.donmai.us': 'https://danbooru.donmai.us/',
-    'static.zerochan.net': 'https://www.zerochan.net/'
+    'static.zerochan.net': 'https://www.zerochan.net/',
+    'img.youtube.com': 'https://www.youtube.com/',
+    'i.ytimg.com': 'https://www.youtube.com/',
+    'api.anilibria.tv': 'https://api.anilibria.tv/'
   }
   for (const [key, val] of Object.entries(referers)) {
     if (hostname.includes(key)) return val
@@ -169,8 +181,14 @@ async function fetchImage(url) {
   }
 
   await acquireFetchSlot()
+
+  // Slow hosts get longer timeout
+  const slowHosts = ['files.yande.re', 'yande.re', 'konachan.net', 'zerochan.net', 's3.zerochan.net']
+  const isSlowHost = slowHosts.some(h => parsed.hostname === h || parsed.hostname.endsWith('.' + h))
+  const timeoutMs = isSlowHost ? 30000 : 15000
+
   const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), 10000)
+  const timeout = setTimeout(() => controller.abort(), timeoutMs)
 
   try {
     const res = await fetch(url, {
@@ -190,7 +208,7 @@ async function fetchImage(url) {
     return { buffer, contentType }
   } catch (err) {
     if (err.name === 'AbortError') {
-      throw new Error(`Fetch timeout (10s): ${parsed.hostname}`)
+      throw new Error(`Fetch timeout (${timeoutMs / 1000}s): ${parsed.hostname}`)
     }
     throw err
   } finally {
