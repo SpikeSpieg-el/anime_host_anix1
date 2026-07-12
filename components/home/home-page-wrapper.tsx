@@ -8,7 +8,7 @@ import { FloatingNav } from '@/components/layout/floating-nav'
 import { HeroBanner } from './hero-banner'
 import { HeroBannerSkeleton } from '@/components/shared/skeleton'
 import { HomePageClient } from './home-client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import type { Anime, RecommendationReason } from '@/lib/shikimori'
 
 interface HomePageWrapperProps {
@@ -123,7 +123,9 @@ export function HomePageWrapper({
           <HeroBannerSkeleton />
         )}
       </section>
-      <HomePageClient initialData={initialData} />
+      <Suspense fallback={null}>
+        <HomePageClient initialData={initialData} />
+      </Suspense>
       <Footer />
     </main>
   )
