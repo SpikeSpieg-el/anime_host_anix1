@@ -43,6 +43,8 @@ function loadCacheFromStorage(): CoverCache {
     for (const [id, entry] of Object.entries(data.cache || {})) {
       const typedEntry = entry as { poster: string; backdrop: string | null; timestamp: number; sources: string[] }
       if (now - typedEntry.timestamp < CACHE_TTL) {
+        // Skip data URI fallback posters - they should be re-fetched
+        if (typedEntry.poster && typedEntry.poster.startsWith('data:')) continue
         cleaned[id] = typedEntry
       }
     }
@@ -94,9 +96,9 @@ export function CoverProvider({ children }: { children: React.ReactNode }) {
     russianName: string,
     disableExternalAPIs: boolean = false
   ): Promise<string> => {
-    // Проверяем кэш
+    // Проверяем кэш (но не возвращаем data URI заглушки)
     const cached = cache[animeId]
-    if (cached && cached.poster) {
+    if (cached && cached.poster && !cached.poster.startsWith('data:')) {
       console.log(`[CoverProvider] Poster cache hit for ${animeId}`)
       return cached.poster
     }
@@ -254,7 +256,8 @@ export function CoverProvider({ children }: { children: React.ReactNode }) {
     // Ограничиваем 30, чтобы не тратить лимит трансформаций на всё подряд
     const toFetch = animes.filter(anime => {
       const cached = cache[anime.id];
-      if (cached && cached.poster) return false;
+      // Don't skip if cached poster is a data URI fallback - allow re-fetching
+      if (cached && cached.poster && !cached.poster.startsWith('data:')) return false;
       if (pendingRequestsRef.current.has(anime.id)) return false;
       return true;
     }).slice(0, 30);
@@ -347,6 +350,8 @@ export function CoverProvider({ children }: { children: React.ReactNode }) {
   const getFromCache = useCallback((animeId: string) => {
     const entry = cache[animeId]
     if (!entry) return null
+    // Don't return data URI fallback as a "valid" cached poster
+    if (entry.poster && entry.poster.startsWith('data:')) return null
     
     return {
       poster: entry.poster,

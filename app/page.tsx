@@ -32,6 +32,13 @@ export async function generateMetadata(): Promise<Metadata> {
       "аниме игры онлайн",
       "смотреть аниме",
       "аниме онлайн",
+      "weebx",
+      "weeb x",
+      "WeebX",
+      "Weeb-X",
+      "weeb x аниме",
+      "weebx онлайн",
+      "weeb x смотреть аниме",
     ].filter(Boolean),
     alternates: {
       canonical: "https://weeb-x.com",

@@ -15,6 +15,12 @@ export const metadata: Metadata = {
     "читать мангу онлайн",
     "новинки манги",
     "топ манги",
+    "weebx",
+    "weeb x",
+    "WeebX",
+    "Weeb-X",
+    "weeb x манга",
+    "weebx манга",
   ],
   alternates: {
     canonical: "https://weeb-x.com/manga",

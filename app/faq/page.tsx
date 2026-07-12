@@ -15,6 +15,12 @@ export const metadata: Metadata = {
     "как смотреть аниме",
     "регистрация на сайте",
     "бесплатно аниме",
+    "weebx",
+    "weeb x",
+    "WeebX",
+    "Weeb-X",
+    "weeb x faq",
+    "weebx вопросы",
   ],
   alternates: {
     canonical: "https://weeb-x.com/faq",

@@ -16,7 +16,8 @@ export function OrganizationStructuredData() {
   const organizationData: Record<string, any> = {
     '@context': 'https://schema.org',
     '@type': 'Organization',
-    name: 'Weeb-x',
+    name: 'Weeb-X',
+    alternateName: ['Weebx', 'weeb x', 'WeebX', 'weeb-x'],
     url: 'https://weeb-x.com',
     logo: 'https://weeb-x.com/icon.svg',
     description: 'Аниме-стриминговая платформа с гача-крутками и PvP-ареной',
@@ -32,7 +33,8 @@ export function WebSiteStructuredData() {
   const websiteData: Record<string, any> = {
     '@context': 'https://schema.org',
     '@type': 'WebSite',
-    name: 'Weeb-x',
+    name: 'Weeb-X',
+    alternateName: ['Weebx', 'weeb x', 'WeebX', 'weeb-x'],
     url: 'https://weeb-x.com',
     description: 'Аниме-стриминговая платформа с гача-крутками и PvP-ареной',
     potentialAction: {

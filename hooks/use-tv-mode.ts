@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 
 export function useTVMode() {
   const [isTVMode, setIsTVMode] = useState(false)
-  const [isLoading, setIsLoading] = useState(true)
+  const [isLoading, setIsLoading] = useState(false)
 
   useEffect(() => {
     const checkTVMode = () => {

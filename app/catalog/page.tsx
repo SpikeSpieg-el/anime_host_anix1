@@ -85,6 +85,13 @@ export async function generateMetadata({
       "аниме новинки",
       "аниме в hd",
       "аниме на русском",
+      "weebx",
+      "weeb x",
+      "WeebX",
+      "Weeb-X",
+      "weeb x аниме",
+      "weebx каталог",
+      "weeb x смотреть аниме",
     ],
     alternates: {
       canonical: `https://weeb-x.com/catalog${Object.keys(params).length > 0 ? '?' + new URLSearchParams(params as Record<string, string>).toString() : ''}`,
