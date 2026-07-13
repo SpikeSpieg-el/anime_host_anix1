@@ -1,6 +1,6 @@
 import { Metadata } from "next"
 import Link from "next/link"
-import { ArrowLeft, Mail, MessageCircle, Github, ShieldAlert, FileText, Clock } from "lucide-react"
+import { ArrowLeft, Mail, MessageCircle, ShieldAlert, FileText, Clock } from "lucide-react"
 import { Footer } from "@/components/layout/footer"
 
 export const metadata: Metadata = {
@@ -41,14 +41,6 @@ const contactMethods = [
     value: "tech@weeb-x.com",
     href: "mailto:tech@weeb-x.com",
   },
-  {
-    icon: Github,
-    title: "GitHub",
-    description: "Отслеживайте развитие проекта и сообщайте о багах",
-    value: "github.com/weeb-x",
-    href: "https://github.com/weeb-x",
-    external: true,
-  },
 ]
 
 export default function ContactsPage() {
@@ -77,8 +69,8 @@ export default function ContactsPage() {
             <a
               key={index}
               href={method.href}
-              target={method.external ? "_blank" : undefined}
-              rel={method.external ? "noopener noreferrer" : undefined}
+              target="_blank"
+              rel="noopener noreferrer"
               className="group bg-card border border-border rounded-xl p-6 hover:border-primary/50 hover:bg-accent/50 transition-all"
             >
               <div className="flex items-start gap-4">
