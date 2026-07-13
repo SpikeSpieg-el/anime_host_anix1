@@ -109,7 +109,7 @@ export default function RootLayout({
           <Suspense fallback={null}>
             <GlobalLoading />
           </Suspense>
-          <WelcomeModal />
+          {/* <WelcomeModal /> */}
           <CookieConsent />
           <AuthProvider>
             <UserDataLoadingBar />
