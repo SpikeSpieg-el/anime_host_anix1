@@ -11,6 +11,12 @@ export const metadata: Metadata = {
     "pvp для новичков",
     "интерфейс аниме сайта",
     "помощь новичкам",
+    "weebx",
+    "weeb x",
+    "WeebX",
+    "Weeb-X",
+    "weeb x гайд",
+    "weebx новичкам",
   ],
   alternates: {
     canonical: "https://weeb-x.com/beginners",

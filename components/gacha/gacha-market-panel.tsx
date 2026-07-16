@@ -11,6 +11,7 @@ import { useCoins } from "@/hooks/use-coins"
 import { supabase } from "@/lib/supabase"
 import { frameNames, coatingNames, FrameOverlay, CoatingOverlay } from "@/components/gacha/card-modifiers"
 import { getCardBasePower, getCardProvision } from "@/app/battle/utils"
+import { getProxiedSrc, getOptimizedThumbSrc } from "@/app/gacha/utils"
 import { CanvasImage } from "@/components/gacha/canvas-image"
 import { MarketCardSkeleton } from "@/components/gacha/market-card-skeleton"
 
@@ -35,13 +36,6 @@ type MarketFilters = {
   isMainCharacter: boolean | null
 }
 
-const isPinterestUrl = (url: string) => url.includes('i.pinimg.com') || url.includes('pinimg.com');
-const getProxiedSrc = (url: string) => {
-  if (!url) return url;
-  if (isPinterestUrl(url)) return `/api/image-proxy?url=${encodeURIComponent(url)}`;
-  return url;
-};
-
 function getTopStat(stats: { hp: number; atk: number; def: number; spd: number; luck: number }): {
   key: keyof typeof statLabels
   label: string
@@ -59,11 +53,6 @@ function getTopStat(stats: { hp: number; atk: number; def: number; spd: number; 
     if (e[1] > best[1]) best = e
   }
   return { key: best[0], label: statLabels[best[0]], value: best[1] }
-}
-
-const getOptimizedThumbSrc = (url: string, width: number = 384, quality: number = 60) => {
-  if (!url) return url
-  return `/_next/image?url=${encodeURIComponent(url)}&w=${width}&q=${quality}`
 }
 
 const handleListingImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>, card: MarketListingApi["card"]) => {
@@ -1073,7 +1062,7 @@ export function GachaMarketPanel({
                     src={getProxiedSrc(c.imageUrl)}
                     alt={c.name}
                     fill
-                    unoptimized={isPinterestUrl(c.imageUrl)}
+                    unoptimized={true}
                     className="object-cover group-hover:scale-105 transition-transform duration-500 ease-out"
                     sizes="(max-width: 640px) 45vw, 18vw"
                     quality={60}

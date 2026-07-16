@@ -6,7 +6,9 @@ const nextConfig = {
       { protocol: 'https', hostname: '**' },
       { protocol: 'http', hostname: '**' },
     ],
-    // Два уровня качества для снижения количества трансформаций
+    // Custom loader delegates to Coolify image service (bypasses Vercel transformations)
+    loader: 'custom',
+    loaderFile: './lib/coolify-image-loader.js',
     qualities: [50, 60, 70, 80, 85],
     formats: ['image/avif', 'image/webp'],
   },

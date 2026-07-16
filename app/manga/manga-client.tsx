@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils';
 import { MultiSelect } from '@/components/ui/multi-select';
 import { MANGADEX_TAGS_MAP } from '@/lib/mangadex/api';
 import { Footer } from '@/components/layout/footer';
+import { getProxiedSrc } from '@/lib/image-loader';
 
 interface Manga {
   id: string;
@@ -25,8 +26,8 @@ function MangaCard({ manga }: { manga: Manga }) {
   const [isLoaded, setIsLoaded] = useState(false);
   const [hasError, setHasError] = useState(false);
 
-  // Use proxy for manga cover images to avoid CORS issues
-  const imageUrl = manga.image ? `/api/image-proxy?url=${encodeURIComponent(manga.image)}` : undefined;
+  // Image URL — proxying handled by getProxiedSrc() in the img tag
+  const imageUrl = manga.image || undefined;
 
   return (
     <Link
@@ -44,7 +45,7 @@ function MangaCard({ manga }: { manga: Manga }) {
 
         {imageUrl && !hasError ? (
           <img
-            src={imageUrl}
+            src={getProxiedSrc(imageUrl)}
             alt={manga.title}
             onLoad={() => setIsLoaded(true)}
             onError={() => setHasError(true)}

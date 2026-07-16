@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from "react"
 import { Rarity, rarityConfig } from "@/types/gacha"
 import { getCardBasePower } from "@/app/battle/utils"
+import { getProxiedSrc } from "@/lib/image-loader"
 
 const RARITY_ORDER: Rarity[] = [
   "trash", "common", "uncommon", "rare", "super_rare", "epic",
@@ -678,7 +679,7 @@ export function GachaAnimation({ isRolling, revealedCard, onComplete }: GachaAni
             >
               {revealedCard?.imageUrl ? (
                 <img
-                  src={revealedCard.imageUrl}
+                  src={getProxiedSrc(revealedCard.imageUrl)}
                   alt={revealedCard.name}
                   className="w-full h-full object-cover"
                 />

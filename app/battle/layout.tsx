@@ -16,6 +16,12 @@ export const metadata: Metadata = {
     "игры аниме онлайн бесплатно",
     "аниме игра на русском",
     "аниме игры как геншин",
+    "weebx",
+    "weeb x",
+    "WeebX",
+    "Weeb-X",
+    "weeb x пвп",
+    "weebx арена",
   ],
   alternates: {
     canonical: "https://weeb-x.com/battle",

@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, useRef } from "react"
 import { PlayerLoading } from "@/components/watch/player-loading"
 import { AlertCircle } from "lucide-react"
 import { RegionDetector } from "@/components/providers/region-detector"
+import { getProxiedSrc } from "@/lib/image-loader"
 
 interface KodikPlayerProps {
   shikimoriId: string
@@ -388,7 +389,7 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCo
           >
             {/* Фон-постер */}
             <img 
-              src={poster || undefined} 
+              src={poster ? getProxiedSrc(poster) : undefined}
               className="absolute inset-0 w-full h-full object-cover opacity-30 blur-sm transition-opacity group-hover:opacity-40" 
               alt="" 
             />

@@ -26,7 +26,19 @@ const siteUrl = "https://weeb-x.com"
 export const metadata: Metadata = {
   title: "Weeb-X — Смотреть аниме онлайн",
   description: "Стриминг аниме в HD с русской озвучкой. Гача-крутки, PvP-арена, каталог манги и новости аниме. Бесплатно на Weeb-X.",
+  keywords: ["weebx", "weeb x", "WeebX", "Weeb-X", "weeb-x", "weebx аниме", "weeb x аниме", "weeb x смотреть", "weebx онлайн"],
   generator: "Weeb-X_stream",
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-video-preview": -1,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+    },
+  },
   icons: {
     icon: [
       {
@@ -97,7 +109,7 @@ export default function RootLayout({
           <Suspense fallback={null}>
             <GlobalLoading />
           </Suspense>
-          <WelcomeModal />
+          {/* <WelcomeModal /> */}
           <CookieConsent />
           <AuthProvider>
             <UserDataLoadingBar />

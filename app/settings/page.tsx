@@ -7,7 +7,7 @@ import { AuthModal } from "@/components/auth/auth-modal"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Loader2, Save, User, ArrowLeft, Shield, ShieldAlert, LogIn, UserPlus } from "lucide-react"
+import { Loader2, Save, User, ArrowLeft, Shield, ShieldAlert, LogIn, UserPlus, Tv, Unlink, RefreshCw, ExternalLink } from "lucide-react"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/hooks/use-toast"
@@ -25,7 +25,64 @@ export default function SettingsPage() {
   const [loadingNsfw, setLoadingNsfw] = useState(false)
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false)
   const [successPopup, setSuccessPopup] = useState({ isOpen: false, title: '', message: '' })
+  const [lampaDevices, setLampaDevices] = useState<any[]>([])
+  const [lampaLoading, setLampaLoading] = useState(false)
+  const [lampaUnlinking, setLampaUnlinking] = useState<string | null>(null)
   const { toast } = useToast()
+
+  const fetchLampaDevices = async () => {
+    if (!user || !session?.access_token) return
+    setLampaLoading(true)
+    try {
+      const res = await fetch('/api/lampa/devices', {
+        headers: { Authorization: `Bearer ${session.access_token}` }
+      })
+      const data = await res.json()
+      if (data.success) {
+        setLampaDevices(data.devices || [])
+      }
+    } catch (err) {
+      console.error('Failed to fetch Lampa devices:', err)
+    } finally {
+      setLampaLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    if (user && session) {
+      fetchLampaDevices()
+    }
+  }, [user?.id, session?.access_token])
+
+  const handleUnlinkDevice = async (deviceId: string) => {
+    if (!session?.access_token) return
+    setLampaUnlinking(deviceId)
+    try {
+      const res = await fetch('/api/lampa/devices', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({ device_id: deviceId })
+      })
+      const data = await res.json()
+      if (data.success) {
+        setLampaDevices(prev => prev.filter(d => d.id !== deviceId))
+        setSuccessPopup({
+          isOpen: true,
+          title: 'Устройство отвязано',
+          message: 'Устройство Lampa успешно отвязано от вашего аккаунта'
+        })
+      } else {
+        toast({ title: 'Ошибка', description: data.message || 'Не удалось отвязать устройство', variant: 'destructive' })
+      }
+    } catch (err) {
+      toast({ title: 'Ошибка', description: 'Сетевая ошибка', variant: 'destructive' })
+    } finally {
+      setLampaUnlinking(null)
+    }
+  }
 
   const handleUsernameSave = async () => {
     if (!user) return
@@ -276,6 +333,211 @@ export default function SettingsPage() {
                 </p>
               </div>
             )}
+          </CardContent>
+        </Card>
+
+        {/* Lampa Integration */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-foreground flex items-center gap-2">
+              <Tv className="w-5 h-5" />
+              Lampa — синхронизация с ТВ
+            </CardTitle>
+            <CardDescription className="text-muted-foreground">
+              Привяжите приложение Lampa на Android TV для синхронизации истории просмотра
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Activation link */}
+            <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg border">
+              <div className="space-y-0.5">
+                <p className="text-sm font-medium text-foreground">Активация нового устройства</p>
+                <p className="text-xs text-muted-foreground">
+                  Откройте страницу активации и введите PIN-код с ТВ
+                </p>
+              </div>
+              <Link
+                href="/activate"
+                className="inline-flex items-center gap-1.5 text-sm text-primary hover:text-primary/80 font-medium"
+              >
+                <ExternalLink className="w-4 h-4" />
+                Активировать
+              </Link>
+            </div>
+
+            {/* Devices list */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium text-foreground">Привязанные устройства</p>
+                <button
+                  onClick={fetchLampaDevices}
+                  disabled={lampaLoading}
+                  className="text-muted-foreground hover:text-foreground disabled:opacity-50"
+                >
+                  <RefreshCw className={`w-4 h-4 ${lampaLoading ? 'animate-spin' : ''}`} />
+                </button>
+              </div>
+
+              {lampaLoading && lampaDevices.length === 0 ? (
+                <div className="flex items-center justify-center py-6">
+                  <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+                </div>
+              ) : lampaDevices.length === 0 ? (
+                <div className="text-center py-6 px-4 bg-muted/30 rounded-lg border border-dashed">
+                  <Tv className="w-8 h-8 text-muted-foreground mx-auto mb-2 opacity-50" />
+                  <p className="text-sm text-muted-foreground">
+                    Нет привязанных устройств Lampa
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {lampaDevices.map((device) => (
+                    <div
+                      key={device.id}
+                      className="flex items-center justify-between p-3 bg-muted/50 rounded-lg border"
+                    >
+                      <div className="space-y-0.5 min-w-0 flex-1">
+                        <p className="text-sm font-medium text-foreground truncate">
+                          {device.device_name || 'Lampa Device'}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Активен с {new Date(device.created_at).toLocaleDateString('ru-RU')}
+                          {device.last_used_at && (
+                            <> · Последнее использование: {new Date(device.last_used_at).toLocaleDateString('ru-RU')}</>
+                          )}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => handleUnlinkDevice(device.id)}
+                        disabled={lampaUnlinking === device.id}
+                        className="flex items-center gap-1.5 text-xs text-red-500 hover:text-red-400 disabled:opacity-50 font-medium ml-3 flex-shrink-0"
+                      >
+                        {lampaUnlinking === device.id ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <Unlink className="w-3.5 h-3.5" />
+                        )}
+                        Отвязать
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Full tutorial */}
+            <details className="group bg-muted/30 rounded-lg border overflow-hidden">
+              <summary className="flex items-center justify-between cursor-pointer p-3 select-none hover:bg-muted/50 transition-colors">
+                <span className="text-sm font-medium text-foreground flex items-center gap-2">
+                  <Tv className="w-4 h-4 text-primary" />
+                  Полная инструкция по подключению Lampa
+                </span>
+                <svg
+                  className="w-4 h-4 text-muted-foreground transition-transform group-open:rotate-180"
+                  fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"
+                >
+                  <path d="M6 9l6 6 6-6" />
+                </svg>
+              </summary>
+
+              <div className="px-4 pb-4 pt-1 space-y-4 text-sm">
+                {/* Step 1 */}
+                <div className="flex gap-3">
+                  <div className="flex-shrink-0 w-7 h-7 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-bold">1</div>
+                  <div className="space-y-1 min-w-0">
+                    <p className="font-medium text-foreground">Установите плагин в Lampa</p>
+                    <p className="text-muted-foreground text-xs">
+                      На вашем Android TV откройте Lampa, перейдите в:
+                    </p>
+                    <p className="text-muted-foreground text-xs pl-3 border-l-2 border-primary/30 ml-1">
+                      Настройки → Плагины → Добавить (или «+»)
+                    </p>
+                    <p className="text-muted-foreground text-xs">Вставьте URL плагина:</p>
+                    <div className="flex items-center gap-2 bg-background border rounded-md p-2 mt-1">
+                      <code className="text-xs text-primary flex-1 break-all">
+                        https://weeb-x.com/lampa/weebx-plugin.js
+                      </code>
+                      <button
+                        onClick={() => {
+                          navigator.clipboard?.writeText('https://weeb-x.com/lampa/weebx-plugin.js')
+                          toast({ title: 'Скопировано', description: 'URL плагина скопирован в буфер обмена' })
+                        }}
+                        className="flex-shrink-0 text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded border"
+                      >
+                        Копировать
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Step 2 */}
+                <div className="flex gap-3">
+                  <div className="flex-shrink-0 w-7 h-7 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-bold">2</div>
+                  <div className="space-y-1 min-w-0">
+                    <p className="font-medium text-foreground">Включите плагин</p>
+                    <p className="text-muted-foreground text-xs">
+                      После добавления плагина включите его переключателем (если он выключен).
+                      Перезагрузите Lampa, если плагин не появился сразу.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Step 3 */}
+                <div className="flex gap-3">
+                  <div className="flex-shrink-0 w-7 h-7 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-bold">3</div>
+                  <div className="space-y-1 min-w-0">
+                    <p className="font-medium text-foreground">Откройте плагин в настройках Lampa</p>
+                    <p className="text-muted-foreground text-xs">
+                      Перейдите в Настройки Lampa — там появится новый пункт
+                      <span className="text-foreground font-medium"> «Weeb-X Синхронизация»</span>.
+                      Нажмите на него. На экране ТВ появится 6-значный PIN-код.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Step 4 */}
+                <div className="flex gap-3">
+                  <div className="flex-shrink-0 w-7 h-7 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-bold">4</div>
+                  <div className="space-y-1 min-w-0">
+                    <p className="font-medium text-foreground">Активируйте устройство на сайте</p>
+                    <p className="text-muted-foreground text-xs">
+                      С телефона или компьютера перейдите на страницу активации и введите PIN-код:
+                    </p>
+                    <Link
+                      href="/activate"
+                      className="inline-flex items-center gap-1.5 text-xs text-primary hover:text-primary/80 font-medium mt-1"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      weeb-x.com/activate
+                    </Link>
+                  </div>
+                </div>
+
+                {/* Step 5 */}
+                <div className="flex gap-3">
+                  <div className="flex-shrink-0 w-7 h-7 rounded-full bg-green-600 text-white flex items-center justify-center text-xs font-bold">✓</div>
+                  <div className="space-y-1 min-w-0">
+                    <p className="font-medium text-foreground">Готово!</p>
+                    <p className="text-muted-foreground text-xs">
+                      После ввода PIN-кода на сайте, Lampa автоматически получит токен авторизации.
+                      История просмотра будет синхронизироваться между Lampa и Weeb-X автоматически —
+                      вы увидите прогресс на сайте и в разделе «Продолжить просмотр».
+                    </p>
+                  </div>
+                </div>
+
+                {/* FAQ */}
+                <div className="pt-2 border-t space-y-2">
+                  <p className="font-medium text-foreground text-xs">Частые вопросы:</p>
+                  <div className="space-y-1.5 text-xs text-muted-foreground">
+                    <p><span className="text-foreground font-medium">PIN не работает?</span> Код действителен 10 минут. Запросите новый, открыв плагин снова.</p>
+                    <p><span className="text-foreground font-medium">Плагин не появился в настройках?</span> Перезагрузите Lampa после установки. Проверьте, что плагин включён в списке плагинов.</p>
+                    <p><span className="text-foreground font-medium">История не синхронизируется?</span> Убедитесь, что вы вошли в один и тот же аккаунт Weeb-X на сайте и при активации плагина.</p>
+                    <p><span className="text-foreground font-medium">Как отвязать ТВ?</span> Нажмите «Отвязать» в списке устройств выше, либо откройте плагин в Lampa и выберите «Отвязать устройство».</p>
+                  </div>
+                </div>
+              </div>
+            </details>
           </CardContent>
         </Card>
 

@@ -3,6 +3,7 @@
 import { useMemo } from "react"
 import { Tv, Film, Clapperboard, Play, Bookmark } from "lucide-react"
 import { useBookmarks } from "@/components/providers/bookmarks-provider"
+import { getProxiedSrc } from "@/lib/image-loader"
 import type { Anime } from "@/lib/shikimori/types"
 
 interface LinkedAnimeCardProps {
@@ -42,7 +43,7 @@ export function LinkedAnimeCard({ id, name, russian, poster, kindLabel, statusLa
       <a href={`/watch/${id}`} className="news-linked-poster-link">
         {poster ? (
           <img
-            src={poster}
+            src={getProxiedSrc(poster)}
             alt={russian || name}
             className="news-linked-poster"
             loading="lazy"

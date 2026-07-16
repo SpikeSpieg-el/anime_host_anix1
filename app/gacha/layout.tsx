@@ -17,6 +17,12 @@ export const metadata: Metadata = {
     "гача система",
     "шанс SSR",
     "бесплатные крутки",
+    "weebx",
+    "weeb x",
+    "WeebX",
+    "Weeb-X",
+    "weeb x гача",
+    "weebx гача",
   ],
   alternates: {
     canonical: "https://weeb-x.com/gacha",

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { Github, Send, MessageCircle, Image as ImageIcon } from "lucide-react"
+import { MessageCircle, Image as ImageIcon } from "lucide-react"
 import { Dialog, DialogContent, DialogTrigger, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 
 const animeQuotes = [

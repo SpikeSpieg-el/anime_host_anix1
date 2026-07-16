@@ -6,6 +6,7 @@ import { Card, DeckSynergy } from "../types"
 import { rarityConfig } from "@/types/gacha"
 import { DECK_SIZE, ROLE_CONFIG, PROVISION_LIMIT, SYNERGY_DEFINITIONS } from "../config"
 import { getCardProvision, getCardBasePower } from "../utils"
+import { getProxiedSrc } from "@/lib/image-loader"
 
 interface TeamBuilderModalProps {
   showTeamBuilder: boolean
@@ -23,14 +24,6 @@ interface TeamBuilderModalProps {
   setLeaderId: (id: string | null) => void
   activeSynergies: DeckSynergy[]
   onCardClick?: (card: Card) => void
-}
-
-const isPinterestUrl = (url: string) => url?.includes("i.pinimg.com") || url?.includes("pinimg.com")
-
-const getProxiedSrc = (url: string) => {
-  if (!url) return ""
-  if (isPinterestUrl(url)) return `/api/image-proxy?url=${encodeURIComponent(url)}`
-  return url
 }
 
 export const TeamBuilderModal: React.FC<TeamBuilderModalProps> = ({

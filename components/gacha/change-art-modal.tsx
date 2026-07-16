@@ -7,15 +7,11 @@ import type { Card } from "@/app/gacha/types"
 import { useDust } from "@/hooks/use-dust"
 import { useAuth } from "@/components/auth/auth-provider"
 import { supabase } from "@/lib/supabase"
+import { getProxiedSrc, isExternalImageUrl } from "@/lib/image-loader"
 
 const ART_CHANGE_COST = 50
 
 const isPinterestUrl = (url: string) => url.includes('i.pinimg.com') || url.includes('pinimg.com');
-const getProxiedSrc = (url: string) => {
-  if (!url) return url;
-  if (isPinterestUrl(url)) return `/api/image-proxy?url=${encodeURIComponent(url)}`;
-  return url;
-};
 
 interface ChangeArtModalProps {
   card: Card | null
@@ -319,14 +315,14 @@ export function ChangeArtModal({ card, onClose, onArtChanged, dust, refreshDust:
               {previewArt ? (
                 <>
                   <Image
-                    src={previewArt}
+                    src={getProxiedSrc(previewArt)}
                     alt="New art preview"
                     fill
                     className={`object-cover transition-opacity duration-300 ${isPreviewLoading ? 'opacity-0' : 'opacity-100'}`}
                     sizes="(max-width: 640px) 50vw, 33vw"
                     quality={60}
                     referrerPolicy="no-referrer"
-                    unoptimized={isPinterestUrl(previewArt)}
+                    unoptimized={isPinterestUrl(previewArt) || previewArt.startsWith('data:image')}
                     onLoad={() => setIsPreviewLoading(false)}
                     onError={handleImageError}
                   />

@@ -3,8 +3,10 @@ import { NextRequest, NextResponse } from 'next/server';
 const ALLOWED_HOSTS = [
   'konachan.net',
   'safebooru.org',
+  'danbooru.donmai.us',
   'zerochan.net',
   's3.zerochan.net',
+  'static.zerochan.net',
   'yande.re',
   'files.yande.re',
   'shikimori.one',
@@ -14,15 +16,47 @@ const ALLOWED_HOSTS = [
   'reimg2.org',
   'img.reimg.org',
   'uploads.mangadex.org',
+  'meo.comick.pictures',
+  'cdn.mangaeden.com',
   'pinimg.com',
-  'i.pinimg.com'
+  'i.pinimg.com',
+  'anilist.co',
+  's4.anilist.co',
+  'kitsu.app',
+  'media.kitsu.app',
+  'kodikapi.com',
+  'kodik.info',
+  'cdn.kodik.info',
+  'cdn.myanimelist.net',
+  'myanimelist.net',
+  'imgur.com',
+  'i.imgur.com',
+  'discordapp.com',
+  'cdn.discordapp.com',
+  'media.discordapp.net',
+  'catbox.moe',
+  'files.catbox.moe',
+  'postimg.cc',
+  'postimg.org',
+  'github.com',
+  'githubusercontent.com',
+  'raw.githubusercontent.com'
 ];
+
+export const maxDuration = 15;
+
+const IMAGE_SERVER_URL = process.env.IMAGE_SERVER_URL || '';
 
 export async function GET(req: NextRequest) {
   const url = req.nextUrl.searchParams.get('url');
 
   if (!url) {
     return NextResponse.json({ error: 'Missing url' }, { status: 400 });
+  }
+
+  // Delegate to Coolify image service if configured (saves Vercel serverless time)
+  if (IMAGE_SERVER_URL) {
+    return NextResponse.redirect(`${IMAGE_SERVER_URL}/proxy?url=${encodeURIComponent(url)}`, { status: 302, headers: { 'Cache-Control': 'public, max-age=86400' } });
   }
 
   let parsed: URL;
@@ -38,7 +72,6 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    // Set appropriate headers based on the domain
     let referer = ''
     let origin: string | undefined = undefined;
     if (parsed.hostname.includes('konachan.net')) {
@@ -78,9 +111,7 @@ export async function GET(req: NextRequest) {
       headers['Origin'] = origin;
     }
 
-    // Try additional headers for reimg2.org and img.reimg.org to bypass hotlink protection
     if (parsed.hostname.includes('reimg2.org') || parsed.hostname.includes('img.reimg.org')) {
-      // For img.reimg.org, use the exact same headers that work for the Remanga API
       if (parsed.hostname.includes('img.reimg.org')) {
         const remangaApiHeaders: Record<string, string> = {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -96,7 +127,7 @@ export async function GET(req: NextRequest) {
     }
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000);
+    const timeoutId = setTimeout(() => controller.abort(), 14000);
 
     let res: Response;
     try {
@@ -119,57 +150,15 @@ export async function GET(req: NextRequest) {
     const contentType = res.headers.get('content-type') || 'image/jpeg';
     const buffer = await res.arrayBuffer();
 
-    // Check if response is valid image (minimum size check)
     if (buffer.byteLength < 100) {
       console.error('[image-proxy] Response too small:', buffer.byteLength);
       return NextResponse.json({ error: 'Invalid image response' }, { status: 502 });
     }
 
-    // Check for common Pinterest placeholder patterns in the buffer
-    const uint8Array = new Uint8Array(buffer);
-    const isLikelyPlaceholder = 
-      buffer.byteLength < 1000 || // Very small images are often placeholders
-      contentType.includes('application/json'); // Sometimes returns JSON error
-
-    // Allow HTML responses for some domains that might return HTML with embedded images
-    // but reject if it's too small to be useful
-    if (contentType.includes('text/html') && buffer.byteLength < 10000) {
-      console.error('[image-proxy] HTML response too small:', contentType, buffer.byteLength);
-      return NextResponse.json({ error: 'HTML response too small' }, { status: 502 });
-    }
-
-    if (isLikelyPlaceholder) {
-      console.error('[image-proxy] Likely placeholder returned:', contentType, buffer.byteLength);
-      return NextResponse.json({ error: 'Placeholder image detected' }, { status: 502 });
-    }
-
-    // Additional check: detect gradient placeholders by analyzing color variance
-    // Gradient placeholders typically have very low color variance
-    if (contentType.includes('image/') && !parsed.hostname.includes('remanga.org') && !parsed.hostname.includes('reimg2.org') && !parsed.hostname.includes('mixlib.me') && !parsed.hostname.includes('mangalib.me')) {
-      let colorVariance = 0;
-      const sampleSize = Math.min(1000, buffer.byteLength);
-      for (let i = 0; i < sampleSize - 3; i += 4) {
-        const r = uint8Array[i];
-        const g = uint8Array[i + 1];
-        const b = uint8Array[i + 2];
-        const avg = (r + g + b) / 3;
-        colorVariance += Math.abs(r - avg) + Math.abs(g - avg) + Math.abs(b - avg);
-      }
-      const avgVariance = colorVariance / (sampleSize / 4);
-      
-      // Very low variance suggests a gradient or solid color placeholder
-      // Scale threshold based on image size - larger images are less likely to be placeholders
-      let varianceThreshold = 50;
-      if (buffer.byteLength > 50000) {
-        varianceThreshold = 30; // More lenient for larger images
-      } else if (buffer.byteLength < 20000) {
-        varianceThreshold = 80; // Stricter for small images
-      }
-      
-      if (avgVariance < varianceThreshold) {
-        console.error('[image-proxy] Low color variance detected (likely gradient):', avgVariance, 'size:', buffer.byteLength, 'threshold:', varianceThreshold);
-        return NextResponse.json({ error: 'Gradient placeholder detected' }, { status: 502 });
-      }
+    // Reject HTML or JSON error responses
+    if (contentType.includes('text/html') || contentType.includes('application/json')) {
+      console.error('[image-proxy] Non-image content-type:', contentType, buffer.byteLength);
+      return NextResponse.json({ error: 'Non-image response' }, { status: 502 });
     }
 
     return new NextResponse(buffer, {

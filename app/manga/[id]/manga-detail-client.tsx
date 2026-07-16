@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Footer } from '@/components/layout/footer';
+import { getProxiedSrc } from '@/lib/image-loader';
 
 interface Chapter {
   id: string;
@@ -395,7 +396,7 @@ export default function MangaDetailClient({ mangaId }: MangaDetailClientProps) {
                       </div>
                     )}
                     <img
-                      src={page}
+                      src={getProxiedSrc(page)}
                       alt={`Страница ${index + 1}`}
                       className={cn(
                         "max-w-full h-auto block mx-auto object-contain rounded-lg shadow-2xl bg-zinc-900 border border-zinc-800/30",
@@ -482,7 +483,7 @@ export default function MangaDetailClient({ mangaId }: MangaDetailClientProps) {
                     </div>
                   )}
                   <img
-                    src={chapterPages[currentPageIndex]}
+                    src={getProxiedSrc(chapterPages[currentPageIndex])}
                     alt={`Страница ${currentPageIndex + 1}`}
                     className={cn(
                       "max-w-full max-h-full object-contain rounded-lg shadow-2xl border border-zinc-800/80 bg-zinc-950 transition-all duration-300",
@@ -495,7 +496,7 @@ export default function MangaDetailClient({ mangaId }: MangaDetailClientProps) {
                   {/* Preload next page image dynamically in background */}
                   {currentPageIndex < chapterPages.length - 1 && (
                     <img 
-                      src={chapterPages[currentPageIndex + 1]} 
+                      src={getProxiedSrc(chapterPages[currentPageIndex + 1])}
                       className="hidden" 
                       alt="preload"
                       onLoad={() => handleImageLoad(currentPageIndex + 1)}
@@ -615,7 +616,7 @@ export default function MangaDetailClient({ mangaId }: MangaDetailClientProps) {
 
               {manga.image && !coverHasError ? (
                 <img
-                  src={manga.image}
+                  src={getProxiedSrc(manga.image)}
                   alt={manga.title}
                   onLoad={() => setIsCoverLoaded(true)}
                   onError={() => setCoverHasError(true)}

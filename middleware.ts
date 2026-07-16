@@ -9,6 +9,11 @@ const CSRF_PROTECTED_PATHS = [
   "/api/admin",
 ]
 
+// Paths that are exempt from CSRF checks (external app integrations with their own auth)
+const CSRF_EXEMPT_PATHS = [
+  "/api/lampa/",
+]
+
 // Paths that are API routes (for header checks)
 const API_PATH_PREFIX = "/api/"
 
@@ -21,6 +26,16 @@ export function middleware(request: NextRequest) {
 
   if (!isStateChangingMethod) {
     return NextResponse.next()
+  }
+
+  // Check if path is exempt from CSRF (external integrations like Lampa)
+  const isExempt = CSRF_EXEMPT_PATHS.some((path) => pathname.startsWith(path))
+  if (isExempt) {
+    const response = NextResponse.next()
+    response.headers.set("Access-Control-Allow-Origin", "*")
+    response.headers.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+    response.headers.set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+    return response
   }
 
   // Check if path requires CSRF protection

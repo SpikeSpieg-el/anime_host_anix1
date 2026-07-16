@@ -38,6 +38,10 @@ export function ScheduleClient({ schedule: initialSchedule }: ScheduleClientProp
   const { items: bookmarks } = useBookmarks()
   const { preloadBatch, getFromCache } = useCover()
   const loadedDaysRef = useRef<Set<number>>(new Set())
+  const getFromCacheRef = useRef(getFromCache)
+  useEffect(() => {
+    getFromCacheRef.current = getFromCache
+  }, [getFromCache])
 
   // Генерируем данные для дней: -6 дней от сегодня ... Сегодня ... +6 дней
   const rollingDays = useMemo(() => {
@@ -100,7 +104,7 @@ export function ScheduleClient({ schedule: initialSchedule }: ScheduleClientProp
         return
       }
 
-      const dayAnimes = schedule[dayId]
+      const dayAnimes = initialSchedule[dayId]
       if (!dayAnimes || dayAnimes.length === 0) return
 
       console.log(`[ScheduleClient] Loading posters for day ${dayId} (${dayAnimes.length} anime)`)
@@ -131,8 +135,9 @@ export function ScheduleClient({ schedule: initialSchedule }: ScheduleClientProp
             let updatedCount = 0
             
             newSchedule[dayId] = prevSchedule[dayId].map(anime => {
-              const cached = getFromCache(anime.id)
-              if (cached && cached.poster && cached.poster !== anime.poster) {
+              const cached = getFromCacheRef.current(anime.id)
+              // Don't overwrite good URLs with data URI fallbacks
+              if (cached && cached.poster && cached.poster !== anime.poster && !cached.poster.startsWith('data:')) {
                 updatedCount++
                 return { ...anime, poster: cached.poster }
               }
@@ -171,7 +176,7 @@ export function ScheduleClient({ schedule: initialSchedule }: ScheduleClientProp
         }
       }
     }
-  }, [mounted, selectedOffset, schedule, rollingDays, preloadBatch, getFromCache])
+  }, [mounted, selectedOffset, rollingDays, preloadBatch, getFromCache])
 
   if (!mounted) return <ScheduleSkeleton />
 

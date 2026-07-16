@@ -3,11 +3,37 @@ import { Navbar } from "@/components/layout/navbar"
 import { Footer } from "@/components/layout/footer"
 import Link from "next/link"
 import { Newspaper, ArrowLeft, Calendar, User, MessageSquare, ArrowRight, Globe } from "lucide-react"
+import { getProxiedSrc } from "@/lib/image-loader"
 import type { Metadata } from "next"
 
 export const metadata: Metadata = {
   title: "Новости аниме — Weeb-X",
   description: "Последние новости мира аниме. Анонсы, релизы, события.",
+  keywords: [
+    "новости аниме",
+    "аниме новости",
+    "анонсы аниме",
+    "релизы аниме",
+    "аниме события",
+    "аниме индустрия",
+    "свежие новости аниме",
+    "новости манги",
+    "аниме блог",
+    "аниме статьи",
+    "аниме мир",
+    "последние аниме",
+    "аниме афиша",
+    "аниме премьеры",
+    "anime news",
+    "weebx",
+    "weeb x",
+    "WeebX",
+    "Weeb-X",
+    "weeb-x новости",
+    "weebx новости",
+    "weeb x новости аниме",
+    "weeb-x.com новости",
+  ],
   alternates: {
     canonical: "https://weeb-x.com/news",
   },
@@ -97,7 +123,7 @@ export default async function NewsPage({
                 {item.imageUrl && (
                   <div className="relative w-full h-44 overflow-hidden bg-zinc-900 flex-shrink-0">
                     <img
-                      src={item.imageUrl}
+                      src={getProxiedSrc(item.imageUrl)}
                       alt={item.title}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                     />

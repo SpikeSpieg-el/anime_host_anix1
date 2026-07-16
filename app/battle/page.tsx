@@ -24,14 +24,7 @@ import { glassCard } from "./config"
 import { computeDeckSynergies } from "./utils"
 import { Card } from "./types"
 import { rarityConfig } from "@/types/gacha"
-
-const isPinterestUrl = (url: string) => url?.includes("i.pinimg.com") || url?.includes("pinimg.com")
-
-const getProxiedSrc = (url: string) => {
-  if (!url) return ""
-  if (isPinterestUrl(url)) return `/api/image-proxy?url=${encodeURIComponent(url)}`
-  return url
-}
+import { getProxiedSrc } from "@/lib/image-loader"
 
 const StatBar = ({ label, value, color }: { label: string; value: number; color: string }) => {
   const maxValue = 100
@@ -407,13 +400,6 @@ export default function BattlePage() {
 
   // Handle PvP match found - transition to battle
   useEffect(() => {
-    console.log('[PvP Debug] Effect triggered:', {
-      status: pvpState.status,
-      hasMatchData: !!pvpState.matchData,
-      battleState,
-      willTransition: pvpState.status === 'matched' && pvpState.matchData && battleState === 'idle'
-    })
-    
     if (pvpState.status === 'matched' && pvpState.matchData && battleState === 'idle') {
       console.log('[PvP] Match found, starting battle...', pvpState.matchData)
       setShowPvPArena(false)

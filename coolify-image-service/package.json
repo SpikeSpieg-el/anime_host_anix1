@@ -1,0 +1,15 @@
+{
+  "name": "weebx-image-service",
+  "version": "1.0.0",
+  "description": "Image optimization and proxy service for WEEB-X",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "sharp": "^0.33.2",
+    "lru-cache": "^10.2.0"
+  }
+}

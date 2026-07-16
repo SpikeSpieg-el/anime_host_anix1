@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { AlertCircle, ExternalLink, Search, Play } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { PlayerLoading } from "@/components/watch/player-loading"
+import { getProxiedSrc } from "@/lib/image-loader"
 
 interface BackupPlayerProps {
   title: string
@@ -134,7 +135,7 @@ export function BackupPlayer({ title, episode, isActive, embedSrc, poster, onSta
             {/* Фон-постер или градиент */}
             {poster ? (
               <img
-                src={poster || undefined}
+                src={poster ? getProxiedSrc(poster) : undefined}
                 className="absolute inset-0 w-full h-full object-cover opacity-30 blur-sm transition-opacity group-hover:opacity-40"
                 alt=""
               />
