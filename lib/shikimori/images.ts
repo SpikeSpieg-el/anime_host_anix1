@@ -1,6 +1,7 @@
 import { upgradeShikimoriUrl, generateArtPoster, normalizeShikimoriUrl } from "./utils";
 import { shikimoriFetch, shikimoriJson } from "./client";
 import { BASE_URL } from "./config";
+import { getKodikPoster } from "../kodik";
 
 // Кэш для постеров и фонов
 const posterCache = new Map<string, string>();
@@ -134,15 +135,8 @@ export async function resolveBestPoster(shikimoriUrl: string, romajiName: string
   return fallback;
 }
 
-async function getKodikPoster(shikimoriId: string): Promise<string | null> {
-  try {
-    const response = await fetch(`https://kodikapi.com/v2/animes?shikimori_id=${shikimoriId}&limit=1`);
-    if (!response.ok) return null;
-    const json = await response.json();
-    const poster = json.results?.[0]?.poster || json.results?.[0]?.poster_url;
-    return (poster && !poster.includes('missing')) ? poster : null;
-  } catch { return null; }
-}
+// getKodikPoster импортируется из lib/kodik.ts (бесплатный токен + kodik-api.com).
+// Локальная реализация на нерабочем kodikapi.com/v2/animes удалена.
 
 async function getAnilistPoster(searchTitle: string): Promise<string | null> {
   try {

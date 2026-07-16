@@ -18,7 +18,7 @@ export function TVPlayer({ animeId, episode, animeTitle, totalEpisodes, onNextEp
 
   useEffect(() => {
     setIsLoading(true)
-    const url = `https://kodikplayer.com/find-player?shikimoriID=${animeId}&episode=${episode}&quality=720`
+    const url = `https://kodikplayer.com/find-player?shikimoriID=${animeId}&episode=${episode}&quality=720&no_ads=true&block_blocked_countries=true&hide_selectors=true`
     setKodikUrl(url)
     setIsLoading(false)
   }, [animeId, episode])
