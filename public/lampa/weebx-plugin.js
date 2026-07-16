@@ -119,8 +119,6 @@
                         Lampa.Storage.set(STORAGE_KEY, data.token);
                         Lampa.Modal.close();
                         Lampa.Noty.show('Weeb-X: Устройство успешно привязано!', { time: 4000 });
-                        // Update settings UI
-                        updateSettingsState();
                     }
                 })
                 .catch(function (err) {
@@ -133,15 +131,6 @@
     function logout() {
         Lampa.Storage.remove(STORAGE_KEY);
         Lampa.Noty.show('Weeb-X: Устройство отвязано', { time: 3000 });
-        updateSettingsState();
-    }
-
-    // Update the settings button state
-    function updateSettingsState() {
-        // Lampa.Settings.update() if available
-        if (Lampa.Settings && Lampa.Settings.update) {
-            Lampa.Settings.update();
-        }
     }
 
     // Send watch progress to Weeb-X
@@ -192,86 +181,129 @@
                 // Token expired or invalid
                 Lampa.Storage.remove(STORAGE_KEY);
                 Lampa.Noty.show('Weeb-X: Токен истёк, требуется повторная активация', { time: 5000 });
-                updateSettingsState();
             }
         }).catch(function (err) {
             console.error('Weeb-X sync error:', err);
         });
     }
 
-    // Initialize the plugin
-    function init() {
-        // 1. Add settings entry
-        Lampa.Settings.add({
-            title: 'Weeb-X Синхронизация',
-            type: 'button',
-            icon: '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h20v14H2z"/><path d="M8 21h8"/><path d="M12 17v4"/></svg>',
-            onValue: function () {
-                if (isLoggedIn()) {
-                    // Show account info / logout option
-                    Lampa.Modal.open({
-                        title: 'Weeb-X',
-                        html: '<div style="text-align:center;padding:30px;">' +
-                            '<div style="font-size:16px;color:#4caf50;margin-bottom:20px;">✓ Устройство привязано</div>' +
-                            '<div style="font-size:13px;color:#999;margin-bottom:24px;">История просмотра синхронизируется с Weeb-X</div>' +
-                            '<div style="background:#333;padding:12px 24px;border-radius:4px;display:inline-block;cursor:pointer;color:#ff5252;" id="weebx-logout-btn">Отвязать устройство</div>' +
-                            '</div>',
-                        size: 'medium',
-                        onBack: function () { Lampa.Modal.close(); }
-                    });
+    function openSettingsModal() {
+        if (isLoggedIn()) {
+            Lampa.Modal.open({
+                title: 'Weeb-X',
+                html: '<div style="text-align:center;padding:30px 20px;">' +
+                    '<div style="font-size:16px;color:#4caf50;margin-bottom:20px;">✓ Устройство привязано</div>' +
+                    '<div style="font-size:13px;color:#999;margin-bottom:24px;">История просмотра синхронизируется с Weeb-X</div>' +
+                    '<div style="background:#333;padding:14px 28px;border-radius:4px;display:inline-block;cursor:pointer;color:#ff5252;font-size:14px;" id="weebx-logout-btn">Отвязать устройство</div>' +
+                    '</div>',
+                size: 'medium',
+                onBack: function () { Lampa.Modal.close(); }
+            });
 
-                    setTimeout(function () {
-                        var logoutBtn = document.getElementById('weebx-logout-btn');
-                        if (logoutBtn) {
-                            logoutBtn.addEventListener('click', function () {
-                                logout();
-                                Lampa.Modal.close();
-                            });
-                        }
-                    }, 100);
-                } else {
-                    startActivation();
+            setTimeout(function () {
+                var logoutBtn = document.getElementById('weebx-logout-btn');
+                if (logoutBtn) {
+                    logoutBtn.addEventListener('click', function () {
+                        logout();
+                        Lampa.Modal.close();
+                    });
                 }
+            }, 100);
+        } else {
+            startActivation();
+        }
+    }
+
+    function init() {
+        var settingsAdded = false;
+
+        // 1. Add settings entry - try multiple API patterns
+        // Pattern 1: Lampa.Settings.add (modern)
+        try {
+            if (Lampa.Settings && typeof Lampa.Settings.add === 'function') {
+                Lampa.Settings.add({
+                    title: 'Weeb-X Синхронизация',
+                    type: 'button',
+                    icon: '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h20v14H2z"/><path d="M8 21h8"/><path d="M12 17v4"/></svg>',
+                    onValue: function () {
+                        openSettingsModal();
+                    }
+                });
+                settingsAdded = true;
             }
-        });
+        } catch (e) {
+            console.error('Weeb-X: Settings.add failed:', e);
+        }
+
+        // Pattern 2: Settings via params (alternative)
+        if (!settingsAdded) {
+            try {
+                if (Lampa.Settings && typeof Lampa.Settings.params === 'function') {
+                    Lampa.Settings.params({
+                        weebx_sync: {
+                            title: 'Weeb-X Синхронизация',
+                            type: 'button',
+                            icon: '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h20v14H2z"/><path d="M8 21h8"/><path d="M12 17v4"/></svg>',
+                            onValue: function () {
+                                openSettingsModal();
+                            }
+                        }
+                    });
+                    settingsAdded = true;
+                }
+            } catch (e) {
+                console.error('Weeb-X: Settings.params failed:', e);
+            }
+        }
 
         // 2. Track player start
-        Lampa.Player.listener.follow('start', function (e) {
-            if (e.movie) {
-                current_card = e.movie;
-                console.log('Weeb-X: Started watching', current_card.title || current_card.name);
-            }
-        });
+        try {
+            Lampa.Player.listener.follow('start', function (e) {
+                if (e.movie) {
+                    current_card = e.movie;
+                    console.log('Weeb-X: Started watching', current_card.title || current_card.name);
+                }
+            });
+        } catch (e) {
+            console.error('Weeb-X: Player listener failed:', e);
+        }
 
         // 3. Track watch progress (timeline updates)
-        Lampa.Timeline.listener.follow('update', function (e) {
-            if (isLoggedIn() && current_card) {
-                sendProgress(current_card, e.time, e.percent, e.duration);
-            }
-        });
+        try {
+            Lampa.Timeline.listener.follow('update', function (e) {
+                if (isLoggedIn() && current_card) {
+                    sendProgress(current_card, e.time, e.percent, e.duration);
+                }
+            });
+        } catch (e) {
+            console.error('Weeb-X: Timeline listener failed:', e);
+        }
 
         // 4. Track player stop/destroy
-        Lampa.Player.listener.follow('destroy', function () {
-            // Send final progress before closing
-            if (isLoggedIn() && current_card) {
-                try {
-                    var video = Lampa.Player.video();
-                    var time = video ? video.currentTime : 0;
-                    var duration = video ? video.duration : 0;
-                    var percent = duration ? Math.round((time / duration) * 100) : 0;
-                    last_sync_time = 0; // Force sync
-                    sendProgress(current_card, time, percent, duration);
-                } catch (e) {}
-            }
-            current_card = null;
-        });
+        try {
+            Lampa.Player.listener.follow('destroy', function () {
+                if (isLoggedIn() && current_card) {
+                    try {
+                        var video = Lampa.Player.video();
+                        var time = video ? video.currentTime : 0;
+                        var duration = video ? video.duration : 0;
+                        var percent = duration ? Math.round((time / duration) * 100) : 0;
+                        last_sync_time = 0;
+                        sendProgress(current_card, time, percent, duration);
+                    } catch (e) {}
+                }
+                current_card = null;
+            });
+        } catch (e) {
+            console.error('Weeb-X: Player destroy listener failed:', e);
+        }
 
-        // 5. Mark watched in Lampa timeline (pull history from Weeb-X)
+        // 5. Pull history for timeline
         if (isLoggedIn()) {
             fetchHistoryForTimeline();
         }
 
-        console.log('Weeb-X plugin initialized');
+        console.log('Weeb-X plugin initialized, settings added:', settingsAdded);
     }
 
     // Fetch history from Weeb-X and mark as watched in Lampa timeline
@@ -310,14 +342,45 @@
         });
     }
 
-    // Start when Lampa is ready
-    if (window.appready) {
+    // === REGISTRATION: Try multiple patterns for different Lampa versions ===
+
+    // Pattern A: Modern Lampa.Plugins.install (Lampa 3.0+)
+    try {
+        if (Lampa.Plugins && typeof Lampa.Plugins.install === 'function') {
+            var WeebXPlugin = {
+                name: 'Weeb-X Синхронизация',
+                version: '1.0.0',
+                init: init
+            };
+            Lampa.Plugins.install(WeebXPlugin);
+            console.log('Weeb-X: Registered via Lampa.Plugins.install');
+            return;
+        }
+    } catch (e) {
+        console.error('Weeb-X: Plugins.install failed:', e);
+    }
+
+    // Pattern B: window.appready check (older Lampa)
+    if (typeof window.appready !== 'undefined' && window.appready) {
         init();
     } else {
-        Lampa.Listener.follow('app', function (e) {
-            if (e.type === 'ready') {
-                init();
-            }
-        });
+        // Pattern C: Listen for app ready event
+        try {
+            Lampa.Listener.follow('app', function (e) {
+                if (e.type === 'ready') {
+                    init();
+                }
+            });
+        } catch (e) {
+            // Pattern D: Fallback - try after delay
+            console.error('Weeb-X: Listener.follow failed, using timeout fallback:', e);
+            setTimeout(function () {
+                if (typeof Lampa !== 'undefined' && Lampa.Player) {
+                    init();
+                } else {
+                    console.error('Weeb-X: Lampa not available after timeout');
+                }
+            }, 3000);
+        }
     }
 })();
