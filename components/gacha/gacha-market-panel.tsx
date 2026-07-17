@@ -11,7 +11,7 @@ import { useCoins } from "@/hooks/use-coins"
 import { supabase } from "@/lib/supabase"
 import { frameNames, coatingNames, FrameOverlay, CoatingOverlay } from "@/components/gacha/card-modifiers"
 import { getCardBasePower, getCardProvision } from "@/app/battle/utils"
-import { getProxiedSrc, getOptimizedThumbSrc } from "@/app/gacha/utils"
+import { getProxiedSrc } from "@/lib/image-loader"
 import { CanvasImage } from "@/components/gacha/canvas-image"
 import { MarketCardSkeleton } from "@/components/gacha/market-card-skeleton"
 

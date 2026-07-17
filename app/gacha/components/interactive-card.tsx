@@ -5,6 +5,7 @@ import { frameNames, coatingNames, FrameOverlay, CoatingOverlay } from "@/compon
 import { getCardBasePower, getCardProvision } from "@/app/battle/utils"
 import { Card } from "../types"
 import { rarityConfig } from "@/types/gacha"
+import { getProxiedSrc as getImageProxySrc } from "@/lib/image-loader"
 import { getProxiedSrc, handleImageError } from "../utils"
 import { statLabels } from "../config"
 import Image from "next/image"
@@ -351,8 +352,8 @@ export const InteractiveCard = ({ card, forceFlipped = false }: InteractiveCardP
           </>
         ) : (
           <div className="absolute inset-0 rounded-[1.4rem] sm:rounded-[1.9rem] md:rounded-[2.4rem] overflow-hidden">
-            <CanvasImage 
-              src={getProxiedSrc(card.imageUrl)} 
+            <CanvasImage
+              src={getImageProxySrc(card.imageUrl)}
               alt={card.name}
               className="absolute inset-0 w-full h-full scale-[1.02]"
               style={{ willChange: 'transform', transform: 'translateZ(0)' }}
