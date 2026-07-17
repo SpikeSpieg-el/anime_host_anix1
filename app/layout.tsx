@@ -60,6 +60,10 @@ export const metadata: Metadata = {
   alternates: {
     canonical: "/",
   },
+  verification: {
+    google: process.env.GOOGLE_SITE_VERIFICATION,
+    yandex: process.env.YANDEX_SITE_VERIFICATION,
+  },
   openGraph: {
     title: "Weeb-X — Смотреть аниме онлайн",
     description: "Стриминг аниме в HD с русской озвучкой. Гача-крутки, PvP-арена, каталог манги и новости аниме.",
@@ -67,20 +71,11 @@ export const metadata: Metadata = {
     url: siteUrl,
     siteName: "Weeb-X",
     locale: "ru_RU",
-    images: [
-      {
-        url: "/og-image.svg",
-        width: 1200,
-        height: 630,
-        alt: "Weeb-X — аниме стриминг платформа",
-      },
-    ],
   },
   twitter: {
     card: "summary_large_image",
     title: "Weeb-X — Смотреть аниме онлайн",
     description: "Стриминг аниме в HD с русской озвучкой. Гача-крутки, PvP-арена, каталог манги.",
-    images: ["/og-image.svg"],
   },
 }
 

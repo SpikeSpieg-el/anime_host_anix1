@@ -115,14 +115,6 @@ export async function generateMetadata(): Promise<Metadata> {
       description,
       type: "website",
       url: "https://weeb-x.com",
-      images: [
-        {
-          url: "/og-image.svg",
-          width: 1200,
-          height: 630,
-          alt: "Weeb-X — Смотреть аниме онлайн бесплатно | Гача и PvP",
-        },
-      ],
       siteName: "Weeb-X",
       locale: "ru_RU",
     },
@@ -130,7 +122,6 @@ export async function generateMetadata(): Promise<Metadata> {
       card: "summary_large_image",
       title,
       description,
-      images: ["/og-image.svg"],
     },
     robots: {
       index: true,

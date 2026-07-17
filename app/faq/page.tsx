@@ -43,14 +43,6 @@ export const metadata: Metadata = {
       "Подробные ответы о Weeb-X: бесплатный просмотр аниме, гача-крутки, PvP-арена, PVE-бои, Lampa TV-синхронизация, закладки и история.",
     type: "website",
     url: "https://weeb-x.com/faq",
-    images: [
-      {
-        url: "/og-image.svg",
-        width: 1200,
-        height: 630,
-        alt: "Weeb-X FAQ — ответы на вопросы",
-      },
-    ],
     siteName: "Weeb-X",
     locale: "ru_RU",
   },
@@ -59,7 +51,6 @@ export const metadata: Metadata = {
     title: "FAQ — Weeb-X: ответы на вопросы",
     description:
       "Подробные ответы о Weeb-X: аниме-стриминг, гача, PvP, PVE, Lampa TV, закладки и история.",
-    images: ["/og-image.svg"],
   },
   robots: {
     index: true,

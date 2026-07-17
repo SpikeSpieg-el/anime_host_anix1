@@ -8,11 +8,24 @@ Disallow: /private/
 Disallow: /api/
 Disallow: /_next/
 
+# Персональные страницы пользователей (не должны индексироваться)
+Disallow: /bookmarks
+Disallow: /history
+Disallow: /settings
+Disallow: /activate
+Disallow: /test-search
+
 # Избегаем дубликатов контента
 Disallow: /*?sort=
 Disallow: /*?filter=
 Disallow: /*?page=
 Disallow: /*?search=
+
+# Yandex: Clean-param для борьбы с дубликатами URL-параметров
+# Яндекс игнорирует Disallow: /*?param= по-другому, ему нужна Clean-param
+Clean-param: sort&filter&page&search&q&genre&year&status&kind&score&episode /
+Clean-param: sort&filter&page&search&q&genre&year&status&kind&score /catalog
+Clean-param: episode /watch
 
 # Sitemap
 Sitemap: https://weeb-x.com/sitemap.xml

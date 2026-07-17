@@ -22,20 +22,11 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       url: `https://weeb-x.com/manga/${id}`,
       siteName: "Weeb-X",
       locale: "ru_RU",
-      images: [
-        {
-          url: "/og-image.svg",
-          width: 1200,
-          height: 630,
-          alt: "Weeb-X Манга",
-        },
-      ],
     },
     twitter: {
       card: "summary_large_image",
       title: 'Манга — Weeb-X',
       description: 'Читать мангу онлайн на Weeb-X.',
-      images: ["/og-image.svg"],
     },
   };
 }

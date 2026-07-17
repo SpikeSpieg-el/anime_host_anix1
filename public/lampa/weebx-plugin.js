@@ -234,13 +234,57 @@
 
                     data.history.forEach(function (item) {
                         try {
-                            if (Lampa.Timeline && Lampa.Timeline.mark) {
-                                Lampa.Timeline.mark({
-                                    id: item.anime_id,
-                                    episode: item.episode,
-                                    percent: 100,
-                                    time: 0
+                            var cardData = {
+                                id: item.anime_id,
+                                title: item.title,
+                                name: item.title,
+                                poster: item.poster,
+                                img: item.poster,
+                                type: 'anime'
+                            };
+
+                            // Add to Lampa native history category so it shows "watched" icon/checkmark
+                            if (Lampa.Favorite && Lampa.Favorite.add && Lampa.Favorite.check) {
+                                var favStatus = Lampa.Favorite.check(cardData);
+                                if (!favStatus.history) {
+                                    Lampa.Favorite.add('history', cardData);
+                                }
+                            }
+
+                            // Update Lampa timeline progress using all possible hashes so it renders beautifully on cards
+                            if (Lampa.Timeline && Lampa.Timeline.update) {
+                                var percent = 100;
+                                var time = 0;
+                                var duration = 0;
+
+                                // 1. Hash of Anime ID (standard for some plugins)
+                                Lampa.Timeline.update({
+                                    hash: Lampa.Utils.hash(String(item.anime_id)),
+                                    percent: percent,
+                                    time: time,
+                                    duration: duration,
+                                    received: true
                                 });
+
+                                // 2. Hash of Anime Title
+                                Lampa.Timeline.update({
+                                    hash: Lampa.Utils.hash(item.title),
+                                    percent: percent,
+                                    time: time,
+                                    duration: duration,
+                                    received: true
+                                });
+
+                                // 3. Season & Episode hash (Lampa standard for serials)
+                                if (item.episode) {
+                                    Lampa.Timeline.update({
+                                        hash: Lampa.Utils.hash(['1', item.episode, item.title].join('')),
+                                        percent: percent,
+                                        time: time,
+                                        duration: duration,
+                                        received: true
+                                    });
+                                }
                             }
                         } catch (e) {
                             logError('timeline mark error:', e);
@@ -279,16 +323,20 @@
                     var added = 0;
                     data.bookmarks.forEach(function (item) {
                         try {
-                            var cardData = item.anime_data || {
+                            var cardData = {
                                 id: item.anime_id,
-                                title: item.title || 'Unknown',
-                                poster: item.poster || ''
+                                title: item.title || (item.anime_data ? item.anime_data.title : 'Unknown'),
+                                name: item.title || (item.anime_data ? item.anime_data.title : 'Unknown'),
+                                poster: item.poster || (item.anime_data ? item.anime_data.poster : ''),
+                                img: item.poster || (item.anime_data ? item.anime_data.poster : ''),
+                                type: 'anime'
                             };
 
                             // Add to Lampa favorites if not already there
                             if (Lampa.Favorite && Lampa.Favorite.add && Lampa.Favorite.check) {
-                                if (!Lampa.Favorite.check(cardData.id)) {
-                                    Lampa.Favorite.add(cardData, 'like');
+                                var favStatus = Lampa.Favorite.check(cardData);
+                                if (!favStatus.like) {
+                                    Lampa.Favorite.add('like', cardData);
                                     added++;
                                 }
                             }
@@ -326,7 +374,7 @@
             var lampaFavorites = [];
             try {
                 if (Lampa.Favorite && Lampa.Favorite.get) {
-                    lampaFavorites = Lampa.Favorite.get('like') || [];
+                    lampaFavorites = Lampa.Favorite.get({ type: 'like' }) || [];
                 }
             } catch (e) {
                 logError('Failed to get Lampa favorites:', e);
@@ -648,10 +696,10 @@
         });
 
         Lampa.Timeline.listener.follow('update', function (e) {
-            if (isLoggedIn() && current_card) {
+            if (isLoggedIn() && current_card && e.data) {
                 var autoSync = Lampa.Storage.get('weebx_auto_sync', true);
                 if (autoSync !== false) {
-                    sendProgress(current_card, e.time, e.percent, e.duration);
+                    sendProgress(current_card, e.data.time, e.data.percent, e.data.duration);
                 }
             }
         });
@@ -672,23 +720,20 @@
 
         // === Favorite/Bookmark listeners (real-time bookmark sync) ===
         if (Lampa.Favorite && Lampa.Favorite.listener) {
-            Lampa.Favorite.listener.follow('add', function (e) {
-                if (isLoggedIn() && e.movie) {
-                    var autoSync = Lampa.Storage.get('weebx_auto_sync', true);
-                    if (autoSync !== false) {
-                        log('Favorite added in Lampa:', e.movie.title || e.movie.name);
-                        sendBookmarkToWebsite(e.movie);
-                    }
-                }
-            });
+            Lampa.Favorite.listener.follow(function (e) {
+                if (!isLoggedIn() || !e.data || !e.data.card) return;
 
-            Lampa.Favorite.listener.follow('remove', function (e) {
-                if (isLoggedIn() && e.movie) {
-                    var autoSync = Lampa.Storage.get('weebx_auto_sync', true);
-                    if (autoSync !== false) {
-                        log('Favorite removed in Lampa:', e.movie.title || e.movie.name);
-                        removeBookmarkFromWebsite(e.movie);
-                    }
+                var autoSync = Lampa.Storage.get('weebx_auto_sync', true);
+                if (autoSync === false) return;
+
+                var card = e.data.card;
+
+                if (e.type === 'add' && e.data.where === 'like') {
+                    log('Favorite added in Lampa:', card.title || card.name);
+                    sendBookmarkToWebsite(card);
+                } else if (e.type === 'remove' && e.data.where === 'like') {
+                    log('Favorite removed in Lampa:', card.title || card.name);
+                    removeBookmarkFromWebsite(card);
                 }
             });
         } else {

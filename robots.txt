@@ -1,3 +1,0 @@
-User-agent: *
-Allow: /
-Sitemap: https://weeb-x.com/sitemap.xml

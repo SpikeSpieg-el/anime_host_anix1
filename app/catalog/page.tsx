@@ -55,8 +55,8 @@ export async function generateMetadata({
     ? (params.year.includes(',') ? params.year.split(',').join(', ') : params.year) 
     : undefined
 
-  let title = "Weeb-x — Смотреть аниме онлайн бесплатно. Топ тайтлы на русском"
-  let description = "Смотри тысячи аниме онлайн в HD с русской озвучкой. Удобный каталог по жанрам, топ года и расписание новых серий. Бесплатно на Weeb-x!"
+  let title = "Weeb-X — Смотреть аниме онлайн бесплатно. Топ тайтлы на русском"
+  let description = "Смотри тысячи аниме онлайн в HD с русской озвучкой. Удобный каталог по жанрам, топ года и расписание новых серий. Бесплатно на Weeb-X!"
 
   if (search) {
     title = `Поиск: ${search} — Weeb-X`
@@ -125,14 +125,6 @@ export async function generateMetadata({
       description,
       type: "website",
       url: `https://weeb-x.com/catalog${Object.keys(params).length > 0 ? '?' + new URLSearchParams(params as Record<string, string>).toString() : ''}`,
-      images: [
-        {
-          url: "/og-image.svg",
-          width: 1200,
-          height: 630,
-          alt: title,
-        },
-      ],
       siteName: "Weeb-X",
       locale: "ru_RU",
     },
@@ -140,7 +132,6 @@ export async function generateMetadata({
       card: "summary_large_image",
       title,
       description,
-      images: ["/og-image.svg"],
     },
     robots: {
       index: true,
