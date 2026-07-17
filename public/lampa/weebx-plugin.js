@@ -1,7 +1,7 @@
 /**
  * Weeb-X Plugin for Lampa
  * 
- * Syncs watch history between Lampa (Android TV) and Weeb-X.com
+ * Bidirectional sync of watch history and bookmarks between Lampa (Android TV) and Weeb-X.com
  * 
  * Installation:
  *   In Lampa, go to Settings → Plugins → Add
@@ -11,7 +11,7 @@
  *   1. Plugin will display a 6-digit PIN code on your TV
  *   2. Go to https://weeb-x.com/activate on your phone/PC
  *   3. Log in to your Weeb-X account and enter the PIN
- *   4. Device is now linked - history syncs automatically
+ *   4. Device is now linked - history and bookmarks sync automatically
  */
 (function () {
     'use strict';
@@ -24,8 +24,21 @@
     var SYNC_INTERVAL = 30000;
     var auth_check_interval = null;
     var network = new Lampa.Reguest();
+    var is_syncing = false;
 
     var ICON_SVG = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" xmlns="http://www.w3.org/2000/svg"><path d="M2 3h20v14H2z"/><path d="M8 21h8"/><path d="M12 17v4"/></svg>';
+
+    function log() {
+        var args = Array.prototype.slice.call(arguments);
+        args.unshift('[Weeb-X]');
+        console.log.apply(console, args);
+    }
+
+    function logError() {
+        var args = Array.prototype.slice.call(arguments);
+        args.unshift('[Weeb-X ERROR]');
+        console.error.apply(console, args);
+    }
 
     function getDeviceId() {
         var deviceId = Lampa.Storage.get(STORAGE_DEVICE);
@@ -40,10 +53,25 @@
         return !!Lampa.Storage.get(STORAGE_KEY);
     }
 
+    function getToken() {
+        return Lampa.Storage.get(STORAGE_KEY);
+    }
+
+    function authHeaders() {
+        return {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + getToken()
+        };
+    }
+
     function updateAuthLabel() {
         var label = isLoggedIn() ? 'Привязано' : 'Авторизоваться';
         $('div[data-name="weebx_auth"]').find('.settings-param__name').text(label);
     }
+
+    // ================================================================
+    // ACTIVATION
+    // ================================================================
 
     function startActivation() {
         var deviceId = getDeviceId();
@@ -59,7 +87,7 @@
                 Lampa.Noty.show('Weeb-X: Ошибка получения PIN кода', { time: 5000 });
             }
         }, function (err) {
-            console.error('Weeb-X activation error:', err);
+            logError('activation error:', err);
             Lampa.Noty.show('Weeb-X: Сетевая ошибка активации', { time: 5000 });
         }, {
             device_id: deviceId,
@@ -123,10 +151,11 @@
                     Lampa.Noty.show('Weeb-X: Устройство успешно привязано!', { time: 4000 });
                     updateAuthLabel();
                     Lampa.Controller.toggle('settings_component');
-                    fetchHistoryForTimeline();
+                    // Do full bidirectional sync after activation
+                    fullSync();
                 }
             }, function (err) {
-                console.error('Weeb-X poll error:', err);
+                logError('poll error:', err);
             }, false, { type: 'get' });
         }, 5000);
     }
@@ -137,6 +166,10 @@
         updateAuthLabel();
     }
 
+    // ================================================================
+    // PROGRESS SYNC (Lampa → Website)
+    // ================================================================
+
     function sendProgress(card, time, percent, duration) {
         if (!isLoggedIn() || !card) return;
 
@@ -144,7 +177,6 @@
         if (now - last_sync_time < SYNC_INTERVAL && percent < 95) return;
         last_sync_time = now;
 
-        var token = Lampa.Storage.get(STORAGE_KEY);
         var animeId = card.id || card.shikimori_id || '';
         var title = card.title || card.name || card.russian || 'Unknown';
         var poster = card.poster || card.img || '';
@@ -161,10 +193,12 @@
             percent = Math.round((time / duration) * 100);
         }
 
+        log('Sending progress:', title, 'ep:' + episode, percent + '%');
+
         network.silent(WEEBX_API + '/sync', function (data) {
-            // success - no action needed
+            log('Progress synced successfully:', title);
         }, function (err) {
-            console.error('Weeb-X sync error:', err);
+            logError('sync error:', err);
             if (err && err.status === 401) {
                 Lampa.Storage.remove(STORAGE_KEY);
                 Lampa.Noty.show('Weeb-X: Токен истёк, требуется повторная активация', { time: 5000 });
@@ -180,48 +214,275 @@
             shikimori_id: card.shikimori_id || null
         }, {
             type: 'post',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': 'Bearer ' + token
-            }
+            headers: authHeaders()
         });
     }
 
-    function fetchHistoryForTimeline() {
-        var token = Lampa.Storage.get(STORAGE_KEY);
-        if (!token) return;
+    // ================================================================
+    // HISTORY SYNC (Website → Lampa Timeline)
+    // ================================================================
 
-        network.silent(WEEBX_API + '/history', function (data) {
-            if (data.success && data.history) {
-                data.history.forEach(function (item) {
-                    try {
-                        if (Lampa.Timeline && Lampa.Timeline.mark) {
-                            Lampa.Timeline.mark({
-                                id: item.anime_id,
-                                episode: item.episode,
-                                percent: 100,
-                                time: 0
-                            });
+    function pullHistoryFromWebsite() {
+        if (!isLoggedIn()) return Promise.resolve([]);
+
+        return new Promise(function (resolve) {
+            log('Pulling history from website...');
+
+            network.silent(WEEBX_API + '/history', function (data) {
+                if (data.success && data.history && data.history.length > 0) {
+                    log('Received ' + data.history.length + ' history items from website');
+
+                    data.history.forEach(function (item) {
+                        try {
+                            if (Lampa.Timeline && Lampa.Timeline.mark) {
+                                Lampa.Timeline.mark({
+                                    id: item.anime_id,
+                                    episode: item.episode,
+                                    percent: 100,
+                                    time: 0
+                                });
+                            }
+                        } catch (e) {
+                            logError('timeline mark error:', e);
                         }
-                    } catch (e) {
-                        console.error('Weeb-X timeline mark error:', e);
-                    }
-                });
-            }
-        }, function (err) {
-            console.error('Weeb-X history fetch error:', err);
-        }, false, {
-            type: 'get',
-            headers: { 'Authorization': 'Bearer ' + token }
+                    });
+
+                    resolve(data.history);
+                } else {
+                    log('No history items from website');
+                    resolve([]);
+                }
+            }, function (err) {
+                logError('history fetch error:', err);
+                resolve([]);
+            }, false, {
+                type: 'get',
+                headers: authHeaders()
+            });
         });
     }
+
+    // ================================================================
+    // BOOKMARK SYNC: Website → Lampa
+    // ================================================================
+
+    function pullBookmarksFromWebsite() {
+        if (!isLoggedIn()) return Promise.resolve(0);
+
+        return new Promise(function (resolve) {
+            log('Pulling bookmarks from website...');
+
+            network.silent(WEEBX_API + '/bookmarks', function (data) {
+                if (data.success && data.bookmarks && data.bookmarks.length > 0) {
+                    log('Received ' + data.bookmarks.length + ' bookmarks from website');
+
+                    var added = 0;
+                    data.bookmarks.forEach(function (item) {
+                        try {
+                            var cardData = item.anime_data || {
+                                id: item.anime_id,
+                                title: item.title || 'Unknown',
+                                poster: item.poster || ''
+                            };
+
+                            // Add to Lampa favorites if not already there
+                            if (Lampa.Favorite && Lampa.Favorite.add && Lampa.Favorite.check) {
+                                if (!Lampa.Favorite.check(cardData.id)) {
+                                    Lampa.Favorite.add(cardData, 'like');
+                                    added++;
+                                }
+                            }
+                        } catch (e) {
+                            logError('bookmark add error:', e);
+                        }
+                    });
+
+                    log('Added ' + added + ' bookmarks to Lampa favorites');
+                    resolve(added);
+                } else {
+                    log('No bookmarks from website');
+                    resolve(0);
+                }
+            }, function (err) {
+                logError('bookmarks fetch error:', err);
+                resolve(0);
+            }, false, {
+                type: 'get',
+                headers: authHeaders()
+            });
+        });
+    }
+
+    // ================================================================
+    // BOOKMARK SYNC: Lampa → Website
+    // ================================================================
+
+    function pushLampaBookmarksToWebsite() {
+        if (!isLoggedIn()) return Promise.resolve(0);
+
+        return new Promise(function (resolve) {
+            log('Pushing Lampa bookmarks to website...');
+
+            var lampaFavorites = [];
+            try {
+                if (Lampa.Favorite && Lampa.Favorite.get) {
+                    lampaFavorites = Lampa.Favorite.get('like') || [];
+                }
+            } catch (e) {
+                logError('Failed to get Lampa favorites:', e);
+            }
+
+            if (lampaFavorites.length === 0) {
+                log('No Lampa bookmarks to push');
+                resolve(0);
+                return;
+            }
+
+            log('Found ' + lampaFavorites.length + ' Lampa bookmarks to push');
+            var pushed = 0;
+            var remaining = lampaFavorites.length;
+
+            lampaFavorites.forEach(function (card) {
+                var animeId = card.id || card.shikimori_id || '';
+                var title = card.title || card.name || card.russian || 'Unknown';
+                var poster = card.poster || card.img || '';
+                var episodesTotal = null;
+                try { if (card.episodes) episodesTotal = parseInt(card.episodes) || null; } catch (e) {}
+
+                network.silent(WEEBX_API + '/bookmarks', function (data) {
+                    pushed++;
+                    remaining--;
+                    if (remaining === 0) {
+                        log('Pushed ' + pushed + ' bookmarks to website');
+                        resolve(pushed);
+                    }
+                }, function (err) {
+                    logError('bookmark push error for ' + title + ':', err);
+                    remaining--;
+                    if (remaining === 0) {
+                        log('Pushed ' + pushed + ' bookmarks to website (with errors)');
+                        resolve(pushed);
+                    }
+                }, {
+                    anime_id: String(animeId),
+                    title: title,
+                    poster: poster,
+                    episodes_total: episodesTotal,
+                    shikimori_id: card.shikimori_id || null
+                }, {
+                    type: 'post',
+                    headers: authHeaders()
+                });
+            });
+        });
+    }
+
+    // ================================================================
+    // FULL BIDIRECTIONAL SYNC
+    // ================================================================
+
+    function fullSync() {
+        if (!isLoggedIn()) {
+            Lampa.Noty.show('Weeb-X: Сначала авторизуйтесь', { time: 3000 });
+            return;
+        }
+        if (is_syncing) {
+            Lampa.Noty.show('Weeb-X: Синхронизация уже идёт...', { time: 3000 });
+            return;
+        }
+
+        is_syncing = true;
+        Lampa.Noty.show('Weeb-X: Полная синхронизация...', { time: 3000 });
+        log('=== Starting full bidirectional sync ===');
+
+        var historyCount = 0, bookmarksPulled = 0, bookmarksPushed = 0;
+
+        // Step 1: Pull history from website → mark in Lampa timeline
+        pullHistoryFromWebsite().then(function (history) {
+            historyCount = history.length;
+
+            // Step 2: Pull bookmarks from website → add to Lampa favorites
+            return pullBookmarksFromWebsite();
+        }).then(function (pulled) {
+            bookmarksPulled = pulled;
+
+            // Step 3: Push Lampa bookmarks → website
+            return pushLampaBookmarksToWebsite();
+        }).then(function (pushed) {
+            bookmarksPushed = pushed;
+
+            is_syncing = false;
+            var msg = 'Weeb-X: Синхронизация завершена! История: ' + historyCount +
+                ', Закладки получено: ' + bookmarksPulled +
+                ', отправлено: ' + bookmarksPushed;
+            log('=== ' + msg + ' ===');
+            Lampa.Noty.show(msg, { time: 6000 });
+        }).catch(function (err) {
+            is_syncing = false;
+            logError('Full sync error:', err);
+            Lampa.Noty.show('Weeb-X: Ошибка синхронизации', { time: 5000 });
+        });
+    }
+
+    // ================================================================
+    // SINGLE BOOKMARK SYNC (real-time, when user adds/removes in Lampa)
+    // ================================================================
+
+    function sendBookmarkToWebsite(card) {
+        if (!isLoggedIn() || !card) return;
+
+        var animeId = card.id || card.shikimori_id || '';
+        var title = card.title || card.name || card.russian || 'Unknown';
+        var poster = card.poster || card.img || '';
+        var episodesTotal = null;
+        try { if (card.episodes) episodesTotal = parseInt(card.episodes) || null; } catch (e) {}
+
+        log('Sending bookmark to website:', title);
+
+        network.silent(WEEBX_API + '/bookmarks', function (data) {
+            log('Bookmark saved to website:', title);
+        }, function (err) {
+            logError('bookmark send error:', err);
+        }, {
+            anime_id: String(animeId),
+            title: title,
+            poster: poster,
+            episodes_total: episodesTotal,
+            shikimori_id: card.shikimori_id || null
+        }, {
+            type: 'post',
+            headers: authHeaders()
+        });
+    }
+
+    function removeBookmarkFromWebsite(card) {
+        if (!isLoggedIn() || !card) return;
+
+        var animeId = String(card.id || card.shikimori_id || '');
+        if (!animeId) return;
+
+        log('Removing bookmark from website:', card.title || card.name);
+
+        network.silent(WEEBX_API + '/bookmarks?anime_id=' + encodeURIComponent(animeId), function (data) {
+            log('Bookmark removed from website:', card.title || card.name);
+        }, function (err) {
+            logError('bookmark remove error:', err);
+        }, false, {
+            type: 'delete',
+            headers: authHeaders()
+        });
+    }
+
+    // ================================================================
+    // PLUGIN START
+    // ================================================================
 
     function startPlugin() {
         var manifest = {
             type: 'video',
-            version: '1.0.0',
+            version: '2.0.0',
             name: 'Weeb-X',
-            description: 'Синхронизация истории просмотра с Weeb-X.com',
+            description: 'Двусторонняя синхронизация истории и закладок с Weeb-X.com',
             component: 'weebx'
         };
 
@@ -239,12 +500,8 @@
         // Section: Account
         Lampa.SettingsApi.addParam({
             component: 'weebx',
-            param: {
-                type: 'title'
-            },
-            field: {
-                name: 'Аккаунт'
-            }
+            param: { type: 'title' },
+            field: { name: 'Аккаунт' }
         });
 
         Lampa.SettingsApi.addParam({
@@ -266,9 +523,7 @@
                             { title: 'Нет' }
                         ],
                         onSelect: function (a) {
-                            if (a.confirm) {
-                                logout();
-                            }
+                            if (a.confirm) logout();
                             Lampa.Controller.toggle('settings_component');
                         },
                         onBack: function () {
@@ -285,12 +540,8 @@
         // Section: Sync
         Lampa.SettingsApi.addParam({
             component: 'weebx',
-            param: {
-                type: 'title'
-            },
-            field: {
-                name: 'Синхронизация'
-            }
+            param: { type: 'title' },
+            field: { name: 'Синхронизация' }
         });
 
         Lampa.SettingsApi.addParam({
@@ -300,13 +551,74 @@
                 name: 'weebx_sync_now'
             },
             field: {
-                name: 'Синхронизировать сейчас',
-                description: 'Загрузить историю просмотра с Weeb-X'
+                name: 'Полная синхронизация',
+                description: 'Двусторонняя синхронизация: история + закладки (Lampa ↔ Weeb-X)'
+            },
+            onChange: function () {
+                fullSync();
+                Lampa.Controller.toggle('settings_component');
+            }
+        });
+
+        Lampa.SettingsApi.addParam({
+            component: 'weebx',
+            param: {
+                type: 'button',
+                name: 'weebx_pull_history'
+            },
+            field: {
+                name: 'Загрузить историю с сайта',
+                description: 'Получить историю просмотра с Weeb-X и отметить в Lampa'
             },
             onChange: function () {
                 if (isLoggedIn()) {
-                    fetchHistoryForTimeline();
-                    Lampa.Noty.show('Weeb-X: Синхронизация запущена', { time: 3000 });
+                    pullHistoryFromWebsite().then(function (count) {
+                        Lampa.Noty.show('Weeb-X: Получено ' + count.length + ' записей истории', { time: 4000 });
+                    });
+                } else {
+                    Lampa.Noty.show('Weeb-X: Сначала авторизуйтесь', { time: 3000 });
+                }
+                Lampa.Controller.toggle('settings_component');
+            }
+        });
+
+        Lampa.SettingsApi.addParam({
+            component: 'weebx',
+            param: {
+                type: 'button',
+                name: 'weebx_pull_bookmarks'
+            },
+            field: {
+                name: 'Загрузить закладки с сайта',
+                description: 'Получить закладки с Weeb-X и добавить в Lampa'
+            },
+            onChange: function () {
+                if (isLoggedIn()) {
+                    pullBookmarksFromWebsite().then(function (count) {
+                        Lampa.Noty.show('Weeb-X: Добавлено ' + count + ' закладок', { time: 4000 });
+                    });
+                } else {
+                    Lampa.Noty.show('Weeb-X: Сначала авторизуйтесь', { time: 3000 });
+                }
+                Lampa.Controller.toggle('settings_component');
+            }
+        });
+
+        Lampa.SettingsApi.addParam({
+            component: 'weebx',
+            param: {
+                type: 'button',
+                name: 'weebx_push_bookmarks'
+            },
+            field: {
+                name: 'Отправить закладки на сайт',
+                description: 'Загрузить закладки из Lampa на Weeb-X'
+            },
+            onChange: function () {
+                if (isLoggedIn()) {
+                    pushLampaBookmarksToWebsite().then(function (count) {
+                        Lampa.Noty.show('Weeb-X: Отправлено ' + count + ' закладок', { time: 4000 });
+                    });
                 } else {
                     Lampa.Noty.show('Weeb-X: Сначала авторизуйтесь', { time: 3000 });
                 }
@@ -323,15 +635,15 @@
             },
             field: {
                 name: 'Автосинхронизация',
-                description: 'Автоматически отправлять прогресс просмотра на Weeb-X'
+                description: 'Автоматически отправлять прогресс просмотра и закладки на Weeb-X'
             }
         });
 
-        // === Player listeners ===
+        // === Player listeners (progress sync) ===
         Lampa.Player.listener.follow('start', function (e) {
             if (e.movie) {
                 current_card = e.movie;
-                console.log('Weeb-X: Started watching', current_card.title || current_card.name);
+                log('Started watching:', current_card.title || current_card.name);
             }
         });
 
@@ -358,12 +670,41 @@
             current_card = null;
         });
 
-        // Initial history pull
-        if (isLoggedIn()) {
-            fetchHistoryForTimeline();
+        // === Favorite/Bookmark listeners (real-time bookmark sync) ===
+        if (Lampa.Favorite && Lampa.Favorite.listener) {
+            Lampa.Favorite.listener.follow('add', function (e) {
+                if (isLoggedIn() && e.movie) {
+                    var autoSync = Lampa.Storage.get('weebx_auto_sync', true);
+                    if (autoSync !== false) {
+                        log('Favorite added in Lampa:', e.movie.title || e.movie.name);
+                        sendBookmarkToWebsite(e.movie);
+                    }
+                }
+            });
+
+            Lampa.Favorite.listener.follow('remove', function (e) {
+                if (isLoggedIn() && e.movie) {
+                    var autoSync = Lampa.Storage.get('weebx_auto_sync', true);
+                    if (autoSync !== false) {
+                        log('Favorite removed in Lampa:', e.movie.title || e.movie.name);
+                        removeBookmarkFromWebsite(e.movie);
+                    }
+                }
+            });
+        } else {
+            log('Lampa.Favorite.listener not available - real-time bookmark sync disabled');
         }
 
-        console.log('Weeb-X plugin started');
+        // Initial full sync on plugin start if logged in
+        if (isLoggedIn()) {
+            log('Logged in, performing initial sync...');
+            setTimeout(function () {
+                pullHistoryFromWebsite();
+                pullBookmarksFromWebsite();
+            }, 2000);
+        }
+
+        log('Plugin v2.0.0 started');
     }
 
     if (!window.weebx_ready) {

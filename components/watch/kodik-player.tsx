@@ -63,6 +63,7 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCo
   const [selectedCountry, setSelectedCountry] = useState<string>('RU')
   const [errorMessage, setErrorMessage] = useState<string>('')
   const [showFullscreenHint, setShowFullscreenHint] = useState(false)
+  const [useProxy, setUseProxy] = useState(true)
   const playerContainerRef = useRef<HTMLDivElement>(null)
   const lastTapRef = useRef<number>(0)
 
@@ -162,7 +163,7 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCo
     setSelectedTranslation(tr)
     saveTranslationId(shikimoriId, tr.translationId)
     setShowTranslationsMenu(false)
-    // Перезагружаем iframe с новой озвучкой
+    setUseProxy(true)
     if (isStarted) setIsLoading(true)
   }
 
@@ -278,6 +279,7 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCo
 
     const params = new URLSearchParams({
       no_ads: "true", // Отключаем рекламу в плеере
+      no_provider_ads: "true", // Дополнительно отключаем рекламу провайдера
       hide_selectors: "true", // Скрываем встроенные селекторы Kodik (озвучка/сезон/серия)
       autoplay: "0",
       quality: "720",
@@ -292,8 +294,14 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCo
     }
 
     const separator = url.includes("?") ? "&" : "?"
-    return `${url}${separator}${params.toString()}`
-  }, [selectedTranslation, episode, selectedCountry])
+    const directUrl = `${url}${separator}${params.toString()}`
+
+    // Через proxy для внедрения ad-block CSS/JS, или прямой URL как fallback
+    if (useProxy) {
+      return `/api/kodik/player-proxy?url=${encodeURIComponent(directUrl)}`
+    }
+    return directUrl
+  }, [selectedTranslation, episode, selectedCountry, useProxy])
 
   const handleCountryChange = (countryCode: string) => {
     setSelectedCountry(countryCode)
@@ -693,14 +701,15 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCo
              </div>
           ) : (
             <iframe
-              key={selectedTranslation?.translationId || "default"}
+              key={`${selectedTranslation?.translationId || "default"}-${useProxy ? "proxy" : "direct"}`}
               src={playerSrc || undefined}
               className={`h-full w-full transition-opacity duration-700 ${isLoading ? 'opacity-0' : 'opacity-100'}`}
               allowFullScreen
-              sandbox="allow-forms allow-scripts allow-same-origin allow-presentation allow-popups-to-escape-sandbox allow-top-navigation"
+              sandbox="allow-scripts allow-same-origin allow-presentation"
+              referrerPolicy="no-referrer"
               loading="lazy"
               onLoad={() => {
-                console.log(`✅ Kodik player loaded`)
+                console.log(`✅ Kodik player loaded (${useProxy ? 'proxy' : 'direct'})`)
                 setIsLoading(false)
                 if (loadTimeout) {
                   clearTimeout(loadTimeout)
@@ -708,8 +717,14 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCo
                 }
               }}
               onError={(e) => {
-                console.error(`❌ iframe error:`, e)
-                setIsLoading(false)
+                console.error(`❌ iframe error (${useProxy ? 'proxy' : 'direct'}):`, e)
+                if (useProxy) {
+                  console.log('🔄 Falling back to direct Kodik URL')
+                  setUseProxy(false)
+                  setIsLoading(true)
+                } else {
+                  setIsLoading(false)
+                }
               }}
             />
           )}

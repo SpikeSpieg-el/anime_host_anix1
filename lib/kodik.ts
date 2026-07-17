@@ -302,6 +302,8 @@ export function getKodikPlayerUrl(
     types: "anime,anime-serial",
     block_blocked_countries: "true",
     no_ads: "true",
+    no_provider_ads: "true",
+    hide_selectors: "true",
   })
 
   if (episode && episode > 0) {
