@@ -6,7 +6,7 @@ import Image from "next/image"
 import Link from "next/link"
 import { ScrollToTop } from "@/components/layout/scroll-to-top"
 import { Footer } from "@/components/layout/footer"
-import { adminLogin, adminLogout, checkAdminAuth, getAdminUsers, getPvPRules, updatePvPRule, getPvPLocations, createPvPLocation, deletePvPLocation, getPvPLogs, getAdminUsersSimple, getBanners, createBanner, updateBanner, deleteBanner, getBannerCards, addBannerCard, updateBannerCard, deleteBannerCard, adminSendMail, adminSendMailBulk, adminGiftCardToUser } from "./actions"
+import { adminLogin, adminLogout, checkAdminAuth, getAdminUsers, getPvPRules, updatePvPRule, getPvPLocations, createPvPLocation, deletePvPLocation, getPvPLogs, getAdminUsersSimple, getBanners, createBanner, updateBanner, deleteBanner, getBannerCards, addBannerCard, updateBannerCard, deleteBannerCard, adminSendMail, adminSendMailBulk, adminGiftCardToUser, searchCharactersForBanner, searchUserCardsForBanner } from "./actions"
 import { rarityConfig } from "@/types/gacha"
 import type { Rarity } from "@/types/gacha"
 import { toast } from "sonner"
@@ -433,6 +433,13 @@ export default function AdminPage() {
   const [newBannerCardJson, setNewBannerCardJson] = useState<Record<string, string>>({})
   const [newBannerCardWeight, setNewBannerCardWeight] = useState<Record<string, number>>({})
   const [newBannerCardFeatured, setNewBannerCardFeatured] = useState<Record<string, boolean>>({})
+  // Card picker state
+  const [cardPickerMode, setCardPickerMode] = useState<Record<string, "picker" | "json">>({})
+  const [cardPickerSource, setCardPickerSource] = useState<Record<string, "shikimori" | "db">>({})
+  const [cardPickerQuery, setCardPickerQuery] = useState<Record<string, string>>({})
+  const [cardPickerResults, setCardPickerResults] = useState<Record<string, any[]>>({})
+  const [cardPickerLoading, setCardPickerLoading] = useState<Record<string, boolean>>({})
+  const [cardPickerSelected, setCardPickerSelected] = useState<Record<string, any | null>>({})
 
   useEffect(() => {
     checkAdminAuth().then((authenticated) => {
@@ -890,6 +897,58 @@ export default function AdminPage() {
     }
   }
 
+  const handleCardPickerSearch = async (bannerId: string, banner: Banner) => {
+    const source = cardPickerSource[bannerId] ?? "shikimori"
+    const query = cardPickerQuery[bannerId] || undefined
+    setCardPickerLoading(prev => ({ ...prev, [bannerId]: true }))
+    try {
+      if (source === "shikimori") {
+        const animeIds = banner.featured_anime_ids || []
+        if (animeIds.length === 0) {
+          toast.error("У баннера нет featured anime IDs — добавьте ID аниме в настройках")
+          setCardPickerResults(prev => ({ ...prev, [bannerId]: [] }))
+          return
+        }
+        const results = await searchCharactersForBanner(animeIds, query)
+        setCardPickerResults(prev => ({ ...prev, [bannerId]: results }))
+        if (results.length === 0) toast.info("Персонажи не найдены")
+      } else {
+        const results = await searchUserCardsForBanner(query)
+        setCardPickerResults(prev => ({ ...prev, [bannerId]: results }))
+        if (results.length === 0) toast.info("Карты в БД не найдены")
+      }
+    } catch (err) {
+      console.error("Card picker search failed:", err)
+      toast.error("Ошибка поиска персонажей")
+    } finally {
+      setCardPickerLoading(prev => ({ ...prev, [bannerId]: false }))
+    }
+  }
+
+  const handleAddCardFromPicker = async (bannerId: string) => {
+    const selected = cardPickerSelected[bannerId]
+    if (!selected) {
+      toast.error("Выберите карту из списка")
+      return
+    }
+    try {
+      const created = await addBannerCard({
+        bannerId,
+        cardPayload: selected,
+        weight: newBannerCardWeight[bannerId] ?? 1,
+        isFeatured: newBannerCardFeatured[bannerId] ?? false,
+      })
+      setBannerCards(prev => ({ ...prev, [bannerId]: [created, ...(prev[bannerId] || [])] }))
+      setCardPickerSelected(prev => ({ ...prev, [bannerId]: null }))
+      setNewBannerCardWeight(prev => ({ ...prev, [bannerId]: 1 }))
+      setNewBannerCardFeatured(prev => ({ ...prev, [bannerId]: false }))
+      toast.success("Карта добавлена в баннер!")
+    } catch (err) {
+      console.error("Failed to add card from picker:", err)
+      toast.error("Ошибка при добавлении карты")
+    }
+  }
+
   const filteredUsers = users.filter(user => 
     user.username?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     user.id.toLowerCase().includes(searchTerm.toLowerCase())
@@ -918,15 +977,15 @@ export default function AdminPage() {
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-8">
+      <div className="min-h-screen bg-background flex items-center justify-center p-4 sm:p-8">
         <div className="max-w-md w-full">
-          <div className="bg-card border border-border rounded-lg p-8">
+          <div className="bg-card border border-border rounded-lg p-6 sm:p-8">
             <div className="text-center mb-8">
               <div className="mx-auto w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-4">
                 <Lock className="w-6 h-6 text-primary" />
               </div>
-              <h1 className="text-2xl font-bold text-foreground mb-2">Admin Access</h1>
-              <p className="text-muted-foreground">Enter credentials to access admin dashboard</p>
+              <h1 className="text-xl sm:text-2xl font-bold text-foreground mb-2">Admin Access</h1>
+              <p className="text-sm text-muted-foreground">Enter credentials to access admin dashboard</p>
             </div>
 
             <form onSubmit={handleLogin} className="space-y-4">
@@ -974,11 +1033,11 @@ export default function AdminPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background p-8">
+      <div className="min-h-screen bg-background p-3 sm:p-4 md:p-8">
         <div className="max-w-7xl mx-auto">
           <div className="animate-pulse">
-            <div className="h-8 bg-muted rounded w-48 mb-8"></div>
-            <div className="grid gap-4">
+            <div className="h-8 bg-muted rounded w-48 mb-6 sm:mb-8"></div>
+            <div className="grid gap-3 sm:gap-4">
               {[...Array(5)].map((_, i) => (
                 <div key={i} className="h-20 bg-muted rounded"></div>
               ))}
@@ -991,7 +1050,7 @@ export default function AdminPage() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-background p-8">
+      <div className="min-h-screen bg-background p-3 sm:p-4 md:p-8">
         <div className="max-w-7xl mx-auto">
           <div className="text-center py-12">
             <p className="text-destructive">{error}</p>
@@ -1009,75 +1068,78 @@ export default function AdminPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="max-w-7xl mx-auto p-8">
+      <div className="max-w-7xl mx-auto p-3 sm:p-4 md:p-6 lg:p-8">
         {/* Header */}
-        <div className="flex justify-between items-center mb-8">
-          <div>
-            <h1 className="text-3xl font-bold text-foreground mb-2">Admin Dashboard</h1>
-            <div className="flex gap-4">
+        <div className="flex flex-col gap-4 mb-6 md:mb-8">
+          <div className="flex justify-between items-center">
+            <div>
+              <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-foreground mb-1 md:mb-2">Admin Dashboard</h1>
+            </div>
+            <div className="flex gap-2 sm:gap-4 items-center">
+              <div className="text-xs sm:text-sm text-muted-foreground hidden sm:block">
+                Total Users: {users.length}
+              </div>
+              <button
+                onClick={handleLogout}
+                className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-muted hover:bg-muted/80 rounded transition text-sm"
+                disabled={isPending}
+              >
+                <LogOut size={16} />
+                {isPending ? "..." : "Logout"}
+              </button>
+            </div>
+          </div>
+          {/* Tabs - horizontally scrollable on mobile */}
+          <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-thin">
               <button
                 onClick={() => setActiveTab('users')}
-                className={`text-sm px-4 py-2 rounded-lg transition ${activeTab === 'users' ? 'bg-primary text-primary-foreground font-semibold' : 'text-muted-foreground hover:bg-muted'}`}
+                className={`text-xs sm:text-sm px-3 sm:px-4 py-2 rounded-lg transition whitespace-nowrap ${activeTab === 'users' ? 'bg-primary text-primary-foreground font-semibold' : 'text-muted-foreground hover:bg-muted'}`}
               >
-                Users Management
+                Users
               </button>
               <button
                 onClick={() => setActiveTab('pvp')}
-                className={`text-sm px-4 py-2 rounded-lg transition ${activeTab === 'pvp' ? 'bg-primary text-primary-foreground font-semibold' : 'text-muted-foreground hover:bg-muted'}`}
+                className={`text-xs sm:text-sm px-3 sm:px-4 py-2 rounded-lg transition whitespace-nowrap ${activeTab === 'pvp' ? 'bg-primary text-primary-foreground font-semibold' : 'text-muted-foreground hover:bg-muted'}`}
               >
-                PvP Settings
+                PvP
               </button>
               <button
                 onClick={() => setActiveTab('battle_logs')}
-                className={`text-sm px-4 py-2 rounded-lg transition ${activeTab === 'battle_logs' ? 'bg-primary text-primary-foreground font-semibold' : 'text-muted-foreground hover:bg-muted'}`}
+                className={`text-xs sm:text-sm px-3 sm:px-4 py-2 rounded-lg transition whitespace-nowrap ${activeTab === 'battle_logs' ? 'bg-primary text-primary-foreground font-semibold' : 'text-muted-foreground hover:bg-muted'}`}
               >
                 Battle Logs
               </button>
               <button
                 onClick={() => setActiveTab('cards')}
-                className={`text-sm px-4 py-2 rounded-lg transition ${activeTab === 'cards' ? 'bg-primary text-primary-foreground font-semibold' : 'text-muted-foreground hover:bg-muted'}`}
+                className={`text-xs sm:text-sm px-3 sm:px-4 py-2 rounded-lg transition whitespace-nowrap ${activeTab === 'cards' ? 'bg-primary text-primary-foreground font-semibold' : 'text-muted-foreground hover:bg-muted'}`}
               >
                 Карты
               </button>
               <button
                 onClick={() => setActiveTab('mail')}
-                className={`text-sm px-4 py-2 rounded-lg transition ${activeTab === 'mail' ? 'bg-primary text-primary-foreground font-semibold' : 'text-muted-foreground hover:bg-muted'}`}
+                className={`text-xs sm:text-sm px-3 sm:px-4 py-2 rounded-lg transition whitespace-nowrap ${activeTab === 'mail' ? 'bg-primary text-primary-foreground font-semibold' : 'text-muted-foreground hover:bg-muted'}`}
               >
                 Рассылка
               </button>
               <button
                 onClick={() => setActiveTab('events')}
-                className={`text-sm px-4 py-2 rounded-lg transition ${activeTab === 'events' ? 'bg-primary text-primary-foreground font-semibold' : 'text-muted-foreground hover:bg-muted'}`}
+                className={`text-xs sm:text-sm px-3 sm:px-4 py-2 rounded-lg transition whitespace-nowrap ${activeTab === 'events' ? 'bg-primary text-primary-foreground font-semibold' : 'text-muted-foreground hover:bg-muted'}`}
               >
                 События
               </button>
               <button
                 onClick={() => setActiveTab('tutorial')}
-                className={`text-sm px-4 py-2 rounded-lg transition ${activeTab === 'tutorial' ? 'bg-primary text-primary-foreground font-semibold' : 'text-muted-foreground hover:bg-muted'}`}
+                className={`text-xs sm:text-sm px-3 sm:px-4 py-2 rounded-lg transition whitespace-nowrap ${activeTab === 'tutorial' ? 'bg-primary text-primary-foreground font-semibold' : 'text-muted-foreground hover:bg-muted'}`}
               >
                 Туториал
               </button>
             </div>
-          </div>
-          <div className="flex gap-4 items-center">
-            <div className="text-sm text-muted-foreground">
-              Total Users: {users.length}
-            </div>
-            <button
-              onClick={handleLogout}
-              className="flex items-center gap-2 px-4 py-2 bg-muted hover:bg-muted/80 rounded transition"
-              disabled={isPending}
-            >
-              <LogOut size={16} />
-              {isPending ? "Logging out..." : "Logout"}
-            </button>
-          </div>
         </div>
 
         {activeTab === 'users' ? (
           <>
             {/* Search */}
-            <div className="mb-6">
+            <div className="mb-4 sm:mb-6">
               <div className="relative max-w-md">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground" size={20} />
                 <input
@@ -1091,11 +1153,11 @@ export default function AdminPage() {
             </div>
 
             {/* Users Grid */}
-            <div className="grid gap-6">
+            <div className="grid gap-3 sm:gap-4 md:gap-6">
               {filteredUsers.map((user) => (
-                <div key={user.id} className="bg-card border border-border rounded-lg p-6 hover:bg-card/80 transition">
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex items-center gap-4">
+                <div key={user.id} className="bg-card border border-border rounded-lg p-4 sm:p-6 hover:bg-card/80 transition">
+                  <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 sm:gap-4 mb-4">
+                    <div className="flex items-center gap-3 sm:gap-4">
                       {/* Avatar */}
                       <div className="relative">
                         {user.avatar_url ? (
@@ -1128,20 +1190,20 @@ export default function AdminPage() {
                     </div>
 
                     {/* Stats */}
-                    <div className="flex gap-6 text-sm">
+                    <div className="flex gap-4 sm:gap-6 text-sm">
                       <div className="text-center">
                         <div className="flex items-center gap-1 text-foreground font-semibold">
                           <Eye size={16} />
                           {user.watchHistoryCount}
                         </div>
-                        <div className="text-xs text-muted-foreground">Watch History</div>
+                        <div className="text-[10px] sm:text-xs text-muted-foreground">History</div>
                       </div>
                       <div className="text-center">
                         <div className="flex items-center gap-1 text-foreground font-semibold">
                           <Bookmark size={16} />
                           {user.bookmarksCount}
                         </div>
-                        <div className="text-xs text-muted-foreground">Bookmarks</div>
+                        <div className="text-[10px] sm:text-xs text-muted-foreground">Bookmarks</div>
                       </div>
                     </div>
                   </div>
@@ -1162,7 +1224,7 @@ export default function AdminPage() {
 
                   {/* Detailed View */}
                   {selectedUser?.id === user.id && (
-                    <div className="mt-6 pt-6 border-t border-border space-y-6">
+                    <div className="mt-4 sm:mt-6 pt-4 sm:pt-6 border-t border-border space-y-4 sm:space-y-6">
                       {/* Recent Watch History */}
                       {(showAllHistory ? user.allHistory : user.recentHistory.slice(0, 5)).length > 0 && (
                         <div>
@@ -1180,9 +1242,9 @@ export default function AdminPage() {
                               </button>
                             )}
                           </div>
-                          <div className="grid gap-2 max-h-96 overflow-y-auto">
+                          <div className="grid gap-2 max-h-80 sm:max-h-96 overflow-y-auto">
                             {(showAllHistory ? user.allHistory : user.recentHistory.slice(0, 5)).map((item) => (
-                              <div key={item.id} className="flex items-center gap-3 p-2 bg-muted/50 rounded hover:bg-muted/70 transition">
+                              <div key={item.id} className="flex items-center gap-2 sm:gap-3 p-2 bg-muted/50 rounded hover:bg-muted/70 transition">
                                 {item.poster && (
                                   <Image
                                     src={item.poster}
@@ -1221,9 +1283,9 @@ export default function AdminPage() {
                               </button>
                             )}
                           </div>
-                          <div className="grid gap-2 max-h-96 overflow-y-auto">
+                          <div className="grid gap-2 max-h-80 sm:max-h-96 overflow-y-auto">
                             {(showAllBookmarks ? user.allBookmarks : user.recentBookmarks.slice(0, 5)).map((item) => (
-                              <div key={item.id} className="flex items-center gap-3 p-2 bg-muted/50 rounded hover:bg-muted/70 transition">
+                              <div key={item.id} className="flex items-center gap-2 sm:gap-3 p-2 bg-muted/50 rounded hover:bg-muted/70 transition">
                                 {item.anime_data?.poster && (
                                   <Image
                                     src={item.anime_data.poster}
@@ -1256,7 +1318,7 @@ export default function AdminPage() {
                           </h4>
                           <div className="bg-muted/50 rounded-lg p-4 space-y-4">
                             {/* Basic Stats */}
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-2 gap-3 sm:gap-4">
                               <div>
                                 <p className="text-xs text-muted-foreground mb-1">Total Battles</p>
                                 <p className="text-lg font-semibold text-foreground">{user.aiStats.total_battles}</p>
@@ -1270,11 +1332,11 @@ export default function AdminPage() {
                             </div>
 
                             {/* Playstyle Ratings */}
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                               <div>
                                 <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
                                   <Sword size={12} />
-                                  Aggressive Rating
+                                  Aggressive
                                 </p>
                                 <div className="flex items-center gap-2">
                                   <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
@@ -1291,7 +1353,7 @@ export default function AdminPage() {
                               <div>
                                 <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
                                   <Shield size={12} />
-                                  Defensive Rating
+                                  Defensive
                                 </p>
                                 <div className="flex items-center gap-2">
                                   <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
@@ -1389,15 +1451,15 @@ export default function AdminPage() {
             )}
           </>
         ) : activeTab === 'pvp' ? (
-          <div className="space-y-12">
+          <div className="space-y-8 sm:space-y-12">
             {/* PvP Rules Section */}
             <section>
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-2xl font-bold flex items-center gap-2">
-                  <Settings size={24} className="text-primary" />
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4 sm:mb-6">
+                <h2 className="text-lg sm:text-2xl font-bold flex items-center gap-2">
+                  <Settings size={24} className="w-5 h-5 sm:w-6 sm:h-6 text-primary" />
                   PvP Rules (Modifiers)
                 </h2>
-                <div className="text-sm text-muted-foreground">
+                <div className="text-xs sm:text-sm text-muted-foreground">
                   {pvpRules.filter(r => r.is_active).length} active / {pvpRules.length} total
                 </div>
               </div>
@@ -1423,14 +1485,14 @@ export default function AdminPage() {
 
             {/* PvP Locations Section */}
             <section>
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-2xl font-bold flex items-center gap-2">
-                  <Map size={24} className="text-primary" />
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4 sm:mb-6">
+                <h2 className="text-lg sm:text-2xl font-bold flex items-center gap-2">
+                  <Map size={24} className="w-5 h-5 sm:w-6 sm:h-6 text-primary" />
                   Custom Locations
                 </h2>
                 <button
                   onClick={() => setShowAddLocation(true)}
-                  className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition"
+                  className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition text-sm w-fit"
                 >
                   <Plus size={18} />
                   Add Location
@@ -1438,9 +1500,9 @@ export default function AdminPage() {
               </div>
 
               {showAddLocation && (
-                <div className="bg-card border border-primary/30 rounded-xl p-6 mb-8 shadow-xl">
+                <div className="bg-card border border-primary/30 rounded-xl p-4 sm:p-6 mb-6 sm:mb-8 shadow-xl">
                   <form onSubmit={handleCreateLocation} className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
                         <label className="block text-xs font-medium text-muted-foreground mb-1 uppercase">Name (Internal)</label>
                         <input
@@ -1464,7 +1526,7 @@ export default function AdminPage() {
                         />
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
                         <label className="block text-xs font-medium text-muted-foreground mb-1 uppercase">Description (Internal)</label>
                         <textarea
@@ -1498,7 +1560,7 @@ export default function AdminPage() {
                     {!newLocation.is_empty && (
                       <div className="space-y-2">
                         <label className="block text-xs font-medium text-muted-foreground mb-1 uppercase">Select Rules (Max 1 per location usually)</label>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 max-h-48 overflow-y-auto p-2 border border-border rounded bg-muted/30">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2 max-h-48 overflow-y-auto p-2 border border-border rounded bg-muted/30">
                           {pvpRules.filter(r => r.is_active).map(rule => (
                             <div 
                               key={rule.id}
@@ -1519,7 +1581,7 @@ export default function AdminPage() {
                       </div>
                     )}
 
-                    <div className="flex justify-end gap-3 pt-4">
+                    <div className="flex flex-col sm:flex-row justify-end gap-3 pt-4">
                       <button
                         type="button"
                         onClick={() => setShowAddLocation(false)}
@@ -1538,12 +1600,12 @@ export default function AdminPage() {
                 </div>
               )}
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
                 {pvpLocations.map((loc) => (
-                  <div key={loc.id} className="bg-card border border-border rounded-xl p-6 shadow-sm group">
+                  <div key={loc.id} className="bg-card border border-border rounded-xl p-4 sm:p-6 shadow-sm group">
                     <div className="flex items-start justify-between mb-4">
-                      <div>
-                        <h3 className="text-xl font-bold flex items-center gap-2">
+                      <div className="min-w-0 flex-1">
+                        <h3 className="text-lg sm:text-xl font-bold flex items-center gap-2">
                           {loc.name_ru}
                           {loc.is_empty && <span className="text-[10px] bg-muted text-muted-foreground px-2 py-0.5 rounded-full uppercase tracking-tighter">Neutral</span>}
                         </h3>
@@ -1551,12 +1613,12 @@ export default function AdminPage() {
                       </div>
                       <button
                         onClick={() => handleDeleteLocation(loc.id)}
-                        className="p-2 text-muted-foreground hover:text-destructive transition opacity-0 group-hover:opacity-100"
+                        className="p-2 text-muted-foreground hover:text-destructive transition sm:opacity-0 sm:group-hover:opacity-100 flex-shrink-0"
                       >
                         <Trash2 size={20} />
                       </button>
                     </div>
-                    <p className="text-sm mb-4 line-clamp-3">{loc.description_ru}</p>
+                    <p className="text-sm mb-4 line-clamp-3 break-words">{loc.description_ru}</p>
                     
                     <div className="flex flex-wrap gap-2">
                       {loc.rules.map((ruleMapping: any) => {
@@ -1577,15 +1639,15 @@ export default function AdminPage() {
             </section>
           </div>
         ) : activeTab === 'battle_logs' ? (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h2 className="text-2xl font-bold flex items-center gap-2">
-                <History size={24} className="text-primary" />
+          <div className="space-y-4 sm:space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <h2 className="text-lg sm:text-2xl font-bold flex items-center gap-2">
+                <History size={24} className="w-5 h-5 sm:w-6 sm:h-6 text-primary" />
                 PvP Battle Logs
               </h2>
               <button
                 onClick={fetchPvPLogs}
-                className="text-sm text-primary hover:underline"
+                className="text-sm text-primary hover:underline w-fit"
                 disabled={isLogsLoading}
               >
                 Refresh
@@ -1598,25 +1660,26 @@ export default function AdminPage() {
               </div>
             ) : (
               <div className="bg-card border border-border rounded-xl overflow-hidden shadow-sm">
-                <table className="w-full text-left border-collapse">
+                <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse min-w-[700px]">
                   <thead className="bg-muted/50 text-xs uppercase tracking-wider text-muted-foreground">
                     <tr>
-                      <th className="px-6 py-4 font-semibold">Match ID / Time</th>
-                      <th className="px-6 py-4 font-semibold">Player 1</th>
-                      <th className="px-6 py-4 font-semibold">Player 2</th>
-                      <th className="px-6 py-4 font-semibold">Winner</th>
-                      <th className="px-6 py-4 font-semibold">Duration</th>
-                      <th className="px-6 py-4 font-semibold">Reason</th>
+                      <th className="px-3 sm:px-6 py-3 sm:py-4 font-semibold">Match ID / Time</th>
+                      <th className="px-3 sm:px-6 py-3 sm:py-4 font-semibold">Player 1</th>
+                      <th className="px-3 sm:px-6 py-3 sm:py-4 font-semibold">Player 2</th>
+                      <th className="px-3 sm:px-6 py-3 sm:py-4 font-semibold">Winner</th>
+                      <th className="px-3 sm:px-6 py-3 sm:py-4 font-semibold">Duration</th>
+                      <th className="px-3 sm:px-6 py-3 sm:py-4 font-semibold">Reason</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
                     {pvpLogs.map((log) => (
                       <tr key={log.id} className="hover:bg-muted/30 transition text-sm">
-                        <td className="px-6 py-4">
+                        <td className="px-3 sm:px-6 py-3 sm:py-4">
                           <div className="font-mono text-[10px] text-muted-foreground mb-1 truncate max-w-[100px]">{log.id}</div>
                           <div className="text-xs">{formatDate(log.created_at)}</div>
                         </td>
-                        <td className="px-6 py-4">
+                        <td className="px-3 sm:px-6 py-3 sm:py-4">
                           <div className="flex items-center gap-2">
                             {log.player1.avatar_url && (
                               <Image src={log.player1.avatar_url} alt="" width={24} height={24} className="rounded-full" />
@@ -1627,7 +1690,7 @@ export default function AdminPage() {
                             </div>
                           </div>
                         </td>
-                        <td className="px-6 py-4">
+                        <td className="px-3 sm:px-6 py-3 sm:py-4">
                           <div className="flex items-center gap-2">
                             {log.player2.avatar_url && (
                               <Image src={log.player2.avatar_url} alt="" width={24} height={24} className="rounded-full" />
@@ -1638,7 +1701,7 @@ export default function AdminPage() {
                             </div>
                           </div>
                         </td>
-                        <td className="px-6 py-4">
+                        <td className="px-3 sm:px-6 py-3 sm:py-4">
                           {log.winner_id ? (
                             <div className="flex items-center gap-1 text-emerald-500 font-bold">
                               <Trophy size={14} />
@@ -1650,10 +1713,10 @@ export default function AdminPage() {
                             <span className="text-muted-foreground">Draw</span>
                           )}
                         </td>
-                        <td className="px-6 py-4 text-muted-foreground">
+                        <td className="px-3 sm:px-6 py-3 sm:py-4 text-muted-foreground">
                           {log.duration_seconds}s
                         </td>
-                        <td className="px-6 py-4">
+                        <td className="px-3 sm:px-6 py-3 sm:py-4">
                           <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
                             log.battle_data?.reason === 'complete' ? 'bg-blue-500/10 text-blue-500 border border-blue-500/20' : 
                             log.battle_data?.reason === 'disconnect' ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20' :
@@ -1666,6 +1729,7 @@ export default function AdminPage() {
                     ))}
                   </tbody>
                 </table>
+                </div>
                 {pvpLogs.length === 0 && (
                   <div className="py-12 text-center text-muted-foreground">
                     No battle logs found
@@ -1675,14 +1739,14 @@ export default function AdminPage() {
             )}
           </div>
         ) : activeTab === 'cards' ? (
-          <div className="space-y-6">
+          <div className="space-y-4 sm:space-y-6">
             <div className="flex items-center justify-between">
-              <h2 className="text-2xl font-bold flex items-center gap-2">
-                <Sparkles size={24} className="text-primary" />
+              <h2 className="text-lg sm:text-2xl font-bold flex items-center gap-2">
+                <Sparkles size={24} className="w-5 h-5 sm:w-6 sm:h-6 text-primary" />
                 Редактор карт
               </h2>
             </div>
-            <div className="bg-card border border-border rounded-xl p-8 text-center space-y-6">
+            <div className="bg-card border border-border rounded-xl p-4 sm:p-8 text-center space-y-4 sm:space-y-6">
               <Sparkles size={48} className="text-primary mx-auto" />
               <div className="space-y-2">
                 <h3 className="text-xl font-bold">Создание и редактирование карт</h3>
@@ -1701,21 +1765,21 @@ export default function AdminPage() {
             </div>
           </div>
         ) : activeTab === 'mail' ? (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h2 className="text-2xl font-bold flex items-center gap-2">
-                <Mail size={24} className="text-primary" />
+          <div className="space-y-4 sm:space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <h2 className="text-lg sm:text-2xl font-bold flex items-center gap-2">
+                <Mail size={24} className="w-5 h-5 sm:w-6 sm:h-6 text-primary" />
                 Рассылка и подарки
               </h2>
               <button
                 onClick={fetchSimpleUsers}
-                className="text-sm text-primary hover:underline"
+                className="text-sm text-primary hover:underline w-fit"
               >
                 Обновить список
               </button>
             </div>
 
-            <div className="bg-card border border-border rounded-xl p-6 space-y-4">
+            <div className="bg-card border border-border rounded-xl p-4 sm:p-6 space-y-4">
               {/* Recipient */}
               <div>
                 <label className="block text-xs font-medium text-muted-foreground mb-1 uppercase">Получатель</label>
@@ -1808,11 +1872,11 @@ export default function AdminPage() {
               )}
 
               {/* Buttons */}
-              <div className="flex gap-3 pt-2">
+              <div className="flex flex-col sm:flex-row gap-3 pt-2">
                 <button
                   onClick={handleSendMail}
                   disabled={isMailSending || !mailTargetUserId}
-                  className="flex items-center gap-2 px-6 py-2 bg-primary text-primary-foreground rounded-lg font-semibold hover:bg-primary/90 transition disabled:opacity-50"
+                  className="flex items-center justify-center gap-2 px-6 py-2 bg-primary text-primary-foreground rounded-lg font-semibold hover:bg-primary/90 transition disabled:opacity-50"
                 >
                   <Mail size={18} />
                   {isMailSending ? "Отправка..." : "Отправить"}
@@ -1820,7 +1884,7 @@ export default function AdminPage() {
                 <button
                   onClick={handleSendMailBulk}
                   disabled={isMailSending}
-                  className="flex items-center gap-2 px-6 py-2 bg-secondary text-secondary-foreground rounded-lg font-semibold hover:bg-secondary/80 transition disabled:opacity-50"
+                  className="flex items-center justify-center gap-2 px-6 py-2 bg-secondary text-secondary-foreground rounded-lg font-semibold hover:bg-secondary/80 transition disabled:opacity-50"
                 >
                   <Gift size={18} />
                   {isMailSending ? "Отправка..." : `Отправить всем (${simpleUsers.length})`}
@@ -1829,15 +1893,15 @@ export default function AdminPage() {
             </div>
           </div>
         ) : activeTab === 'events' ? (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h2 className="text-2xl font-bold flex items-center gap-2">
-                <Calendar size={24} className="text-primary" />
+          <div className="space-y-4 sm:space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <h2 className="text-lg sm:text-2xl font-bold flex items-center gap-2">
+                <Calendar size={24} className="w-5 h-5 sm:w-6 sm:h-6 text-primary" />
                 Баннеры и события
               </h2>
               <button
                 onClick={() => setShowCreateBanner(!showCreateBanner)}
-                className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition"
+                className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition text-sm w-fit"
               >
                 <Plus size={18} />
                 Создать баннер
@@ -1846,7 +1910,7 @@ export default function AdminPage() {
 
             {/* Create banner form */}
             {showCreateBanner && (
-              <div className="bg-card border border-primary/30 rounded-xl p-6 space-y-4">
+              <div className="bg-card border border-primary/30 rounded-xl p-4 sm:p-6 space-y-4">
                 <form onSubmit={handleCreateBanner} className="space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
@@ -1935,7 +1999,7 @@ export default function AdminPage() {
                             key={g}
                             type="button"
                             onClick={() => setNewBanner({ ...newBanner, color: g })}
-                            className={`relative w-12 h-12 rounded-lg bg-gradient-to-br ${g} transition-all ${newBanner.color === g ? 'ring-2 ring-primary ring-offset-2 ring-offset-background scale-110' : 'hover:scale-105 opacity-80 hover:opacity-100'}`}
+                            className={`relative w-10 h-10 sm:w-12 sm:h-12 rounded-lg bg-gradient-to-br ${g} transition-all ${newBanner.color === g ? 'ring-2 ring-primary ring-offset-2 ring-offset-background scale-110' : 'hover:scale-105 opacity-80 hover:opacity-100'}`}
                             title={g}
                           >
                             {newBanner.color === g && (
@@ -1972,7 +2036,7 @@ export default function AdminPage() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4 items-center">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center">
                     <div className="flex items-center gap-2">
                       <input
                         type="checkbox"
@@ -2020,7 +2084,7 @@ export default function AdminPage() {
                     </div>
                   </div>
 
-                  <div className="flex justify-end gap-3 pt-2">
+                  <div className="flex flex-col sm:flex-row justify-end gap-3 pt-2">
                     <button
                       type="button"
                       onClick={() => setShowCreateBanner(false)}
@@ -2051,8 +2115,8 @@ export default function AdminPage() {
             ) : (
               <div className="space-y-4">
                 {banners.map((banner) => (
-                  <div key={banner.id} className="bg-card border border-border rounded-xl p-6 shadow-sm">
-                    <div className="flex items-start justify-between mb-3">
+                  <div key={banner.id} className="bg-card border border-border rounded-xl p-4 sm:p-6 shadow-sm">
+                    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2 mb-3">
                       <div className="flex-1 min-w-0">
                         <h3 className="font-semibold text-lg flex items-center gap-2">
                           {banner.name}
@@ -2075,7 +2139,7 @@ export default function AdminPage() {
                           )}
                         </div>
                       </div>
-                      <div className="flex gap-2 flex-shrink-0">
+                      <div className="flex gap-2 flex-shrink-0 self-end sm:self-auto">
                         <button
                           onClick={() => handleStartEditBanner(banner)}
                           className="p-2 text-muted-foreground hover:text-primary transition"
@@ -2111,7 +2175,7 @@ export default function AdminPage() {
 
                     {/* Edit form */}
                     {editingBannerId === banner.id && editBanner && (
-                      <div className="mt-4 pt-4 border-t border-border bg-muted/30 rounded-lg p-4 space-y-4">
+                      <div className="mt-4 pt-4 border-t border-border bg-muted/30 rounded-lg p-3 sm:p-4 space-y-4">
                         <div className="flex items-center gap-2 mb-2">
                           <Edit size={16} className="text-primary" />
                           <h4 className="font-semibold text-sm">Редактирование баннера</h4>
@@ -2198,7 +2262,7 @@ export default function AdminPage() {
                                   key={g}
                                   type="button"
                                   onClick={() => setEditBanner({ ...editBanner, color: g })}
-                                  className={`relative w-12 h-12 rounded-lg bg-gradient-to-br ${g} transition-all ${editBanner.color === g ? 'ring-2 ring-primary ring-offset-2 ring-offset-background scale-110' : 'hover:scale-105 opacity-80 hover:opacity-100'}`}
+                                  className={`relative w-10 h-10 sm:w-12 sm:h-12 rounded-lg bg-gradient-to-br ${g} transition-all ${editBanner.color === g ? 'ring-2 ring-primary ring-offset-2 ring-offset-background scale-110' : 'hover:scale-105 opacity-80 hover:opacity-100'}`}
                                   title={g}
                                 >
                                   {editBanner.color === g && (
@@ -2234,7 +2298,7 @@ export default function AdminPage() {
                             />
                           </div>
                         </div>
-                        <div className="grid grid-cols-2 gap-4 items-center">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center">
                           <div className="flex items-center gap-2">
                             <input
                               type="checkbox"
@@ -2280,7 +2344,7 @@ export default function AdminPage() {
                             />
                           </div>
                         </div>
-                        <div className="flex justify-end gap-3 pt-2">
+                        <div className="flex flex-col sm:flex-row justify-end gap-3 pt-2">
                           <button
                             type="button"
                             onClick={() => { setEditingBannerId(null); setEditBanner(null) }}
@@ -2299,7 +2363,7 @@ export default function AdminPage() {
                       </div>
                     )}
 
-                    <div className="flex gap-2 pt-2 border-t border-border">
+                    <div className="flex flex-wrap gap-2 pt-2 border-t border-border">
                       <button
                         onClick={() => toggleBannerExpand(banner.id)}
                         className="flex items-center gap-2 px-3 py-1.5 bg-muted hover:bg-muted/70 rounded text-sm transition"
@@ -2311,7 +2375,7 @@ export default function AdminPage() {
 
                     {/* Banner cards sub-section */}
                     {expandedBannerId === banner.id && (
-                      <div className="mt-4 pt-4 border-t border-border space-y-4">
+                      <div className="mt-4 pt-4 border-t border-border space-y-3 sm:space-y-4">
                         {bannerCardsLoading === banner.id ? (
                           <div className="flex justify-center py-6">
                             <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
@@ -2322,7 +2386,7 @@ export default function AdminPage() {
                             {(bannerCards[banner.id] || []).length > 0 && (
                               <div className="space-y-2">
                                 {(bannerCards[banner.id] || []).map((bc) => (
-                                  <div key={bc.id} className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
+                                  <div key={bc.id} className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 p-3 bg-muted/50 rounded-lg">
                                     <div className="flex-1 min-w-0">
                                       <p className="text-sm font-medium truncate">
                                         {bc.card_payload?.name || "Без названия"}
@@ -2331,7 +2395,7 @@ export default function AdminPage() {
                                         Редкость: {rarityConfig[bc.card_payload?.rarity as Rarity]?.label || bc.card_payload?.rarity || "—"}
                                       </p>
                                     </div>
-                                    <div className="flex items-center gap-2">
+                                    <div className="flex flex-wrap items-center gap-2">
                                       <label className="text-xs text-muted-foreground">Вес:</label>
                                       <input
                                         type="number"
@@ -2354,7 +2418,7 @@ export default function AdminPage() {
                                             setBannerCards(prev => ({
                                               ...prev,
                                               [banner.id]: (prev[banner.id] || []).map(c => c.id === bc.id ? { ...c, is_featured: f } : c)
-                                            }))
+                                          }))
                                           }}
                                         />
                                         Featured
@@ -2386,7 +2450,7 @@ export default function AdminPage() {
                                 placeholder="Вставьте объект Card в формате JSON..."
                                 className="w-full px-3 py-2 bg-muted border border-border rounded text-xs font-mono h-24"
                               />
-                              <div className="flex items-center gap-3">
+                              <div className="flex flex-wrap items-center gap-3">
                                 <div className="flex items-center gap-2">
                                   <label className="text-xs text-muted-foreground">Вес:</label>
                                   <input
@@ -2423,12 +2487,12 @@ export default function AdminPage() {
             )}
           </div>
         ) : activeTab === 'tutorial' ? (
-          <div className="space-y-4">
+          <div className="space-y-3 sm:space-y-4">
             <div className="flex items-center gap-3 mb-2">
-              <BookOpen className="w-6 h-6 text-primary" />
+              <BookOpen className="w-5 h-5 sm:w-6 sm:h-6 text-primary" />
               <div>
-                <h2 className="text-2xl font-bold">Туториал админ-панели</h2>
-                <p className="text-sm text-muted-foreground">Полное руководство по всем разделам</p>
+                <h2 className="text-lg sm:text-2xl font-bold">Туториал админ-панели</h2>
+                <p className="text-xs sm:text-sm text-muted-foreground">Полное руководство по всем разделам</p>
               </div>
             </div>
 
@@ -2438,7 +2502,7 @@ export default function AdminPage() {
                 <button
                   key={s.id}
                   onClick={() => setExpandedTutorialId(s.id)}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-muted/50 hover:bg-muted border border-border rounded-lg text-xs font-bold uppercase tracking-wider text-muted-foreground hover:text-foreground transition"
+                  className="inline-flex items-center gap-1.5 px-2 sm:px-3 py-1.5 bg-muted/50 hover:bg-muted border border-border rounded-lg text-[10px] sm:text-xs font-bold uppercase tracking-wider text-muted-foreground hover:text-foreground transition whitespace-nowrap"
                 >
                   {s.icon}
                   {s.title.split("—")[0].trim()}
@@ -2454,30 +2518,30 @@ export default function AdminPage() {
                   <div key={section.id} className="bg-card border border-border rounded-xl overflow-hidden">
                     <button
                       onClick={() => setExpandedTutorialId(isExpanded ? null : section.id)}
-                      className="w-full flex items-center justify-between p-4 hover:bg-muted/50 transition text-left"
+                      className="w-full flex items-center justify-between p-3 sm:p-4 hover:bg-muted/50 transition text-left"
                     >
-                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                      <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
                         <div className="p-2 bg-primary/10 rounded-lg border border-primary/20 flex-shrink-0">
                           {section.icon}
                         </div>
                         <div className="min-w-0">
-                          <h3 className="text-base font-bold truncate">{section.title}</h3>
-                          <p className="text-xs text-muted-foreground truncate">{section.description}</p>
+                          <h3 className="text-sm sm:text-base font-bold truncate">{section.title}</h3>
+                          <p className="text-[10px] sm:text-xs text-muted-foreground truncate">{section.description}</p>
                         </div>
                       </div>
                       {isExpanded ? <ChevronDown className="w-5 h-5 text-muted-foreground flex-shrink-0" /> : <ChevronRight className="w-5 h-5 text-muted-foreground flex-shrink-0" />}
                     </button>
                     {isExpanded && (
-                      <div className="px-4 pb-4 space-y-3">
+                      <div className="px-3 sm:px-4 pb-3 sm:pb-4 space-y-3">
                         <div className="space-y-2">
                           {section.steps.map((step, i) => (
-                            <div key={i} className="flex gap-3 p-3 bg-muted/30 rounded-lg border border-border/50">
-                              <div className="flex-shrink-0 w-6 h-6 bg-primary/20 rounded-full flex items-center justify-center text-xs font-black text-primary">
+                            <div key={i} className="flex gap-2 sm:gap-3 p-2 sm:p-3 bg-muted/30 rounded-lg border border-border/50">
+                              <div className="flex-shrink-0 w-5 h-5 sm:w-6 sm:h-6 bg-primary/20 rounded-full flex items-center justify-center text-[10px] sm:text-xs font-black text-primary">
                                 {i + 1}
                               </div>
                               <div className="flex-1 min-w-0">
-                                <p className="text-sm font-bold text-foreground">{step.title}</p>
-                                <p className="text-sm text-muted-foreground mt-0.5">{step.detail}</p>
+                                <p className="text-xs sm:text-sm font-bold text-foreground">{step.title}</p>
+                                <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">{step.detail}</p>
                               </div>
                             </div>
                           ))}

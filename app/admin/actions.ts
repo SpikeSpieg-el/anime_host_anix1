@@ -538,3 +538,130 @@ export async function setBannerGuaranteedCard(bannerId: string, cardPayload: any
   if (error) throw error
   return data
 }
+
+// ============================================================
+// CARD PICKER: Search characters from Shikimori by anime IDs
+// Returns ready-to-use card payloads for banner_cards
+// ============================================================
+export async function searchCharactersForBanner(animeIds: number[], query?: string) {
+  const isAdmin = await checkAdminAuth()
+  if (!isAdmin) throw new Error("Unauthorized")
+
+  const results: any[] = []
+
+  for (const animeId of animeIds) {
+    try {
+      const [animeRes, rolesRes] = await Promise.all([
+        fetch(`https://shikimori.one/api/animes/${animeId}`),
+        fetch(`https://shikimori.one/api/animes/${animeId}/roles`),
+      ])
+
+      if (!animeRes.ok || !rolesRes.ok) continue
+
+      const anime = await animeRes.json()
+      const roles = await rolesRes.json()
+
+      const validChars = roles.filter((r: any) => {
+        if (!r.character || !r.character.id || r.character.image.original.includes('missing')) return false
+        if (query) {
+          const q = query.toLowerCase()
+          const name = (r.character.name || '').toLowerCase()
+          const russian = (r.character.russian || '').toLowerCase()
+          if (!name.includes(q) && !russian.includes(q)) return false
+        }
+        return true
+      })
+
+      for (const r of validChars) {
+        const char = r.character
+        const isMain = (r.roles || []).includes('Main') || (r.roles_ru || []).includes('Главный')
+        const score = parseFloat(anime.score || "0")
+        const originalUrl = char.image.original.startsWith("/")
+          ? `https://shikimori.one${char.image.original}`
+          : char.image.original
+
+        results.push({
+          name: char.russian || char.name,
+          anime: anime.russian || anime.name,
+          animeName: anime.russian || anime.name,
+          score,
+          rarity: "epic",
+          shikiId: animeId,
+          characterId: char.id,
+          characterName: char.russian || char.name,
+          imageUrl: originalUrl,
+          originalUrl,
+          isMainCharacter: isMain,
+          stats: { hp: 50, atk: 50, def: 50, spd: 50, luck: 50 },
+          serialId: `CST-${char.id}`,
+          uniqueId: `picker-${char.id}-${Date.now()}`,
+          orderIndex: Date.now() + char.id,
+        })
+      }
+    } catch (e) {
+      console.error(`[searchCharactersForBanner] Anime ${animeId} error:`, e)
+    }
+  }
+
+  return results
+}
+
+// ============================================================
+// CARD PICKER: Search all unique cards from user_cards table
+// ============================================================
+export async function searchUserCardsForBanner(query?: string, rarity?: string) {
+  const isAdmin = await checkAdminAuth()
+  if (!isAdmin) throw new Error("Unauthorized")
+
+  const supabase = await getAdminSupabase()
+
+  let dbQuery = supabase
+    .from("user_cards")
+    .select("name, anime, rarity, image_url, original_url, score, shiki_id, character_id, stats_hp, stats_atk, stats_def, stats_spd, stats_luck, is_main_character, serial_id, unique_id")
+
+  if (rarity && rarity !== "all") {
+    dbQuery = dbQuery.eq("rarity", rarity)
+  }
+
+  const { data, error } = await dbQuery.limit(200)
+
+  if (error) throw error
+
+  // Deduplicate by character_id
+  const seen = new Set<number>()
+  let cards = (data || []).filter((c: any) => {
+    if (seen.has(c.character_id)) return false
+    seen.add(c.character_id)
+    return true
+  })
+
+  if (query) {
+    const q = query.toLowerCase()
+    cards = cards.filter((c: any) => {
+      const name = (c.name || '').toLowerCase()
+      const anime = (c.anime || '').toLowerCase()
+      return name.includes(q) || anime.includes(q)
+    })
+  }
+
+  return cards.map((c: any) => ({
+    name: c.name,
+    anime: c.anime,
+    animeName: c.anime,
+    score: parseFloat(c.score) || 0,
+    rarity: c.rarity,
+    shikiId: c.shiki_id,
+    characterId: c.character_id,
+    characterName: c.name,
+    imageUrl: c.image_url,
+    originalUrl: c.original_url,
+    isMainCharacter: c.is_main_character,
+    stats: {
+      hp: c.stats_hp, atk: c.stats_atk, def: c.stats_def,
+      spd: c.stats_spd, luck: c.stats_luck
+    },
+    serialId: c.serial_id,
+    uniqueId: `picker-${c.unique_id}`,
+    orderIndex: Date.now(),
+  }))
+}
