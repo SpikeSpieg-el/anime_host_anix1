@@ -437,7 +437,7 @@ export const InteractiveCard = ({ card, forceFlipped = false }: InteractiveCardP
             </p>
             
             <div className="mt-2.5 sm:mt-3 flex items-center justify-between border-t border-white/10 pt-2">
-              <span className="text-[7px] sm:text-[8px] md:text-[9px] font-mono text-white/40 tracking-wider">ID: {card.uniqueId}</span>
+              <span className="text-[7px] sm:text-[8px] md:text-[9px] font-mono text-white/40 tracking-wider">ID: {card.uniqueId.length > 20 ? card.uniqueId.slice(-8) : card.uniqueId}</span>
               {card.packName && (
                 <span className="text-[7px] sm:text-[8px] md:text-[9px] font-black text-indigo-300 uppercase tracking-widest truncate max-w-[60%] text-right">{card.packName}</span>
               )}

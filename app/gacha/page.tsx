@@ -4,9 +4,10 @@ import { useRouter } from "next/navigation"
 import { useState, useEffect, useCallback } from "react"
 import { Navbar } from "@/components/layout/navbar"
 import { Footer } from "@/components/layout/footer"
-import { Sparkles, Star, Heart, Loader2, X, ZoomIn, ExternalLink, RefreshCcw, Trash, Trash2, Crown, Package, Coins, Search, Database, Store, Share, Swords, Wrench, Move } from "lucide-react"
+import { Sparkles, Star, Heart, Loader2, X, ZoomIn, ExternalLink, RefreshCcw, Trash, Trash2, Crown, Package, Coins, Search, Database, Store, Share, Swords, Wrench, Move, Mail, Calendar, ChevronDown } from "lucide-react"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { ANIME_PACKS } from "@/lib/gacha-packs"
+import type { AnimePack } from "@/lib/gacha-packs"
 import { ModifierStyles, frameNames, coatingNames } from "@/components/gacha/card-modifiers"
 import { GachaLoading } from "@/components/gacha/gacha-loading"
 import { GachaAnimation } from "@/components/gacha/gacha-animation"
@@ -25,10 +26,12 @@ import { ChangeArtModal } from "@/components/gacha/change-art-modal"
 import { ArtPositionModal } from "@/components/gacha/art-position-modal"
 import { GachaTutorial } from "@/components/gacha/gacha-tutorial"
 import { RollRecommendationModal } from "@/components/gacha/roll-recommendation-modal"
+import { InboxPanel } from "@/components/gacha/inbox-panel"
 
 // Newly created/extracted modular helpers
 import { useGachaState } from "./hooks/use-gacha-state"
 import { PackCard } from "./components/pack-card"
+import { BannerCard, type Banner } from "./components/banner-card"
 import { TopCard } from "./components/top-card"
 import { CollectionCard } from "./components/collection-card"
 import { InteractiveCard } from "./components/interactive-card"
@@ -69,8 +72,16 @@ export default function GachaPage() {
     dust,
     dustLoading,
     refreshDust,
+    refreshCoins,
+    refreshCollectionMerge,
     selectedPack,
     setSelectedPack,
+    selectedBannerCards,
+    setSelectedBannerCards,
+    selectedBannerGuaranteedCard,
+    setSelectedBannerGuaranteedCard,
+    selectedBannerGuaranteedPity,
+    setSelectedBannerGuaranteedPity,
     showPacks,
     setShowPacks,
     packSearchQuery,
@@ -196,6 +207,58 @@ export default function GachaPage() {
   const [tutorialSeen, setTutorialSeen] = useState(false)
   const [showRollRecommendation, setShowRollRecommendation] = useState(false)
   const [recommendationTarget, setRecommendationTarget] = useState<"battle" | "market">("battle")
+  const [showInbox, setShowInbox] = useState(false)
+  const [unreadMailCount, setUnreadMailCount] = useState(0)
+  const [banners, setBanners] = useState<Banner[]>([])
+  const [bannersLoading, setBannersLoading] = useState(true)
+  const [bannerInfoOpen, setBannerInfoOpen] = useState(false)
+  const [eventsCollapsed, setEventsCollapsed] = useState(false)
+  const [bannerPulls, setBannerPulls] = useState<Record<string, { pullCount: number; guaranteedClaimed: boolean }>>({})
+
+  useEffect(() => {
+    fetch('/api/banners')
+      .then(r => r.json())
+      .then(data => setBanners(data.banners || []))
+      .catch(() => setBanners([]))
+      .finally(() => setBannersLoading(false))
+  }, [])
+
+  const fetchBannerPulls = useCallback(async () => {
+    if (!session?.access_token) return
+    try {
+      const res = await fetch('/api/banners/pulls', {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      })
+      const data = await res.json()
+      if (res.ok && data.pulls) {
+        setBannerPulls(data.pulls)
+      }
+    } catch (err) {
+      console.error('Fetch banner pulls error:', err)
+    }
+  }, [session?.access_token])
+
+  useEffect(() => {
+    fetchBannerPulls()
+  }, [fetchBannerPulls])
+
+  const handleBannerSelect = (banner: Banner) => {
+    const packLike: AnimePack = {
+      id: 'banner:' + banner.id,
+      name: banner.name,
+      description: banner.description || '',
+      animeIds: banner.featuredAnimeIds || [],
+      price: banner.price ?? 100,
+      color: banner.color || 'from-purple-600 to-pink-700',
+      bgImage: banner.imageUrl || undefined,
+      guaranteedRarity: banner.boostedRarity || undefined,
+    }
+    setSelectedPack(packLike as any)
+    setSelectedBannerCards(banner.cards || [])
+    setSelectedBannerGuaranteedCard(banner.guaranteedCardPayload || null)
+    setSelectedBannerGuaranteedPity(banner.guaranteedCardPity || 0)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
 
   useEffect(() => {
     if (typeof window === "undefined") return
@@ -209,6 +272,31 @@ export default function GachaPage() {
     const rollsCount = localStorage.getItem("gacha-standard-rolls-count")
     setStandardRollsCount(rollsCount ? parseInt(rollsCount, 10) : 0)
   }, [])
+
+  const fetchUnreadMailCount = useCallback(async () => {
+    if (!session?.access_token) return
+    try {
+      const response = await fetch("/api/mail", {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      })
+      const data = await response.json()
+      if (response.ok && data.mail) {
+        setUnreadMailCount(data.mail.filter((m: any) => !m.isRead).length)
+      }
+    } catch (err) {
+      console.error("Fetch unread mail count error:", err)
+    }
+  }, [session?.access_token])
+
+  useEffect(() => {
+    fetchUnreadMailCount()
+  }, [fetchUnreadMailCount])
+
+  useEffect(() => {
+    if (!showInbox) {
+      fetchUnreadMailCount()
+    }
+  }, [showInbox, fetchUnreadMailCount])
 
   const handleMarketTutorialComplete = useCallback(() => {
     setShowMarketTutorial(false)
@@ -224,7 +312,9 @@ export default function GachaPage() {
 
   const handleRollWithTracking = async () => {
     await handleRoll()
-    // Only count standard rolls (when no pack is selected)
+    if (selectedPack?.id.startsWith('banner:')) {
+      fetchBannerPulls()
+    }
     if (!selectedPack) {
       const newCount = standardRollsCount + 1
       setStandardRollsCount(newCount)
@@ -988,6 +1078,19 @@ export default function GachaPage() {
               )}
             </div>
 
+            <button
+              onClick={() => setShowInbox(true)}
+              className="relative flex items-center gap-2 px-3 py-2 sm:px-5 sm:py-2.5 rounded-xl sm:rounded-2xl bg-slate-900/80 backdrop-blur-md border border-slate-800 shadow-xl shadow-indigo-500/5 hover:bg-slate-800/80 transition-colors"
+              title="Почта"
+            >
+              <Mail className="w-4 h-4 sm:w-6 sm:h-6 text-indigo-400" />
+              {unreadMailCount > 0 && (
+                <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
+                  {unreadMailCount}
+                </span>
+              )}
+            </button>
+
             {/* Sync indicator and manual sync button */}
             {(pendingSyncCount > 0 || isSyncingCards) && (
               <button
@@ -1033,22 +1136,32 @@ export default function GachaPage() {
           />
         ) : (
           <>
-        {/* Selected Pack Indicator */}
-        {selectedPack && (
-          <div className="mb-8 sm:mb-12 text-center animate-in fade-in slide-in-from-top-4">
-            <div className="inline-flex items-center gap-3 bg-slate-900/80 backdrop-blur-md px-5 py-3 rounded-2xl border border-indigo-500/30 shadow-lg shadow-indigo-500/10">
-              <Package className="w-5 h-5 text-indigo-400" />
-              <span className="text-white font-bold text-sm sm:text-base">Набор: <span className="text-indigo-300">{selectedPack.name}</span></span>
-              <div className="w-px h-5 bg-white/10 mx-2" />
-              <button 
-                onClick={() => setSelectedPack(null)}
-                className="p-1.5 rounded-full hover:bg-slate-800 text-slate-400 hover:text-white transition-colors"
-              >
-                <X className="w-4 h-4" />
-              </button>
+        {/* Selected Pack / Banner Indicator */}
+        {selectedPack && (() => {
+          const isBanner = selectedPack.id.startsWith("banner:")
+          return (
+            <div className="mb-8 sm:mb-12 text-center animate-in fade-in slide-in-from-top-4">
+              <div className={`inline-flex items-center gap-3 bg-slate-900/80 backdrop-blur-md px-5 py-3 rounded-2xl border shadow-lg ${isBanner ? "border-pink-500/40 shadow-pink-500/10" : "border-indigo-500/30 shadow-indigo-500/10"}`}>
+                {isBanner ? (
+                  <Calendar className="w-5 h-5 text-pink-400" />
+                ) : (
+                  <Package className="w-5 h-5 text-indigo-400" />
+                )}
+                <span className="text-white font-bold text-sm sm:text-base">
+                  {isBanner ? "Ивент: " : "Набор: "}
+                  <span className={isBanner ? "text-pink-300" : "text-indigo-300"}>{selectedPack.name}</span>
+                </span>
+                <div className="w-px h-5 bg-white/10 mx-2" />
+                <button
+                  onClick={() => setSelectedPack(null)}
+                  className="p-1.5 rounded-full hover:bg-slate-800 text-slate-400 hover:text-white transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
             </div>
-          </div>
-        )}
+          )
+        })()}
 
         {/* Action Area */}
         <div className="flex flex-col items-center justify-center min-h-[420px] sm:min-h-[500px] mb-12 sm:mb-24 relative px-2">
@@ -1253,6 +1366,49 @@ export default function GachaPage() {
             </div>
           )}
         </div>
+
+        {/* Events / Banners Section */}
+        {banners.length > 0 && (
+          <section className="mb-12 sm:mb-16">
+            <button
+              onClick={() => setEventsCollapsed(!eventsCollapsed)}
+              className="flex items-center gap-3 mb-6 sm:mb-8 w-full group"
+            >
+              <Calendar className="w-6 h-6 sm:w-7 sm:h-7 text-pink-400 flex-shrink-0" />
+              <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight text-left">Ивенты</h2>
+              <span className="px-3 py-1 rounded-full bg-pink-500/20 border border-pink-500/30 text-pink-300 text-xs font-bold uppercase tracking-wider flex-shrink-0">Активно</span>
+              <div className="flex-1" />
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <span className="text-xs text-white/40 font-bold hidden sm:block">{eventsCollapsed ? 'Показать' : 'Скрыть'}</span>
+                <div className={`w-8 h-8 flex items-center justify-center rounded-lg bg-slate-800/80 border border-white/10 text-white/60 group-hover:text-white group-hover:bg-slate-700 transition-all ${eventsCollapsed ? '' : 'rotate-180'}`}>
+                  <ChevronDown className="w-5 h-5" />
+                </div>
+              </div>
+            </button>
+            {!eventsCollapsed && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5 lg:gap-6">
+                {banners.map(banner => {
+                  const pullInfo = bannerPulls[banner.id]
+                  const remainingPity = pullInfo && banner.guaranteedCardPity > 0 && !pullInfo.guaranteedClaimed
+                    ? Math.max(0, banner.guaranteedCardPity - pullInfo.pullCount)
+                    : undefined
+                  return (
+                    <BannerCard
+                      key={banner.id}
+                      banner={banner}
+                      onSelect={handleBannerSelect}
+                      userCoins={userCoins}
+                      onInfoOpenChange={setBannerInfoOpen}
+                      remainingPity={remainingPity}
+                      pityClaimed={pullInfo?.guaranteedClaimed}
+                      sessionToken={session?.access_token}
+                    />
+                  )
+                })}
+              </div>
+            )}
+          </section>
+        )}
 
         {/* Collection Section */}
         {!isLoaded ? (
@@ -1672,7 +1828,7 @@ export default function GachaPage() {
       </AlertDialog>
       
       {/* Bottom Navigation for Gacha (Mobile Only) */}
-      <div className="fixed bottom-4 sm:bottom-6 left-1/2 -translate-x-1/2 z-40 w-[92%] max-w-[400px] md:hidden pb-[env(safe-area-inset-bottom)]">
+      <div className={`fixed bottom-4 sm:bottom-6 left-1/2 -translate-x-1/2 z-40 w-[92%] max-w-[400px] md:hidden pb-[env(safe-area-inset-bottom)] transition-opacity duration-200 ${bannerInfoOpen ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
         <div className="bg-slate-900/90 backdrop-blur-xl border border-slate-700/50 rounded-2xl shadow-2xl shadow-black/40 flex items-center justify-between p-1.5 h-[64px] sm:h-[72px]">
           <button
             type="button"
@@ -1711,7 +1867,7 @@ export default function GachaPage() {
       </div>
       
       {/* Desktop Tab Buttons (Fixed at bottom) */}
-      <div className="hidden md:flex fixed bottom-6 lg:bottom-8 left-1/2 -translate-x-1/2 z-40">
+      <div className={`hidden md:flex fixed bottom-6 lg:bottom-8 left-1/2 -translate-x-1/2 z-40 transition-opacity duration-200 ${bannerInfoOpen ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
         <div className="bg-slate-900/90 backdrop-blur-xl border border-slate-700/50 rounded-2xl shadow-2xl shadow-black/40 flex items-center justify-center p-1.5 gap-2">
           <button
             type="button"
@@ -1777,6 +1933,27 @@ export default function GachaPage() {
           currentCards={collectedCards.length}
         />
       )}
+
+      <InboxPanel
+        open={showInbox}
+        onOpenChange={setShowInbox}
+        session={session}
+        onClaimed={(claimedType) => {
+          // Refresh balances + collection so the user sees the claimed reward
+          if (claimedType === "coins") {
+            refreshCoins?.()
+          } else if (claimedType === "dust") {
+            refreshDust?.()
+          } else if (claimedType === "card_gift") {
+            refreshCollectionMerge?.()
+          } else {
+            // event_reward or unknown — refresh everything
+            refreshCoins?.()
+            refreshDust?.()
+            refreshCollectionMerge?.()
+          }
+        }}
+      />
 
       <Footer />
     </div>

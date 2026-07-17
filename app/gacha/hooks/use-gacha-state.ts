@@ -3,12 +3,13 @@
 import { useRouter, usePathname } from "next/navigation"
 import { useState, useRef, useCallback, useEffect, useMemo } from "react"
 import { flushSync } from "react-dom"
-import { 
-  rollAnimeCharacter, 
-  rollFromAnimePack, 
-  searchGachaPacks, 
-  createCustomGachaPack, 
-  checkPackAvailability, 
+import {
+  rollAnimeCharacter,
+  rollFromAnimePack,
+  rollFromBanner,
+  searchGachaPacks,
+  createCustomGachaPack,
+  checkPackAvailability,
   updateUserPityAfterRoll,
   generateStatsForRarity
 } from "../actions"
@@ -49,6 +50,9 @@ export function useGachaState() {
   const isDev = process.env.NODE_ENV === 'development'
   const { dust, loading: dustLoading, addDust, refresh: refreshDust } = useDust()
   const [selectedPack, setSelectedPack] = useState<AnimePack | CustomAnimePack | null>(null)
+  const [selectedBannerCards, setSelectedBannerCards] = useState<any[] | null>(null)
+  const [selectedBannerGuaranteedCard, setSelectedBannerGuaranteedCard] = useState<any | null>(null)
+  const [selectedBannerGuaranteedPity, setSelectedBannerGuaranteedPity] = useState<number>(0)
   const [showPacks, setShowPacks] = useState(false)
   const [packSearchQuery, setPackSearchQuery] = useState("")
   const [searchResults, setSearchResults] = useState<AnimePack[]>([])
@@ -548,8 +552,13 @@ export function useGachaState() {
     setViewedCard(null)
     setIsSavingCard(false)
     operationStartTime.current = null
-    setSearchQuery("") 
-    setShowPacks(false) 
+    setSearchQuery("")
+    setShowPacks(false)
+    if (!selectedPack || !selectedPack.id.startsWith('banner:')) {
+      setSelectedBannerCards(null)
+      setSelectedBannerGuaranteedCard(null)
+      setSelectedBannerGuaranteedPity(0)
+    }
   }, [selectedPack])
 
   const handleEmptyResult = async () => {
@@ -607,9 +616,27 @@ export function useGachaState() {
 
       const currentBadLuckStreak = pityData?.bad_luck_streak || 0
 
-      const rollPromise = selectedPack
-        ? rollFromAnimePack(selectedPack, Array.from(usedCharacterIds), blacklistedUrls, Array.from(expandPoolForCharacters), currentBadLuckStreak)
-        : rollAnimeCharacter(Array.from(usedCharacterIds), blacklistedUrls, Array.from(expandPoolForCharacters), currentBadLuckStreak)
+      const isBannerRoll = selectedPack && selectedPack.id.startsWith('banner:') && selectedBannerCards
+
+      const rollPromise = isBannerRoll
+        ? rollFromBanner(
+            {
+              id: (selectedPack as AnimePack).id.replace('banner:', ''),
+              name: (selectedPack as AnimePack).name,
+              featuredAnimeIds: (selectedPack as AnimePack).animeIds,
+              boostedRarity: (selectedPack as AnimePack).guaranteedRarity || null,
+              cards: selectedBannerCards!,
+              guaranteedCardPayload: selectedBannerGuaranteedCard,
+              guaranteedCardPity: selectedBannerGuaranteedPity,
+              userId: authUser?.id,
+            } as any,
+            Array.from(usedCharacterIds),
+            blacklistedUrls,
+            currentBadLuckStreak
+          )
+        : selectedPack
+          ? rollFromAnimePack(selectedPack, Array.from(usedCharacterIds), blacklistedUrls, Array.from(expandPoolForCharacters), currentBadLuckStreak)
+          : rollAnimeCharacter(Array.from(usedCharacterIds), blacklistedUrls, Array.from(expandPoolForCharacters), currentBadLuckStreak)
 
       const result = await Promise.race([
         rollPromise,
@@ -1274,6 +1301,12 @@ export function useGachaState() {
     refreshDust,
     selectedPack,
     setSelectedPack,
+    selectedBannerCards,
+    setSelectedBannerCards,
+    selectedBannerGuaranteedCard,
+    setSelectedBannerGuaranteedCard,
+    selectedBannerGuaranteedPity,
+    setSelectedBannerGuaranteedPity,
     showPacks,
     setShowPacks,
     packSearchQuery,

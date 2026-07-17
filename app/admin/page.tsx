@@ -1,11 +1,15 @@
 "use client"
 
 import { useEffect, useState, useTransition } from "react"
-import { Users, Eye, Bookmark, User, Search, LogOut, Lock, Brain, Sword, Shield, Map, Settings, Trash2, Plus, Check, X, History, Trophy } from "lucide-react"
+import { Users, Eye, Bookmark, User, Search, LogOut, Lock, Brain, Sword, Shield, Map, Settings, Trash2, Plus, Check, X, History, Trophy, Gift, Mail, Calendar, Edit, Sparkles, BookOpen, ChevronDown, ChevronRight, Lightbulb, CheckCircle, AlertTriangle } from "lucide-react"
 import Image from "next/image"
+import Link from "next/link"
 import { ScrollToTop } from "@/components/layout/scroll-to-top"
 import { Footer } from "@/components/layout/footer"
-import { adminLogin, adminLogout, checkAdminAuth, getAdminUsers, getPvPRules, updatePvPRule, getPvPLocations, createPvPLocation, deletePvPLocation, getPvPLogs } from "./actions"
+import { adminLogin, adminLogout, checkAdminAuth, getAdminUsers, getPvPRules, updatePvPRule, getPvPLocations, createPvPLocation, deletePvPLocation, getPvPLogs, getAdminUsersSimple, getBanners, createBanner, updateBanner, deleteBanner, getBannerCards, addBannerCard, updateBannerCard, deleteBannerCard, adminSendMail, adminSendMailBulk, adminGiftCardToUser } from "./actions"
+import { rarityConfig } from "@/types/gacha"
+import type { Rarity } from "@/types/gacha"
+import { toast } from "sonner"
 
 interface UserProfile {
   id: string
@@ -94,8 +98,254 @@ interface PvPLog {
   player2: { username: string; avatar_url: string }
 }
 
+interface SimpleUser {
+  id: string
+  username: string | null
+  avatar_url: string | null
+  email: string | null
+  updated_at: string | null
+  created_at: string | null
+}
+
+interface Banner {
+  id: string
+  name: string
+  description?: string | null
+  image_url?: string | null
+  promo_image_url?: string | null
+  featured_anime_ids?: number[]
+  boosted_rarity?: string | null
+  price?: number | null
+  color?: string | null
+  start_date?: string | null
+  end_date?: string | null
+  is_active?: boolean
+  sort_order?: number
+  guaranteed_card_payload?: any | null
+  guaranteed_card_pity?: number
+}
+
+interface BannerCard {
+  id: string
+  banner_id: string
+  card_payload: any
+  weight: number
+  is_featured: boolean
+  created_at?: string
+}
+
+type MailType = "card_gift" | "coins" | "dust" | "event_reward" | "message"
+
+const GRADIENT_PRESETS = [
+  "from-purple-600 to-pink-700",
+  "from-blue-600 to-cyan-500",
+  "from-red-600 to-orange-500",
+  "from-green-600 to-emerald-500",
+  "from-indigo-600 to-purple-700",
+  "from-pink-500 to-rose-600",
+  "from-amber-500 to-orange-600",
+  "from-cyan-500 to-blue-600",
+  "from-violet-600 to-fuchsia-600",
+  "from-slate-700 to-slate-900",
+  "from-teal-500 to-green-600",
+  "from-fuchsia-500 to-pink-600",
+]
+
+interface TutorialSection {
+  id: string
+  title: string
+  icon: React.ReactNode
+  description: string
+  steps: { title: string; detail: string }[]
+  tips?: string[]
+  warnings?: string[]
+}
+
+const tutorialSections: TutorialSection[] = [
+  {
+    id: "login",
+    title: "Вход в админку",
+    icon: <Lock className="w-5 h-5" />,
+    description: "Авторизация в панели администратора",
+    steps: [
+      { title: "Откройте /admin", detail: "Перейдите по адресу вашего сайта на страницу /admin" },
+      { title: "Введите логин и пароль", detail: "Используются переменные окружения ADMIN_USERNAME и ADMIN_PASSWORD" },
+      { title: "Войдите", detail: "После успешной авторизации вы увидите Dashboard с 7 вкладками" },
+    ],
+    warnings: [
+      "Не делитесь логином и паролем с посторонними",
+      "Кука admin_auth хранится в браузере — после выхода нужно войти заново",
+    ],
+  },
+  {
+    id: "users",
+    title: "Users Management — Управление пользователями",
+    icon: <Users className="w-5 h-5" />,
+    description: "Просмотр всех пользователей, их истории просмотров, закладок и AI-статистики",
+    steps: [
+      { title: "Поиск пользователей", detail: "Используйте строку поиска для фильтрации по имени или ID" },
+      { title: "View Details", detail: "Нажмите кнопку «View Details» у любого пользователя для раскрытия подробной информации" },
+      { title: "Watch History", detail: "Просмотр истории просмотров аниме — последние 5 или все записи" },
+      { title: "Bookmarks", detail: "Просмотр закладок пользователя — последние 5 или все записи" },
+      { title: "AI Learning Statistics", detail: "Статистика PvP-битв: всего битв, агрессивный/оборонительный рейтинг, любимые карты, предпочитаемые роли и редкости, средний provision cost" },
+    ],
+    tips: [
+      "Кнопка «Show All» показывает полную историю вместо последних 5 записей",
+      "AI-статистика отображается только если пользователь участвовал в PvP-битвах",
+    ],
+  },
+  {
+    id: "pvp",
+    title: "PvP Settings — Настройка PvP",
+    icon: <Sword className="w-5 h-5" />,
+    description: "Управление правилами (модификаторами) PvP и кастомными локациями",
+    steps: [
+      { title: "PvP Rules", detail: "Список всех правил-модификаторов с переключателем вкл/выкл. Каждое правило имеет название, описание и категорию" },
+      { title: "Включить/выключить правило", detail: "Нажмите переключатель (toggle) в правом верхнем углу карточки правила" },
+      { title: "Custom Locations", detail: "Нажмите «Add Location» для создания новой PvP-локации" },
+      { title: "Создание локации", detail: "Заполните: Name (внутреннее), Name (рус), Description (внутреннее), Description (рус). Отметьте «Neutral Location» если не нужны правила, иначе выберите правила из списка активных" },
+      { title: "Удаление локации", detail: "Наведите курсор на карточку локации и нажмите иконку корзины" },
+    ],
+    tips: [
+      "Обычно на одну локацию назначается 1 правило",
+      "Neutral Location — локация без правил (чистая арена)",
+      "Только активные правила доступны для выбора при создании локации",
+    ],
+  },
+  {
+    id: "battle_logs",
+    title: "Battle Logs — Логи PvP-битв",
+    icon: <History className="w-5 h-5" />,
+    description: "Просмотр истории PvP-битв между игроками",
+    steps: [
+      { title: "Откройте вкладку Battle Logs", detail: "Логи загружаются автоматически при переходе на вкладку" },
+      { title: "Обновить логи", detail: "Нажмите кнопку обновления для повторной загрузки" },
+      { title: "Просмотр результатов", detail: "Каждый лог содержит: имена игроков, MMR до/после, победителя, длительность битвы, колоды игроков" },
+    ],
+    tips: [
+      "Логи загружаются последние 100 записей",
+      "Если победитель null — битва закончилась ничьей или дисконнектом",
+    ],
+  },
+  {
+    id: "cards",
+    title: "Карты — Редактор карт",
+    icon: <Sparkles className="w-5 h-5" />,
+    description: "Создание кастомных карт с 3D-слоями, статами и модификаторами",
+    steps: [
+      { title: "Откройте редактор", detail: "Нажмите «Открыть редактор карт» — перейдёте на /admin/card-editor" },
+      { title: "Заполните базовые данные", detail: "Имя персонажа, название аниме, URL изображения, редкость, рейтинг MAL, Shiki ID, Character ID" },
+      { title: "Настройте характеристики", detail: "HP, ATK, DEF, SPD, LUCK — ползунки от 0 до 100" },
+      { title: "Модификаторы", detail: "Выберите рамку (Frame) и покрытие (Coating) из выпадающих списков" },
+      { title: "3D слои (опционально)", detail: "Заполните URL для Background, Character и VFX слоёв. Используйте PNG с прозрачностью" },
+      { title: "Главный герой", detail: "Включите тумблер, чтобы добавить корону на карту" },
+      { title: "Доставка карты", detail: "Внизу страницы есть 3 варианта доставки: подарок пользователю, добавление в баннер, установка как гаранта баннера" },
+    ],
+    tips: [
+      "3D-слои работают только с PNG изображениями с прозрачным фоном",
+      "Если указаны 3D-слои, основной URL изображения можно не заполнять — он подставится автоматически",
+      "Character ID должен быть уникальным — используйте кнопку генерации",
+    ],
+    warnings: [
+      "URL изображения должен быть прямым ссылкой на картинку (https://...)",
+      "Для 3D-карт используйте только PNG с альфа-каналом",
+    ],
+  },
+  {
+    id: "mail",
+    title: "Рассылка — Почта и подарки",
+    icon: <Mail className="w-5 h-5" />,
+    description: "Отправка писем, монет, пыли и карт пользователям",
+    steps: [
+      { title: "Выберите получателя", detail: "Из выпадающего списка выберите пользователя. Список загружается при первом открытии вкладки" },
+      { title: "Выберите тип письма", detail: "Доступные типы: message (сообщение), card_gift (подарок карты), coins (монеты), dust (пыль), event_reward (награда события)" },
+      { title: "Заполните заголовок и текст", detail: "Заголовок и текст письма видны пользователю в почтовом ящике" },
+      { title: "Для coins/dust", detail: "Укажите количество валюты для начисления" },
+      { title: "Для card_gift", detail: "Вставьте JSON объект карты в текстовое поле. JSON можно получить из редактора карт" },
+      { title: "Отправить", detail: "Нажмите «Отправить» для одного пользователя или «Отправить всем» для массовой рассылки" },
+    ],
+    tips: [
+      "Массовая рассылка отправляет письмо ВСЕМ пользователям в списке",
+      "Для подарка карты проще создать её в редакторе карт и скопировать JSON оттуда",
+      "Пользователи видят письма во вкладке «Inbox» на странице гача",
+    ],
+    warnings: [
+      "Массовая рассылка необратима — убедитесь, что выбрали правильный тип и содержание",
+      "JSON карты должен быть валидным — проверьте перед отправкой",
+    ],
+  },
+  {
+    id: "events",
+    title: "События — Баннеры и гача",
+    icon: <Calendar className="w-5 h-5" />,
+    description: "Создание и управление гача-баннерами, добавление карт, настройка гаранта",
+    steps: [
+      { title: "Создать баннер", detail: "Нажмите «Создать баннер» и заполните форму: название, описание, URL изображения, featured anime IDs (через запятую), буст редкости, цена, цвет (Tailwind gradient), даты начала/окончания, сортировка, активен" },
+      { title: "Редактировать баннер", detail: "Нажмите иконку карандаша на карточке баннера — раскроется форма редактирования" },
+      { title: "Включить/выключить баннер", detail: "Используйте переключатель (toggle) на карточке баннера" },
+      { title: "Удалить баннер", detail: "Нажмите иконку корзины — потребуется подтверждение" },
+      { title: "Добавить карты в баннер", detail: "Нажмите «Карты баннера» для раскрытия секции карт. Вставьте JSON карты, укажите вес (weight) и featured-статус, нажмите «Добавить карту»" },
+      { title: "Редактировать карту баннера", detail: "Измените вес или featured-чекбокс прямо в списке карт, затем нажмите иконку карандаша для сохранения" },
+      { title: "Удалить карту из баннера", detail: "Нажмите иконку корзины рядом с картой" },
+      { title: "Гарантированная карта (гарант)", detail: "При создании или редактировании баннера в секции «Гарантированная карта» вставьте JSON карты и укажите pity (количество круток до гаранта, например 77). 0 = выключено" },
+    ],
+    tips: [
+      "Featured anime IDs — это ID аниме с Shikimori (например: 1, 21, 5114)",
+      "Цвет — Tailwind CSS gradient класс (например: from-purple-600 to-pink-700)",
+      "Sort order определяет порядок отображения баннеров на странице гача",
+      "Баннер виден игрокам только если is_active=true и дата начала прошла, а дата окончания не наступила (или не указана)",
+      "Вес карты (weight) определяет вероятность выпадения — чем выше, тем чаще выпадает",
+      "Featured-карты помечаются особым значком в баннере",
+      "Гарант-карта выпадает игроку гарантированно после N круток этого баннера. Каждый игрок имеет свой счётчик круток (таблица user_banner_pulls)",
+      "Альтернативный способ установки гаранта: через Card Editor → «Установить как гарант баннера»",
+    ],
+    warnings: [
+      "Удаление баннера удаляет все связанные карты и счётчики круток",
+      "Изменение pity не сбрасывает уже существующие счётчики игроков",
+      "Если у баннера есть и карты (banner_cards), и featured anime IDs, приоритет отдаётся картам",
+    ],
+  },
+  {
+    id: "card-editor-delivery",
+    title: "Card Editor — Доставка карты (3 способа)",
+    icon: <Gift className="w-5 h-5" />,
+    description: "Как отправить созданную карту игрокам: подарок, баннер или гарант",
+    steps: [
+      { title: "1. Подарок пользователю", detail: "В секции «Подарить пользователю» выберите пользователя из списка и нажмите «Подарить пользователю». Карта придёт в почтовый ящик игрока" },
+      { title: "2. Добавить в баннер", detail: "В секции «Добавить в баннер» выберите баннер, укажите featured-статус и нажмите «Добавить в баннер». Карта добавится в пул карт баннера с весом 1 (можно изменить позже в настройках баннера)" },
+      { title: "3. Установить как гарант", detail: "В секции «Установить как гарант баннера» выберите баннер, укажите pity (по умолчанию 77) и нажмите кнопку. Карта станет гарантированной для этого баннера — игрок получит её после N круток" },
+    ],
+    tips: [
+      "Можно использовать несколько способов одновременно: добавить карту в пул баннера И установить как гарант",
+      "При добавлении в баннер через Card Editor вес = 1. Измените вес в разделе Events → Карты баннера",
+      "Гарант и пул карт работают независимо: гарант срабатывает по pity, а пул — по весам при каждой крутке",
+    ],
+  },
+  {
+    id: "workflow-example",
+    title: "Пример: Создание кастомной карты с гарантом 77",
+    icon: <Lightbulb className="w-5 h-5" />,
+    description: "Полный сценарий от создания карты до настройки гаранта",
+    steps: [
+      { title: "Шаг 1: Создайте баннер", detail: "Перейдите в Events → «Создать баннер». Заполните название, описание, цену, даты. Оставьте секцию гаранта пустой — заполним позже через Card Editor. Нажмите «Создать баннер»" },
+      { title: "Шаг 2: Откройте Card Editor", detail: "Перейдите в Карты → «Открыть редактор карт»" },
+      { title: "Шаг 3: Создайте карту", detail: "Заполните имя, аниме, URL картинки, выберите редкость, настройте статы (HP/ATK/DEF/SPD/LUCK), добавьте рамку/покрытие по желанию" },
+      { title: "Шаг 4: Добавьте карту в пул баннера", detail: "В секции «Добавить в баннер» выберите созданный баннер, отметьте featured если нужно, нажмите «Добавить в баннер»" },
+      { title: "Шаг 5: Установите гарант", detail: "В секции «Установить как гарант баннера» выберите тот же баннер, убедитесь что pity = 77, нажмите «Установить гарант (pity: 77)»" },
+      { title: "Шаг 6: Проверьте", detail: "Вернитесь в Events → найдите баннер. Вы увидите бейдж «Гарант-карта: [имя] (через 77 круток)». Раскройте «Карты баннера» — там будет ваша карта" },
+      { title: "Шаг 7: Тест", detail: "Откройте страницу гача (/gacha), выберите баннер, крутите 77 раз — на 77-й крутке выпадет гарантированная карта" },
+    ],
+    tips: [
+      "Вес карты в пуле определяет шанс выпадения ДО срабатывания гаранта",
+      "Гарант срабатывает один раз — после получения счётчик сбрасывается (guaranteed_claimed = true)",
+      "Если игрок уже получил гаранта, при следующих крутках он получает карты из пула по весам",
+    ],
+  },
+]
+
 export default function AdminPage() {
-  const [activeTab, setActiveTab] = useState<'users' | 'pvp' | 'battle_logs'>('users')
+  const [activeTab, setActiveTab] = useState<'users' | 'pvp' | 'battle_logs' | 'cards' | 'mail' | 'events' | 'tutorial'>('users')
+  const [expandedTutorialId, setExpandedTutorialId] = useState<string | null>("login")
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
@@ -127,6 +377,62 @@ export default function AdminPage() {
   // Battle Logs state
   const [pvpLogs, setPvPLogs] = useState<PvPLog[]>([])
   const [isLogsLoading, setIsLogsLoading] = useState(false)
+
+  // Mail tab state
+  const [simpleUsers, setSimpleUsers] = useState<SimpleUser[]>([])
+  const [mailTargetUserId, setMailTargetUserId] = useState<string>("")
+  const [mailType, setMailType] = useState<MailType>("message")
+  const [mailTitle, setMailTitle] = useState("")
+  const [mailBody, setMailBody] = useState("")
+  const [mailAmount, setMailAmount] = useState<number>(0)
+  const [mailCardJson, setMailCardJson] = useState("")
+  const [isMailSending, setIsMailSending] = useState(false)
+  const [mailLoaded, setMailLoaded] = useState(false)
+
+  // Events (banners) tab state
+  const [banners, setBanners] = useState<Banner[]>([])
+  const [isBannersLoading, setIsBannersLoading] = useState(false)
+  const [bannersLoaded, setBannersLoaded] = useState(false)
+  const [showCreateBanner, setShowCreateBanner] = useState(false)
+  const [newBanner, setNewBanner] = useState({
+    name: "",
+    description: "",
+    image_url: "",
+    promo_image_url: "",
+    featured_anime_ids: "",
+    boosted_rarity: "" as Rarity | "",
+    price: "",
+    color: "from-purple-600 to-pink-700",
+    start_date: "",
+    end_date: "",
+    is_active: true,
+    sort_order: 0,
+    guaranteed_card_json: "",
+    guaranteed_card_pity: "",
+  })
+  const [editingBannerId, setEditingBannerId] = useState<string | null>(null)
+  const [expandedBannerId, setExpandedBannerId] = useState<string | null>(null)
+  const [editBanner, setEditBanner] = useState<{
+    name: string
+    description: string
+    image_url: string
+    promo_image_url: string
+    featured_anime_ids: string
+    boosted_rarity: Rarity | ""
+    price: string
+    color: string
+    start_date: string
+    end_date: string
+    is_active: boolean
+    sort_order: number
+    guaranteed_card_json: string
+    guaranteed_card_pity: string
+  } | null>(null)
+  const [bannerCards, setBannerCards] = useState<Record<string, BannerCard[]>>({})
+  const [bannerCardsLoading, setBannerCardsLoading] = useState<string | null>(null)
+  const [newBannerCardJson, setNewBannerCardJson] = useState<Record<string, string>>({})
+  const [newBannerCardWeight, setNewBannerCardWeight] = useState<Record<string, number>>({})
+  const [newBannerCardFeatured, setNewBannerCardFeatured] = useState<Record<string, boolean>>({})
 
   useEffect(() => {
     checkAdminAuth().then((authenticated) => {
@@ -206,6 +512,54 @@ export default function AdminPage() {
     }
   }
 
+  const fetchSimpleUsers = async () => {
+    try {
+      const data = await getAdminUsersSimple()
+      setSimpleUsers(data as SimpleUser[])
+      setMailLoaded(true)
+    } catch (err) {
+      console.error("Failed to fetch simple users:", err)
+      toast.error("Не удалось загрузить список пользователей")
+    }
+  }
+
+  const fetchBanners = async () => {
+    try {
+      setIsBannersLoading(true)
+      const data = await getBanners()
+      setBanners(data as Banner[])
+      setBannersLoaded(true)
+    } catch (err) {
+      console.error("Failed to fetch banners:", err)
+      toast.error("Не удалось загрузить баннеры")
+    } finally {
+      setIsBannersLoading(false)
+    }
+  }
+
+  const fetchBannerCards = async (bannerId: string) => {
+    try {
+      setBannerCardsLoading(bannerId)
+      const data = await getBannerCards(bannerId)
+      setBannerCards(prev => ({ ...prev, [bannerId]: data as BannerCard[] }))
+    } catch (err) {
+      console.error("Failed to fetch banner cards:", err)
+      toast.error("Не удалось загрузить карты баннера")
+    } finally {
+      setBannerCardsLoading(null)
+    }
+  }
+
+  // Lazy-load data when a tab is opened
+  useEffect(() => {
+    if (activeTab === 'mail' && !mailLoaded && isAuthenticated) {
+      fetchSimpleUsers()
+    }
+    if (activeTab === 'events' && !bannersLoaded && isAuthenticated) {
+      fetchBanners()
+    }
+  }, [activeTab, isAuthenticated, mailLoaded, bannersLoaded])
+
   const handleToggleRule = async (id: string, currentStatus: boolean) => {
     try {
       await updatePvPRule(id, { is_active: !currentStatus })
@@ -241,6 +595,298 @@ export default function AdminPage() {
       setSelectedRuleIds([])
     } catch (err) {
       console.error("Failed to create location:", err)
+    }
+  }
+
+  // ===== Mail handlers =====
+  const handleSendMail = async () => {
+    if (!mailTargetUserId) {
+      toast.error("Выберите получателя")
+      return
+    }
+    if (!mailTitle.trim()) {
+      toast.error("Введите заголовок")
+      return
+    }
+    try {
+      setIsMailSending(true)
+      if (mailType === "card_gift") {
+        let cardPayload: any = null
+        if (mailCardJson.trim()) {
+          try {
+            cardPayload = JSON.parse(mailCardJson)
+          } catch {
+            toast.error("Неверный JSON карты")
+            setIsMailSending(false)
+            return
+          }
+        } else {
+          toast.error("Вставьте JSON карты для подарка")
+          setIsMailSending(false)
+          return
+        }
+        await adminGiftCardToUser(mailTargetUserId, cardPayload, mailTitle, mailBody || undefined)
+      } else {
+        await adminSendMail({
+          userId: mailTargetUserId,
+          type: mailType,
+          title: mailTitle,
+          body: mailBody || undefined,
+          amount: (mailType === "coins" || mailType === "dust") ? mailAmount : undefined,
+        })
+      }
+      toast.success("Письмо отправлено!")
+      setMailTitle("")
+      setMailBody("")
+      setMailCardJson("")
+      setMailAmount(0)
+    } catch (err) {
+      console.error("Failed to send mail:", err)
+      toast.error("Ошибка при отправке письма")
+    } finally {
+      setIsMailSending(false)
+    }
+  }
+
+  const handleSendMailBulk = async () => {
+    if (simpleUsers.length === 0) {
+      toast.error("Нет пользователей для рассылки")
+      return
+    }
+    if (!mailTitle.trim()) {
+      toast.error("Введите заголовок")
+      return
+    }
+    if (mailType === "card_gift" && !mailCardJson.trim()) {
+      toast.error("Вставьте JSON карты для подарка")
+      return
+    }
+    try {
+      setIsMailSending(true)
+      let cardPayload: any = null
+      if (mailType === "card_gift") {
+        try {
+          cardPayload = JSON.parse(mailCardJson)
+        } catch {
+          toast.error("Неверный JSON карты")
+          setIsMailSending(false)
+          return
+        }
+      }
+      const result = await adminSendMailBulk({
+        userIds: simpleUsers.map(u => u.id),
+        type: mailType,
+        title: mailTitle,
+        body: mailBody || undefined,
+        amount: (mailType === "coins" || mailType === "dust") ? mailAmount : undefined,
+        cardPayload: cardPayload || undefined,
+      })
+      toast.success(`Отправлено ${result.sent} писем!`)
+    } catch (err) {
+      console.error("Failed to bulk send mail:", err)
+      toast.error("Ошибка при массовой рассылке")
+    } finally {
+      setIsMailSending(false)
+    }
+  }
+
+  // ===== Banner handlers =====
+  const handleCreateBanner = async (e: React.FormEvent) => {
+    e.preventDefault()
+    try {
+      const featuredIds = newBanner.featured_anime_ids
+        .split(",")
+        .map(s => parseInt(s.trim()))
+        .filter(n => !isNaN(n))
+      let guaranteedCardPayload: any = null
+      const guaranteedJsonStr = newBanner.guaranteed_card_json?.trim()
+      if (guaranteedJsonStr) {
+        try {
+          guaranteedCardPayload = JSON.parse(guaranteedJsonStr)
+        } catch {
+          toast.error("Неверный JSON гарантированной карты")
+          return
+        }
+      }
+      const created = await createBanner({
+        name: newBanner.name,
+        description: newBanner.description || undefined,
+        image_url: newBanner.image_url || undefined,
+        promo_image_url: newBanner.promo_image_url || undefined,
+        featured_anime_ids: featuredIds.length ? featuredIds : undefined,
+        boosted_rarity: newBanner.boosted_rarity || undefined,
+        price: newBanner.price ? parseFloat(newBanner.price) : undefined,
+        color: newBanner.color || undefined,
+        start_date: newBanner.start_date ? new Date(newBanner.start_date).toISOString() : undefined,
+        end_date: newBanner.end_date ? new Date(newBanner.end_date).toISOString() : undefined,
+        is_active: newBanner.is_active,
+        sort_order: newBanner.sort_order,
+        guaranteed_card_payload: guaranteedCardPayload || undefined,
+        guaranteed_card_pity: newBanner.guaranteed_card_pity ? parseInt(newBanner.guaranteed_card_pity) : 0,
+      })
+      if (created) setBanners(prev => [created, ...prev])
+      setShowCreateBanner(false)
+      setNewBanner({
+        name: "", description: "", image_url: "", promo_image_url: "", featured_anime_ids: "",
+        boosted_rarity: "", price: "", color: "from-purple-600 to-pink-700",
+        start_date: "", end_date: "", is_active: true, sort_order: 0,
+        guaranteed_card_json: "", guaranteed_card_pity: "",
+      })
+      toast.success("Баннер создан!")
+    } catch (err) {
+      console.error("Failed to create banner:", err)
+      toast.error("Ошибка при создании баннера")
+    }
+  }
+
+  const handleDeleteBanner = async (id: string) => {
+    if (!confirm("Удалить баннер?")) return
+    try {
+      await deleteBanner(id)
+      setBanners(prev => prev.filter(b => b.id !== id))
+      toast.success("Баннер удалён")
+    } catch (err) {
+      console.error("Failed to delete banner:", err)
+      toast.error("Ошибка при удалении баннера")
+    }
+  }
+
+  const handleToggleBannerActive = async (banner: Banner) => {
+    try {
+      await updateBanner(banner.id, { is_active: !banner.is_active })
+      setBanners(prev => prev.map(b => b.id === banner.id ? { ...b, is_active: !banner.is_active } : b))
+    } catch (err) {
+      console.error("Failed to toggle banner:", err)
+      toast.error("Ошибка при обновлении баннера")
+    }
+  }
+
+  const handleStartEditBanner = (banner: Banner) => {
+    const startDate = banner.start_date ? new Date(banner.start_date).toISOString().slice(0, 16) : ""
+    const endDate = banner.end_date ? new Date(banner.end_date).toISOString().slice(0, 16) : ""
+    setEditBanner({
+      name: banner.name,
+      description: banner.description || "",
+      image_url: banner.image_url || "",
+      promo_image_url: banner.promo_image_url || "",
+      featured_anime_ids: (banner.featured_anime_ids || []).join(", "),
+      boosted_rarity: (banner.boosted_rarity as Rarity) || "",
+      price: banner.price != null ? String(banner.price) : "",
+      color: banner.color || "from-purple-600 to-pink-700",
+      start_date: startDate,
+      end_date: endDate,
+      is_active: banner.is_active ?? true,
+      sort_order: banner.sort_order ?? 0,
+      guaranteed_card_json: banner.guaranteed_card_payload ? JSON.stringify(banner.guaranteed_card_payload, null, 2) : "",
+      guaranteed_card_pity: banner.guaranteed_card_pity ? String(banner.guaranteed_card_pity) : "",
+    })
+    setEditingBannerId(banner.id)
+  }
+
+  const handleSaveEditBanner = async () => {
+    if (!editingBannerId || !editBanner) return
+    try {
+      const featuredIds = editBanner.featured_anime_ids
+        .split(",")
+        .map(s => parseInt(s.trim()))
+        .filter(n => !isNaN(n))
+      let guaranteedCardPayload: any = null
+      const guaranteedJsonStr = editBanner.guaranteed_card_json?.trim()
+      if (guaranteedJsonStr) {
+        try {
+          guaranteedCardPayload = JSON.parse(guaranteedJsonStr)
+        } catch {
+          toast.error("Неверный JSON гарантированной карты")
+          return
+        }
+      }
+      const updated = await updateBanner(editingBannerId, {
+        name: editBanner.name,
+        description: editBanner.description || null,
+        image_url: editBanner.image_url || null,
+        promo_image_url: editBanner.promo_image_url || null,
+        featured_anime_ids: featuredIds,
+        boosted_rarity: editBanner.boosted_rarity || null,
+        price: editBanner.price ? parseFloat(editBanner.price) : null,
+        color: editBanner.color || null,
+        start_date: editBanner.start_date ? new Date(editBanner.start_date).toISOString() : null,
+        end_date: editBanner.end_date ? new Date(editBanner.end_date).toISOString() : null,
+        is_active: editBanner.is_active,
+        sort_order: editBanner.sort_order,
+        guaranteed_card_payload: guaranteedCardPayload || null,
+        guaranteed_card_pity: editBanner.guaranteed_card_pity ? parseInt(editBanner.guaranteed_card_pity) : 0,
+      })
+      setBanners(prev => prev.map(b => b.id === editingBannerId ? { ...b, ...updated } : b))
+      setEditingBannerId(null)
+      setEditBanner(null)
+      toast.success("Баннер обновлён!")
+    } catch (err) {
+      console.error("Failed to update banner:", err)
+      toast.error("Ошибка при обновлении баннера")
+    }
+  }
+
+  const handleAddBannerCard = async (bannerId: string) => {
+    const jsonStr = newBannerCardJson[bannerId] || ""
+    if (!jsonStr.trim()) {
+      toast.error("Вставьте JSON карты")
+      return
+    }
+    let cardPayload: any
+    try {
+      cardPayload = JSON.parse(jsonStr)
+    } catch {
+      toast.error("Неверный JSON карты")
+      return
+    }
+    try {
+      const created = await addBannerCard({
+        bannerId,
+        cardPayload,
+        weight: newBannerCardWeight[bannerId] ?? 1,
+        isFeatured: newBannerCardFeatured[bannerId] ?? false,
+      })
+      setBannerCards(prev => ({ ...prev, [bannerId]: [created, ...(prev[bannerId] || [])] }))
+      setNewBannerCardJson(prev => ({ ...prev, [bannerId]: "" }))
+      setNewBannerCardWeight(prev => ({ ...prev, [bannerId]: 1 }))
+      setNewBannerCardFeatured(prev => ({ ...prev, [bannerId]: false }))
+      toast.success("Карта добавлена в баннер!")
+    } catch (err) {
+      console.error("Failed to add banner card:", err)
+      toast.error("Ошибка при добавлении карты")
+    }
+  }
+
+  const handleUpdateBannerCard = async (card: BannerCard) => {
+    try {
+      await updateBannerCard(card.id, { weight: card.weight, is_featured: card.is_featured })
+      toast.success("Карта обновлена")
+    } catch (err) {
+      console.error("Failed to update banner card:", err)
+      toast.error("Ошибка при обновлении карты")
+    }
+  }
+
+  const handleDeleteBannerCard = async (cardId: string, bannerId: string) => {
+    if (!confirm("Удалить карту из баннера?")) return
+    try {
+      await deleteBannerCard(cardId)
+      setBannerCards(prev => ({ ...prev, [bannerId]: (prev[bannerId] || []).filter(c => c.id !== cardId) }))
+      toast.success("Карта удалена из баннера")
+    } catch (err) {
+      console.error("Failed to delete banner card:", err)
+      toast.error("Ошибка при удалении карты")
+    }
+  }
+
+  const toggleBannerExpand = (bannerId: string) => {
+    if (expandedBannerId === bannerId) {
+      setExpandedBannerId(null)
+      return
+    }
+    setExpandedBannerId(bannerId)
+    if (!bannerCards[bannerId]) {
+      fetchBannerCards(bannerId)
     }
   }
 
@@ -387,9 +1033,33 @@ export default function AdminPage() {
               >
                 Battle Logs
               </button>
+              <button
+                onClick={() => setActiveTab('cards')}
+                className={`text-sm px-4 py-2 rounded-lg transition ${activeTab === 'cards' ? 'bg-primary text-primary-foreground font-semibold' : 'text-muted-foreground hover:bg-muted'}`}
+              >
+                Карты
+              </button>
+              <button
+                onClick={() => setActiveTab('mail')}
+                className={`text-sm px-4 py-2 rounded-lg transition ${activeTab === 'mail' ? 'bg-primary text-primary-foreground font-semibold' : 'text-muted-foreground hover:bg-muted'}`}
+              >
+                Рассылка
+              </button>
+              <button
+                onClick={() => setActiveTab('events')}
+                className={`text-sm px-4 py-2 rounded-lg transition ${activeTab === 'events' ? 'bg-primary text-primary-foreground font-semibold' : 'text-muted-foreground hover:bg-muted'}`}
+              >
+                События
+              </button>
+              <button
+                onClick={() => setActiveTab('tutorial')}
+                className={`text-sm px-4 py-2 rounded-lg transition ${activeTab === 'tutorial' ? 'bg-primary text-primary-foreground font-semibold' : 'text-muted-foreground hover:bg-muted'}`}
+              >
+                Туториал
+              </button>
             </div>
           </div>
-          <div className="flex gap-4">
+          <div className="flex gap-4 items-center">
             <div className="text-sm text-muted-foreground">
               Total Users: {users.length}
             </div>
@@ -906,7 +1576,7 @@ export default function AdminPage() {
               </div>
             </section>
           </div>
-        ) : (
+        ) : activeTab === 'battle_logs' ? (
           <div className="space-y-6">
             <div className="flex items-center justify-between">
               <h2 className="text-2xl font-bold flex items-center gap-2">
@@ -1004,7 +1674,850 @@ export default function AdminPage() {
               </div>
             )}
           </div>
-        )}
+        ) : activeTab === 'cards' ? (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-2xl font-bold flex items-center gap-2">
+                <Sparkles size={24} className="text-primary" />
+                Редактор карт
+              </h2>
+            </div>
+            <div className="bg-card border border-border rounded-xl p-8 text-center space-y-6">
+              <Sparkles size={48} className="text-primary mx-auto" />
+              <div className="space-y-2">
+                <h3 className="text-xl font-bold">Создание и редактирование карт</h3>
+                <p className="text-muted-foreground max-w-xl mx-auto">
+                  Откройте редактор карт, чтобы создать новую карту с 3D-слоями, статами и модификаторами.
+                  Готовую карту можно подарить пользователю или добавить в баннер события.
+                </p>
+              </div>
+              <Link
+                href="/admin/card-editor"
+                className="inline-flex items-center gap-2 px-6 py-3 bg-primary text-primary-foreground rounded-lg font-semibold hover:bg-primary/90 transition"
+              >
+                <Sparkles size={20} />
+                Открыть редактор карт
+              </Link>
+            </div>
+          </div>
+        ) : activeTab === 'mail' ? (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-2xl font-bold flex items-center gap-2">
+                <Mail size={24} className="text-primary" />
+                Рассылка и подарки
+              </h2>
+              <button
+                onClick={fetchSimpleUsers}
+                className="text-sm text-primary hover:underline"
+              >
+                Обновить список
+              </button>
+            </div>
+
+            <div className="bg-card border border-border rounded-xl p-6 space-y-4">
+              {/* Recipient */}
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1 uppercase">Получатель</label>
+                <select
+                  value={mailTargetUserId}
+                  onChange={(e) => setMailTargetUserId(e.target.value)}
+                  className="w-full px-3 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-sm"
+                >
+                  <option value="">Выберите пользователя...</option>
+                  {simpleUsers.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.username || "Без имени"} {u.email ? `(${u.email})` : ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Type */}
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1 uppercase">Тип письма</label>
+                <select
+                  value={mailType}
+                  onChange={(e) => setMailType(e.target.value as MailType)}
+                  className="w-full px-3 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-sm"
+                >
+                  <option value="message">Сообщение (message)</option>
+                  <option value="card_gift">Подарок карты (card_gift)</option>
+                  <option value="coins">Монеты (coins)</option>
+                  <option value="dust">Пыль (dust)</option>
+                  <option value="event_reward">Награда события (event_reward)</option>
+                </select>
+              </div>
+
+              {/* Title */}
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1 uppercase">Заголовок</label>
+                <input
+                  type="text"
+                  value={mailTitle}
+                  onChange={(e) => setMailTitle(e.target.value)}
+                  placeholder="Заголовок письма..."
+                  className="w-full px-3 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-sm"
+                />
+              </div>
+
+              {/* Body */}
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1 uppercase">Текст письма</label>
+                <textarea
+                  value={mailBody}
+                  onChange={(e) => setMailBody(e.target.value)}
+                  placeholder="Текст письма..."
+                  className="w-full px-3 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-sm h-24"
+                />
+              </div>
+
+              {/* Conditional: amount for coins/dust */}
+              {(mailType === "coins" || mailType === "dust") && (
+                <div>
+                  <label className="block text-xs font-medium text-muted-foreground mb-1 uppercase">
+                    Количество ({mailType})
+                  </label>
+                  <input
+                    type="number"
+                    value={mailAmount}
+                    onChange={(e) => setMailAmount(parseInt(e.target.value) || 0)}
+                    className="w-full px-3 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-sm"
+                  />
+                </div>
+              )}
+
+              {/* Conditional: card JSON for card_gift */}
+              {mailType === "card_gift" && (
+                <div className="space-y-2">
+                  <label className="block text-xs font-medium text-muted-foreground mb-1 uppercase">
+                    JSON карты
+                  </label>
+                  <textarea
+                    value={mailCardJson}
+                    onChange={(e) => setMailCardJson(e.target.value)}
+                    placeholder='Вставьте объект Card в формате JSON. Можно получить в редакторе карт...'
+                    className="w-full px-3 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-sm h-32 font-mono text-xs"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Совет: откройте{" "}
+                    <Link href="/admin/card-editor" className="text-primary hover:underline">редактор карт</Link>
+                    , чтобы создать карту и скопировать её JSON.
+                  </p>
+                </div>
+              )}
+
+              {/* Buttons */}
+              <div className="flex gap-3 pt-2">
+                <button
+                  onClick={handleSendMail}
+                  disabled={isMailSending || !mailTargetUserId}
+                  className="flex items-center gap-2 px-6 py-2 bg-primary text-primary-foreground rounded-lg font-semibold hover:bg-primary/90 transition disabled:opacity-50"
+                >
+                  <Mail size={18} />
+                  {isMailSending ? "Отправка..." : "Отправить"}
+                </button>
+                <button
+                  onClick={handleSendMailBulk}
+                  disabled={isMailSending}
+                  className="flex items-center gap-2 px-6 py-2 bg-secondary text-secondary-foreground rounded-lg font-semibold hover:bg-secondary/80 transition disabled:opacity-50"
+                >
+                  <Gift size={18} />
+                  {isMailSending ? "Отправка..." : `Отправить всем (${simpleUsers.length})`}
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : activeTab === 'events' ? (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-2xl font-bold flex items-center gap-2">
+                <Calendar size={24} className="text-primary" />
+                Баннеры и события
+              </h2>
+              <button
+                onClick={() => setShowCreateBanner(!showCreateBanner)}
+                className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition"
+              >
+                <Plus size={18} />
+                Создать баннер
+              </button>
+            </div>
+
+            {/* Create banner form */}
+            {showCreateBanner && (
+              <div className="bg-card border border-primary/30 rounded-xl p-6 space-y-4">
+                <form onSubmit={handleCreateBanner} className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-medium text-muted-foreground mb-1 uppercase">Название *</label>
+                      <input
+                        type="text"
+                        required
+                        value={newBanner.name}
+                        onChange={(e) => setNewBanner({ ...newBanner, name: e.target.value })}
+                        className="w-full px-3 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-muted-foreground mb-1 uppercase">URL фона баннера</label>
+                      <input
+                        type="text"
+                        value={newBanner.image_url}
+                        onChange={(e) => setNewBanner({ ...newBanner, image_url: e.target.value })}
+                        className="w-full px-3 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-sm"
+                        placeholder="https://... (фон карточки баннера)"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-muted-foreground mb-1 uppercase">URL промо-арта (шапка 7:5)</label>
+                    <input
+                      type="text"
+                      value={newBanner.promo_image_url}
+                      onChange={(e) => setNewBanner({ ...newBanner, promo_image_url: e.target.value })}
+                      className="w-full px-3 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-sm"
+                      placeholder="https://... (промо-арт для шапки баннера, соотношение 7:5)"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-muted-foreground mb-1 uppercase">Описание</label>
+                    <textarea
+                      value={newBanner.description}
+                      onChange={(e) => setNewBanner({ ...newBanner, description: e.target.value })}
+                      className="w-full px-3 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-sm h-20"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-xs font-medium text-muted-foreground mb-1 uppercase">Featured anime IDs (через запятую)</label>
+                      <input
+                        type="text"
+                        value={newBanner.featured_anime_ids}
+                        onChange={(e) => setNewBanner({ ...newBanner, featured_anime_ids: e.target.value })}
+                        placeholder="1, 21, 5114"
+                        className="w-full px-3 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-muted-foreground mb-1 uppercase">Буст редкости</label>
+                      <select
+                        value={newBanner.boosted_rarity}
+                        onChange={(e) => setNewBanner({ ...newBanner, boosted_rarity: e.target.value as Rarity | "" })}
+                        className="w-full px-3 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-sm"
+                      >
+                        <option value="">Нет</option>
+                        {Object.entries(rarityConfig).map(([key, config]) => (
+                          <option key={key} value={key}>{config.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-muted-foreground mb-1 uppercase">Цена</label>
+                      <input
+                        type="number"
+                        value={newBanner.price}
+                        onChange={(e) => setNewBanner({ ...newBanner, price: e.target.value })}
+                        className="w-full px-3 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-sm"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="md:col-span-2">
+                      <label className="block text-xs font-medium text-muted-foreground mb-2 uppercase">Цвет (gradient)</label>
+                      <div className="flex flex-wrap gap-2">
+                        {GRADIENT_PRESETS.map((g) => (
+                          <button
+                            key={g}
+                            type="button"
+                            onClick={() => setNewBanner({ ...newBanner, color: g })}
+                            className={`relative w-12 h-12 rounded-lg bg-gradient-to-br ${g} transition-all ${newBanner.color === g ? 'ring-2 ring-primary ring-offset-2 ring-offset-background scale-110' : 'hover:scale-105 opacity-80 hover:opacity-100'}`}
+                            title={g}
+                          >
+                            {newBanner.color === g && (
+                              <Check className="absolute inset-0 m-auto w-5 h-5 text-white drop-shadow-lg" />
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                      <input
+                        type="text"
+                        value={newBanner.color}
+                        onChange={(e) => setNewBanner({ ...newBanner, color: e.target.value })}
+                        placeholder="from-purple-600 to-pink-700"
+                        className="w-full mt-2 px-3 py-1.5 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-xs font-mono"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-muted-foreground mb-1 uppercase">Дата начала</label>
+                      <input
+                        type="datetime-local"
+                        value={newBanner.start_date}
+                        onChange={(e) => setNewBanner({ ...newBanner, start_date: e.target.value })}
+                        className="w-full px-3 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-muted-foreground mb-1 uppercase">Дата окончания</label>
+                      <input
+                        type="datetime-local"
+                        value={newBanner.end_date}
+                        onChange={(e) => setNewBanner({ ...newBanner, end_date: e.target.value })}
+                        className="w-full px-3 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-sm"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4 items-center">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        id="banner_active"
+                        checked={newBanner.is_active}
+                        onChange={(e) => setNewBanner({ ...newBanner, is_active: e.target.checked })}
+                      />
+                      <label htmlFor="banner_active" className="text-sm cursor-pointer">Активен</label>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-muted-foreground mb-1 uppercase">Порядок (sort_order)</label>
+                      <input
+                        type="number"
+                        value={newBanner.sort_order}
+                        onChange={(e) => setNewBanner({ ...newBanner, sort_order: parseInt(e.target.value) || 0 })}
+                        className="w-full px-3 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-sm"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Guaranteed custom card */}
+                  <div className="p-4 bg-amber-500/5 border border-amber-500/20 rounded-lg space-y-3">
+                    <div className="flex items-center gap-2">
+                      <Sparkles size={16} className="text-amber-500" />
+                      <label className="text-xs font-bold text-amber-500 uppercase">Гарантированная карта</label>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-muted-foreground mb-1 uppercase">JSON гарантированной карты</label>
+                      <textarea
+                        value={newBanner.guaranteed_card_json}
+                        onChange={(e) => setNewBanner({ ...newBanner, guaranteed_card_json: e.target.value })}
+                        placeholder="Вставьте объект Card в формате JSON. Можно получить в редакторе карт..."
+                        className="w-full px-3 py-2 bg-muted border border-border rounded text-xs font-mono h-24"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-muted-foreground mb-1 uppercase">Пулл до гарантии (0 = выключено)</label>
+                      <input
+                        type="number"
+                        value={newBanner.guaranteed_card_pity}
+                        onChange={(e) => setNewBanner({ ...newBanner, guaranteed_card_pity: e.target.value })}
+                        placeholder="Напр. 50 — гарантия через 50 круток"
+                        className="w-full px-3 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-sm"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end gap-3 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowCreateBanner(false)}
+                      className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground transition"
+                    >
+                      Отмена
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-6 py-2 bg-primary text-primary-foreground rounded-lg font-semibold hover:bg-primary/90 transition"
+                    >
+                      Создать баннер
+                    </button>
+                  </div>
+                </form>
+              </div>
+            )}
+
+            {/* Banners list */}
+            {isBannersLoading ? (
+              <div className="flex justify-center py-12">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+              </div>
+            ) : banners.length === 0 ? (
+              <div className="py-12 text-center text-muted-foreground">
+                Баннеров пока нет. Создайте первый баннер.
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {banners.map((banner) => (
+                  <div key={banner.id} className="bg-card border border-border rounded-xl p-6 shadow-sm">
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-semibold text-lg flex items-center gap-2">
+                          {banner.name}
+                          <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${banner.is_active ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' : 'bg-muted text-muted-foreground'}`}>
+                            {banner.is_active ? 'Активен' : 'Неактивен'}
+                          </span>
+                        </h3>
+                        {banner.description && (
+                          <p className="text-sm text-muted-foreground line-clamp-2 mt-1">{banner.description}</p>
+                        )}
+                        <div className="flex flex-wrap gap-3 mt-2 text-xs text-muted-foreground">
+                          {banner.boosted_rarity && (
+                            <span>Буст: {rarityConfig[banner.boosted_rarity as Rarity]?.label || banner.boosted_rarity}</span>
+                          )}
+                          {banner.price != null && <span>Цена: {banner.price}</span>}
+                          {banner.start_date && <span>С: {formatDate(banner.start_date)}</span>}
+                          {banner.end_date && <span>До: {formatDate(banner.end_date)}</span>}
+                          {banner.featured_anime_ids && banner.featured_anime_ids.length > 0 && (
+                            <span>Featured: {banner.featured_anime_ids.join(", ")}</span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex gap-2 flex-shrink-0">
+                        <button
+                          onClick={() => handleStartEditBanner(banner)}
+                          className="p-2 text-muted-foreground hover:text-primary transition"
+                          title="Редактировать баннер"
+                        >
+                          <Edit size={18} />
+                        </button>
+                        <button
+                          onClick={() => handleToggleBannerActive(banner)}
+                          className={`w-10 h-5 rounded-full relative transition-colors ${banner.is_active ? 'bg-primary' : 'bg-muted'}`}
+                        >
+                          <div className={`absolute top-1 w-3 h-3 rounded-full bg-white transition-all ${banner.is_active ? 'left-6' : 'left-1'}`} />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteBanner(banner.id)}
+                          className="p-2 text-muted-foreground hover:text-destructive transition"
+                        >
+                          <Trash2 size={18} />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Guaranteed card badge in banner info */}
+                    {banner.guaranteed_card_payload && (
+                      <div className="flex items-center gap-2 mt-2 text-xs">
+                        <Sparkles size={12} className="text-amber-500" />
+                        <span className="text-amber-500 font-semibold">
+                          Гарант-карта: {banner.guaranteed_card_payload?.name || "Без названия"}
+                          {banner.guaranteed_card_pity ? ` (через ${banner.guaranteed_card_pity} круток)` : ""}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Edit form */}
+                    {editingBannerId === banner.id && editBanner && (
+                      <div className="mt-4 pt-4 border-t border-border bg-muted/30 rounded-lg p-4 space-y-4">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Edit size={16} className="text-primary" />
+                          <h4 className="font-semibold text-sm">Редактирование баннера</h4>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-xs font-medium text-muted-foreground mb-1 uppercase">Название *</label>
+                            <input
+                              type="text"
+                              value={editBanner.name}
+                              onChange={(e) => setEditBanner({ ...editBanner, name: e.target.value })}
+                              className="w-full px-3 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-sm"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-muted-foreground mb-1 uppercase">URL фона баннера</label>
+                            <input
+                              type="text"
+                              value={editBanner.image_url}
+                              onChange={(e) => setEditBanner({ ...editBanner, image_url: e.target.value })}
+                              className="w-full px-3 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-sm"
+                              placeholder="https://... (фон карточки)"
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-muted-foreground mb-1 uppercase">URL промо-арта (шапка 7:5)</label>
+                          <input
+                            type="text"
+                            value={editBanner.promo_image_url}
+                            onChange={(e) => setEditBanner({ ...editBanner, promo_image_url: e.target.value })}
+                            className="w-full px-3 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-sm"
+                            placeholder="https://... (промо-арт для шапки, 7:5)"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-muted-foreground mb-1 uppercase">Описание</label>
+                          <textarea
+                            value={editBanner.description}
+                            onChange={(e) => setEditBanner({ ...editBanner, description: e.target.value })}
+                            className="w-full px-3 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-sm h-20"
+                          />
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          <div>
+                            <label className="block text-xs font-medium text-muted-foreground mb-1 uppercase">Featured anime IDs</label>
+                            <input
+                              type="text"
+                              value={editBanner.featured_anime_ids}
+                              onChange={(e) => setEditBanner({ ...editBanner, featured_anime_ids: e.target.value })}
+                              placeholder="1, 21, 5114"
+                              className="w-full px-3 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-sm"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-muted-foreground mb-1 uppercase">Буст редкости</label>
+                            <select
+                              value={editBanner.boosted_rarity}
+                              onChange={(e) => setEditBanner({ ...editBanner, boosted_rarity: e.target.value as Rarity | "" })}
+                              className="w-full px-3 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-sm"
+                            >
+                              <option value="">Нет</option>
+                              {Object.entries(rarityConfig).map(([key, config]) => (
+                                <option key={key} value={key}>{config.label}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-muted-foreground mb-1 uppercase">Цена</label>
+                            <input
+                              type="number"
+                              value={editBanner.price}
+                              onChange={(e) => setEditBanner({ ...editBanner, price: e.target.value })}
+                              className="w-full px-3 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-sm"
+                            />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          <div className="md:col-span-2">
+                            <label className="block text-xs font-medium text-muted-foreground mb-2 uppercase">Цвет (gradient)</label>
+                            <div className="flex flex-wrap gap-2">
+                              {GRADIENT_PRESETS.map((g) => (
+                                <button
+                                  key={g}
+                                  type="button"
+                                  onClick={() => setEditBanner({ ...editBanner, color: g })}
+                                  className={`relative w-12 h-12 rounded-lg bg-gradient-to-br ${g} transition-all ${editBanner.color === g ? 'ring-2 ring-primary ring-offset-2 ring-offset-background scale-110' : 'hover:scale-105 opacity-80 hover:opacity-100'}`}
+                                  title={g}
+                                >
+                                  {editBanner.color === g && (
+                                    <Check className="absolute inset-0 m-auto w-5 h-5 text-white drop-shadow-lg" />
+                                  )}
+                                </button>
+                              ))}
+                            </div>
+                            <input
+                              type="text"
+                              value={editBanner.color}
+                              onChange={(e) => setEditBanner({ ...editBanner, color: e.target.value })}
+                              placeholder="from-purple-600 to-pink-700"
+                              className="w-full mt-2 px-3 py-1.5 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-xs font-mono"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-muted-foreground mb-1 uppercase">Дата начала</label>
+                            <input
+                              type="datetime-local"
+                              value={editBanner.start_date}
+                              onChange={(e) => setEditBanner({ ...editBanner, start_date: e.target.value })}
+                              className="w-full px-3 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-sm"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-muted-foreground mb-1 uppercase">Дата окончания</label>
+                            <input
+                              type="datetime-local"
+                              value={editBanner.end_date}
+                              onChange={(e) => setEditBanner({ ...editBanner, end_date: e.target.value })}
+                              className="w-full px-3 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-sm"
+                            />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4 items-center">
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              id="edit_banner_active"
+                              checked={editBanner.is_active}
+                              onChange={(e) => setEditBanner({ ...editBanner, is_active: e.target.checked })}
+                            />
+                            <label htmlFor="edit_banner_active" className="text-sm cursor-pointer">Активен</label>
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-muted-foreground mb-1 uppercase">Порядок (sort_order)</label>
+                            <input
+                              type="number"
+                              value={editBanner.sort_order}
+                              onChange={(e) => setEditBanner({ ...editBanner, sort_order: parseInt(e.target.value) || 0 })}
+                              className="w-full px-3 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-sm"
+                            />
+                          </div>
+                        </div>
+                        {/* Guaranteed card in edit mode */}
+                        <div className="p-4 bg-amber-500/5 border border-amber-500/20 rounded-lg space-y-3">
+                          <div className="flex items-center gap-2">
+                            <Sparkles size={16} className="text-amber-500" />
+                            <label className="text-xs font-bold text-amber-500 uppercase">Гарантированная карта</label>
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-muted-foreground mb-1 uppercase">JSON гарантированной карты</label>
+                            <textarea
+                              value={editBanner.guaranteed_card_json}
+                              onChange={(e) => setEditBanner({ ...editBanner, guaranteed_card_json: e.target.value })}
+                              placeholder="Вставьте объект Card в формате JSON..."
+                              className="w-full px-3 py-2 bg-muted border border-border rounded text-xs font-mono h-24"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-muted-foreground mb-1 uppercase">Пулл до гарантии (0 = выключено)</label>
+                            <input
+                              type="number"
+                              value={editBanner.guaranteed_card_pity}
+                              onChange={(e) => setEditBanner({ ...editBanner, guaranteed_card_pity: e.target.value })}
+                              placeholder="Напр. 50 — гарантия через 50 круток"
+                              className="w-full px-3 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-sm"
+                            />
+                          </div>
+                        </div>
+                        <div className="flex justify-end gap-3 pt-2">
+                          <button
+                            type="button"
+                            onClick={() => { setEditingBannerId(null); setEditBanner(null) }}
+                            className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground transition"
+                          >
+                            Отмена
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleSaveEditBanner}
+                            className="px-6 py-2 bg-primary text-primary-foreground rounded-lg font-semibold hover:bg-primary/90 transition"
+                          >
+                            Сохранить
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="flex gap-2 pt-2 border-t border-border">
+                      <button
+                        onClick={() => toggleBannerExpand(banner.id)}
+                        className="flex items-center gap-2 px-3 py-1.5 bg-muted hover:bg-muted/70 rounded text-sm transition"
+                      >
+                        <Calendar size={14} />
+                        Карты баннера
+                      </button>
+                    </div>
+
+                    {/* Banner cards sub-section */}
+                    {expandedBannerId === banner.id && (
+                      <div className="mt-4 pt-4 border-t border-border space-y-4">
+                        {bannerCardsLoading === banner.id ? (
+                          <div className="flex justify-center py-6">
+                            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+                          </div>
+                        ) : (
+                          <>
+                            {/* Existing cards */}
+                            {(bannerCards[banner.id] || []).length > 0 && (
+                              <div className="space-y-2">
+                                {(bannerCards[banner.id] || []).map((bc) => (
+                                  <div key={bc.id} className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
+                                    <div className="flex-1 min-w-0">
+                                      <p className="text-sm font-medium truncate">
+                                        {bc.card_payload?.name || "Без названия"}
+                                      </p>
+                                      <p className="text-xs text-muted-foreground">
+                                        Редкость: {rarityConfig[bc.card_payload?.rarity as Rarity]?.label || bc.card_payload?.rarity || "—"}
+                                      </p>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      <label className="text-xs text-muted-foreground">Вес:</label>
+                                      <input
+                                        type="number"
+                                        value={bc.weight}
+                                        onChange={(e) => {
+                                          const w = parseInt(e.target.value) || 0
+                                          setBannerCards(prev => ({
+                                            ...prev,
+                                            [banner.id]: (prev[banner.id] || []).map(c => c.id === bc.id ? { ...c, weight: w } : c)
+                                          }))
+                                        }}
+                                        className="w-16 px-2 py-1 bg-muted border border-border rounded text-xs"
+                                      />
+                                      <label className="text-xs text-muted-foreground flex items-center gap-1">
+                                        <input
+                                          type="checkbox"
+                                          checked={bc.is_featured}
+                                          onChange={(e) => {
+                                            const f = e.target.checked
+                                            setBannerCards(prev => ({
+                                              ...prev,
+                                              [banner.id]: (prev[banner.id] || []).map(c => c.id === bc.id ? { ...c, is_featured: f } : c)
+                                            }))
+                                          }}
+                                        />
+                                        Featured
+                                      </label>
+                                      <button
+                                        onClick={() => handleUpdateBannerCard(bc)}
+                                        className="px-2 py-1 bg-primary/10 text-primary rounded text-xs hover:bg-primary/20 transition"
+                                      >
+                                        <Edit size={12} />
+                                      </button>
+                                      <button
+                                        onClick={() => handleDeleteBannerCard(bc.id, banner.id)}
+                                        className="p-1 text-muted-foreground hover:text-destructive transition"
+                                      >
+                                        <Trash2 size={14} />
+                                      </button>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+
+                            {/* Add new card */}
+                            <div className="space-y-2 p-3 bg-muted/30 rounded-lg border border-dashed border-border">
+                              <label className="block text-xs font-medium text-muted-foreground uppercase">Добавить карту (JSON)</label>
+                              <textarea
+                                value={newBannerCardJson[banner.id] || ""}
+                                onChange={(e) => setNewBannerCardJson(prev => ({ ...prev, [banner.id]: e.target.value }))}
+                                placeholder="Вставьте объект Card в формате JSON..."
+                                className="w-full px-3 py-2 bg-muted border border-border rounded text-xs font-mono h-24"
+                              />
+                              <div className="flex items-center gap-3">
+                                <div className="flex items-center gap-2">
+                                  <label className="text-xs text-muted-foreground">Вес:</label>
+                                  <input
+                                    type="number"
+                                    value={newBannerCardWeight[banner.id] ?? 1}
+                                    onChange={(e) => setNewBannerCardWeight(prev => ({ ...prev, [banner.id]: parseInt(e.target.value) || 1 }))}
+                                    className="w-16 px-2 py-1 bg-muted border border-border rounded text-xs"
+                                  />
+                                </div>
+                                <label className="text-xs text-muted-foreground flex items-center gap-1">
+                                  <input
+                                    type="checkbox"
+                                    checked={newBannerCardFeatured[banner.id] ?? false}
+                                    onChange={(e) => setNewBannerCardFeatured(prev => ({ ...prev, [banner.id]: e.target.checked }))}
+                                  />
+                                  Featured
+                                </label>
+                                <button
+                                  onClick={() => handleAddBannerCard(banner.id)}
+                                  className="ml-auto flex items-center gap-1 px-3 py-1.5 bg-primary text-primary-foreground rounded text-xs hover:bg-primary/90 transition"
+                                >
+                                  <Plus size={14} />
+                                  Добавить карту
+                                </button>
+                              </div>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : activeTab === 'tutorial' ? (
+          <div className="space-y-4">
+            <div className="flex items-center gap-3 mb-2">
+              <BookOpen className="w-6 h-6 text-primary" />
+              <div>
+                <h2 className="text-2xl font-bold">Туториал админ-панели</h2>
+                <p className="text-sm text-muted-foreground">Полное руководство по всем разделам</p>
+              </div>
+            </div>
+
+            {/* Quick nav */}
+            <div className="flex flex-wrap gap-2 mb-2">
+              {tutorialSections.map((s) => (
+                <button
+                  key={s.id}
+                  onClick={() => setExpandedTutorialId(s.id)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-muted/50 hover:bg-muted border border-border rounded-lg text-xs font-bold uppercase tracking-wider text-muted-foreground hover:text-foreground transition"
+                >
+                  {s.icon}
+                  {s.title.split("—")[0].trim()}
+                </button>
+              ))}
+            </div>
+
+            {/* Sections */}
+            <div className="space-y-3">
+              {tutorialSections.map((section) => {
+                const isExpanded = expandedTutorialId === section.id
+                return (
+                  <div key={section.id} className="bg-card border border-border rounded-xl overflow-hidden">
+                    <button
+                      onClick={() => setExpandedTutorialId(isExpanded ? null : section.id)}
+                      className="w-full flex items-center justify-between p-4 hover:bg-muted/50 transition text-left"
+                    >
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                        <div className="p-2 bg-primary/10 rounded-lg border border-primary/20 flex-shrink-0">
+                          {section.icon}
+                        </div>
+                        <div className="min-w-0">
+                          <h3 className="text-base font-bold truncate">{section.title}</h3>
+                          <p className="text-xs text-muted-foreground truncate">{section.description}</p>
+                        </div>
+                      </div>
+                      {isExpanded ? <ChevronDown className="w-5 h-5 text-muted-foreground flex-shrink-0" /> : <ChevronRight className="w-5 h-5 text-muted-foreground flex-shrink-0" />}
+                    </button>
+                    {isExpanded && (
+                      <div className="px-4 pb-4 space-y-3">
+                        <div className="space-y-2">
+                          {section.steps.map((step, i) => (
+                            <div key={i} className="flex gap-3 p-3 bg-muted/30 rounded-lg border border-border/50">
+                              <div className="flex-shrink-0 w-6 h-6 bg-primary/20 rounded-full flex items-center justify-center text-xs font-black text-primary">
+                                {i + 1}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-bold text-foreground">{step.title}</p>
+                                <p className="text-sm text-muted-foreground mt-0.5">{step.detail}</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        {section.tips && section.tips.length > 0 && (
+                          <div className="p-3 bg-emerald-500/5 border border-emerald-500/20 rounded-lg space-y-1.5">
+                            <div className="flex items-center gap-2 text-emerald-500 font-bold text-xs uppercase tracking-wider">
+                              <Lightbulb className="w-4 h-4" />
+                              Советы
+                            </div>
+                            {section.tips.map((tip, i) => (
+                              <div key={i} className="flex items-start gap-2 text-sm text-emerald-600/80">
+                                <CheckCircle className="w-4 h-4 mt-0.5 flex-shrink-0 text-emerald-500" />
+                                <span>{tip}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {section.warnings && section.warnings.length > 0 && (
+                          <div className="p-3 bg-amber-500/5 border border-amber-500/20 rounded-lg space-y-1.5">
+                            <div className="flex items-center gap-2 text-amber-500 font-bold text-xs uppercase tracking-wider">
+                              <AlertTriangle className="w-4 h-4" />
+                              Внимание
+                            </div>
+                            {section.warnings.map((w, i) => (
+                              <div key={i} className="flex items-start gap-2 text-sm text-amber-600/80">
+                                <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0 text-amber-500" />
+                                <span>{w}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        ) : null}
       </div>
 
       <ScrollToTop />

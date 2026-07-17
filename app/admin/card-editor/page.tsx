@@ -4,27 +4,25 @@ import { useState, useEffect } from "react"
 import { Navbar } from "@/components/layout/navbar"
 import { Card, CardStats } from "@/app/gacha/types"
 import { Rarity, rarityConfig } from "@/types/gacha"
-import { saveCardToDatabase } from "@/app/gacha/client-actions"
-import { useAuth } from "@/components/auth/auth-provider"
 import { getProxiedSrc } from "@/lib/image-loader"
 import { frameNames, coatingNames, FrameOverlay, CoatingOverlay } from "@/components/gacha/card-modifiers"
-import { 
-  Sparkles, 
-  Save, 
-  RefreshCcw, 
-  Image as ImageIcon, 
-  Type, 
-  Activity, 
+import {
+  Sparkles,
+  RefreshCcw,
+  Image as ImageIcon,
+  Type,
+  Activity,
   Star,
   Zap,
   Shield,
   Heart,
-  MousePointer2,
   Trash2,
-  Plus,
   Crown,
   Hash,
-  Layers
+  Layers,
+  Gift,
+  CalendarPlus,
+  Loader2
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -34,12 +32,46 @@ import { Slider } from "@/components/ui/slider"
 import { Switch } from "@/components/ui/switch"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
+import {
+  checkAdminAuth,
+  getAdminUsersSimple,
+  getBanners,
+  adminGiftCardToUser,
+  addBannerCard,
+  setBannerGuaranteedCard,
+} from "@/app/admin/actions"
+
+interface SimpleUser {
+  id: string
+  username: string | null
+  avatar_url: string | null
+  email: string | null
+  updated_at: string | null
+  created_at: string | null
+}
+
+interface Banner {
+  id: string
+  name: string
+  description?: string | null
+  image_url?: string | null
+  is_active?: boolean
+  boosted_rarity?: string | null
+  price?: number | null
+}
 
 export default function CardEditorPage() {
-  const { user, session } = useAuth()
   const router = useRouter()
-  const [isDev, setIsDev] = useState(false)
+  const [authChecked, setAuthChecked] = useState(false)
+  const [isAuthed, setIsAuthed] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
+  const [users, setUsers] = useState<SimpleUser[]>([])
+  const [banners, setBanners] = useState<Banner[]>([])
+  const [selectedUserId, setSelectedUserId] = useState<string>("")
+  const [selectedBannerId, setSelectedBannerId] = useState<string>("")
+  const [isFeaturedCard, setIsFeaturedCard] = useState(false)
+  const [guaranteedPity, setGuaranteedPity] = useState(77)
+  const [selectedGuaranteedBannerId, setSelectedGuaranteedBannerId] = useState<string>("")
   
   const [card, setCard] = useState<Partial<Card>>({
     name: "Новый персонаж",
@@ -64,57 +96,78 @@ export default function CardEditorPage() {
   })
 
   useEffect(() => {
-    // Only allow in development mode
-    if (process.env.NODE_ENV === 'development') {
-      setIsDev(true)
-      
-      // Check for card data to edit
-      const editData = sessionStorage.getItem('edit-card-data')
-      if (editData) {
-        try {
-          const parsedCard = JSON.parse(editData) as Card
-          setCard({
-            ...parsedCard,
-            // Stats are nested in Card type
-            stats: parsedCard.stats
-          })
-          // Clear it so it doesn't persist on refresh if user wants to start fresh
-          sessionStorage.removeItem('edit-card-data')
-          toast.info("Данные карты загружены для редактирования")
-        } catch (e) {
-          console.error("Failed to parse edit card data", e)
+    let cancelled = false
+    ;(async () => {
+      try {
+        const ok = await checkAdminAuth()
+        if (cancelled) return
+        setIsAuthed(ok)
+        setAuthChecked(true)
+        if (!ok) {
+          router.push("/admin")
+          return
         }
+        // Load users + banners for the gift / banner flows
+        const [u, b] = await Promise.all([getAdminUsersSimple(), getBanners()])
+        if (cancelled) return
+        setUsers(u as SimpleUser[])
+        setBanners(b as Banner[])
+
+        // Check for card data to edit (passed via sessionStorage)
+        const editData = sessionStorage.getItem('edit-card-data')
+        if (editData) {
+          try {
+            const parsedCard = JSON.parse(editData) as Card
+            setCard({
+              ...parsedCard,
+              stats: parsedCard.stats
+            })
+            sessionStorage.removeItem('edit-card-data')
+            toast.info("Данные карты загружены для редактирования")
+          } catch (e) {
+            console.error("Failed to parse edit card data", e)
+          }
+        }
+      } catch (e) {
+        console.error("Admin auth check failed", e)
+        setAuthChecked(true)
+        setIsAuthed(false)
+        router.push("/admin")
       }
-    } else {
-      // If not dev, redirect or show error
-      // router.push('/')
-    }
+    })()
+    return () => { cancelled = true }
   }, [router])
 
-  if (!isDev) {
+  if (!authChecked) {
     return (
       <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
         <div className="text-center space-y-4">
-          <Trash2 className="w-16 h-16 text-red-500 mx-auto" />
-          <h1 className="text-2xl font-black text-white">Доступ запрещен</h1>
-          <p className="text-slate-400">Редактор карт доступен только в режиме разработки.</p>
-          <Button onClick={() => router.push('/')}>Вернуться на главную</Button>
+          <Loader2 className="w-12 h-12 text-indigo-400 mx-auto animate-spin" />
+          <p className="text-slate-400">Проверка авторизации...</p>
         </div>
       </div>
     )
   }
 
-  const handleSave = async () => {
-    if (!user) {
-      toast.error("Нужна авторизация")
-      return
-    }
+  if (!isAuthed) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
+        <div className="text-center space-y-4">
+          <Trash2 className="w-16 h-16 text-red-500 mx-auto" />
+          <h1 className="text-2xl font-black text-white">Доступ запрещен</h1>
+          <p className="text-slate-400">Требуется авторизация администратора.</p>
+          <Button onClick={() => router.push('/admin')}>Войти в админ-панель</Button>
+        </div>
+      </div>
+    )
+  }
 
+  const buildFinalCard = (): Card | null => {
     const hasLayers = card.imageLayers && card.imageLayers.some(l => l)
 
     if (!card.name || (!card.imageUrl && !hasLayers)) {
       toast.error("Заполните имя и ссылку на изображение или 3D слои")
-      return
+      return null
     }
 
     // Auto-fill imageUrl from layers if missing
@@ -136,16 +189,71 @@ export default function CardEditorPage() {
       orderIndex: Date.now()
     }
 
+    return finalCard
+  }
+
+  const handleGiftToUser = async () => {
+    if (!selectedUserId) {
+      toast.error("Выберите пользователя")
+      return
+    }
+    const finalCard = buildFinalCard()
+    if (!finalCard) return
+
     try {
       setIsSaving(true)
-      const result = await saveCardToDatabase(finalCard, session)
-      if (result.success) {
-        toast.success("Карта создана и добавлена в коллекцию!")
-      } else {
-        toast.error(`Ошибка сохранения: ${result.error}`)
-      }
+      await adminGiftCardToUser(selectedUserId, finalCard)
+      toast.success("Карта отправлена пользователю в подарок!")
     } catch (error) {
-      toast.error("Произошла ошибка при сохранении")
+      toast.error("Ошибка при отправке подарка")
+      console.error(error)
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const handleSetGuaranteedCard = async () => {
+    if (!selectedGuaranteedBannerId) {
+      toast.error("Выберите баннер для гаранта")
+      return
+    }
+    if (guaranteedPity < 1) {
+      toast.error("Пити должен быть минимум 1")
+      return
+    }
+    const finalCard = buildFinalCard()
+    if (!finalCard) return
+
+    try {
+      setIsSaving(true)
+      await setBannerGuaranteedCard(selectedGuaranteedBannerId, finalCard, guaranteedPity)
+      toast.success(`Карта установлена как гарант с pity = ${guaranteedPity}!`)
+    } catch (error) {
+      toast.error("Ошибка при установке гаранта")
+      console.error(error)
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const handleAddToBanner = async () => {
+    if (!selectedBannerId) {
+      toast.error("Выберите баннер")
+      return
+    }
+    const finalCard = buildFinalCard()
+    if (!finalCard) return
+
+    try {
+      setIsSaving(true)
+      await addBannerCard({
+        bannerId: selectedBannerId,
+        cardPayload: finalCard,
+        isFeatured: isFeaturedCard,
+      })
+      toast.success("Карта добавлена в баннер!")
+    } catch (error) {
+      toast.error("Ошибка при добавлении в баннер")
       console.error(error)
     } finally {
       setIsSaving(false)
@@ -292,7 +400,7 @@ export default function CardEditorPage() {
           <div className="w-full lg:w-2/3 space-y-8">
             <div>
               <h1 className="text-4xl font-black text-white mb-2">Создание Карты</h1>
-              <p className="text-slate-400">Инструмент разработчика для тестирования дизайна и статов</p>
+              <p className="text-slate-400">Админ-инструмент: создайте карту и подарите пользователю или добавьте в баннер</p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -513,30 +621,154 @@ export default function CardEditorPage() {
               </div>
             </div>
 
-            <div className="flex gap-4">
-              <Button 
-                onClick={handleSave}
-                disabled={isSaving}
-                className="flex-1 h-14 bg-indigo-600 hover:bg-indigo-500 text-lg font-black uppercase tracking-widest rounded-2xl shadow-lg shadow-indigo-600/20 disabled:opacity-50"
-              >
-                {isSaving ? (
-                  <>
-                    <RefreshCcw className="w-5 h-5 mr-2 animate-spin" />
-                    Сохранение...
-                  </>
-                ) : (
-                  <>
-                    <Save className="w-5 h-5 mr-2" />
-                    Сохранить в коллекцию
-                  </>
-                )}
-              </Button>
-              <Button 
+            {/* Admin delivery section: gift to user OR add to banner */}
+            <div className="space-y-6 p-6 bg-slate-900/40 rounded-3xl border border-white/5">
+              <h3 className="font-black uppercase tracking-widest text-sm text-slate-400 flex items-center gap-2">
+                <Gift className="w-4 h-4" /> Доставка карты
+              </h3>
+
+              {/* Gift to user */}
+              <div className="space-y-3 p-4 bg-slate-900/50 rounded-2xl border border-white/5">
+                <Label className="flex items-center gap-2 text-sm font-bold">
+                  <Gift className="w-4 h-4 text-indigo-400" /> Подарить пользователю
+                </Label>
+                <Select value={selectedUserId} onValueChange={setSelectedUserId}>
+                  <SelectTrigger className="bg-slate-900/50 border-white/10 h-12">
+                    <SelectValue placeholder="Выберите пользователя..." />
+                  </SelectTrigger>
+                  <SelectContent className="bg-slate-900 border-white/10 text-white max-h-72">
+                    {users.map((u) => (
+                      <SelectItem key={u.id} value={u.id} className="focus:bg-white/10 focus:text-white">
+                        {u.username || "Без имени"} {u.email ? `(${u.email})` : ""}
+                      </SelectItem>
+                    ))}
+                    {users.length === 0 && (
+                      <div className="px-3 py-2 text-xs text-slate-500">Нет пользователей</div>
+                    )}
+                  </SelectContent>
+                </Select>
+                <Button
+                  onClick={handleGiftToUser}
+                  disabled={isSaving || !selectedUserId}
+                  className="w-full h-12 bg-indigo-600 hover:bg-indigo-500 font-black uppercase tracking-widest rounded-2xl disabled:opacity-50"
+                >
+                  {isSaving ? (
+                    <>
+                      <RefreshCcw className="w-4 h-4 mr-2 animate-spin" />
+                      Отправка...
+                    </>
+                  ) : (
+                    <>
+                      <Gift className="w-4 h-4 mr-2" />
+                      Подарить пользователю
+                    </>
+                  )}
+                </Button>
+              </div>
+
+              {/* Add to banner */}
+              <div className="space-y-3 p-4 bg-slate-900/50 rounded-2xl border border-white/5">
+                <Label className="flex items-center gap-2 text-sm font-bold">
+                  <CalendarPlus className="w-4 h-4 text-pink-400" /> Добавить в баннер
+                </Label>
+                <Select value={selectedBannerId} onValueChange={setSelectedBannerId}>
+                  <SelectTrigger className="bg-slate-900/50 border-white/10 h-12">
+                    <SelectValue placeholder="Выберите баннер..." />
+                  </SelectTrigger>
+                  <SelectContent className="bg-slate-900 border-white/10 text-white max-h-72">
+                    {banners.map((b) => (
+                      <SelectItem key={b.id} value={b.id} className="focus:bg-white/10 focus:text-white">
+                        {b.name} {b.is_active ? "" : "(неактивен)"}
+                      </SelectItem>
+                    ))}
+                    {banners.length === 0 && (
+                      <div className="px-3 py-2 text-xs text-slate-500">Нет баннеров</div>
+                    )}
+                  </SelectContent>
+                </Select>
+                <div className="p-3 bg-slate-900/30 rounded-xl border border-white/5 flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-bold uppercase tracking-tight">Избранная карта</p>
+                    <p className="text-[10px] text-white/50">Повышенный вес / featured</p>
+                  </div>
+                  <Switch checked={isFeaturedCard} onCheckedChange={setIsFeaturedCard} />
+                </div>
+                <Button
+                  onClick={handleAddToBanner}
+                  disabled={isSaving || !selectedBannerId}
+                  className="w-full h-12 bg-pink-600 hover:bg-pink-500 font-black uppercase tracking-widest rounded-2xl disabled:opacity-50"
+                >
+                  {isSaving ? (
+                    <>
+                      <RefreshCcw className="w-4 h-4 mr-2 animate-spin" />
+                      Добавление...
+                    </>
+                  ) : (
+                    <>
+                      <CalendarPlus className="w-4 h-4 mr-2" />
+                      Добавить в баннер
+                    </>
+                  )}
+                </Button>
+              </div>
+
+              {/* Set as guaranteed card */}
+              <div className="space-y-3 p-4 bg-amber-950/30 rounded-2xl border border-amber-500/20">
+                <Label className="flex items-center gap-2 text-sm font-bold">
+                  <Sparkles className="w-4 h-4 text-amber-400" /> Установить как гарант баннера
+                </Label>
+                <p className="text-[10px] text-amber-300/60">Карта будет гарантированно выпадать игроку после N круток этого баннера</p>
+                <Select value={selectedGuaranteedBannerId} onValueChange={setSelectedGuaranteedBannerId}>
+                  <SelectTrigger className="bg-slate-900/50 border-white/10 h-12">
+                    <SelectValue placeholder="Выберите баннер для гаранта..." />
+                  </SelectTrigger>
+                  <SelectContent className="bg-slate-900 border-white/10 text-white max-h-72">
+                    {banners.map((b) => (
+                      <SelectItem key={b.id} value={b.id} className="focus:bg-white/10 focus:text-white">
+                        {b.name} {b.is_active ? "" : "(неактивен)"}
+                      </SelectItem>
+                    ))}
+                    {banners.length === 0 && (
+                      <div className="px-3 py-2 text-xs text-slate-500">Нет баннеров</div>
+                    )}
+                  </SelectContent>
+                </Select>
+                <div className="space-y-2">
+                  <Label className="text-xs text-slate-500 uppercase font-black tracking-widest">Pity (количество круток до гаранта)</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    value={guaranteedPity}
+                    onChange={e => setGuaranteedPity(Math.max(1, parseInt(e.target.value) || 1))}
+                    className="bg-slate-900/50 border-white/10 h-12"
+                  />
+                </div>
+                <Button
+                  onClick={handleSetGuaranteedCard}
+                  disabled={isSaving || !selectedGuaranteedBannerId}
+                  className="w-full h-12 bg-amber-600 hover:bg-amber-500 font-black uppercase tracking-widest rounded-2xl disabled:opacity-50"
+                >
+                  {isSaving ? (
+                    <>
+                      <RefreshCcw className="w-4 h-4 mr-2 animate-spin" />
+                      Установка...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-4 h-4 mr-2" />
+                      Установить гарант (pity: {guaranteedPity})
+                    </>
+                  )}
+                </Button>
+              </div>
+
+              <Button
                 variant="outline"
                 onClick={() => setCard(prev => ({ ...prev, characterId: Math.floor(Math.random() * 1000000) }))}
-                className="h-14 bg-white/5 border-white/10 hover:bg-white/10 rounded-2xl"
+                className="w-full h-12 bg-white/5 border-white/10 hover:bg-white/10 rounded-2xl"
               >
-                <RefreshCcw className="w-5 h-5" />
+                <RefreshCcw className="w-4 h-4 mr-2" />
+                Сгенерировать новый Character ID
               </Button>
             </div>
           </div>

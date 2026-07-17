@@ -338,6 +338,134 @@ export async function rollFromAnimePack(
   }
 }
 
+export async function rollFromBanner(
+  banner: {
+    id: string;
+    name: string;
+    featuredAnimeIds: number[];
+    boostedRarity?: string | null;
+    cards: { cardPayload: any; weight: number; isFeatured: boolean }[];
+    guaranteedCardPayload?: any | null;
+    guaranteedCardPity?: number;
+  },
+  usedCharacterIds: number[] = [],
+  ignoredUrls: string[] = [],
+  badLuckStreak: number = 0
+): Promise<GachaResult | null> {
+  try {
+    // Check if guaranteed card should be awarded (pity-based)
+    if (banner.guaranteedCardPayload && banner.guaranteedCardPity && banner.guaranteedCardPity > 0) {
+      try {
+        const { createClient } = await import('@supabase/supabase-js')
+        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+        const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
+        const supabase = createClient(supabaseUrl, supabaseServiceKey, {
+          auth: { autoRefreshToken: false, persistSession: false }
+        })
+
+        // Get current pull count for this user+banner
+        // We need the user_id - we'll get it from the auth context
+        // For now, we use a simpler approach: check via the caller
+        // The caller will pass the userId through the banner object
+        const userId = (banner as any).userId
+        if (userId) {
+          const { data: pullData } = await supabase
+            .from('user_banner_pulls')
+            .select('pull_count, guaranteed_claimed')
+            .eq('user_id', userId)
+            .eq('banner_id', banner.id)
+            .single()
+
+          const currentCount = pullData?.pull_count || 0
+          const alreadyClaimed = pullData?.guaranteed_claimed || false
+
+          // Increment pull count
+          const newCount = currentCount + 1
+          const shouldAwardGuaranteed = !alreadyClaimed && newCount >= banner.guaranteedCardPity
+
+          // Update pull count
+          await supabase
+            .from('user_banner_pulls')
+            .upsert({
+              user_id: userId,
+              banner_id: banner.id,
+              pull_count: newCount,
+              guaranteed_claimed: shouldAwardGuaranteed || alreadyClaimed,
+              last_pull_at: new Date().toISOString(),
+            }, { onConflict: 'user_id,banner_id' })
+
+          if (shouldAwardGuaranteed) {
+            console.log(`[rollFromBanner] Awarding guaranteed card after ${newCount} pulls!`)
+            const guaranteedResult = {
+              ...banner.guaranteedCardPayload,
+              packId: 'banner:' + banner.id,
+              packName: banner.name,
+            } as GachaResult
+            return guaranteedResult
+          }
+        }
+      } catch (pityError) {
+        console.error('[rollFromBanner] Guaranteed card pity check failed:', pityError)
+      }
+    }
+
+    if (banner.cards && banner.cards.length > 0) {
+      const totalWeight = banner.cards.reduce((sum, c) => sum + (c.weight || 0), 0)
+      if (totalWeight <= 0) return null
+
+      let roll = Math.random() * totalWeight
+      let chosen = banner.cards[0]
+      for (const c of banner.cards) {
+        roll -= (c.weight || 0)
+        if (roll <= 0) {
+          chosen = c
+          break
+        }
+      }
+
+      const cardPayload = chosen.cardPayload
+      if (!cardPayload) return null
+
+      return {
+        ...cardPayload,
+        packId: 'banner:' + banner.id,
+        packName: banner.name,
+      } as GachaResult
+    }
+
+    if (banner.featuredAnimeIds && banner.featuredAnimeIds.length > 0) {
+      const tempPack: AnimePack = {
+        id: 'banner:' + banner.id,
+        name: banner.name,
+        description: '',
+        animeIds: banner.featuredAnimeIds,
+        price: 0,
+        color: '',
+        guaranteedRarity: banner.boostedRarity || undefined,
+      }
+
+      const result = await rollFromAnimePack(tempPack, usedCharacterIds, ignoredUrls, [], badLuckStreak)
+      if (!result) return null
+
+      if (banner.boostedRarity) {
+        const boostedIndex = RARITY_ORDER.indexOf(banner.boostedRarity)
+        const rolledIndex = RARITY_ORDER.indexOf(result.rarity)
+        if (boostedIndex >= 0 && rolledIndex >= 0 && rolledIndex < boostedIndex) {
+          result.rarity = banner.boostedRarity
+          result.stats = generateStats(result.rarity)
+        }
+      }
+
+      return { ...result, packId: 'banner:' + banner.id, packName: banner.name }
+    }
+
+    return null
+  } catch (e) {
+    console.error(`[rollFromBanner] Error:`, e)
+    return null
+  }
+}
+
 export async function searchGachaPacks(query: string): Promise<AnimePack[]> {
   return searchPacksByTitle(query);
 }
