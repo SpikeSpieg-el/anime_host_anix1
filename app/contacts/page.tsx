@@ -4,17 +4,17 @@ import { ArrowLeft, Mail, MessageCircle, ShieldAlert, FileText, Clock } from "lu
 import { Footer } from "@/components/layout/footer"
 
 export const metadata: Metadata = {
-  title: "Контакты — Weeb-X",
-  description: "Свяжитесь с командой Weeb-X. Обратная связь, поддержка и сотрудничество.",
+  title: "Контакты — Weebx",
+  description: "Свяжитесь с командой Weebx. Обратная связь, поддержка и сотрудничество.",
   alternates: {
     canonical: "https://weeb-x.com/contacts",
   },
   openGraph: {
-    title: "Контакты — Weeb-X",
-    description: "Свяжитесь с командой Weeb-X. Обратная связь, поддержка и сотрудничество.",
+    title: "Контакты — Weebx",
+    description: "Свяжитесь с командой Weebx. Обратная связь, поддержка и сотрудничество.",
     type: "website",
     url: "https://weeb-x.com/contacts",
-    siteName: "Weeb-X",
+    siteName: "Weebx",
     locale: "ru_RU",
   },
 }

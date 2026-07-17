@@ -489,7 +489,7 @@ export default function SettingsPage() {
                     <p className="font-medium text-foreground">Откройте плагин в настройках Lampa</p>
                     <p className="text-muted-foreground text-xs">
                       Перейдите в Настройки Lampa — там появится новый пункт
-                      <span className="text-foreground font-medium"> «Weeb-X Синхронизация»</span>.
+                      <span className="text-foreground font-medium"> «Weebx Синхронизация»</span>.
                       Нажмите на него. На экране ТВ появится 6-значный PIN-код.
                     </p>
                   </div>
@@ -520,7 +520,7 @@ export default function SettingsPage() {
                     <p className="font-medium text-foreground">Готово!</p>
                     <p className="text-muted-foreground text-xs">
                       После ввода PIN-кода на сайте, Lampa автоматически получит токен авторизации.
-                      История просмотра будет синхронизироваться между Lampa и Weeb-X автоматически —
+                      История просмотра будет синхронизироваться между Lampa и Weebx автоматически —
                       вы увидите прогресс на сайте и в разделе «Продолжить просмотр».
                     </p>
                   </div>
@@ -532,7 +532,7 @@ export default function SettingsPage() {
                   <div className="space-y-1.5 text-xs text-muted-foreground">
                     <p><span className="text-foreground font-medium">PIN не работает?</span> Код действителен 10 минут. Запросите новый, открыв плагин снова.</p>
                     <p><span className="text-foreground font-medium">Плагин не появился в настройках?</span> Перезагрузите Lampa после установки. Проверьте, что плагин включён в списке плагинов.</p>
-                    <p><span className="text-foreground font-medium">История не синхронизируется?</span> Убедитесь, что вы вошли в один и тот же аккаунт Weeb-X на сайте и при активации плагина.</p>
+                    <p><span className="text-foreground font-medium">История не синхронизируется?</span> Убедитесь, что вы вошли в один и тот же аккаунт Weebx на сайте и при активации плагина.</p>
                     <p><span className="text-foreground font-medium">Как отвязать ТВ?</span> Нажмите «Отвязать» в списке устройств выше, либо откройте плагин в Lampa и выберите «Отвязать устройство».</p>
                   </div>
                 </div>

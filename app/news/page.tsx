@@ -7,7 +7,7 @@ import { getProxiedSrc } from "@/lib/image-loader"
 import type { Metadata } from "next"
 
 export const metadata: Metadata = {
-  title: "Новости аниме — Weeb-X",
+  title: "Новости аниме — Weebx",
   description: "Последние новости мира аниме. Анонсы, релизы, события.",
   keywords: [
     "новости аниме",
@@ -38,16 +38,16 @@ export const metadata: Metadata = {
     canonical: "https://weeb-x.com/news",
   },
   openGraph: {
-    title: "Новости аниме — Weeb-X",
+    title: "Новости аниме — Weebx",
     description: "Последние новости мира аниме. Анонсы, релизы, события.",
     type: "website",
     url: "https://weeb-x.com/news",
-    siteName: "Weeb-X",
+    siteName: "Weebx",
     locale: "ru_RU",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Новости аниме — Weeb-X",
+    title: "Новости аниме — Weebx",
     description: "Последние новости мира аниме. Анонсы, релизы, события.",
   },
 }

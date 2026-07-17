@@ -2,10 +2,10 @@ import type { MetadataRoute } from "next"
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Weeb-X — Смотреть аниме онлайн",
-    short_name: "Weeb-X",
+    name: "Weebx — Смотреть аниме онлайн",
+    short_name: "Weebx",
     description:
-      "Стриминг аниме в HD с русской озвучкой. Гача-крутки, PvP-арена, каталог манги и новости аниме. Бесплатно на Weeb-X.",
+      "Стриминг аниме в HD с русской озвучкой. Гача-крутки, PvP-арена, каталог манги и новости аниме. Бесплатно на Weebx.",
     start_url: "/",
     display: "standalone",
     orientation: "portrait-primary",

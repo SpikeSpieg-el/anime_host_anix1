@@ -24,10 +24,10 @@ const _unbounded = Unbounded({ subsets: ["latin"] })
 const siteUrl = "https://weeb-x.com"
 
 export const metadata: Metadata = {
-  title: "Weeb-X — Смотреть аниме онлайн",
-  description: "Стриминг аниме в HD с русской озвучкой. Гача-крутки, PvP-арена, каталог манги и новости аниме. Бесплатно на Weeb-X.",
+  title: "Weebx — Смотреть аниме онлайн",
+  description: "Стриминг аниме в HD с русской озвучкой. Гача-крутки, PvP-арена, каталог манги и новости аниме. Бесплатно на Weebx.",
   keywords: ["weebx", "weeb x", "WeebX", "Weeb-X", "weeb-x", "weebx аниме", "weeb x аниме", "weeb x смотреть", "weebx онлайн"],
-  generator: "Weeb-X_stream",
+  generator: "Weebx_stream",
   robots: {
     index: true,
     follow: true,
@@ -65,17 +65,26 @@ export const metadata: Metadata = {
     yandex: process.env.YANDEX_SITE_VERIFICATION,
   },
   openGraph: {
-    title: "Weeb-X — Смотреть аниме онлайн",
+    title: "Weebx — Смотреть аниме онлайн",
     description: "Стриминг аниме в HD с русской озвучкой. Гача-крутки, PvP-арена, каталог манги и новости аниме.",
     type: "website",
     url: siteUrl,
-    siteName: "Weeb-X",
+    siteName: "Weebx",
     locale: "ru_RU",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "Weebx — Смотреть аниме онлайн в HD с русской озвучкой",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Weeb-X — Смотреть аниме онлайн",
+    title: "Weebx — Смотреть аниме онлайн",
     description: "Стриминг аниме в HD с русской озвучкой. Гача-крутки, PvP-арена, каталог манги.",
+    images: ["/og-image.png"],
   },
 }
 

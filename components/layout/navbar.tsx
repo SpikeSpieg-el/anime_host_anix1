@@ -130,7 +130,7 @@ export function Navbar() {
           >
              <div className="flex flex-col justify-center">
                <span className="text-xl sm:text-2xl font-black tracking-tighter text-foreground leading-none font-unbounded">
-                 Weeb.<span className="text-primary">X</span>
+                 Weeb<span className="text-primary">x</span>
                </span>
              </div>
           </Link>

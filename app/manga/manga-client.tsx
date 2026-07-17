@@ -178,7 +178,7 @@ export default function MangaClient() {
         {/* Title Badge */}
         <div className="flex flex-col items-center text-center gap-2 mb-10">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-xs font-bold text-primary tracking-wide uppercase animate-pulse">
-            <BookOpen className="w-3.5 h-3.5" /> WeebX Reader
+            <BookOpen className="w-3.5 h-3.5" /> Weebx Reader
           </div>
           <h1 className="text-4xl md:text-5xl font-black tracking-tight text-foreground">Каталог Манги</h1>
           <p className="text-sm text-muted-foreground max-w-md">Читайте популярную мангу на русском онлайн со стабильной скоростью</p>

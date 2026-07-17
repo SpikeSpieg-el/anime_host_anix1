@@ -46,7 +46,7 @@ export function TVHomePage({ popularNow, popularAlways, ongoingAnime }: TVHomePa
     <TVLayout>
       <div className="space-y-10">
         <div className="flex flex-col items-center gap-6 mb-8">
-          <h1 className="text-5xl font-bold text-center">Weeb-X TV</h1>
+          <h1 className="text-5xl font-bold text-center">Weebx TV</h1>
           <TVVoiceSearch onSearch={handleSearch} />
         </div>
 

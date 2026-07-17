@@ -16,8 +16,8 @@ export function OrganizationStructuredData() {
   const organizationData: Record<string, any> = {
     '@context': 'https://schema.org',
     '@type': 'Organization',
-    name: 'Weeb-X',
-    alternateName: ['Weebx', 'weeb x', 'WeebX', 'weeb-x', 'weeb-x.com', 'weebx.com', 'Weeb X', 'WEEB-X'],
+    name: 'Weebx',
+    alternateName: ['Weeb-X', 'weeb x', 'WeebX', 'weeb-x', 'weeb-x.com', 'weebx.com', 'Weeb X', 'WEEB-X', 'Weeb.X'],
     url: 'https://weeb-x.com',
     logo: 'https://weeb-x.com/icon.svg',
     description: 'Аниме-стриминговая платформа с гача-крутками и PvP-ареной',
@@ -48,8 +48,8 @@ export function WebSiteStructuredData() {
   const websiteData: Record<string, any> = {
     '@context': 'https://schema.org',
     '@type': 'WebSite',
-    name: 'Weeb-X',
-    alternateName: ['Weebx', 'weeb x', 'WeebX', 'weeb-x', 'weeb-x.com', 'weebx.com', 'Weeb X', 'WEEB-X'],
+    name: 'Weebx',
+    alternateName: ['Weeb-X', 'weeb x', 'WeebX', 'weeb-x', 'weeb-x.com', 'weebx.com', 'Weeb X', 'WEEB-X', 'Weeb.X'],
     url: 'https://weeb-x.com',
     description: 'Аниме-стриминговая платформа с гача-крутками и PvP-ареной',
     inLanguage: 'ru-RU',

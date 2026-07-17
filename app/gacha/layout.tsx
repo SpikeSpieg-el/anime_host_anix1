@@ -1,8 +1,8 @@
 import type { Metadata } from "next"
 
 export const metadata: Metadata = {
-  title: "Weeb-X — Гача-крутки аниме персонажей. Собирай легендарку",
-  description: "Крути гачу и собирай легендарных аниме-персонажей! Высокий шанс SSR, ежедневные бонусы, PvP-арена. Получи первый дроп бесплатно на Weeb-X!",
+  title: "Weebx — Гача-крутки аниме персонажей. Собирай легендарку",
+  description: "Крути гачу и собирай легендарных аниме-персонажей! Высокий шанс SSR, ежедневные бонусы, PvP-арена. Получи первый дроп бесплатно на Weebx!",
   keywords: [
     "гача",
     "гача игры",
@@ -28,16 +28,16 @@ export const metadata: Metadata = {
     canonical: "https://weeb-x.com/gacha",
   },
   openGraph: {
-    title: "Weeb-X — Гача-крутки аниме персонажей",
+    title: "Weebx — Гача-крутки аниме персонажей",
     description: "Крути гачу и собирай легендарных аниме-персонажей! Высокий шанс SSR, ежедневные бонусы.",
     type: "website",
     url: "https://weeb-x.com/gacha",
-    siteName: "Weeb-X",
+    siteName: "Weebx",
     locale: "ru_RU",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Weeb-X — Гача-крутки аниме персонажей",
+    title: "Weebx — Гача-крутки аниме персонажей",
     description: "Крути гачу и собирай легендарных аниме-персонажей! Высокий шанс SSR.",
   },
   robots: {

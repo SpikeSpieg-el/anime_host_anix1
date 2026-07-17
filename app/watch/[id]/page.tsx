@@ -42,7 +42,7 @@ export async function generateMetadata({
   }
 
   const episodeText = episode && episode > 0 ? ` (Серия ${episode})` : ""
-  const title = `${anime.title}${episodeText} — Weeb-X`
+  const title = `${anime.title}${episodeText} — Weebx`
   const description = anime.description 
     ? `${anime.description.slice(0, 160)}${anime.description.length > 160 ? "..." : ""}`
     : `Смотреть ${anime.title} онлайн в хорошем качестве. ${anime.year} • ${anime.genres.join(", ")} • Рейтинг: ${anime.rating}`
@@ -68,7 +68,7 @@ export async function generateMetadata({
           alt: anime.title,
         },
       ],
-      siteName: "Weeb-X",
+      siteName: "Weebx",
       locale: "ru_RU",
     },
     twitter: {

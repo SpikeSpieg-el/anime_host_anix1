@@ -86,7 +86,7 @@ export function WelcomeModal() {
             {/* Top: Logo + tagline */}
             <div className="flex flex-col items-center text-center pt-8 px-6 sm:pt-10">
               <h2 className="text-3xl sm:text-4xl font-black tracking-tighter leading-none font-unbounded animate-in fade-in slide-in-from-bottom-2 duration-500">
-                Weeb.<span className="text-transparent bg-clip-text bg-gradient-to-br from-orange-400 to-orange-600">X</span>
+                Weeb<span className="text-transparent bg-clip-text bg-gradient-to-br from-orange-400 to-orange-600">x</span>
               </h2>
               <p className="mt-2.5 text-sm text-zinc-300/80 animate-in fade-in slide-in-from-bottom-2 duration-500 delay-75">
                 Стриминг аниме · Гача · PvP · Манга

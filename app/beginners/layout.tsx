@@ -1,8 +1,8 @@
 import type { Metadata } from "next"
 
 export const metadata: Metadata = {
-  title: "Гайд для новичков — Weeb-X. Как начать смотреть аниме и играть",
-  description: "Полный гайд для новичков Weeb-X: как смотреть аниме, как работает гача, как участвовать в PvP-арене. Интерфейс, функции и советы.",
+  title: "Гайд для новичков — Weebx. Как начать смотреть аниме и играть",
+  description: "Полный гайд для новичков Weebx: как смотреть аниме, как работает гача, как участвовать в PvP-арене. Интерфейс, функции и советы.",
   keywords: [
     "гайд для новичков",
     "как смотреть аниме",
@@ -22,17 +22,17 @@ export const metadata: Metadata = {
     canonical: "https://weeb-x.com/beginners",
   },
   openGraph: {
-    title: "Гайд для новичков — Weeb-X",
-    description: "Полный гайд для новичков Weeb-X: как смотреть аниме, как работает гача, как участвовать в PvP-арене.",
+    title: "Гайд для новичков — Weebx",
+    description: "Полный гайд для новичков Weebx: как смотреть аниме, как работает гача, как участвовать в PvP-арене.",
     type: "website",
     url: "https://weeb-x.com/beginners",
-    siteName: "Weeb-X",
+    siteName: "Weebx",
     locale: "ru_RU",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Гайд для новичков — Weeb-X",
-    description: "Полный гайд для новичков Weeb-X: как смотреть аниме, как работает гача, как участвовать в PvP-арене.",
+    title: "Гайд для новичков — Weebx",
+    description: "Полный гайд для новичков Weebx: как смотреть аниме, как работает гача, как участвовать в PvP-арене.",
   },
   robots: {
     index: true,

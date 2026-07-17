@@ -11,8 +11,8 @@ import { getAggregatedNews } from "@/lib/news/aggregator"
 import type { Metadata } from "next"
 
 export async function generateMetadata(): Promise<Metadata> {
-  const title = "Weeb-X — Смотреть аниме онлайн бесплатно | Гача и PvP"
-  const description = "Смотри аниме онлайн бесплатно в HD с русской озвучкой. Популярные тайтлы, расписание онгоингов, манга, новости и гача-крутки на Weeb-X."
+  const title = "Weebx — Смотреть аниме онлайн бесплатно | Гача и PvP"
+  const description = "Смотри аниме онлайн бесплатно в HD с русской озвучкой. Популярные тайтлы, расписание онгоингов, манга, новости и гача-крутки на Weebx."
 
   return {
     title,
@@ -115,7 +115,7 @@ export async function generateMetadata(): Promise<Metadata> {
       description,
       type: "website",
       url: "https://weeb-x.com",
-      siteName: "Weeb-X",
+      siteName: "Weebx",
       locale: "ru_RU",
     },
     twitter: {

@@ -55,17 +55,17 @@ export async function generateMetadata({
     ? (params.year.includes(',') ? params.year.split(',').join(', ') : params.year) 
     : undefined
 
-  let title = "Weeb-X — Смотреть аниме онлайн бесплатно. Топ тайтлы на русском"
-  let description = "Смотри тысячи аниме онлайн в HD с русской озвучкой. Удобный каталог по жанрам, топ года и расписание новых серий. Бесплатно на Weeb-X!"
+  let title = "Weebx — Смотреть аниме онлайн бесплатно. Топ тайтлы на русском"
+  let description = "Смотри тысячи аниме онлайн в HD с русской озвучкой. Удобный каталог по жанрам, топ года и расписание новых серий. Бесплатно на Weebx!"
 
   if (search) {
-    title = `Поиск: ${search} — Weeb-X`
+    title = `Поиск: ${search} — Weebx`
     description = `Результаты поиска по запросу "${search}". Найдите лучшие аниме по вашему запросу в высоком качестве.`
   } else if (genre) {
-    title = `${genre} — Каталог аниме — Weeb-X`
+    title = `${genre} — Каталог аниме — Weebx`
     description = `Смотреть аниме в жанре ${genre} онлайн. Большой выбор аниме в жанре ${genre} в высоком качестве.`
   } else if (year) {
-    title = `${year} — Каталог аниме — Weeb-X`
+    title = `${year} — Каталог аниме — Weebx`
     description = `Аниме ${year} года. Смотрите лучшие аниме ${year} года онлайн в высоком качестве.`
   }
 
@@ -125,7 +125,7 @@ export async function generateMetadata({
       description,
       type: "website",
       url: `https://weeb-x.com/catalog${Object.keys(params).length > 0 ? '?' + new URLSearchParams(params as Record<string, string>).toString() : ''}`,
-      siteName: "Weeb-X",
+      siteName: "Weebx",
       locale: "ru_RU",
     },
     twitter: {

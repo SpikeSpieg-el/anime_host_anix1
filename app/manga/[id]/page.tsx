@@ -10,23 +10,23 @@ interface PageProps {
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { id } = await params;
   return {
-    title: 'Манга — Weeb-X',
-    description: 'Читать мангу онлайн на Weeb-X. Удобный ридер, большая библиотека.',
+    title: 'Манга — Weebx',
+    description: 'Читать мангу онлайн на Weebx. Удобный ридер, большая библиотека.',
     alternates: {
       canonical: `https://weeb-x.com/manga/${id}`,
     },
     openGraph: {
-      title: 'Манга — Weeb-X',
-      description: 'Читать мангу онлайн на Weeb-X. Удобный ридер, большая библиотека.',
+      title: 'Манга — Weebx',
+      description: 'Читать мангу онлайн на Weebx. Удобный ридер, большая библиотека.',
       type: "website",
       url: `https://weeb-x.com/manga/${id}`,
-      siteName: "Weeb-X",
+      siteName: "Weebx",
       locale: "ru_RU",
     },
     twitter: {
       card: "summary_large_image",
-      title: 'Манга — Weeb-X',
-      description: 'Читать мангу онлайн на Weeb-X.',
+      title: 'Манга — Weebx',
+      description: 'Читать мангу онлайн на Weebx.',
     },
   };
 }

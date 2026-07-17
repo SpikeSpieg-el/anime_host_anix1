@@ -83,7 +83,7 @@ export function Footer() {
           <div className="space-y-6">
             <a className="flex items-center gap-3 group" href="/">
               <div className="flex flex-col">
-                <span className="text-xl font-black tracking-tighter text-foreground font-unbounded dark:text-white">Weeb.<span className="text-primary dark:text-orange-500">X</span></span>
+                <span className="text-xl font-black tracking-tighter text-foreground font-unbounded dark:text-white">Weeb<span className="text-primary dark:text-orange-500">x</span></span>
                 <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest dark:text-zinc-500">Stream</span>
               </div>
             </a>
@@ -136,7 +136,7 @@ export function Footer() {
       <div className="border-t border-border dark:border-white/5">
         <div className="container mx-auto px-3 sm:px-4">
           <div className="py-6 sm:py-8 flex flex-col md:flex-row justify-between items-center gap-3 sm:gap-4">
-            <p className="text-muted-foreground text-[9px] sm:text-[10px] font-bold tracking-widest uppercase text-center md:text-left dark:text-zinc-600">© {currentYear} Weeb-X STREAM. MADE BY ANIME FANS FOR ANIME FANS.</p>
+            <p className="text-muted-foreground text-[9px] sm:text-[10px] font-bold tracking-widest uppercase text-center md:text-left dark:text-zinc-600">© {currentYear} Weebx STREAM. MADE BY ANIME FANS FOR ANIME FANS.</p>
             <div className="flex items-center gap-6">
               <Dialog>
                 <DialogTrigger asChild>

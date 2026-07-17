@@ -1,4 +1,4 @@
-# Weeb.x — Аниме Платформа с Gacha-Игрой
+# Weebx — Аниме Платформа с Gacha-Игрой
 
 **Официальный сайт:** [Weeb-x.com](https://weeb-x.com)
 

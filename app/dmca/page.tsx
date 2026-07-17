@@ -4,17 +4,17 @@ import { ArrowLeft, ShieldAlert, Mail, FileText } from "lucide-react"
 import { Footer } from "@/components/layout/footer"
 
 export const metadata: Metadata = {
-  title: "Правообладателям (DMCA) — Weeb-X",
+  title: "Правообладателям (DMCA) — Weebx",
   description: "Информация для правообладателей. Процедура подачи DMCA-запросов на удаление контента.",
   alternates: {
     canonical: "https://weeb-x.com/dmca",
   },
   openGraph: {
-    title: "Правообладателям (DMCA) — Weeb-X",
+    title: "Правообладателям (DMCA) — Weebx",
     description: "Информация для правообладателей. Процедура подачи DMCA-запросов на удаление контента.",
     type: "website",
     url: "https://weeb-x.com/dmca",
-    siteName: "Weeb-X",
+    siteName: "Weebx",
     locale: "ru_RU",
   },
 }
@@ -46,7 +46,7 @@ export default function DMCAPage() {
               Уведомление об авторских правах
             </h2>
             <p className="text-muted-foreground leading-relaxed mb-4">
-              Weeb-X уважает права интеллектуальной собственности и стремится соблюдать законодательство 
+              Weebx уважает права интеллектуальной собственности и стремится соблюдать законодательство 
               об авторском праве. Мы принимаем уведомления о предполагаемом нарушении авторских прав в 
               соответствии с Digital Millennium Copyright Act (DMCA).
             </p>

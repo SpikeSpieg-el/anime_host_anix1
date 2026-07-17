@@ -70,7 +70,7 @@ export default function ActivatePage() {
           </div>
           <h1 className="text-2xl font-bold">Активация Lampa</h1>
           <p className="text-muted-foreground">
-            Для привязки устройства Lampa необходимо войти в аккаунт Weeb-X.
+            Для привязки устройства Lampa необходимо войти в аккаунт Weebx.
           </p>
           <a
             href="/?auth=login"
@@ -156,7 +156,7 @@ export default function ActivatePage() {
           <div className="text-center space-y-4">
             <p className="text-green-500 font-medium">{message}</p>
             <p className="text-muted-foreground text-sm">
-              Теперь история просмотра будет синхронизироваться между Lampa и Weeb-X.
+              Теперь история просмотра будет синхронизироваться между Lampa и Weebx.
             </p>
             <a
               href="/"
@@ -169,7 +169,7 @@ export default function ActivatePage() {
 
         <div className="text-center text-xs text-muted-foreground space-y-1">
           <p>Как это работает:</p>
-          <p>1. Откройте плагин Weeb-X в Lampa на ТВ</p>
+          <p>1. Откройте плагин Weebx в Lampa на ТВ</p>
           <p>2. На ТВ появится 6-значный код</p>
           <p>3. Введите этот код здесь</p>
           <p>4. История просмотра будет синхронизироваться автоматически</p>

@@ -8,7 +8,7 @@ import { CoverProvider } from "@/components/providers/cover-provider"
 
 
 export const metadata: Metadata = {
-  title: "Расписание выхода серий | Weeb-X",
+  title: "Расписание выхода серий | Weebx",
   description: "Календарь выхода новых серий аниме. Узнайте, что посмотреть сегодня.",
   keywords: [
     "расписание аниме",
@@ -41,11 +41,11 @@ export const metadata: Metadata = {
     canonical: "https://weeb-x.com/schedule",
   },
   openGraph: {
-    title: "Расписание выхода серий | Weeb-X",
+    title: "Расписание выхода серий | Weebx",
     description: "Календарь выхода новых серий аниме. Узнайте, что посмотреть сегодня.",
     type: "website",
     url: "https://weeb-x.com/schedule",
-    siteName: "Weeb-X",
+    siteName: "Weebx",
     locale: "ru_RU",
   },
 }

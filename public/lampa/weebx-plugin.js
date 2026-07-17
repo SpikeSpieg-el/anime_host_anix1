@@ -1,7 +1,7 @@
 /**
- * Weeb-X Plugin for Lampa
+ * Weebx Plugin for Lampa
  * 
- * Bidirectional sync of watch history and bookmarks between Lampa (Android TV) and Weeb-X.com
+ * Bidirectional sync of watch history and bookmarks between Lampa (Android TV) and Weebx.com
  * 
  * Installation:
  *   In Lampa, go to Settings → Plugins → Add
@@ -10,7 +10,7 @@
  * Activation:
  *   1. Plugin will display a 6-digit PIN code on your TV
  *   2. Go to https://weeb-x.com/activate on your phone/PC
- *   3. Log in to your Weeb-X account and enter the PIN
+ *   3. Log in to your Weebx account and enter the PIN
  *   4. Device is now linked - history and bookmarks sync automatically
  */
 (function () {
@@ -30,13 +30,13 @@
 
     function log() {
         var args = Array.prototype.slice.call(arguments);
-        args.unshift('[Weeb-X]');
+        args.unshift('[Weebx]');
         console.log.apply(console, args);
     }
 
     function logError() {
         var args = Array.prototype.slice.call(arguments);
-        args.unshift('[Weeb-X ERROR]');
+        args.unshift('[Weebx ERROR]');
         console.error.apply(console, args);
     }
 
@@ -84,11 +84,11 @@
                 showActivationModal(data.pin, data.expires_at);
                 pollActivationStatus(data.pin);
             } else {
-                Lampa.Noty.show('Weeb-X: Ошибка получения PIN кода', { time: 5000 });
+                Lampa.Noty.show('Weebx: Ошибка получения PIN кода', { time: 5000 });
             }
         }, function (err) {
             logError('activation error:', err);
-            Lampa.Noty.show('Weeb-X: Сетевая ошибка активации', { time: 5000 });
+            Lampa.Noty.show('Weebx: Сетевая ошибка активации', { time: 5000 });
         }, {
             device_id: deviceId,
             device_name: 'Lampa/' + (navigator.userAgent || 'Android TV')
@@ -100,7 +100,7 @@
 
     function showActivationModal(pin, expiresAt) {
         var html = $('<div style="text-align:center;padding:20px;">' +
-            '<div style="font-size:14px;color:#ccc;margin-bottom:16px;">Weeb-X Синхронизация</div>' +
+            '<div style="font-size:14px;color:#ccc;margin-bottom:16px;">Weebx Синхронизация</div>' +
             '<div style="font-size:12px;color:#999;margin-bottom:20px;">Перейдите на сайт и введите код:</div>' +
             '<div style="font-size:48px;font-weight:bold;letter-spacing:8px;color:#ff6b00;margin:20px 0;">' + pin + '</div>' +
             '<div style="font-size:14px;color:#ccc;margin-bottom:8px;">Сайт активации:</div>' +
@@ -136,7 +136,7 @@
             if (pollCount > maxPolls) {
                 clearInterval(auth_check_interval);
                 auth_check_interval = null;
-                Lampa.Noty.show('Weeb-X: Время ожидания истекло', { time: 5000 });
+                Lampa.Noty.show('Weebx: Время ожидания истекло', { time: 5000 });
                 Lampa.Modal.close();
                 Lampa.Controller.toggle('settings_component');
                 return;
@@ -148,7 +148,7 @@
                     auth_check_interval = null;
                     Lampa.Storage.set(STORAGE_KEY, data.token);
                     Lampa.Modal.close();
-                    Lampa.Noty.show('Weeb-X: Устройство успешно привязано!', { time: 4000 });
+                    Lampa.Noty.show('Weebx: Устройство успешно привязано!', { time: 4000 });
                     updateAuthLabel();
                     Lampa.Controller.toggle('settings_component');
                     // Do full bidirectional sync after activation
@@ -162,7 +162,7 @@
 
     function logout() {
         Lampa.Storage.remove(STORAGE_KEY);
-        Lampa.Noty.show('Weeb-X: Устройство отвязано', { time: 3000 });
+        Lampa.Noty.show('Weebx: Устройство отвязано', { time: 3000 });
         updateAuthLabel();
     }
 
@@ -201,7 +201,7 @@
             logError('sync error:', err);
             if (err && err.status === 401) {
                 Lampa.Storage.remove(STORAGE_KEY);
-                Lampa.Noty.show('Weeb-X: Токен истёк, требуется повторная активация', { time: 5000 });
+                Lampa.Noty.show('Weebx: Токен истёк, требуется повторная активация', { time: 5000 });
             }
         }, {
             anime_id: String(animeId),
@@ -431,16 +431,16 @@
 
     function fullSync() {
         if (!isLoggedIn()) {
-            Lampa.Noty.show('Weeb-X: Сначала авторизуйтесь', { time: 3000 });
+            Lampa.Noty.show('Weebx: Сначала авторизуйтесь', { time: 3000 });
             return;
         }
         if (is_syncing) {
-            Lampa.Noty.show('Weeb-X: Синхронизация уже идёт...', { time: 3000 });
+            Lampa.Noty.show('Weebx: Синхронизация уже идёт...', { time: 3000 });
             return;
         }
 
         is_syncing = true;
-        Lampa.Noty.show('Weeb-X: Полная синхронизация...', { time: 3000 });
+        Lampa.Noty.show('Weebx: Полная синхронизация...', { time: 3000 });
         log('=== Starting full bidirectional sync ===');
 
         var historyCount = 0, bookmarksPulled = 0, bookmarksPushed = 0;
@@ -460,7 +460,7 @@
             bookmarksPushed = pushed;
 
             is_syncing = false;
-            var msg = 'Weeb-X: Синхронизация завершена! История: ' + historyCount +
+            var msg = 'Weebx: Синхронизация завершена! История: ' + historyCount +
                 ', Закладки получено: ' + bookmarksPulled +
                 ', отправлено: ' + bookmarksPushed;
             log('=== ' + msg + ' ===');
@@ -468,7 +468,7 @@
         }).catch(function (err) {
             is_syncing = false;
             logError('Full sync error:', err);
-            Lampa.Noty.show('Weeb-X: Ошибка синхронизации', { time: 5000 });
+            Lampa.Noty.show('Weebx: Ошибка синхронизации', { time: 5000 });
         });
     }
 
@@ -529,8 +529,8 @@
         var manifest = {
             type: 'video',
             version: '2.0.0',
-            name: 'Weeb-X',
-            description: 'Двусторонняя синхронизация истории и закладок с Weeb-X.com',
+            name: 'Weebx',
+            description: 'Двусторонняя синхронизация истории и закладок с Weebx.com',
             component: 'weebx'
         };
 
@@ -541,7 +541,7 @@
             Lampa.SettingsApi.addComponent({
                 component: 'weebx',
                 icon: ICON_SVG,
-                name: 'Weeb-X'
+                name: 'Weebx'
             });
         }
 
@@ -560,7 +560,7 @@
             },
             field: {
                 name: isLoggedIn() ? 'Привязано' : 'Авторизоваться',
-                description: 'Привязка устройства к аккаунту Weeb-X через PIN код'
+                description: 'Привязка устройства к аккаунту Weebx через PIN код'
             },
             onChange: function () {
                 if (isLoggedIn()) {
@@ -600,7 +600,7 @@
             },
             field: {
                 name: 'Полная синхронизация',
-                description: 'Двусторонняя синхронизация: история + закладки (Lampa ↔ Weeb-X)'
+                description: 'Двусторонняя синхронизация: история + закладки (Lampa ↔ Weebx)'
             },
             onChange: function () {
                 fullSync();
@@ -616,15 +616,15 @@
             },
             field: {
                 name: 'Загрузить историю с сайта',
-                description: 'Получить историю просмотра с Weeb-X и отметить в Lampa'
+                description: 'Получить историю просмотра с Weebx и отметить в Lampa'
             },
             onChange: function () {
                 if (isLoggedIn()) {
                     pullHistoryFromWebsite().then(function (count) {
-                        Lampa.Noty.show('Weeb-X: Получено ' + count.length + ' записей истории', { time: 4000 });
+                        Lampa.Noty.show('Weebx: Получено ' + count.length + ' записей истории', { time: 4000 });
                     });
                 } else {
-                    Lampa.Noty.show('Weeb-X: Сначала авторизуйтесь', { time: 3000 });
+                    Lampa.Noty.show('Weebx: Сначала авторизуйтесь', { time: 3000 });
                 }
                 Lampa.Controller.toggle('settings_component');
             }
@@ -638,15 +638,15 @@
             },
             field: {
                 name: 'Загрузить закладки с сайта',
-                description: 'Получить закладки с Weeb-X и добавить в Lampa'
+                description: 'Получить закладки с Weebx и добавить в Lampa'
             },
             onChange: function () {
                 if (isLoggedIn()) {
                     pullBookmarksFromWebsite().then(function (count) {
-                        Lampa.Noty.show('Weeb-X: Добавлено ' + count + ' закладок', { time: 4000 });
+                        Lampa.Noty.show('Weebx: Добавлено ' + count + ' закладок', { time: 4000 });
                     });
                 } else {
-                    Lampa.Noty.show('Weeb-X: Сначала авторизуйтесь', { time: 3000 });
+                    Lampa.Noty.show('Weebx: Сначала авторизуйтесь', { time: 3000 });
                 }
                 Lampa.Controller.toggle('settings_component');
             }
@@ -660,15 +660,15 @@
             },
             field: {
                 name: 'Отправить закладки на сайт',
-                description: 'Загрузить закладки из Lampa на Weeb-X'
+                description: 'Загрузить закладки из Lampa на Weebx'
             },
             onChange: function () {
                 if (isLoggedIn()) {
                     pushLampaBookmarksToWebsite().then(function (count) {
-                        Lampa.Noty.show('Weeb-X: Отправлено ' + count + ' закладок', { time: 4000 });
+                        Lampa.Noty.show('Weebx: Отправлено ' + count + ' закладок', { time: 4000 });
                     });
                 } else {
-                    Lampa.Noty.show('Weeb-X: Сначала авторизуйтесь', { time: 3000 });
+                    Lampa.Noty.show('Weebx: Сначала авторизуйтесь', { time: 3000 });
                 }
                 Lampa.Controller.toggle('settings_component');
             }
@@ -683,7 +683,7 @@
             },
             field: {
                 name: 'Автосинхронизация',
-                description: 'Автоматически отправлять прогресс просмотра и закладки на Weeb-X'
+                description: 'Автоматически отправлять прогресс просмотра и закладки на Weebx'
             }
         });
 
