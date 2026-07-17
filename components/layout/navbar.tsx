@@ -13,6 +13,7 @@ import { EpisodeUpdateBadge } from "@/components/watch/episode-update-badge"
 import { useEpisodeUpdates } from "@/hooks/use-episode-updates"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/components/auth/auth-provider"
+import { getProxiedSrc } from "@/lib/image-loader"
 import { AuthModal } from "@/components/auth/auth-modal"
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 import { ThemeToggle } from "@/components/shared/theme-toggle"
@@ -274,7 +275,7 @@ export function Navbar() {
                 <DropdownMenuTrigger asChild>
                   <button className="w-9 h-9 md:w-10 md:h-10 rounded-full bg-gradient-to-tr from-orange-500 to-purple-600 p-[2px] overflow-hidden focus:outline-none cursor-pointer active:scale-95 transition-transform">
                      <Avatar className="w-full h-full border-2 border-background rounded-full">
-                       <AvatarImage src={avatarUrl} className="object-cover" />
+                       <AvatarImage src={avatarUrl ? getProxiedSrc(avatarUrl) : undefined} className="object-cover" />
                        <AvatarFallback className="bg-secondary text-[10px] md:text-xs">
                          {profile?.username?.slice(0, 2).toUpperCase() || "WX"}
                        </AvatarFallback>

@@ -1,6 +1,7 @@
 import React from "react"
 import { Package, Coins, Star } from "lucide-react"
 import { AnimePack } from "@/lib/gacha-packs"
+import { getProxiedSrc } from "@/lib/image-loader"
 import { Rarity, rarityConfig } from "@/types/gacha"
 
 interface PackCardProps {
@@ -14,7 +15,7 @@ export const PackCard = ({ pack, onSelect, userCoins }: PackCardProps) => (
     onClick={() => onSelect(pack)}
     className={`relative group cursor-pointer rounded-2xl sm:rounded-3xl overflow-hidden border border-white/10 p-5 sm:p-6 transition-all duration-300 hover:scale-[1.03] hover:border-indigo-500/50 hover:shadow-2xl hover:shadow-indigo-500/20 ${userCoins < pack.price ? 'opacity-50 cursor-not-allowed grayscale-[0.5]' : ''}`}
     style={{
-      backgroundImage: pack.bgImage ? `linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.8)), url(${pack.bgImage})` : undefined,
+      backgroundImage: pack.bgImage ? `linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.8)), url(${getProxiedSrc(pack.bgImage)})` : undefined,
       backgroundSize: 'cover',
       backgroundPosition: 'center',
     }}
