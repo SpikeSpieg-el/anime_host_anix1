@@ -221,7 +221,7 @@ export async function GET(request: NextRequest) {
         .select('*')
         .eq('date', today)
         .eq('is_active', true)
-        .single()
+        .maybeSingle()
 
       // Auto-create daily battle if it doesn't exist
       if (!dailyBattle) {
@@ -235,10 +235,10 @@ export async function GET(request: NextRequest) {
 
         const enemyIds = eliteEnemies ? eliteEnemies.map((e: any) => e.id) : []
 
-        // Create daily battle even if no elite enemies exist (fallback to empty array)
-        const { data: newDaily } = await supabaseAdmin
+        // Use upsert to handle race condition (unique constraint on date)
+        const { data: upsertedDaily, error: upsertError } = await supabaseAdmin
           .from('battle_daily')
-          .insert({
+          .upsert({
             date: today,
             enemy_ids: enemyIds.length > 0 ? enemyIds : [],
             coins_reward: 200,
@@ -246,11 +246,21 @@ export async function GET(request: NextRequest) {
             xp_reward: 100,
             energy_cost: 1,
             is_active: true
-          })
+          }, { onConflict: 'date' })
           .select('*')
-          .single()
+          .maybeSingle()
 
-        dailyBattle = newDaily
+        if (upsertError) {
+          // If upsert failed, try to read the existing row
+          const { data: existingDaily } = await supabaseAdmin
+            .from('battle_daily')
+            .select('*')
+            .eq('date', today)
+            .maybeSingle()
+          dailyBattle = existingDaily
+        } else {
+          dailyBattle = upsertedDaily
+        }
       }
 
       let dailyDungeon = null
@@ -794,12 +804,30 @@ export async function POST(request: NextRequest) {
         }
       } else if (dungeonId.startsWith('daily-')) {
         const today = new Date().toISOString().split('T')[0]
-        const { data: dailyBattle } = await supabaseAdmin
+        let { data: dailyBattle } = await supabaseAdmin
           .from('battle_daily')
           .select('*')
           .eq('date', today)
           .eq('is_active', true)
-          .single()
+          .maybeSingle()
+
+        // Auto-create daily battle if it doesn't exist
+        if (!dailyBattle) {
+          const { data: upsertedDaily } = await supabaseAdmin
+            .from('battle_daily')
+            .upsert({
+              date: today,
+              enemy_ids: [],
+              coins_reward: 200,
+              dust_reward: 50,
+              xp_reward: 100,
+              energy_cost: 1,
+              is_active: true
+            }, { onConflict: 'date' })
+            .select('*')
+            .maybeSingle()
+          dailyBattle = upsertedDaily
+        }
 
         if (!dailyBattle) {
           return NextResponse.json({ success: false, message: "Ежедневный бой не найден" }, { status: 404 })

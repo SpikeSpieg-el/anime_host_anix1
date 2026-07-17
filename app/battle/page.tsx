@@ -294,6 +294,7 @@ export default function BattlePage() {
   const [viewedCard, setViewedCard] = useState<Card | null>(null)
   const [isPvPMode, setIsPvPMode] = useState(false)
   const [showBattleTutorial, setShowBattleTutorial] = useState(false)
+  const [retryCount, setRetryCount] = useState(0)
   const prevRoundResultsRef = useRef<any>(null)
   const {
     sessionLoading: battleSessionLoading,
@@ -357,6 +358,8 @@ export default function BattlePage() {
     updatePvPRound,
     resolvePvPRound,
     resolvePvPMatchEnd,
+    isInitializing,
+    loadBattleData,
   } = useBattleData()
 
   const isPlayer1Ref = useRef<boolean>(false)
@@ -387,6 +390,13 @@ export default function BattlePage() {
     setShowBattleTutorial(false)
     localStorage.setItem("battle-tutorial-seen", "true")
   }, [])
+
+  // Retry loading battle data when retryCount changes
+  useEffect(() => {
+    if (retryCount > 0 && user && !sessionLoading) {
+      loadBattleData()
+    }
+  }, [retryCount, user, sessionLoading, loadBattleData])
 
   useEffect(() => {
     if (typeof window === "undefined") return
@@ -539,6 +549,24 @@ export default function BattlePage() {
 
         {/* Top bar indicators */}
         {battleState === "idle" && (battleSessionLoading || !progress ? <StatsPanelSkeleton /> : <StatsPanel progress={progress} userCoins={userCoins} coinsLoading={coinsLoading} dust={dust} dustLoading={dustLoading} staminaTime={staminaTime} />)}
+
+        {/* Retry UI when data failed to load */}
+        {battleState === "idle" && !isInitializing && !progress && user && (
+          <div className="max-w-md mx-auto p-8 rounded-3xl bg-red-500/5 border border-red-500/20 text-center">
+            <AlertCircle className="w-10 h-10 text-red-400 mx-auto mb-3" />
+            <p className="text-red-200 text-sm font-medium mb-4">Не удалось загрузить данные боя.</p>
+            <button
+              onClick={() => {
+                setError(null)
+                setRetryCount(c => c + 1)
+              }}
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-white border border-white/10 font-bold text-sm transition-all"
+            >
+              <RefreshCcw className="w-4 h-4" />
+              Повторить загрузку
+            </button>
+          </div>
+        )}
 
         {/* Error notification */}
         {error && (

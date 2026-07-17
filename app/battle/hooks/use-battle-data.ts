@@ -90,11 +90,20 @@ export function useBattleData() {
   const loadBattleData = useCallback(async () => {
     if (!user) return
 
+    const abortController = new AbortController()
+    const timeoutId = setTimeout(() => {
+      abortController.abort()
+      console.error('[BattlePage] loadBattleData timeout after 15 seconds')
+    }, 15000)
+
     try {
       const accessToken = session?.access_token
       if (!accessToken) return
       console.log('[BattlePage] Loading battle data...')
-      const res = await fetch('/api/battle?mode=all', { headers: { 'Authorization': `Bearer ${accessToken}` } })
+      const res = await fetch('/api/battle?mode=all', {
+        headers: { 'Authorization': `Bearer ${accessToken}` },
+        signal: abortController.signal
+      })
       if (res.ok) {
         const data = await res.json()
         setProgress(data.progress)
@@ -104,7 +113,10 @@ export function useBattleData() {
       }
 
       // Load saved deck
-      const deckRes = await fetch('/api/battle/deck', { headers: { 'Authorization': `Bearer ${accessToken}` } })
+      const deckRes = await fetch('/api/battle/deck', {
+        headers: { 'Authorization': `Bearer ${accessToken}` },
+        signal: abortController.signal
+      })
       if (deckRes.ok) {
         const deckData = await deckRes.json()
         console.log('[BattlePage] Loaded deck from API:', deckData)
@@ -116,9 +128,15 @@ export function useBattleData() {
         }
         // Cards will be loaded separately and matched with saved IDs
       }
-    } catch (err) {
-      console.error('[BattlePage] Error loading battle data:', err)
+    } catch (err: any) {
+      if (err.name === 'AbortError') {
+        console.error('[BattlePage] loadBattleData was aborted (timeout)')
+        setError("Не удалось загрузить данные боя. Проверьте соединение и обновите страницу.")
+      } else {
+        console.error('[BattlePage] Error loading battle data:', err)
+      }
     } finally {
+      clearTimeout(timeoutId)
       setIsInitializing(false)
     }
   }, [user, session])
@@ -1767,5 +1785,7 @@ export function useBattleData() {
     updatePvPRound,
     resolvePvPRound,
     resolvePvPMatchEnd,
+    isInitializing,
+    loadBattleData,
   }
 }
