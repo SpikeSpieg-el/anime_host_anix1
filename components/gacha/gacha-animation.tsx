@@ -67,7 +67,7 @@ export function GachaAnimation({ isRolling, revealedCard, onComplete }: GachaAni
     if (!revealedCard || !revealedCard.imageUrl || imagePreloadedRef.current) return
     imagePreloadedRef.current = true
     const img = new window.Image()
-    img.src = revealedCard.imageUrl
+    img.src = getProxiedSrc(revealedCard.imageUrl)
   }, [revealedCard])
 
   const handleTap = () => {
@@ -108,7 +108,7 @@ export function GachaAnimation({ isRolling, revealedCard, onComplete }: GachaAni
       const img = new window.Image()
       img.onload = () => { if (!cancelled) { setImageLoaded(true); finish() } }
       img.onerror = () => { if (!cancelled) { setImageLoaded(true); finish() } }
-      img.src = revealedCard.imageUrl
+      img.src = getProxiedSrc(revealedCard.imageUrl)
     } else {
       finish()
     }

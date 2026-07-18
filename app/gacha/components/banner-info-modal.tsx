@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from "react"
 import { X, Star, Coins, Clock, Flame, Shield, TrendingUp, Sparkles, ChevronLeft, ChevronRight, Tv } from "lucide-react"
 import { Rarity, rarityConfig } from "@/types/gacha"
-import { getProxiedSrc } from "../utils"
+import { getProxiedSrc } from "@/lib/image-loader"
 import type { Banner, BannerCardItem } from "./banner-card"
 import type { Card } from "../types"
 import { InteractiveCard } from "./interactive-card"

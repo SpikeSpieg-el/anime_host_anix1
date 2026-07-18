@@ -40,7 +40,11 @@ const ALLOWED_HOSTS = [
   'postimg.org',
   'github.com',
   'githubusercontent.com',
-  'raw.githubusercontent.com'
+  'raw.githubusercontent.com',
+  'objects.githubusercontent.com',
+  'picsum.photos',
+  'transparenttextures.com',
+  'supabase.co'
 ];
 
 export const maxDuration = 15;

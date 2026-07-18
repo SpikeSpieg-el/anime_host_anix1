@@ -87,6 +87,8 @@ const ALLOWED_HOSTS = [
   'github.com',
   'objects.githubusercontent.com',
   'picsum.photos',
+  'transparenttextures.com',
+  'supabase.co',
   'catbox.moe',
   'files.catbox.moe',
   'litterbox.catbox.moe',

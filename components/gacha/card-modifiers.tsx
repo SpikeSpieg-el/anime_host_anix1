@@ -1,4 +1,5 @@
 import React, { memo } from "react";
+import { getProxiedSrc } from "@/lib/image-loader";
 
 // --- CSS АНИМАЦИИ (Вынесены в статический блок для производительности) ---
 const animationStyles = `
@@ -249,7 +250,7 @@ export const CoatingOverlay = memo(({ coating, className = "" }: { coating?: str
       break;
     case "gold_leaf":
       style = { ...style,
-        backgroundImage: "url('https://www.transparenttextures.com/patterns/gold-dust.png')",
+        backgroundImage: `url('${getProxiedSrc("https://www.transparenttextures.com/patterns/gold-dust.png")}')`,
         backgroundColor: "rgba(255, 215, 0, 0.1)",
         mixBlendMode: "color-dodge"
       };

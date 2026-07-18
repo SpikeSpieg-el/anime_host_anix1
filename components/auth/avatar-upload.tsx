@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect } from "react"
 import { supabase } from "@/lib/supabase"
+import { getProxiedSrc } from "@/lib/image-loader"
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -288,17 +289,17 @@ export function AvatarUpload({
       <div className="flex flex-col items-center gap-4">
         <div className="relative group">
           <Avatar className={`${sizeClasses[size]} border-2 border-border shadow-sm`}>
-            <AvatarImage 
+            <AvatarImage
               className="object-cover"
               src={
-                previewUrl?.startsWith('blob:') 
-                  ? previewUrl 
-                  : previewUrl 
-                    ? `${previewUrl}?t=${Date.now()}` 
+                previewUrl?.startsWith('blob:')
+                  ? previewUrl
+                  : previewUrl
+                    ? getProxiedSrc(`${previewUrl}?t=${Date.now()}`)
                     : undefined
-              } 
+              }
               alt="Avatar"
-              onLoad={(e) => { e.currentTarget.style.display = 'block'; }} 
+              onLoad={(e) => { e.currentTarget.style.display = 'block'; }}
             />
             <AvatarFallback className="bg-primary/10 text-primary text-xl font-bold">
               {username ? getInitials(username) : 'U'}

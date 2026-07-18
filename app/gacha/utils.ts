@@ -1,6 +1,7 @@
 import React from "react"
 import { Card, CollectionRating } from "./types"
 import { Rarity, rarityConfig } from "@/types/gacha"
+import { getProxiedSrc as getImageProxySrc } from "@/lib/image-loader"
 
 export function generateCardUniqueId(characterId: number, packId?: string): string {
   const uuid = crypto.randomUUID()
@@ -131,24 +132,24 @@ export const handleImageError = (
   if (!target.dataset.triedOriginal && card.originalUrl) {
     target.dataset.triedOriginal = "true"
     const cleanUrl = card.originalUrl.split('?')[0]
-    target.src = cleanUrl
+    target.src = getImageProxySrc(cleanUrl)
     return
   }
 
   if (!target.dataset.triedMirror) {
     target.dataset.triedMirror = "true"
-    target.src = `https://shikimori.one/system/characters/original/${card.characterId}.jpg`
+    target.src = getImageProxySrc(`https://shikimori.one/system/characters/original/${card.characterId}.jpg`)
     return
   }
 
   if (!target.dataset.triedShikiPng) {
     console.log(`[${card.name}] Попытка Shikimori PNG`)
     target.dataset.triedShikiPng = "true"
-    target.src = `https://shikimori.one/system/characters/original/${card.characterId}.png`
+    target.src = getImageProxySrc(`https://shikimori.one/system/characters/original/${card.characterId}.png`)
   } else if (!target.dataset.triedShikiWebp) {
     console.log(`[${card.name}] Попытка Shikimori WebP`)
     target.dataset.triedShikiWebp = "true"
-    target.src = `https://shikimori.one/system/characters/webp/original/${card.characterId}.webp`
+    target.src = getImageProxySrc(`https://shikimori.one/system/characters/webp/original/${card.characterId}.webp`)
   } else if (!target.dataset.triedJikan) {
     console.log(`[${card.name}] Попытка Jikan API (MyAnimeList)`)
     target.dataset.triedJikan = "true"
@@ -157,19 +158,19 @@ export const handleImageError = (
       .then(data => {
         if (data?.data && data.data.length > 0) {
           const pic = data.data.find((p: any) => p.jpg?.image_url) || data.data[0]
-          target.src = pic.jpg?.image_url || pic.webp?.image_url
+          target.src = getImageProxySrc(pic.jpg?.image_url || pic.webp?.image_url)
         } else {
-          target.src = 'https://picsum.photos/seed/force-error/1/1'
+          target.src = getImageProxySrc('https://picsum.photos/seed/force-error/1/1')
         }
       })
       .catch(() => {
-        target.src = 'https://picsum.photos/seed/force-error/1/1'
+        target.src = getImageProxySrc('https://picsum.photos/seed/force-error/1/1')
       })
   } else if (!target.dataset.triedPlaceholder) {
     console.log(`[${card.name}] Все попытки исчерпаны, используем картинку-заглушку`)
     target.dataset.triedPlaceholder = "true"
     const seed = card.anime.replace(/[^a-z0-9]/gi, '') + card.characterId
-    target.src = `https://picsum.photos/seed/anime-${seed}/${isCollection ? '200/300' : '400/600'}.jpg`
+    target.src = getImageProxySrc(`https://picsum.photos/seed/anime-${seed}/${isCollection ? '200/300' : '400/600'}.jpg`)
   } else {
     console.log(`[${card.name}] Картинка-заглушка не загрузилась, показываем UI-заглушку`)
     target.style.display = 'none'

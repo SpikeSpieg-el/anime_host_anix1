@@ -3,7 +3,7 @@
 import React, { useState } from "react"
 import { Coins, Star, Clock, Flame, Info } from "lucide-react"
 import { Rarity, rarityConfig } from "@/types/gacha"
-import { getProxiedSrc } from "../utils"
+import { getProxiedSrc } from "@/lib/image-loader"
 import { BannerInfoModal } from "./banner-info-modal"
 
 export interface BannerCardItem {
