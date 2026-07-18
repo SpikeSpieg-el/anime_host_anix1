@@ -1,6 +1,8 @@
 // next.config.mjs
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Увеличиваем таймаут статической генерации, чтобы тяжёлый sitemap не падал на Vercel
+  staticPageGenerationTimeout: 300,
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: '**' },

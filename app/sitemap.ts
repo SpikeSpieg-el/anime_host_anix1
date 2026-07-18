@@ -5,8 +5,8 @@ import {
   getOngoingList,
   getTopOfWeek,
   getAnnouncements,
+  getForumNewsPaginated,
 } from '@/lib/shikimori'
-import { getAggregatedNews } from '@/lib/news/aggregator'
 import { BASE_URL } from '@/lib/shikimori/config'
 import { shikimoriJson } from '@/lib/shikimori/client'
 
@@ -48,17 +48,17 @@ async function getNewsIds(): Promise<string[]> {
   const ids: string[] = []
   const seen = new Set<string>()
 
-  // Загружаем первые 5 страниц новостей
+  // Загружаем первые 5 страниц новостей (только Shikimori — Jikan слишком нестабилен для сборки)
   for (let page = 1; page <= 5; page++) {
     try {
-      const { items, hasNextPage } = await getAggregatedNews(page, 12)
+      const items = await getForumNewsPaginated(page, 12)
       for (const item of items) {
         if (!seen.has(item.id)) {
           seen.add(item.id)
           ids.push(item.id)
         }
       }
-      if (!hasNextPage) break
+      if (items.length < 12) break
     } catch {
       break
     }
