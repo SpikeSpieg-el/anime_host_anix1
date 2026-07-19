@@ -10,6 +10,7 @@ import { LinkedAnimeCard } from "./linked-anime-card"
 import { TranslateButton } from "./translate-button"
 import { getProxiedSrc } from "@/lib/image-loader"
 import type { LinkedAnime } from "@/lib/shikimori/types"
+import { BreadcrumbStructuredData } from "@/components/seo/structured-data"
 
 interface Props {
   params: Promise<{ id: string }>
@@ -345,6 +346,13 @@ export default async function NewsItemPage({ params }: Props) {
 
   return (
     <main className="min-h-screen bg-background text-foreground relative">
+      <BreadcrumbStructuredData
+        items={[
+          { name: "Главная", url: "https://weeb-x.com" },
+          { name: "Новости", url: "https://weeb-x.com/news" },
+          { name: news.title, url: `https://weeb-x.com/news/${id}` },
+        ]}
+      />
       <Navbar />
 
       {/* Hero header */}

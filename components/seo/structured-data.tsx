@@ -1,5 +1,5 @@
 interface StructuredDataProps {
-  type: 'organization' | 'website' | 'breadcrumb' | 'faq'
+  type: 'organization' | 'website' | 'breadcrumb' | 'faq' | 'video' | 'webapp'
   data: Record<string, any>
 }
 
@@ -106,4 +106,67 @@ export function FAQStructuredData({ items }: { items: FAQItem[] }) {
   }
 
   return <StructuredData type="faq" data={faqData} />
+}
+
+interface VideoObjectData {
+  name: string
+  description?: string
+  thumbnailUrl?: string
+  uploadDate?: string
+  contentUrl: string
+  duration?: string
+  genre?: string[]
+  rating?: number
+  episodeNumber?: number
+}
+
+export function VideoObjectStructuredData(data: VideoObjectData) {
+  const videoData: Record<string, any> = {
+    '@context': 'https://schema.org',
+    '@type': 'VideoObject',
+    name: data.name,
+    contentUrl: data.contentUrl,
+    uploadDate: data.uploadDate || new Date().toISOString(),
+  }
+
+  if (data.description) videoData.description = data.description
+  if (data.thumbnailUrl) videoData.thumbnailUrl = data.thumbnailUrl
+  if (data.duration) videoData.duration = data.duration
+  if (data.genre && data.genre.length) videoData.genre = data.genre
+  if (data.rating) videoData.ratingValue = data.rating
+  if (data.episodeNumber) {
+    videoData['@type'] = ['VideoObject', 'TVEpisode']
+    videoData.episodeNumber = data.episodeNumber
+  }
+
+  return <StructuredData type="video" data={videoData} />
+}
+
+interface WebApplicationData {
+  name: string
+  url: string
+  description?: string
+  applicationCategory?: string
+  operatingSystem?: string
+  offers?: string
+}
+
+export function WebApplicationStructuredData(data: WebApplicationData) {
+  const appData: Record<string, any> = {
+    '@context': 'https://schema.org',
+    '@type': 'WebApplication',
+    name: data.name,
+    url: data.url,
+    applicationCategory: data.applicationCategory || 'Game',
+    operatingSystem: data.operatingSystem || 'Any',
+    offers: {
+      '@type': 'Offer',
+      price: '0',
+      priceCurrency: 'RUB',
+    },
+  }
+
+  if (data.description) appData.description = data.description
+
+  return <StructuredData type="webapp" data={appData} />
 }

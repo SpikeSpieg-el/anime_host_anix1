@@ -1,4 +1,5 @@
 import type { Metadata } from "next"
+import { WebApplicationStructuredData } from "@/components/seo/structured-data"
 
 export const metadata: Metadata = {
   title: "Weebx — Гача-крутки аниме персонажей. Собирай легендарку",
@@ -51,5 +52,15 @@ export default function GachaLayout({
 }: {
   children: React.ReactNode
 }) {
-  return children
+  return (
+    <>
+      <WebApplicationStructuredData
+        name="Weebx Gacha"
+        url="https://weeb-x.com/gacha"
+        description="Крути гачу и собирай легендарных аниме-персонажей! Высокий шанс SSR, ежедневные бонусы, PvP-арена."
+        applicationCategory="Game"
+      />
+      {children}
+    </>
+  )
 }

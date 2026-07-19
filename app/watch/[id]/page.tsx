@@ -4,6 +4,7 @@ import { getAnimeById, getAnimeFranchise } from "@/lib/shikimori"
 import dynamic from "next/dynamic"
 import { WatchPageHeaderSkeleton, PlayerSkeleton, EpisodeSelectorSkeleton, TextSkeleton } from "@/components/shared/skeleton"
 import type { Metadata } from "next"
+import { VideoObjectStructuredData, BreadcrumbStructuredData } from "@/components/seo/structured-data"
 
 const WatchPageLayoutWrapper = dynamic(() => import("@/components/watch/watch-page-layout-wrapper").then(mod => ({ default: mod.WatchPageLayoutWrapper })), {
   loading: () => (
@@ -105,11 +106,37 @@ export default async function WatchPage({
   const franchise = await getAnimeFranchise(id)
   const watchOrder = franchise;
 
+  const animeTitle = anime.title || `Аниме #${id}`
+  const animeDescription = anime.description
+    ? `${anime.description.slice(0, 300)}${anime.description.length > 300 ? "..." : ""}`
+    : `Смотреть ${animeTitle} онлайн в хорошем качестве на Weebx.`
+  const contentUrl = `https://weeb-x.com/watch/${id}`
+  const uploadDate = anime.airedOn || new Date().toISOString()
+
   return (
-    <WatchPageLayoutWrapper
-      anime={anime}
-      initialEpisode={Number.isFinite(episode) && (episode as number) > 0 ? (episode as number) : undefined}
-      watchOrder={watchOrder}
-    />
+    <>
+      <VideoObjectStructuredData
+        name={episode && episode > 0 ? `${animeTitle} — Серия ${episode}` : animeTitle}
+        description={animeDescription}
+        thumbnailUrl={anime.poster}
+        uploadDate={uploadDate}
+        contentUrl={contentUrl}
+        genre={anime.genres}
+        rating={anime.rating ? Number(anime.rating) : undefined}
+        episodeNumber={episode && episode > 0 ? episode : undefined}
+      />
+      <BreadcrumbStructuredData
+        items={[
+          { name: "Главная", url: "https://weeb-x.com" },
+          { name: "Каталог", url: "https://weeb-x.com/catalog" },
+          { name: animeTitle, url: contentUrl },
+        ]}
+      />
+      <WatchPageLayoutWrapper
+        anime={anime}
+        initialEpisode={Number.isFinite(episode) && (episode as number) > 0 ? (episode as number) : undefined}
+        watchOrder={watchOrder}
+      />
+    </>
   )
 }

@@ -1,5 +1,6 @@
 import { Metadata } from 'next';
 import MangaDetailClient from './manga-detail-client';
+import { BreadcrumbStructuredData } from '@/components/seo/structured-data';
 
 interface PageProps {
   params: Promise<{
@@ -33,5 +34,16 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
 export default async function MangaDetailPage({ params }: PageProps) {
   const { id } = await params;
-  return <MangaDetailClient mangaId={id} />;
+  return (
+    <>
+      <BreadcrumbStructuredData
+        items={[
+          { name: "Главная", url: "https://weeb-x.com" },
+          { name: "Манга", url: "https://weeb-x.com/manga" },
+          { name: `Манга #${id}`, url: `https://weeb-x.com/manga/${id}` },
+        ]}
+      />
+      <MangaDetailClient mangaId={id} />
+    </>
+  );
 }
