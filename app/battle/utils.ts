@@ -64,7 +64,8 @@ export const getCardProvision = (card: Card): number => {
   const statBonus = Math.round((statRatio - 1) * PROVISION_VARIANCE * 2)
   const clampedBonus = Math.max(-PROVISION_VARIANCE, Math.min(PROVISION_VARIANCE, statBonus))
   
-  const finalCost = Math.max(0, baseCost + clampedBonus)
+  const minCost = baseCost > 0 ? 1 : 0
+  const finalCost = Math.max(minCost, baseCost + clampedBonus)
   
   return finalCost
 }

@@ -22,7 +22,11 @@ import {
   Layers,
   Gift,
   CalendarPlus,
-  Loader2
+  Loader2,
+  Copy,
+  ClipboardPaste,
+  FileJson,
+  Check
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -40,6 +44,9 @@ import {
   addBannerCard,
   setBannerGuaranteedCard,
 } from "@/app/admin/actions"
+import { generateStatsForRarity } from "@/app/gacha/actions"
+import { getCardProvision, getCardBasePower, getCardRole } from "@/app/battle/utils"
+import { RARITY_PROVISION_BASE, RARITY_AVG_STATS, ROLE_CONFIG } from "@/app/battle/config"
 
 interface SimpleUser {
   id: string
@@ -72,6 +79,9 @@ export default function CardEditorPage() {
   const [isFeaturedCard, setIsFeaturedCard] = useState(false)
   const [guaranteedPity, setGuaranteedPity] = useState(77)
   const [selectedGuaranteedBannerId, setSelectedGuaranteedBannerId] = useState<string>("")
+  const [jsonInput, setJsonInput] = useState<string>("")
+  const [showJsonInput, setShowJsonInput] = useState(false)
+  const [copied, setCopied] = useState(false)
   
   const [card, setCard] = useState<Partial<Card>>({
     name: "Новый персонаж",
@@ -260,12 +270,56 @@ export default function CardEditorPage() {
     }
   }
 
+  const handleRandomizeStats = async () => {
+    try {
+      const newStats = await generateStatsForRarity(card.rarity as string)
+      setCard(prev => ({ ...prev, stats: newStats }))
+      toast.success(`Случайные статы сгенерированы для редкости "${rarityConfig[card.rarity as Rarity]?.label}"`)
+    } catch (e) {
+      toast.error("Ошибка генерации статов")
+      console.error(e)
+    }
+  }
+
   const generateShikiId = () => {
     setCard(prev => ({ ...prev, shikiId: Math.floor(Math.random() * 1000000) }))
   }
 
   const generateCharacterId = () => {
     setCard(prev => ({ ...prev, characterId: Math.floor(Math.random() * 1000000) }))
+  }
+
+  const handleCopyJson = () => {
+    const finalCard = buildFinalCard()
+    if (!finalCard) return
+    const json = JSON.stringify(finalCard, null, 2)
+    navigator.clipboard.writeText(json).then(() => {
+      setCopied(true)
+      toast.success("JSON скопирован в буфер обмена!")
+      setTimeout(() => setCopied(false), 2000)
+    }).catch(() => {
+      toast.error("Не удалось скопировать JSON")
+    })
+  }
+
+  const handleLoadFromJson = () => {
+    try {
+      const parsed = JSON.parse(jsonInput) as Partial<Card>
+      if (!parsed.name || !parsed.rarity) {
+        toast.error("JSON должен содержать минимум name и rarity")
+        return
+      }
+      setCard({
+        ...parsed,
+        stats: parsed.stats || { hp: 50, atk: 50, def: 50, spd: 50, luck: 50 }
+      })
+      toast.success("Карта загружена из JSON!")
+      setShowJsonInput(false)
+      setJsonInput("")
+    } catch (e) {
+      toast.error("Невалидный JSON")
+      console.error(e)
+    }
   }
 
   const updateStat = (stat: keyof CardStats, value: number) => {
@@ -618,7 +672,152 @@ export default function CardEditorPage() {
                 <StatSlider label="DEF" icon={<Shield className="w-4 h-4 text-blue-500" />} value={card.stats?.def || 0} onChange={v => updateStat('def', v)} />
                 <StatSlider label="SPD" icon={<RefreshCcw className="w-4 h-4 text-emerald-500" />} value={card.stats?.spd || 0} onChange={v => updateStat('spd', v)} />
                 <StatSlider label="LCK" icon={<Star className="w-4 h-4 text-purple-500" />} value={card.stats?.luck || 0} onChange={v => updateStat('luck', v)} />
+
+                {/* Randomize stats + Power/Provision indicator */}
+                <div className="pt-4 border-t border-white/5 space-y-4">
+                  <div className="flex items-center justify-between gap-4">
+                    <h4 className="font-black uppercase tracking-widest text-xs text-slate-500 flex items-center gap-2">
+                      <Activity className="w-3.5 h-3.5" /> Сила и вес карты
+                    </h4>
+                    <Button
+                      onClick={handleRandomizeStats}
+                      variant="outline"
+                      className="h-9 bg-white/5 border-white/10 hover:bg-white/10 rounded-xl font-bold text-xs whitespace-nowrap"
+                    >
+                      <RefreshCcw className="w-3.5 h-3.5 mr-1.5" />
+                      Случайные статы
+                    </Button>
+                  </div>
+
+                  {(() => {
+                  const fullCard = card as Card
+                  const hasStats = card.stats && (card.stats.hp !== undefined)
+                  if (!hasStats) return null
+
+                  const provision = getCardProvision(fullCard)
+                  const basePower = getCardBasePower(fullCard)
+                  const role = getCardRole(fullCard)
+                  const baseProvision = RARITY_PROVISION_BASE[card.rarity as string] ?? 0
+                  const avgStats = RARITY_AVG_STATS[card.rarity as string] ?? 100
+                  const s = fullCard.stats
+                  const actualTotalStats = (s.hp / 8) + s.atk + s.def + s.spd + s.luck
+                  const statRatio = actualTotalStats / avgStats
+                  const isOverpowered = statRatio > 1.3
+                  const isUnderpowered = statRatio < 0.7
+                  const isBalanced = !isOverpowered && !isUnderpowered
+
+                  return (
+                    <div className="space-y-3">
+                      {/* Provision + Power */}
+                      <div className="grid grid-cols-3 gap-3">
+                        <div className="p-3 bg-slate-950/60 rounded-xl border border-white/5 text-center">
+                          <p className="text-[10px] text-slate-500 uppercase font-black tracking-widest mb-1">Вес (Provision)</p>
+                          <p className={`text-2xl font-black ${provision > baseProvision + 2 ? "text-red-400" : provision < baseProvision - 1 ? "text-blue-400" : "text-emerald-400"}`}>
+                            {provision}
+                          </p>
+                          <p className="text-[9px] text-slate-600 mt-0.5">база: {baseProvision}</p>
+                        </div>
+                        <div className="p-3 bg-slate-950/60 rounded-xl border border-white/5 text-center">
+                          <p className="text-[10px] text-slate-500 uppercase font-black tracking-widest mb-1">Базовая сила</p>
+                          <p className="text-2xl font-black text-indigo-400">
+                            {basePower}
+                          </p>
+                          <p className="text-[9px] text-slate-600 mt-0.5">макс: 200</p>
+                        </div>
+                        <div className="p-3 bg-slate-950/60 rounded-xl border border-white/5 text-center">
+                          <p className="text-[10px] text-slate-500 uppercase font-black tracking-widest mb-1">Роль</p>
+                          <p className={`text-sm font-black ${ROLE_CONFIG[role]?.color || "text-slate-400"}`}>
+                            {ROLE_CONFIG[role]?.label || "—"}
+                          </p>
+                          <p className="text-[9px] text-slate-600 mt-0.5">по КНБ</p>
+                        </div>
+                      </div>
+
+                      {/* Rarity match indicator */}
+                      <div className={`p-3 rounded-xl border ${isBalanced ? "bg-emerald-500/10 border-emerald-500/20" : isOverpowered ? "bg-red-500/10 border-red-500/20" : "bg-blue-500/10 border-blue-500/20"}`}>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className="text-[10px] uppercase font-black tracking-widest text-slate-400">Соответствие редкости</span>
+                          <span className={`text-xs font-black ${isBalanced ? "text-emerald-400" : isOverpowered ? "text-red-400" : "text-blue-400"}`}>
+                            {isBalanced ? "✓ Норма" : isOverpowered ? "⚠ Слишком сильная" : "↓ Слабая"}
+                          </span>
+                        </div>
+                        <div className="h-2 bg-black/40 rounded-full overflow-hidden relative">
+                          {/* Expected range zone (70%-130%) */}
+                          <div className="absolute inset-y-0 left-[35%] right-[35%] bg-emerald-500/20" />
+                          {/* Actual ratio marker */}
+                          <div
+                            className="absolute top-0 bottom-0 w-1 bg-white rounded-full"
+                            style={{ left: `${Math.min(100, Math.max(0, statRatio * 50))}%` }}
+                          />
+                        </div>
+                        <div className="flex justify-between mt-1 text-[9px] text-slate-600">
+                          <span>0%</span>
+                          <span className="text-emerald-500">норма 70-130%</span>
+                          <span>200%</span>
+                        </div>
+                        <p className="text-[10px] text-slate-500 mt-1.5">
+                          Сумма статов: <span className="font-bold text-slate-300">{Math.round(actualTotalStats)}</span> / ожидание: <span className="font-bold text-slate-300">{avgStats}</span> ({Math.round(statRatio * 100)}%)
+                        </p>
+                      </div>
+                    </div>
+                  )
+                })()}
+                </div>
               </div>
+            </div>
+
+            {/* JSON Import/Export section */}
+            <div className="space-y-4 p-6 bg-slate-900/40 rounded-3xl border border-white/5">
+              <h3 className="font-black uppercase tracking-widest text-sm text-slate-400 flex items-center gap-2">
+                <FileJson className="w-4 h-4" /> JSON Экспорт / Импорт
+              </h3>
+
+              <div className="flex gap-3">
+                <Button
+                  onClick={handleCopyJson}
+                  variant="outline"
+                  className="flex-1 h-12 bg-white/5 border-white/10 hover:bg-white/10 rounded-2xl font-bold"
+                >
+                  {copied ? (
+                    <>
+                      <Check className="w-4 h-4 mr-2 text-emerald-400" />
+                      Скопировано!
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-4 h-4 mr-2" />
+                      Копировать JSON
+                    </>
+                  )}
+                </Button>
+                <Button
+                  onClick={() => setShowJsonInput(!showJsonInput)}
+                  variant="outline"
+                  className="flex-1 h-12 bg-white/5 border-white/10 hover:bg-white/10 rounded-2xl font-bold"
+                >
+                  <ClipboardPaste className="w-4 h-4 mr-2" />
+                  {showJsonInput ? "Скрыть" : "Загрузить из JSON"}
+                </Button>
+              </div>
+
+              {showJsonInput && (
+                <div className="space-y-3">
+                  <textarea
+                    value={jsonInput}
+                    onChange={e => setJsonInput(e.target.value)}
+                    placeholder='Вставьте JSON карты здесь...\nНапример: {"name":"...","rarity":"...","stats":{...}}'
+                    className="w-full h-48 p-3 bg-slate-950/80 border border-white/10 rounded-2xl text-xs font-mono text-white/80 resize-y focus:border-indigo-500 focus:outline-none"
+                  />
+                  <Button
+                    onClick={handleLoadFromJson}
+                    disabled={!jsonInput.trim()}
+                    className="w-full h-12 bg-indigo-600 hover:bg-indigo-500 font-black uppercase tracking-widest rounded-2xl disabled:opacity-50"
+                  >
+                    <FileJson className="w-4 h-4 mr-2" />
+                    Загрузить карту из JSON
+                  </Button>
+                </div>
+              )}
             </div>
 
             {/* Admin delivery section: gift to user OR add to banner */}

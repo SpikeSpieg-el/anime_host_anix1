@@ -125,10 +125,6 @@ export const BannerCard = ({ banner, onSelect, userCoins, onInfoOpenChange, rema
               </div>
             </div>
           </div>
-          <h3 className="text-xl sm:text-2xl font-black text-white mb-2 leading-tight drop-shadow-lg">{banner.name}</h3>
-          {banner.description && (
-            <p className="text-sm text-white/70 mb-3 line-clamp-2">{banner.description}</p>
-          )}
         </div>
       ) : null}
 
