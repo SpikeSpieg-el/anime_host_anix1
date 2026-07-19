@@ -29,6 +29,8 @@ function delayRequest(): Promise<void> {
 function isHighQualityImage(url: string, isPoster: boolean = true): boolean {
   if (!url) return false;
   const lowerUrl = url.toLowerCase();
+  // Reject non-image URLs (HTML pages, etc.)
+  if (!/\.(jpg|jpeg|png|webp|avif|gif|svg)(\?|$)/.test(lowerUrl)) return false;
   if (['missing', 'stub', 'placeholder', 'default'].some(s => lowerUrl.includes(s))) return false;
   if (['x96', 'x48', 'x160'].some(s => lowerUrl.includes(s))) return false;
   if (isPoster) return true;

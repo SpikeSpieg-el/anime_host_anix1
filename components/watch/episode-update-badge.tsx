@@ -50,7 +50,7 @@ export function EpisodeUpdateBadge({ updates, onClearUpdate, onClearAll, classNa
         missingUpdates.map(async (update) => {
           const poster = await getPosterRef.current(
             update.animeId,
-            `https://shikimori.one/animes/${update.animeId}`,
+            "",
             update.animeTitle,
             update.animeTitle,
           )
