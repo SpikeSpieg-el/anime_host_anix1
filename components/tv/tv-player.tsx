@@ -18,8 +18,7 @@ export function TVPlayer({ animeId, episode, animeTitle, totalEpisodes, onNextEp
 
   useEffect(() => {
     setIsLoading(true)
-    const directUrl = `https://kodikplayer.com/find-player?shikimoriID=${animeId}&episode=${episode}&quality=720&no_ads=true&no_provider_ads=true&block_blocked_countries=true&hide_selectors=true`
-    const url = `/api/kodik/player-proxy?url=${encodeURIComponent(directUrl)}`
+    const url = `https://kodikplayer.com/find-player?shikimoriID=${animeId}&episode=${episode}&quality=720&no_ads=true&no_provider_ads=true&block_blocked_countries=true&hide_selectors=true`
     setKodikUrl(url)
     setIsLoading(false)
   }, [animeId, episode])
@@ -38,10 +37,9 @@ export function TVPlayer({ animeId, episode, animeTitle, totalEpisodes, onNextEp
           <iframe
             src={kodikUrl}
             className="w-full h-full"
-            allow="autoplay; fullscreen; picture-in-picture"
+            allow="autoplay; encrypted-media; fullscreen; picture-in-picture; screen-wake-lock"
             allowFullScreen
-            sandbox="allow-scripts allow-same-origin allow-presentation"
-            referrerPolicy="no-referrer"
+            sandbox="allow-scripts allow-same-origin allow-presentation allow-popups allow-forms allow-modals allow-downloads"
           />
         )}
       </div>
