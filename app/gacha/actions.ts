@@ -368,25 +368,51 @@ export async function rollFromBanner(
 
         const { data: pullData } = await supabase
           .from('user_banner_pulls')
-          .select('pull_count, guaranteed_claimed, collected_guaranteed_cards')
+          .select('pull_count, collected_guaranteed_cards')
           .eq('user_id', userId)
           .eq('banner_id', banner.id)
           .single()
 
         const currentCount = pullData?.pull_count || 0
-        const alreadyClaimed = pullData?.guaranteed_claimed || false
-        const collectedIds: number[] = Array.isArray(pullData?.collected_guaranteed_cards) ? pullData.collected_guaranteed_cards : []
-
+        let collectedIds: number[] = Array.isArray(pullData?.collected_guaranteed_cards) ? pullData.collected_guaranteed_cards : []
         const newCount = currentCount + 1
-        const shouldAwardGuaranteed = !alreadyClaimed && newCount >= banner.guaranteedCardPity
 
-        // Filter out already collected GGs
-        const uncollectedPool = banner.guaranteedCardsPool.filter(c => !collectedIds.includes(c.characterId))
-        const allCollected = uncollectedPool.length === 0
+        // If all GGs have been collected, start a new cycle
+        let pool = banner.guaranteedCardsPool
+        if (collectedIds.length >= pool.length) {
+          collectedIds = []
+        }
 
-        // If all 3 GGs collected, reset collection cycle
-        const effectivePool = allCollected ? banner.guaranteedCardsPool : uncollectedPool
-        const effectiveCollectedIds = allCollected ? [] : collectedIds
+        const uncollectedPool = pool.filter(c => !collectedIds.includes(c.characterId))
+        const shouldAwardGuaranteed = newCount >= banner.guaranteedCardPity
+
+        if (shouldAwardGuaranteed && uncollectedPool.length > 0) {
+          const chosenGG = uncollectedPool[Math.floor(Math.random() * uncollectedPool.length)]
+          const nextCollectedIds = [...collectedIds, chosenGG.characterId]
+          const allCollected = nextCollectedIds.length >= pool.length
+
+          await supabase
+            .from('user_banner_pulls')
+            .upsert({
+              user_id: userId,
+              banner_id: banner.id,
+              pull_count: 0,
+              guaranteed_claimed: false,
+              collected_guaranteed_cards: allCollected ? [] : nextCollectedIds,
+              last_pull_at: new Date().toISOString(),
+            }, { onConflict: 'user_id,banner_id' })
+
+          console.log(`[rollFromBanner] Awarding guaranteed GG: ${chosenGG.characterName || chosenGG.name} after ${newCount} pulls!`)
+          const guaranteedResult = {
+            ...chosenGG,
+            packId: 'banner:' + banner.id,
+            packName: banner.name,
+            stats: chosenGG.stats || generateStats(chosenGG.rarity || 'legendary'),
+            score: chosenGG.score ?? chosenGG.animeScore ?? 0,
+            shikiId: chosenGG.shikiId ?? chosenGG.animeId ?? 0,
+          } as GachaResult
+          return guaranteedResult
+        }
 
         await supabase
           .from('user_banner_pulls')
@@ -394,23 +420,10 @@ export async function rollFromBanner(
             user_id: userId,
             banner_id: banner.id,
             pull_count: newCount,
-            guaranteed_claimed: allCollected ? false : (shouldAwardGuaranteed || alreadyClaimed),
-            collected_guaranteed_cards: shouldAwardGuaranteed
-              ? [...effectiveCollectedIds, effectivePool[Math.floor(Math.random() * effectivePool.length)].characterId]
-              : effectiveCollectedIds,
+            guaranteed_claimed: false,
+            collected_guaranteed_cards: collectedIds,
             last_pull_at: new Date().toISOString(),
           }, { onConflict: 'user_id,banner_id' })
-
-        if (shouldAwardGuaranteed) {
-          const chosenGG = effectivePool[Math.floor(Math.random() * effectivePool.length)]
-          console.log(`[rollFromBanner] Awarding guaranteed GG: ${chosenGG.characterName || chosenGG.name} after ${newCount} pulls!`)
-          const guaranteedResult = {
-            ...chosenGG,
-            packId: 'banner:' + banner.id,
-            packName: banner.name,
-          } as GachaResult
-          return guaranteedResult
-        }
       } catch (pityError) {
         console.error('[rollFromBanner] Multi-GG pity check failed:', pityError)
       }
@@ -453,10 +466,14 @@ export async function rollFromBanner(
 
           if (shouldAwardGuaranteed) {
             console.log(`[rollFromBanner] Awarding guaranteed card after ${newCount} pulls!`)
+            const payload = banner.guaranteedCardPayload
             const guaranteedResult = {
-              ...banner.guaranteedCardPayload,
+              ...payload,
               packId: 'banner:' + banner.id,
               packName: banner.name,
+              stats: payload.stats || generateStats(payload.rarity || 'legendary'),
+              score: payload.score ?? payload.animeScore ?? 0,
+              shikiId: payload.shikiId ?? payload.animeId ?? 0,
             } as GachaResult
             return guaranteedResult
           }
