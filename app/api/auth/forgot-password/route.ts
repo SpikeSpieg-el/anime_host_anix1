@@ -58,58 +58,131 @@ export async function POST(request: Request) {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>Восстановление пароля — Weeb-X</title>
+<style>
+@keyframes shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
+@keyframes pulse-glow{0%,100%{opacity:0.4}50%{opacity:0.8}}
+</style>
 </head>
-<body style="margin:0;padding:0;background:#0a0a0b;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Oxygen,sans-serif;">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#0a0a0b;min-height:100vh;">
+<body style="margin:0;padding:0;background:#08080a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Oxygen,sans-serif;-webkit-font-smoothing:antialiased;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#08080a;min-height:100vh;">
 <tr><td align="center" style="padding:40px 16px;">
-<table role="presentation" width="500" cellpadding="0" cellspacing="0" style="max-width:500px;width:100%;background:#141416;border-radius:20px;overflow:hidden;border:1px solid rgba(255,255,255,0.06);box-shadow:0 0 40px rgba(249,115,22,0.05);">
-<tr><td style="padding:36px 32px 28px;text-align:center;border-bottom:1px solid rgba(255,255,255,0.04);">
+
+<table role="presentation" width="540" cellpadding="0" cellspacing="0" style="max-width:540px;width:100%;background:#111114;border-radius:24px;overflow:hidden;border:1px solid rgba(255,255,255,0.06);box-shadow:0 0 60px rgba(249,115,22,0.08),0 20px 60px rgba(0,0,0,0.5);">
+
+<tr><td style="position:relative;padding:0;">
+<div style="height:6px;background:linear-gradient(90deg,#f97316,#fb923c,#f97316,#ea580c,#f97316);background-size:200% 100%;animation:shimmer 3s linear infinite;"></div>
+</td></tr>
+
+<tr><td style="padding:40px 32px 24px;text-align:center;border-bottom:1px solid rgba(255,255,255,0.04);">
 <table role="presentation" cellpadding="0" cellspacing="0" align="center"><tr>
-<td style="padding-right:12px;vertical-align:middle;">
-<svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-<rect width="40" height="40" rx="10" fill="#f97316"/>
-<path d="M12 12h4.5l3.5 10 3.5-10h4.5l-5.5 16h-5L12 12z" fill="#fff"/>
-<circle cx="30" cy="14" r="3" fill="#fff" opacity="0.9"/>
-</svg>
+<td style="padding-right:14px;vertical-align:middle;">
+<img src="https://weeb-x.com/apple-icon.png" width="48" height="48" alt="Weeb-X" style="display:block;border-radius:12px;box-shadow:0 4px 16px rgba(249,115,22,0.2);">
 </td>
 <td style="vertical-align:middle;text-align:left;">
-<h1 style="margin:0;color:#fff;font-size:22px;font-weight:800;letter-spacing:-0.5px;">Weeb-X</h1>
-<p style="margin:2px 0 0;color:#71717a;font-size:12px;font-weight:500;letter-spacing:0.5px;text-transform:uppercase;">Аниме платформа</p>
+<h1 style="margin:0;color:#fff;font-size:24px;font-weight:800;letter-spacing:-0.5px;">Weeb-X</h1>
+<p style="margin:2px 0 0;color:#71717a;font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;">Аниме платформа</p>
 </td>
 </tr></table>
 </td></tr>
-<tr><td style="padding:36px 32px 16px;">
-<h2 style="margin:0 0 8px;color:#fafafa;font-size:20px;font-weight:700;">Восстановление пароля</h2>
-<p style="color:#a1a1aa;font-size:15px;line-height:1.65;margin:0 0 28px;">
-Привет! Вы запросили сброс пароля для аккаунта <strong style="color:#e4e4e7;">${email}</strong>. Нажмите кнопку ниже, чтобы установить новый пароль.
+
+<tr><td style="padding:40px 32px 8px;text-align:center;">
+<div style="width:72px;height:72px;margin:0 auto 24px;border-radius:50%;background:linear-gradient(135deg,rgba(249,115,22,0.15),rgba(234,88,12,0.05));border:2px solid rgba(249,115,22,0.2);display:flex;align-items:center;justify-content:center;animation:pulse-glow 2s ease-in-out infinite;">
+<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#f97316" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l8 4v6c0 5-3.5 9-8 10-4.5-1-8-5-8-10V6l8-4z"/><path d="M9 12l2 2 4-4"/></svg>
+</div>
+<h2 style="margin:0 0 10px;color:#fafafa;font-size:22px;font-weight:800;letter-spacing:-0.3px;">Сброс пароля</h2>
+<p style="color:#a1a1aa;font-size:15px;line-height:1.7;margin:0 0 8px;">
+Кто-то запросил восстановление пароля для аккаунта
 </p>
-<table role="presentation" cellpadding="0" cellspacing="0" align="center" style="margin:8px 0 28px;">
-<tr><td align="center">
-<a href="${resetLink}" style="display:inline-block;padding:15px 40px;background:linear-gradient(135deg,#f97316,#ea580c);color:#fff;text-decoration:none;font-weight:700;font-size:16px;border-radius:14px;box-shadow:0 4px 20px rgba(249,115,22,0.3);letter-spacing:0.3px;">Сбросить пароль</a>
-</td></tr>
-</table>
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:8px 0 0;">
-<tr><td style="background:rgba(255,255,255,0.03);border-radius:12px;padding:16px 20px;border:1px solid rgba(255,255,255,0.04);">
-<p style="margin:0 0 6px;color:#71717a;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Ссылка для сброса</p>
-<p style="margin:0;color:#52525b;font-size:12px;line-height:1.5;word-break:break-all;">${resetLink}</p>
-</td></tr>
-</table>
-</td></tr>
-<tr><td style="padding:0 32px 20px;">
-<p style="color:#71717a;font-size:13px;line-height:1.6;margin:0;padding:16px 0 0;border-top:1px solid rgba(255,255,255,0.04);">
-Если вы не запрашивали сброс пароля — просто проигнорируйте это письмо. Ваш пароль останется без изменений.
+<p style="margin:0 0 32px;">
+<span style="display:inline-block;padding:6px 16px;background:rgba(249,115,22,0.08);border:1px solid rgba(249,115,22,0.15);border-radius:8px;color:#fb923c;font-size:14px;font-weight:600;letter-spacing:0.2px;">${email}</span>
 </p>
 </td></tr>
-<tr><td style="padding:20px 32px 28px;border-top:1px solid rgba(255,255,255,0.04);background:rgba(0,0,0,0.15);">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+
+<tr><td style="padding:0 32px 32px;text-align:center;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 28px;">
+<tr><td align="center" style="text-align:center;">
+<a href="${resetLink}" style="display:inline-block;padding:16px 48px;background:linear-gradient(135deg,#f97316,#ea580c);color:#fff;text-decoration:none;font-weight:700;font-size:16px;border-radius:14px;box-shadow:0 6px 24px rgba(249,115,22,0.35),0 2px 8px rgba(249,115,22,0.15);letter-spacing:0.3px;border:1px solid rgba(255,255,255,0.1);">🔑 Сбросить пароль</a>
+</td></tr>
+</table>
+
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" align="center" style="margin:0 0 24px;">
+<tr><td style="background:rgba(255,255,255,0.02);border-radius:14px;padding:18px 22px;border:1px solid rgba(255,255,255,0.05);">
+<table role="presentation" cellpadding="0" cellspacing="0" align="center" style="margin:0 auto;">
 <tr>
-<td style="text-align:center;">
-<p style="margin:0 0 8px;color:#52525b;font-size:12px;">Это автоматическое письмо, отвечать не нужно.</p>
-<p style="margin:0;color:#3f3f46;font-size:11px;">© 2026 Weeb-X —weeb-x.com</p>
+<td style="vertical-align:top;width:28px;padding-right:14px;">
+<div style="width:24px;height:24px;border-radius:50%;background:rgba(249,115,22,0.12);border:1px solid rgba(249,115,22,0.2);text-align:center;line-height:22px;font-size:11px;font-weight:700;color:#f97316;">1</div>
+</td>
+<td style="vertical-align:middle;text-align:left;">
+<p style="margin:0;color:#d4d4d8;font-size:14px;line-height:1.5;">Нажмите кнопку «Сбросить пароль» выше</p>
+</td>
+</tr>
+<tr><td colspan="2" style="height:12px;line-height:12px;">&nbsp;</td></tr>
+<tr>
+<td style="vertical-align:top;width:28px;padding-right:14px;">
+<div style="width:24px;height:24px;border-radius:50%;background:rgba(249,115,22,0.12);border:1px solid rgba(249,115,22,0.2);text-align:center;line-height:22px;font-size:11px;font-weight:700;color:#f97316;">2</div>
+</td>
+<td style="vertical-align:middle;text-align:left;">
+<p style="margin:0;color:#d4d4d8;font-size:14px;line-height:1.5;">Придумайте новый надёжный пароль</p>
+</td>
+</tr>
+<tr><td colspan="2" style="height:12px;line-height:12px;">&nbsp;</td></tr>
+<tr>
+<td style="vertical-align:top;width:28px;padding-right:14px;">
+<div style="width:24px;height:24px;border-radius:50%;background:rgba(249,115,22,0.12);border:1px solid rgba(249,115,22,0.2);text-align:center;line-height:22px;font-size:11px;font-weight:700;color:#f97316;">3</div>
+</td>
+<td style="vertical-align:middle;text-align:left;">
+<p style="margin:0;color:#d4d4d8;font-size:14px;line-height:1.5;">Готово! Войдите с новым паролем на Weeb-X</p>
 </td>
 </tr>
 </table>
 </td></tr>
+</table>
+
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" align="center" style="margin:0 0 24px;">
+<tr><td style="background:rgba(239,68,68,0.04);border-radius:12px;padding:14px 20px;border:1px solid rgba(239,68,68,0.1);">
+<table role="presentation" cellpadding="0" cellspacing="0" align="center" style="margin:0 auto;"><tr>
+<td style="vertical-align:top;padding-right:10px;">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:block;margin-top:1px;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+</td>
+<td style="text-align:left;">
+<p style="margin:0;color:#a1a1aa;font-size:13px;line-height:1.6;">Ссылка действительна ограниченное время. Если вы не запрашивали сброс пароля — просто проигнорируйте это письмо. Ваш пароль останется без изменений.</p>
+</td>
+</tr></table>
+</td></tr>
+</table>
+
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" align="center">
+<tr><td style="background:rgba(255,255,255,0.02);border-radius:10px;padding:14px 18px;border:1px solid rgba(255,255,255,0.04);text-align:center;">
+<p style="margin:0 0 4px;color:#52525b;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Не работает кнопка? Скопируйте ссылку:</p>
+<p style="margin:0;color:#3f3f46;font-size:11px;line-height:1.5;word-break:break-all;text-align:center;">${resetLink}</p>
+</td></tr>
+</table>
+</td></tr>
+
+<tr><td style="padding:24px 32px 32px;border-top:1px solid rgba(255,255,255,0.04);background:rgba(0,0,0,0.2);text-align:center;">
+<table role="presentation" cellpadding="0" cellspacing="0" align="center" style="margin:0 auto 14px;">
+<tr>
+<td style="padding:0 8px;">
+<a href="https://weeb-x.com" style="color:#52525b;font-size:12px;text-decoration:none;font-weight:500;">Главная</a>
+</td>
+<td style="color:#27272a;font-size:12px;">·</td>
+<td style="padding:0 8px;">
+<a href="https://weeb-x.com/catalog" style="color:#52525b;font-size:12px;text-decoration:none;font-weight:500;">Каталог</a>
+</td>
+<td style="color:#27272a;font-size:12px;">·</td>
+<td style="padding:0 8px;">
+<a href="https://weeb-x.com/gacha" style="color:#52525b;font-size:12px;text-decoration:none;font-weight:500;">Гача</a>
+</td>
+<td style="color:#27272a;font-size:12px;">·</td>
+<td style="padding:0 8px;">
+<a href="https://weeb-x.com/battle" style="color:#52525b;font-size:12px;text-decoration:none;font-weight:500;">Битвы</a>
+</td>
+</tr>
+</table>
+<p style="margin:0 0 6px;color:#3f3f46;font-size:11px;text-align:center;">Это автоматическое письмо — отвечать не нужно</p>
+<p style="margin:0;color:#27272a;font-size:11px;text-align:center;">© 2026 Weeb-X · weeb-x.com</p>
+</td></tr>
+
 </table>
 </td></tr>
 </table>

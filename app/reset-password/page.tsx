@@ -77,7 +77,12 @@ export default function ResetPasswordPage() {
       })
 
       if (error) {
-        setError(error.message || "Не удалось обновить пароль")
+        const errMap: Record<string, string> = {
+          same_password: "Новый пароль должен отличаться от старого",
+          weak_password: "Пароль слишком слабый. Используйте более длинный пароль",
+          session_not_found: "Сессия истекла. Запросите новую ссылку для сброса пароля",
+        }
+        setError(errMap[error.code || ""] || error.message || "Не удалось обновить пароль")
         return
       }
 
@@ -88,7 +93,7 @@ export default function ResetPasswordPage() {
         router.push("/")
       }, 3000)
     } catch (err: any) {
-      setError(err.message || "Произошла ошибка")
+      setError(err?.message || "Произошла ошибка. Попробуйте снова.")
     } finally {
       setLoading(false)
     }
