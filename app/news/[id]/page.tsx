@@ -19,8 +19,14 @@ interface Props {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params
   const news = await getAggregatedNewsById(id)
-  if (!news) return { title: "Новость не найдена — Weebx" }
+  if (!news) {
+    return {
+      title: "Новость не найдена — Weebx",
+      robots: { index: false, follow: false },
+    }
+  }
   const cleanDescription = news.excerpt.replace(/\[.*?\]/g, "").replace(/<[^>]+>/g, "").slice(0, 160)
+  const publishedTime = news.dateTimestamp > 0 ? new Date(news.dateTimestamp).toISOString() : undefined
   return {
     title: `${news.title} — Weebx`,
     description: cleanDescription,
@@ -34,13 +40,16 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       type: "article",
       siteName: "Weebx",
       locale: "ru_RU",
-      images: news.imageUrl ? [{ url: news.imageUrl }] : [],
+      authors: news.author ? [news.author] : undefined,
+      publishedTime,
+      section: "Новости аниме",
+      images: news.imageUrl ? [{ url: news.imageUrl, alt: news.title }] : [{ url: "https://weeb-x.com/og-image.png", width: 1200, height: 630, alt: "Weebx — новости аниме" }],
     },
     twitter: {
       card: "summary_large_image",
       title: news.title,
       description: cleanDescription,
-      images: news.imageUrl ? [news.imageUrl] : [],
+      images: news.imageUrl ? [news.imageUrl] : ["https://weeb-x.com/og-image.png"],
     },
   }
 }

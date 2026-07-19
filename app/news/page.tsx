@@ -44,6 +44,7 @@ export const metadata: Metadata = {
     url: "https://weeb-x.com/news",
     siteName: "Weebx",
     locale: "ru_RU",
+    images: [{ url: "https://weeb-x.com/og-image.png", width: 1200, height: 630, alt: "Weebx — новости аниме" }],
   },
   twitter: {
     card: "summary_large_image",

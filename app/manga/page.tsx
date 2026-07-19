@@ -52,6 +52,7 @@ export const metadata: Metadata = {
     url: "https://weeb-x.com/manga",
     siteName: "Weebx",
     locale: "ru_RU",
+    images: [{ url: "https://weeb-x.com/og-image.png", width: 1200, height: 630, alt: "Weebx — читать мангу онлайн" }],
   },
   twitter: {
     card: "summary_large_image",

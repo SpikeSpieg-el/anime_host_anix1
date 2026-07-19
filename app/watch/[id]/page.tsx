@@ -4,7 +4,7 @@ import { getAnimeById, getAnimeFranchise } from "@/lib/shikimori"
 import dynamic from "next/dynamic"
 import { WatchPageHeaderSkeleton, PlayerSkeleton, EpisodeSelectorSkeleton, TextSkeleton } from "@/components/shared/skeleton"
 import type { Metadata } from "next"
-import { VideoObjectStructuredData, BreadcrumbStructuredData } from "@/components/seo/structured-data"
+import { BreadcrumbStructuredData } from "@/components/seo/structured-data"
 
 const WatchPageLayoutWrapper = dynamic(() => import("@/components/watch/watch-page-layout-wrapper").then(mod => ({ default: mod.WatchPageLayoutWrapper })), {
   loading: () => (
@@ -107,24 +107,10 @@ export default async function WatchPage({
   const watchOrder = franchise;
 
   const animeTitle = anime.title || `Аниме #${id}`
-  const animeDescription = anime.description
-    ? `${anime.description.slice(0, 300)}${anime.description.length > 300 ? "..." : ""}`
-    : `Смотреть ${animeTitle} онлайн в хорошем качестве на Weebx.`
   const contentUrl = `https://weeb-x.com/watch/${id}`
-  const uploadDate = anime.airedOn || new Date().toISOString()
 
   return (
     <>
-      <VideoObjectStructuredData
-        name={episode && episode > 0 ? `${animeTitle} — Серия ${episode}` : animeTitle}
-        description={animeDescription}
-        thumbnailUrl={anime.poster}
-        uploadDate={uploadDate}
-        contentUrl={contentUrl}
-        genre={anime.genres}
-        rating={anime.rating ? Number(anime.rating) : undefined}
-        episodeNumber={episode && episode > 0 ? episode : undefined}
-      />
       <BreadcrumbStructuredData
         items={[
           { name: "Главная", url: "https://weeb-x.com" },

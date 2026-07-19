@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import Image from "next/image"
 import { Bell, Play, Check, ChevronRight, Clock, Sparkles, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -35,17 +35,20 @@ export function EpisodeUpdateBadge({ updates, onClearUpdate, onClearAll, classNa
   const [isOpen, setIsOpen] = useState(false)
   const [posters, setPosters] = useState<Record<string, string>>({})
   const { getPoster } = useCover()
+  const postersRef = useRef<Record<string, string>>({})
+  const getPosterRef = useRef(getPoster)
+  getPosterRef.current = getPoster
 
   useEffect(() => {
     let cancelled = false
 
     const loadPosters = async () => {
-      const missingUpdates = updates.filter((update) => !posters[update.animeId])
+      const missingUpdates = updates.filter((update) => !postersRef.current[update.animeId])
       if (missingUpdates.length === 0) return
 
       const loaded = await Promise.all(
         missingUpdates.map(async (update) => {
-          const poster = await getPoster(
+          const poster = await getPosterRef.current(
             update.animeId,
             `https://shikimori.one/animes/${update.animeId}`,
             update.animeTitle,
@@ -56,7 +59,9 @@ export function EpisodeUpdateBadge({ updates, onClearUpdate, onClearAll, classNa
       )
 
       if (!cancelled) {
-        setPosters((current) => ({ ...current, ...Object.fromEntries(loaded) }))
+        const newPosters = Object.fromEntries(loaded)
+        postersRef.current = { ...postersRef.current, ...newPosters }
+        setPosters((current) => ({ ...current, ...newPosters }))
       }
     }
 
@@ -64,7 +69,7 @@ export function EpisodeUpdateBadge({ updates, onClearUpdate, onClearAll, classNa
     return () => {
       cancelled = true
     }
-  }, [getPoster, updates, posters])
+  }, [updates])
 
   const combinedClassName = cn("ml-2", className)
 

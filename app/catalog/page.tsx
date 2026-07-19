@@ -69,6 +69,8 @@ export async function generateMetadata({
     description = `Аниме ${year} года. Смотрите лучшие аниме ${year} года онлайн в высоком качестве.`
   }
 
+  const hasCatalogParameters = Object.keys(params).length > 0
+
   return {
     title,
     description,
@@ -118,15 +120,16 @@ export async function generateMetadata({
       "weeb-x.com каталог",
     ],
     alternates: {
-      canonical: `https://weeb-x.com/catalog${Object.keys(params).length > 0 ? '?' + new URLSearchParams(params as Record<string, string>).toString() : ''}`,
+      canonical: "https://weeb-x.com/catalog",
     },
     openGraph: {
       title,
       description,
       type: "website",
-      url: `https://weeb-x.com/catalog${Object.keys(params).length > 0 ? '?' + new URLSearchParams(params as Record<string, string>).toString() : ''}`,
+      url: "https://weeb-x.com/catalog",
       siteName: "Weebx",
       locale: "ru_RU",
+      images: [{ url: "https://weeb-x.com/og-image.png", width: 1200, height: 630, alt: "Weebx — каталог аниме" }],
     },
     twitter: {
       card: "summary_large_image",
@@ -134,7 +137,7 @@ export async function generateMetadata({
       description,
     },
     robots: {
-      index: true,
+      index: !hasCatalogParameters,
       follow: true,
     },
   }
