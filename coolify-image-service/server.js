@@ -10,6 +10,35 @@ const app = express()
 const PORT = process.env.PORT || 3100
 const CORS_ORIGIN = process.env.CORS_ORIGIN || 'https://weeb-x.com'
 
+// --- Email (nodemailer) ---
+const nodemailer = require('nodemailer')
+
+const SMTP_HOST = process.env.SMTP_HOST || ''
+const SMTP_PORT = parseInt(process.env.SMTP_PORT || '465', 10)
+const SMTP_USER = process.env.SMTP_USER || ''
+const SMTP_PASS = process.env.SMTP_PASS || ''
+const SMTP_FROM = process.env.SMTP_FROM || 'Weeb-X <noreply@weeb-x.com>'
+const MAIL_API_TOKEN = process.env.MAIL_API_TOKEN || ''
+
+let mailTransporter = null
+
+function getMailTransporter() {
+  if (mailTransporter) return mailTransporter
+  if (!SMTP_HOST || !SMTP_USER || !SMTP_PASS) return null
+
+  mailTransporter = nodemailer.createTransport({
+    host: SMTP_HOST,
+    port: SMTP_PORT,
+    secure: SMTP_PORT === 465,
+    auth: {
+      user: SMTP_USER,
+      pass: SMTP_PASS,
+    },
+  })
+
+  return mailTransporter
+}
+
 // --- Concurrency limiter (prevents FD exhaustion and overload) ---
 const MAX_CONCURRENT_FETCHES = parseInt(process.env.MAX_CONCURRENT_FETCHES || '20', 10)
 let activeFetches = 0
@@ -262,11 +291,14 @@ app.use((req, res, next) => {
 // --- CORS middleware ---
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', CORS_ORIGIN)
-  res.header('Access-Control-Allow-Methods', 'GET, OPTIONS')
-  res.header('Access-Control-Allow-Headers', 'Content-Type')
+  res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization')
   if (req.method === 'OPTIONS') return res.sendStatus(200)
   next()
 })
+
+// --- JSON body parser (for email endpoint) ---
+app.use(express.json({ limit: '1mb' }))
 
 // --- Health check ---
 app.get('/health', (req, res) => {
@@ -431,12 +463,51 @@ app.get('/proxy', async (req, res) => {
   }
 })
 
+// --- Send email endpoint (password reset, notifications) ---
+app.post('/send-email', async (req, res) => {
+  try {
+    // Auth check
+    const authHeader = req.headers.authorization || ''
+    const token = authHeader.replace('Bearer ', '')
+    if (!MAIL_API_TOKEN || token !== MAIL_API_TOKEN) {
+      return res.status(401).json({ error: 'Unauthorized' })
+    }
+
+    const { to, subject, html, text } = req.body || {}
+
+    if (!to || !subject || (!html && !text)) {
+      return res.status(400).json({ error: 'Missing required fields: to, subject, html/text' })
+    }
+
+    const transporter = getMailTransporter()
+    if (!transporter) {
+      console.error('[mail] SMTP not configured. Set SMTP_HOST, SMTP_USER, SMTP_PASS')
+      return res.status(503).json({ error: 'Email service not configured' })
+    }
+
+    const info = await transporter.sendMail({
+      from: SMTP_FROM,
+      to,
+      subject,
+      html: html || undefined,
+      text: text || undefined,
+    })
+
+    console.log(`[mail] Sent to ${to}: ${info.messageId}`)
+    res.json({ success: true, messageId: info.messageId })
+  } catch (err) {
+    console.error('[mail] Send error:', err.message)
+    res.status(500).json({ error: 'Failed to send email: ' + err.message })
+  }
+})
+
 // --- Start server ---
 const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`[image-service] Running on port ${PORT}`)
   console.log(`[image-service] CORS origin: ${CORS_ORIGIN}`)
   console.log(`[image-service] Disk cache: ${DISK_CACHE_DIR}`)
   console.log(`[image-service] Max concurrent fetches: ${MAX_CONCURRENT_FETCHES}`)
+  console.log(`[image-service] Email service: ${SMTP_HOST ? 'configured (' + SMTP_HOST + ':' + SMTP_PORT + ')' : 'NOT configured'}`)
 
   // Test DNS resolution on startup
   dns.resolve4('shikimori.one').then(() => {

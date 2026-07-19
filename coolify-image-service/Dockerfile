@@ -17,6 +17,12 @@ EXPOSE 3100
 ENV PORT=3100
 ENV CORS_ORIGIN=https://weeb-x.com
 ENV MAX_CONCURRENT_FETCHES=20
+ENV SMTP_HOST=
+ENV SMTP_PORT=465
+ENV SMTP_USER=
+ENV SMTP_PASS=
+ENV SMTP_FROM=Weeb-X <noreply@weeb-x.com>
+ENV MAIL_API_TOKEN=
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD curl -f http://localhost:3100/health || exit 1

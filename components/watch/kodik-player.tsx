@@ -84,6 +84,7 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCo
   const [isMobile, setIsMobile] = useState(false)
   const [menuPos, setMenuPos] = useState<{ top: number; left: number; width: number } | null>(null)
   const [mounted, setMounted] = useState(false)
+  const [isFullscreen, setIsFullscreen] = useState(false)
 
   // Таймаут для загрузки плеера
   const [loadTimeout, setLoadTimeout] = useState<ReturnType<typeof setTimeout> | null>(null)
@@ -120,17 +121,53 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCo
   // Отслеживание мобильного режима и монтирования (для портала)
   useEffect(() => {
     setMounted(true)
-    const check = () => setIsMobile(window.innerWidth < 640)
+    const check = () => {
+      const hasTouch = navigator.maxTouchPoints > 0
+      const isNarrow = window.innerWidth < 640
+      const isLandscapeMobile = hasTouch && window.innerHeight < 500
+      setIsMobile(isNarrow || isLandscapeMobile)
+    }
     check()
     window.addEventListener("resize", check)
-    return () => window.removeEventListener("resize", check)
+    window.addEventListener("orientationchange", check)
+    return () => {
+      window.removeEventListener("resize", check)
+      window.removeEventListener("orientationchange", check)
+    }
+  }, [])
+
+  // Отслеживание fullscreen режима — портал меню рендерим внутрь контейнера
+  useEffect(() => {
+    const handleChange = () => {
+      const fs = !!(document.fullscreenElement ||
+        (document as any).webkitFullscreenElement ||
+        (document as any).mozFullScreenElement ||
+        (document as any).msFullscreenElement)
+      setIsFullscreen(fs)
+    }
+    document.addEventListener('fullscreenchange', handleChange)
+    document.addEventListener('webkitfullscreenchange', handleChange)
+    document.addEventListener('mozfullscreenchange', handleChange)
+    document.addEventListener('MSFullscreenChange', handleChange)
+    return () => {
+      document.removeEventListener('fullscreenchange', handleChange)
+      document.removeEventListener('webkitfullscreenchange', handleChange)
+      document.removeEventListener('mozfullscreenchange', handleChange)
+      document.removeEventListener('MSFullscreenChange', handleChange)
+    }
   }, [])
 
   // Открытие меню с измерением позиции кнопки (для десктоп-позиционирования)
   const openMenu = useCallback(() => {
     if (triggerButtonRef.current) {
       const rect = triggerButtonRef.current.getBoundingClientRect()
-      setMenuPos({ top: rect.bottom + 8, left: rect.left, width: rect.width })
+      const vw = window.innerWidth
+      const dropdownWidth = Math.min(288, vw - 16)
+      let left = rect.left
+      if (left + dropdownWidth > vw - 8) {
+        left = Math.max(8, vw - dropdownWidth - 8)
+      }
+      setMenuPos({ top: rect.bottom + 8, left, width: rect.width })
     }
     setShowTranslationsMenu(true)
   }, [])
@@ -156,15 +193,15 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCo
     }
   }, [showTranslationsMenu])
 
-  // Блокировка прокрутки body когда открыт bottom-sheet на мобильных
+  // Блокировка прокрутки body когда открыт bottom-sheet на мобильных/fullscreen
   useEffect(() => {
-    if (!showTranslationsMenu || !isMobile) return
+    if (!showTranslationsMenu || (!isMobile && !isFullscreen)) return
     const original = document.body.style.overflow
     document.body.style.overflow = "hidden"
     return () => {
       document.body.style.overflow = original
     }
-  }, [showTranslationsMenu, isMobile])
+  }, [showTranslationsMenu, isMobile, isFullscreen])
 
   const handleSelectTranslation = (tr: KodikTranslation) => {
     setSelectedTranslation(tr)
@@ -177,6 +214,14 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCo
   // Portal-меню озвучек: bottom-sheet на мобильных, dropdown на десктопе
   const renderTranslationsPortal = () => {
     if (!showTranslationsMenu || !mounted || translations.length === 0) return null
+
+    // В fullscreen рендерим портал внутрь контейнера плеера,
+    // т.к. document.body не виден в fullscreen режиме
+    const portalTarget = (isFullscreen && playerContainerRef.current)
+      ? playerContainerRef.current
+      : document.body
+    // В fullscreen всегда используем bottom-sheet для лучшего UX на любом устройстве
+    const useBottomSheet = isMobile || isFullscreen
 
     const listContent = (
       <>
@@ -218,8 +263,8 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCo
       </>
     )
 
-    if (isMobile) {
-      // Bottom-sheet на мобильных: лист снизу экрана, не обрезается контейнером
+    if (useBottomSheet) {
+      // Bottom-sheet на мобильных/fullscreen: лист снизу экрана, не обрезается контейнером
       return createPortal(
         <div className="fixed inset-0 z-[9999] flex items-end">
           {/* Затемнение */}
@@ -230,7 +275,7 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCo
           {/* Лист */}
           <div
             ref={translationsMenuRef}
-            className="relative w-full bg-zinc-900/95 backdrop-blur-md border-t border-white/10 rounded-t-2xl shadow-2xl max-h-[80vh] flex flex-col animate-in slide-in-from-bottom duration-300"
+            className="relative w-full bg-zinc-900/95 backdrop-blur-md border-t border-white/10 rounded-t-2xl shadow-2xl max-h-[min(80vh,calc(100vh-2rem))] flex flex-col animate-in slide-in-from-bottom duration-300"
             style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
           >
             {/* Хэндл для свайпа */}
@@ -242,25 +287,30 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCo
             </div>
           </div>
         </div>,
-        document.body
+        portalTarget
       )
     }
 
     // Десктоп: позиционированный dropdown через портал
+    const vw = window.innerWidth
+    const vh = window.innerHeight
+    const dropdownWidth = Math.min(288, vw - 16)
+    const dropdownMaxHeight = Math.min(translations.length * 60 + 50, vh * 0.6)
+
     const style: React.CSSProperties = menuPos
       ? {
           position: "fixed",
           top: `${menuPos.top}px`,
-          left: `${menuPos.left}px`,
+          left: `${Math.min(menuPos.left, vw - dropdownWidth - 8)}px`,
           zIndex: 9999,
+          maxWidth: `${dropdownWidth}px`,
         }
-      : { position: "fixed", top: "50%", left: "50%", zIndex: 9999 }
+      : { position: "fixed", top: "50%", left: "50%", zIndex: 9999, maxWidth: `${dropdownWidth}px` }
 
     // Если dropdown не помещается снизу — показываем сверху кнопки
     if (menuPos) {
-      const dropdownHeight = Math.min(translations.length * 60 + 50, 400)
-      if (menuPos.top + dropdownHeight > window.innerHeight) {
-        style.top = `${menuPos.top - 8 - dropdownHeight - 40}px`
+      if (menuPos.top + dropdownMaxHeight > vh) {
+        style.top = `${Math.max(8, menuPos.top - 8 - dropdownMaxHeight - 40)}px`
       }
     }
 
@@ -268,11 +318,11 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCo
       <div
         ref={translationsMenuRef}
         style={style}
-        className="w-72 max-h-80 overflow-y-auto bg-zinc-900/95 backdrop-blur-md border border-white/10 rounded-xl shadow-2xl"
+        className="w-[min(18rem,calc(100vw-1rem))] max-h-[60vh] overflow-y-auto bg-zinc-900/95 backdrop-blur-md border border-white/10 rounded-xl shadow-2xl"
       >
         {listContent}
       </div>,
-      document.body
+      portalTarget
     )
   }
 
@@ -573,7 +623,7 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCo
     <div
       ref={playerContainerRef}
       className="relative aspect-video w-full overflow-hidden rounded-xl sm:rounded-2xl bg-zinc-950 border border-white/5 shadow-2xl"
-      style={{ paddingTop: "env(safe-area-inset-top)" }}
+      style={{ paddingTop: "env(safe-area-inset-top)", ...(isFullscreen ? { overflow: 'visible' } : {}) }}
     >
       {!isStarted ? (
         <div className="absolute inset-0 flex flex-col items-center justify-center">
