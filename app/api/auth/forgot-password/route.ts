@@ -13,8 +13,8 @@ export async function POST(request: Request) {
     const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
     if (!supabaseUrl || !supabaseServiceKey) {
-      console.error("[forgot-password] Missing Supabase env vars")
-      return NextResponse.json({ error: "Server misconfigured" }, { status: 500 })
+      console.error("[forgot-password] Missing Supabase env vars:", { hasUrl: !!supabaseUrl, hasKey: !!supabaseServiceKey })
+      return NextResponse.json({ error: `Server misconfigured: supabaseUrl=${!!supabaseUrl}, serviceKey=${!!supabaseServiceKey}` }, { status: 500 })
     }
 
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
@@ -48,8 +48,8 @@ export async function POST(request: Request) {
     const mailToken = process.env.MAIL_API_TOKEN
 
     if (!mailToken) {
-      console.error("[forgot-password] MAIL_API_TOKEN not set")
-      return NextResponse.json({ error: "Email service not configured" }, { status: 500 })
+      console.error("[forgot-password] MAIL_API_TOKEN not set. IMAGE_SERVICE_URL:", imageServiceUrl)
+      return NextResponse.json({ error: `Email service not configured: IMAGE_SERVICE_URL=${imageServiceUrl}, MAIL_API_TOKEN=${!!mailToken}` }, { status: 500 })
     }
 
     const html = `
@@ -111,14 +111,14 @@ export async function POST(request: Request) {
 
     if (!mailResponse.ok) {
       const mailErr = await mailResponse.text()
-      console.error("[forgot-password] Mail service error:", mailErr)
-      return NextResponse.json({ error: "Не удалось отправить письмо. Попробуйте позже." }, { status: 500 })
+      console.error("[forgot-password] Mail service error:", mailResponse.status, mailErr)
+      return NextResponse.json({ error: `Mail service error (${mailResponse.status}): ${mailErr}` }, { status: 500 })
     }
 
     console.log(`[forgot-password] Reset email sent to ${email}`)
     return NextResponse.json({ success: true })
   } catch (err: any) {
-    console.error("[forgot-password] Error:", err)
-    return NextResponse.json({ error: "Внутренняя ошибка сервера" }, { status: 500 })
+    console.error("[forgot-password] Error:", err?.message || err)
+    return NextResponse.json({ error: `Internal error: ${err?.message || String(err)}` }, { status: 500 })
   }
 }
