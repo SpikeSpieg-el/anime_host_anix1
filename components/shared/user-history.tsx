@@ -105,7 +105,7 @@ return () => {
 // При изменении истории можно форсировать проверку (опционально)
 useEffect(() => {
   if (mounted && fullHistory.length > 0) {
-    checkAnimeUpdates(fullHistory)
+    checkAnimeUpdates(true)
   }
 }, [mounted, fullHistory.length, checkAnimeUpdates])
 if (!mounted) {

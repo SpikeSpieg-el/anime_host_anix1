@@ -6,6 +6,8 @@ import { Suspense } from "react"
 import { GlobalLoading } from "@/components/layout/global-loading"
 import { BookmarksProvider } from "@/components/providers/bookmarks-provider"
 import { HistoryProvider } from "@/components/providers/history-provider"
+import { EpisodeUpdatesProvider } from "@/components/providers/episode-updates-provider"
+import { CoverProvider } from "@/components/providers/cover-provider"
 import { ErrorBoundary } from "@/components/shared/error-boundary"
 import "./globals.css"
 import { WelcomeModal } from "@/components/auth/welcome-modal"
@@ -118,11 +120,15 @@ export default function RootLayout({
           <AuthProvider>
             <UserDataLoadingBar />
             <LogoutLoadingScreen />
-            <HistoryProvider>
-              <BookmarksProvider>
-                <ErrorBoundary name="Main App">{children}</ErrorBoundary>
-              </BookmarksProvider>
-            </HistoryProvider>
+            <CoverProvider>
+              <HistoryProvider>
+                <BookmarksProvider>
+                  <EpisodeUpdatesProvider>
+                    <ErrorBoundary name="Main App">{children}</ErrorBoundary>
+                  </EpisodeUpdatesProvider>
+                </BookmarksProvider>
+              </HistoryProvider>
+            </CoverProvider>
           </AuthProvider>
           <Analytics />
           <Toaster />

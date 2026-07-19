@@ -243,20 +243,44 @@ export default function GachaPage() {
   }, [fetchBannerPulls])
 
   const handleBannerSelect = (banner: Banner) => {
+    const isDynamic = banner.bannerType === 'dynamic'
+    const dynContent = banner.dynamicContent
+
     const packLike: AnimePack = {
       id: 'banner:' + banner.id,
-      name: banner.name,
+      name: banner.name || (isDynamic && dynContent ? dynContent.featuredAnimeRussianName : 'Баннер'),
       description: banner.description || '',
-      animeIds: banner.featuredAnimeIds || [],
+      animeIds: isDynamic && dynContent ? dynContent.ongoingAnimeIds : (banner.featuredAnimeIds || []),
       price: banner.price ?? 100,
-      color: banner.color || 'from-purple-600 to-pink-700',
+      color: banner.color || (isDynamic ? 'from-cyan-600 to-blue-700' : 'from-purple-600 to-pink-700'),
       bgImage: banner.imageUrl || undefined,
       guaranteedRarity: banner.boostedRarity || undefined,
     }
     setSelectedPack(packLike as any)
-    setSelectedBannerCards(banner.cards || [])
-    setSelectedBannerGuaranteedCard(banner.guaranteedCardPayload || null)
-    setSelectedBannerGuaranteedPity(banner.guaranteedCardPity || 0)
+
+    if (isDynamic && dynContent) {
+      // Dynamic banner: no manual cards, rolls come from ongoing anime pool
+      setSelectedBannerCards([])
+      // 3 GG characters as guaranteed pool
+      const ggPool = dynContent.guaranteedCharacters.map((c: any) => ({
+        ...c,
+        rarity: 'legendary',
+        name: c.characterName,
+        characterName: c.characterName,
+        animeName: c.animeName,
+        anime: c.animeName,
+        isMainCharacter: true,
+      }))
+      setSelectedBannerGuaranteedCard(null)
+      setSelectedBannerGuaranteedPity(banner.guaranteedCardPity || 50)
+      // Store the pool on the pack for rollFromBanner to use
+      ;(packLike as any).guaranteedCardsPool = ggPool
+      ;(packLike as any).userId = session?.user?.id
+    } else {
+      setSelectedBannerCards(banner.cards || [])
+      setSelectedBannerGuaranteedCard(banner.guaranteedCardPayload || null)
+      setSelectedBannerGuaranteedPity(banner.guaranteedCardPity || 0)
+    }
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 

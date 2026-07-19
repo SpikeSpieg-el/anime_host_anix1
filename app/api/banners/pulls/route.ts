@@ -39,7 +39,7 @@ export async function GET(request: Request) {
 
     const { data, error } = await supabase
       .from('user_banner_pulls')
-      .select('banner_id, pull_count, guaranteed_claimed')
+      .select('banner_id, pull_count, guaranteed_claimed, collected_guaranteed_cards')
       .eq('user_id', userId)
 
     if (error) {
@@ -47,11 +47,12 @@ export async function GET(request: Request) {
       return NextResponse.json({ pulls: {} })
     }
 
-    const pulls: Record<string, { pullCount: number; guaranteedClaimed: boolean }> = {}
+    const pulls: Record<string, { pullCount: number; guaranteedClaimed: boolean; collectedGuaranteedCards: number[] }> = {}
     for (const row of data || []) {
       pulls[row.banner_id] = {
         pullCount: row.pull_count || 0,
         guaranteedClaimed: row.guaranteed_claimed || false,
+        collectedGuaranteedCards: Array.isArray(row.collected_guaranteed_cards) ? row.collected_guaranteed_cards : [],
       }
     }
 

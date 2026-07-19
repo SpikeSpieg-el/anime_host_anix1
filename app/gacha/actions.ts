@@ -347,13 +347,76 @@ export async function rollFromBanner(
     cards: { cardPayload: any; weight: number; isFeatured: boolean }[];
     guaranteedCardPayload?: any | null;
     guaranteedCardPity?: number;
+    guaranteedCardsPool?: any[] | null;
   },
   usedCharacterIds: number[] = [],
   ignoredUrls: string[] = [],
   badLuckStreak: number = 0
 ): Promise<GachaResult | null> {
   try {
-    // Check if guaranteed card should be awarded (pity-based)
+    const userId = (banner as any).userId
+
+    // Multi-GG pool mode (dynamic banner): 3 guaranteed characters, pick random uncollected
+    if (banner.guaranteedCardsPool && banner.guaranteedCardsPool.length > 0 && banner.guaranteedCardPity && banner.guaranteedCardPity > 0 && userId) {
+      try {
+        const { createClient } = await import('@supabase/supabase-js')
+        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+        const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
+        const supabase = createClient(supabaseUrl, supabaseServiceKey, {
+          auth: { autoRefreshToken: false, persistSession: false }
+        })
+
+        const { data: pullData } = await supabase
+          .from('user_banner_pulls')
+          .select('pull_count, guaranteed_claimed, collected_guaranteed_cards')
+          .eq('user_id', userId)
+          .eq('banner_id', banner.id)
+          .single()
+
+        const currentCount = pullData?.pull_count || 0
+        const alreadyClaimed = pullData?.guaranteed_claimed || false
+        const collectedIds: number[] = Array.isArray(pullData?.collected_guaranteed_cards) ? pullData.collected_guaranteed_cards : []
+
+        const newCount = currentCount + 1
+        const shouldAwardGuaranteed = !alreadyClaimed && newCount >= banner.guaranteedCardPity
+
+        // Filter out already collected GGs
+        const uncollectedPool = banner.guaranteedCardsPool.filter(c => !collectedIds.includes(c.characterId))
+        const allCollected = uncollectedPool.length === 0
+
+        // If all 3 GGs collected, reset collection cycle
+        const effectivePool = allCollected ? banner.guaranteedCardsPool : uncollectedPool
+        const effectiveCollectedIds = allCollected ? [] : collectedIds
+
+        await supabase
+          .from('user_banner_pulls')
+          .upsert({
+            user_id: userId,
+            banner_id: banner.id,
+            pull_count: newCount,
+            guaranteed_claimed: allCollected ? false : (shouldAwardGuaranteed || alreadyClaimed),
+            collected_guaranteed_cards: shouldAwardGuaranteed
+              ? [...effectiveCollectedIds, effectivePool[Math.floor(Math.random() * effectivePool.length)].characterId]
+              : effectiveCollectedIds,
+            last_pull_at: new Date().toISOString(),
+          }, { onConflict: 'user_id,banner_id' })
+
+        if (shouldAwardGuaranteed) {
+          const chosenGG = effectivePool[Math.floor(Math.random() * effectivePool.length)]
+          console.log(`[rollFromBanner] Awarding guaranteed GG: ${chosenGG.characterName || chosenGG.name} after ${newCount} pulls!`)
+          const guaranteedResult = {
+            ...chosenGG,
+            packId: 'banner:' + banner.id,
+            packName: banner.name,
+          } as GachaResult
+          return guaranteedResult
+        }
+      } catch (pityError) {
+        console.error('[rollFromBanner] Multi-GG pity check failed:', pityError)
+      }
+    }
+
+    // Single guaranteed card mode (standard banner)
     if (banner.guaranteedCardPayload && banner.guaranteedCardPity && banner.guaranteedCardPity > 0) {
       try {
         const { createClient } = await import('@supabase/supabase-js')
@@ -363,10 +426,6 @@ export async function rollFromBanner(
           auth: { autoRefreshToken: false, persistSession: false }
         })
 
-        // Get current pull count for this user+banner
-        // We need the user_id - we'll get it from the auth context
-        // For now, we use a simpler approach: check via the caller
-        // The caller will pass the userId through the banner object
         const userId = (banner as any).userId
         if (userId) {
           const { data: pullData } = await supabase
@@ -379,11 +438,9 @@ export async function rollFromBanner(
           const currentCount = pullData?.pull_count || 0
           const alreadyClaimed = pullData?.guaranteed_claimed || false
 
-          // Increment pull count
           const newCount = currentCount + 1
           const shouldAwardGuaranteed = !alreadyClaimed && newCount >= banner.guaranteedCardPity
 
-          // Update pull count
           await supabase
             .from('user_banner_pulls')
             .upsert({

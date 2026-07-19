@@ -19,9 +19,9 @@ export function BookmarksSection() {
   // Check for episode updates when bookmarks change
   useEffect(() => {
     if (mounted && items.length > 0) {
-      checkAnimeUpdates(items)
+      checkAnimeUpdates(true)
     }
-  }, [mounted, items, checkAnimeUpdates])
+  }, [mounted, items.length, checkAnimeUpdates])
 
   if (isLoading) {
     return (

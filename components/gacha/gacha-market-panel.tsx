@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useState, useRef, useMemo } from "react"
+import { useCallback, useEffect, useLayoutEffect, useState, useRef, useMemo } from "react"
 import { createPortal } from "react-dom"
 import Image from "next/image"
 import { Loader2, ShoppingCart, XCircle, Store, RefreshCcw, ZoomIn, ExternalLink, X, Trash, Crown, Star, Filter, ChevronDown, Search, Swords, Lock } from "lucide-react"
@@ -93,12 +93,13 @@ const InteractiveCard = ({ card, forceFlipped = false }: { card: MarketListingAp
   const [isTouching, setIsTouching] = useState(false)
   const [isImageLoading, setIsImageLoading] = useState(true)
   const animationFrameRef = useRef<number | undefined>(undefined)
+  const stableObjectPosition = useMemo(() => card.artPosition || { x: 50, y: 50 }, [card.artPosition])
 
   useEffect(() => {
     setIsFlipped(forceFlipped)
   }, [forceFlipped])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     setIsImageLoading(true)
   }, [card.imageUrl, card.uniqueId])
 
@@ -225,7 +226,7 @@ const InteractiveCard = ({ card, forceFlipped = false }: { card: MarketListingAp
           className="absolute inset-0 w-full h-full scale-[1.02]"
           style={{ willChange: 'transform', transform: 'translateZ(0)' }}
           objectFit="cover"
-          objectPosition={card.artPosition || { x: 50, y: 50 }}
+          objectPosition={stableObjectPosition}
           onLoad={() => setIsImageLoading(false)}
           onError={(e) => {
             handleListingImageError(e, card)

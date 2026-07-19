@@ -30,6 +30,8 @@ export interface Banner {
   cards: BannerCardItem[]
   guaranteedCardPayload: any | null
   guaranteedCardPity: number
+  bannerType?: string
+  dynamicContent?: any | null
 }
 
 interface BannerCardProps {
@@ -65,9 +67,20 @@ export const BannerCard = ({ banner, onSelect, userCoins, onInfoOpenChange, rema
   }
   const price = banner.price ?? 100
   const canAfford = userCoins >= price
-  const featuredCards = (banner.cards || []).filter(c => c.isFeatured).slice(0, 3)
-  const colorGradient = banner.color || "from-purple-600 to-pink-700"
-  const promoArt = banner.promoImageUrl
+  const isDynamic = banner.bannerType === 'dynamic'
+  const dynContent = banner.dynamicContent
+  const featuredCards: BannerCardItem[] = isDynamic && dynContent
+    ? dynContent.guaranteedCharacters.slice(0, 3).map((c: any) => ({
+        id: `dyn-${c.characterId}`,
+        cardPayload: { ...c, rarity: 'legendary', name: c.characterName, characterName: c.characterName, animeName: c.animeName, anime: c.animeName },
+        weight: 1,
+        isFeatured: true,
+      }))
+    : (banner.cards || []).filter(c => c.isFeatured).slice(0, 3)
+  const colorGradient = banner.color || (isDynamic ? "from-cyan-600 to-blue-700" : "from-purple-600 to-pink-700")
+  const promoArt = banner.promoImageUrl || (isDynamic && dynContent ? dynContent.featuredAnimePosterUrl : null)
+  const dynamicName = isDynamic && dynContent ? (banner.name || dynContent.featuredAnimeRussianName) : null
+  const dynamicEndDate = isDynamic && dynContent ? dynContent.rotationEnd : null
 
   return (
     <>
@@ -154,9 +167,14 @@ export const BannerCard = ({ banner, onSelect, userCoins, onInfoOpenChange, rema
         )}
 
         {/* Banner name + description (below promo art, on background) */}
-        <h3 className="text-xl sm:text-2xl font-black text-white leading-tight drop-shadow-lg mb-1">{banner.name}</h3>
-        {banner.description && (
+        <h3 className="text-xl sm:text-2xl font-black text-white leading-tight drop-shadow-lg mb-1">{dynamicName || banner.name}</h3>
+        {banner.description && !isDynamic && (
           <p className="text-sm text-white/70 line-clamp-2 mb-3">{banner.description}</p>
+        )}
+        {isDynamic && dynContent && (
+          <p className="text-sm text-cyan-200/80 line-clamp-2 mb-3">
+            {banner.description || `Онгоинг: ${dynContent.featuredAnimeRussianName} · 3 ГГ с гарантом · Смена каждые 3 дня`}
+          </p>
         )}
 
         {/* Featured cards preview */}
@@ -165,24 +183,29 @@ export const BannerCard = ({ banner, onSelect, userCoins, onInfoOpenChange, rema
               const payload = fc.cardPayload || {}
               const rarity = (payload.rarity as Rarity) || "common"
               const imgUrl = payload.imageUrl || payload.originalUrl || ""
+              const isDynGG = isDynamic && dynContent
               return (
-                <div
-                  key={fc.id}
-                  className={`relative w-16 h-24 sm:w-20 sm:h-28 rounded-lg overflow-hidden border-2 ${rarityConfig[rarity] ? `border-${rarityConfig[rarity].color.split(' ')[0].replace('from-', '')}/50` : 'border-white/20'} shadow-lg`}
-                >
-                  {imgUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={getProxiedSrc(imgUrl)}
-                      alt={payload.characterName || payload.name || 'card'}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-full bg-slate-800 flex items-center justify-center">
-                      <Star className="w-5 h-5 text-slate-600" />
-                    </div>
+                <div key={fc.id} className="flex flex-col items-center gap-1">
+                  <div
+                    className={`relative w-16 h-24 sm:w-20 sm:h-28 rounded-lg overflow-hidden border-2 ${isDynGG ? 'border-amber-400/70 shadow-lg shadow-amber-500/20' : rarityConfig[rarity] ? `border-${rarityConfig[rarity].color.split(' ')[0].replace('from-', '')}/50` : 'border-white/20'} shadow-lg`}
+                  >
+                    {imgUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={getProxiedSrc(imgUrl)}
+                        alt={payload.characterName || payload.name || 'card'}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full bg-slate-800 flex items-center justify-center">
+                        <Star className="w-5 h-5 text-slate-600" />
+                      </div>
+                    )}
+                    <div className={`absolute bottom-0 left-0 right-0 h-1.5 bg-gradient-to-r ${isDynGG ? 'from-amber-400 to-yellow-500' : rarityConfig[rarity]?.color || 'from-slate-500 to-slate-700'}`} />
+                  </div>
+                  {isDynGG && (
+                    <span className="text-[9px] font-black text-amber-300 uppercase tracking-wide">Гарант</span>
                   )}
-                  <div className={`absolute bottom-0 left-0 right-0 h-1.5 bg-gradient-to-r ${rarityConfig[rarity]?.color || 'from-slate-500 to-slate-700'}`} />
                 </div>
               )
             })}
@@ -214,7 +237,7 @@ export const BannerCard = ({ banner, onSelect, userCoins, onInfoOpenChange, rema
           {/* Countdown */}
           <div className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-900/70 backdrop-blur-md border border-white/10">
             <Clock className="w-3.5 h-3.5 text-pink-300" />
-            <span className="text-xs font-bold text-pink-200">{formatCountdown(banner.endDate)}</span>
+            <span className="text-xs font-bold text-pink-200">{isDynamic && dynamicEndDate ? formatCountdown(dynamicEndDate) : formatCountdown(banner.endDate)}</span>
           </div>
 
           {/* Boosted rarity */}
@@ -241,6 +264,22 @@ export const BannerCard = ({ banner, onSelect, userCoins, onInfoOpenChange, rema
             </div>
           )}
         </div>
+
+        {/* Dynamic banner: 3 GG guaranteed — new line */}
+        {isDynamic && dynContent && dynContent.guaranteedCharacters.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2 mt-2">
+            <div className="inline-flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-amber-500/20 backdrop-blur-md border border-amber-500/30">
+              <Flame className="w-3.5 h-3.5 text-amber-300" />
+              <span className="text-xs font-bold text-amber-200 tracking-wide uppercase">
+                {pityClaimed
+                  ? 'Гарант получен'
+                  : remainingPity !== undefined
+                    ? `Гарант: 1 из 3 ГГ через ${remainingPity} круток`
+                    : `Гарант: 1 из 3 ГГ через ${banner.guaranteedCardPity || 50} круток`}
+              </span>
+            </div>
+          </div>
+        )}
 
         {!canAfford && (
           <div className="mt-3 text-xs bg-red-500/20 text-red-300 px-3 py-1.5 rounded-lg border border-red-500/30 font-bold inline-block">

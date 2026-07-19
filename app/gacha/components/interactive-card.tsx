@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback, MouseEvent } from "react"
+import React, { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo, MouseEvent } from "react"
 import { Loader2, Crown, RefreshCcw, Star, Swords } from "lucide-react"
 import { CanvasImage } from "@/components/gacha/canvas-image"
 import { frameNames, coatingNames, FrameOverlay, CoatingOverlay } from "@/components/gacha/card-modifiers"
@@ -43,6 +43,7 @@ export const InteractiveCard = ({ card, forceFlipped = false }: InteractiveCardP
   const hintTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const hideHintTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const [isRotating, setIsRotating] = useState(false)
+  const stableObjectPosition = useMemo(() => card.artPosition || { x: 50, y: 50 }, [card.artPosition])
   
   // Track loading state for each 3D layer
   const [layersLoaded, setLayersLoaded] = useState({ bg: false, char: false, vfx: false })
@@ -52,7 +53,7 @@ export const InteractiveCard = ({ card, forceFlipped = false }: InteractiveCardP
     setIsFlipped(forceFlipped)
   }, [forceFlipped])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     setIsImageLoading(true)
     setImageStartedLoading(false)
     const timer = setTimeout(() => {
@@ -358,7 +359,7 @@ export const InteractiveCard = ({ card, forceFlipped = false }: InteractiveCardP
               className="absolute inset-0 w-full h-full scale-[1.02]"
               style={{ willChange: 'transform', transform: 'translateZ(0)' }}
               objectFit="cover"
-              objectPosition={card.artPosition || { x: 50, y: 50 }}
+              objectPosition={stableObjectPosition}
               onError={(e) => handleImageError(e, card, false)}
               onLoad={() => setIsImageLoading(false)}
             />

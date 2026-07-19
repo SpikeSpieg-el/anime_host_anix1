@@ -407,6 +407,7 @@ export interface BannerInput {
   sort_order?: number
   guaranteed_card_payload?: any
   guaranteed_card_pity?: number
+  banner_type?: string
 }
 
 export async function getBanners() {
@@ -438,6 +439,7 @@ export async function createBanner(input: BannerInput) {
       sort_order: input.sort_order ?? 0,
       guaranteed_card_payload: input.guaranteed_card_payload ?? null,
       guaranteed_card_pity: input.guaranteed_card_pity ?? 0,
+      banner_type: input.banner_type ?? 'standard',
     }] as any)
     .select()
     .single()

@@ -123,6 +123,7 @@ interface Banner {
   sort_order?: number
   guaranteed_card_payload?: any | null
   guaranteed_card_pity?: number
+  banner_type?: string
 }
 
 interface BannerCard {
@@ -409,6 +410,7 @@ export default function AdminPage() {
     sort_order: 0,
     guaranteed_card_json: "",
     guaranteed_card_pity: "",
+    banner_type: "standard" as "standard" | "dynamic",
   })
   const [editingBannerId, setEditingBannerId] = useState<string | null>(null)
   const [expandedBannerId, setExpandedBannerId] = useState<string | null>(null)
@@ -427,6 +429,7 @@ export default function AdminPage() {
     sort_order: number
     guaranteed_card_json: string
     guaranteed_card_pity: string
+    banner_type: "standard" | "dynamic"
   } | null>(null)
   const [bannerCards, setBannerCards] = useState<Record<string, BannerCard[]>>({})
   const [bannerCardsLoading, setBannerCardsLoading] = useState<string | null>(null)
@@ -730,6 +733,7 @@ export default function AdminPage() {
         sort_order: newBanner.sort_order,
         guaranteed_card_payload: guaranteedCardPayload || undefined,
         guaranteed_card_pity: newBanner.guaranteed_card_pity ? parseInt(newBanner.guaranteed_card_pity) : 0,
+        banner_type: newBanner.banner_type,
       })
       if (created) setBanners(prev => [created, ...prev])
       setShowCreateBanner(false)
@@ -738,6 +742,7 @@ export default function AdminPage() {
         boosted_rarity: "", price: "", color: "from-purple-600 to-pink-700",
         start_date: "", end_date: "", is_active: true, sort_order: 0,
         guaranteed_card_json: "", guaranteed_card_pity: "",
+        banner_type: "standard",
       })
       toast.success("Баннер создан!")
     } catch (err) {
@@ -786,6 +791,7 @@ export default function AdminPage() {
       sort_order: banner.sort_order ?? 0,
       guaranteed_card_json: banner.guaranteed_card_payload ? JSON.stringify(banner.guaranteed_card_payload, null, 2) : "",
       guaranteed_card_pity: banner.guaranteed_card_pity ? String(banner.guaranteed_card_pity) : "",
+      banner_type: (banner.banner_type as "standard" | "dynamic") || "standard",
     })
     setEditingBannerId(banner.id)
   }
@@ -822,6 +828,7 @@ export default function AdminPage() {
         sort_order: editBanner.sort_order,
         guaranteed_card_payload: guaranteedCardPayload || null,
         guaranteed_card_pity: editBanner.guaranteed_card_pity ? parseInt(editBanner.guaranteed_card_pity) : 0,
+        banner_type: editBanner.banner_type,
       })
       setBanners(prev => prev.map(b => b.id === editingBannerId ? { ...b, ...updated } : b))
       setEditingBannerId(null)
@@ -1912,6 +1919,28 @@ export default function AdminPage() {
             {showCreateBanner && (
               <div className="bg-card border border-primary/30 rounded-xl p-4 sm:p-6 space-y-4">
                 <form onSubmit={handleCreateBanner} className="space-y-4">
+                  {/* Banner type selector */}
+                  <div className="flex gap-2 p-1 bg-muted rounded-lg">
+                    <button
+                      type="button"
+                      onClick={() => setNewBanner({ ...newBanner, banner_type: "standard" })}
+                      className={`flex-1 px-3 py-2 rounded-md text-sm font-medium transition ${newBanner.banner_type === "standard" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                    >
+                      Стандартный
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setNewBanner({ ...newBanner, banner_type: "dynamic" })}
+                      className={`flex-1 px-3 py-2 rounded-md text-sm font-medium transition ${newBanner.banner_type === "dynamic" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                    >
+                      Ивент (Онгоинги)
+                    </button>
+                  </div>
+                  {newBanner.banner_type === "dynamic" && (
+                    <div className="p-3 bg-cyan-500/5 border border-cyan-500/20 rounded-lg text-xs text-cyan-300">
+                      Баннер будет автоматически выбирать онгоинг-тайтл и его главных персонажей (1-3 ГГ). Тайтл меняется каждые 3 дня. Пул роллов — все онгоинги, гарант — одна из 3 ГГ карт. Название и описание будут показаны вместо автоматических.
+                    </div>
+                  )}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-xs font-medium text-muted-foreground mb-1 uppercase">Название *</label>
@@ -2120,6 +2149,11 @@ export default function AdminPage() {
                       <div className="flex-1 min-w-0">
                         <h3 className="font-semibold text-lg flex items-center gap-2">
                           {banner.name}
+                          {banner.banner_type === 'dynamic' && (
+                            <span className="text-[10px] px-2 py-0.5 rounded-full font-bold uppercase bg-cyan-500/10 text-cyan-500 border border-cyan-500/20">
+                              Ивент
+                            </span>
+                          )}
                           <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${banner.is_active ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' : 'bg-muted text-muted-foreground'}`}>
                             {banner.is_active ? 'Активен' : 'Неактивен'}
                           </span>
@@ -2180,6 +2214,28 @@ export default function AdminPage() {
                           <Edit size={16} className="text-primary" />
                           <h4 className="font-semibold text-sm">Редактирование баннера</h4>
                         </div>
+                        {/* Banner type selector */}
+                        <div className="flex gap-2 p-1 bg-muted rounded-lg">
+                          <button
+                            type="button"
+                            onClick={() => setEditBanner({ ...editBanner, banner_type: "standard" })}
+                            className={`flex-1 px-3 py-2 rounded-md text-sm font-medium transition ${editBanner.banner_type === "standard" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                          >
+                            Стандартный
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setEditBanner({ ...editBanner, banner_type: "dynamic" })}
+                            className={`flex-1 px-3 py-2 rounded-md text-sm font-medium transition ${editBanner.banner_type === "dynamic" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                          >
+                            Ивент (Онгоинги)
+                          </button>
+                        </div>
+                        {editBanner.banner_type === "dynamic" && (
+                          <div className="p-3 bg-cyan-500/5 border border-cyan-500/20 rounded-lg text-xs text-cyan-300">
+                            Баннер будет автоматически выбирать онгоинг-тайтл и его главных персонажей (1-3 ГГ). Тайтл меняется каждые 3 дня. Пул роллов — все онгоинги, гарант — одна из 3 ГГ карт. Название и описание будут показаны вместо автоматических.
+                          </div>
+                        )}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div>
                             <label className="block text-xs font-medium text-muted-foreground mb-1 uppercase">Название *</label>

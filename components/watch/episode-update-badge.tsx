@@ -1,6 +1,7 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
+import Image from "next/image"
 import { Bell, Play, Check, ChevronRight, Clock, Sparkles, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -12,6 +13,7 @@ import {
 } from "@/components/ui/dialog"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
+import { useCover } from "@/components/providers/cover-provider"
 
 interface EpisodeUpdate {
   animeId: string
@@ -31,6 +33,38 @@ interface EpisodeUpdateBadgeProps {
 
 export function EpisodeUpdateBadge({ updates, onClearUpdate, onClearAll, className }: EpisodeUpdateBadgeProps) {
   const [isOpen, setIsOpen] = useState(false)
+  const [posters, setPosters] = useState<Record<string, string>>({})
+  const { getPoster } = useCover()
+
+  useEffect(() => {
+    let cancelled = false
+
+    const loadPosters = async () => {
+      const missingUpdates = updates.filter((update) => !posters[update.animeId])
+      if (missingUpdates.length === 0) return
+
+      const loaded = await Promise.all(
+        missingUpdates.map(async (update) => {
+          const poster = await getPoster(
+            update.animeId,
+            `https://shikimori.one/animes/${update.animeId}`,
+            update.animeTitle,
+            update.animeTitle,
+          )
+          return [update.animeId, poster] as const
+        }),
+      )
+
+      if (!cancelled) {
+        setPosters((current) => ({ ...current, ...Object.fromEntries(loaded) }))
+      }
+    }
+
+    loadPosters()
+    return () => {
+      cancelled = true
+    }
+  }, [getPoster, updates, posters])
 
   const combinedClassName = cn("ml-2", className)
 
@@ -159,10 +193,26 @@ export function EpisodeUpdateBadge({ updates, onClearUpdate, onClearAll, classNa
               className="group relative flex items-center gap-3 p-3 rounded-xl bg-muted/40 border hover:bg-accent hover:border-accent-foreground/20 active:scale-[0.98] transition-all animate-in fade-in slide-in-from-bottom-2 duration-300 fill-mode-backwards"
               style={{ animationDelay: `${idx * 50}ms` }}
             >
-              {/* Левая часть: Номер серии (вместо постера) */}
-              <div className="shrink-0 relative w-12 h-12 sm:w-14 sm:h-14 rounded-lg overflow-hidden flex items-center justify-center bg-gradient-to-br from-muted to-background border group-hover:border-primary/30 transition-colors">
+              {/* Обложка тайтла мягко проявляется справа налево */}
+              <div className="absolute inset-y-0 right-0 w-[72%] overflow-hidden pointer-events-none">
+                {posters[update.animeId] && (
+                  <Image
+                    src={posters[update.animeId]}
+                    alt=""
+                    fill
+                    sizes="260px"
+                    className="object-cover object-center opacity-75 transition-transform duration-500 group-hover:scale-105"
+                    unoptimized={posters[update.animeId].startsWith("data:image")}
+                  />
+                )}
+                <div className="absolute inset-0 bg-gradient-to-r from-muted/95 via-muted/75 via-45% to-muted/15 dark:from-zinc-900/95 dark:via-zinc-900/75 dark:to-zinc-900/15" />
+                <div className="absolute inset-0 bg-gradient-to-t from-muted/70 via-transparent to-muted/20 dark:from-zinc-900/70 dark:to-zinc-900/20" />
+              </div>
+
+              {/* Левая часть: номер серии */}
+              <div className="relative z-10 shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-lg overflow-hidden flex items-center justify-center bg-background/60 border border-border/80 group-hover:border-primary/50 transition-colors shadow-lg backdrop-blur-sm">
                  <div className="absolute inset-0 bg-primary/10 group-hover:bg-primary/20 transition-colors" />
-                 <div className="flex flex-col items-center">
+                 <div className="relative flex flex-col items-center">
                     <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider">Серия</span>
                     <span className="text-lg sm:text-xl font-black text-primary leading-none">
                         {update.newEpisode}
@@ -171,7 +221,7 @@ export function EpisodeUpdateBadge({ updates, onClearUpdate, onClearAll, classNa
               </div>
 
               {/* Центр: Информация */}
-              <div className="flex-1 min-w-0 flex flex-col justify-center">
+              <div className="relative z-10 flex-1 min-w-0 flex flex-col justify-center">
                 <h4 className="font-bold text-sm sm:text-[15px] pr-4 group-hover:text-primary transition-colors">
                   {update.animeTitle}
                 </h4>

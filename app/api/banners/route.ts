@@ -25,6 +25,8 @@ export interface Banner {
   cards: BannerCard[]
   guaranteedCardPayload: any | null
   guaranteedCardPity: number
+  bannerType: string
+  dynamicContent?: any | null
 }
 
 export async function GET() {
@@ -84,6 +86,7 @@ async function getBannersData(): Promise<NextResponse> {
         sort_order,
         guaranteed_card_payload,
         guaranteed_card_pity,
+        banner_type,
         banner_cards (
           id,
           card_payload,
@@ -106,29 +109,46 @@ async function getBannersData(): Promise<NextResponse> {
       return NextResponse.json({ banners: [] })
     }
 
-    const banners: Banner[] = (data || []).map((row: any) => ({
-      id: row.id,
-      name: row.name,
-      description: row.description,
-      imageUrl: row.image_url,
-      promoImageUrl: row.promo_image_url || null,
-      featuredAnimeIds: row.featured_anime_ids || [],
-      boostedRarity: row.boosted_rarity,
-      price: row.price,
-      color: row.color,
-      startDate: row.start_date,
-      endDate: row.end_date,
-      isActive: row.is_active,
-      sortOrder: row.sort_order,
-      cards: (row.banner_cards || []).map((c: any) => ({
-        id: c.id,
-        cardPayload: c.card_payload,
-        weight: c.weight,
-        isFeatured: c.is_featured
-      })),
-      guaranteedCardPayload: row.guaranteed_card_payload || null,
-      guaranteedCardPity: row.guaranteed_card_pity || 0,
-    }))
+    const banners: Banner[] = []
+    for (const row of (data || [])) {
+      const bannerType = row.banner_type || 'standard'
+      let dynamicData: any = null
+
+      if (bannerType === 'dynamic') {
+        try {
+          const { resolveDynamicBanner } = await import('@/lib/dynamic-banner')
+          dynamicData = await resolveDynamicBanner()
+        } catch (e) {
+          console.error('[getBannersData] Dynamic banner resolve error:', e)
+        }
+      }
+
+      banners.push({
+        id: row.id,
+        name: row.name,
+        description: row.description,
+        imageUrl: row.image_url,
+        promoImageUrl: row.promo_image_url || null,
+        featuredAnimeIds: row.featured_anime_ids || [],
+        boostedRarity: row.boosted_rarity,
+        price: row.price,
+        color: row.color,
+        startDate: row.start_date,
+        endDate: row.end_date,
+        isActive: row.is_active,
+        sortOrder: row.sort_order,
+        cards: (row.banner_cards || []).map((c: any) => ({
+          id: c.id,
+          cardPayload: c.card_payload,
+          weight: c.weight,
+          isFeatured: c.is_featured
+        })),
+        guaranteedCardPayload: row.guaranteed_card_payload || null,
+        guaranteedCardPity: row.guaranteed_card_pity || 0,
+        bannerType,
+        dynamicContent: dynamicData,
+      })
+    }
 
     return NextResponse.json({ banners })
   } catch (error) {

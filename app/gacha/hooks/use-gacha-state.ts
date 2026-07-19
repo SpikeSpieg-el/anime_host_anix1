@@ -616,7 +616,7 @@ export function useGachaState() {
 
       const currentBadLuckStreak = pityData?.bad_luck_streak || 0
 
-      const isBannerRoll = selectedPack && selectedPack.id.startsWith('banner:') && selectedBannerCards
+      const isBannerRoll = selectedPack && selectedPack.id.startsWith('banner:') && (selectedBannerCards || (selectedPack as any).guaranteedCardsPool)
 
       const rollPromise = isBannerRoll
         ? rollFromBanner(
@@ -625,9 +625,10 @@ export function useGachaState() {
               name: (selectedPack as AnimePack).name,
               featuredAnimeIds: (selectedPack as AnimePack).animeIds,
               boostedRarity: (selectedPack as AnimePack).guaranteedRarity || null,
-              cards: selectedBannerCards!,
+              cards: selectedBannerCards || [],
               guaranteedCardPayload: selectedBannerGuaranteedCard,
               guaranteedCardPity: selectedBannerGuaranteedPity,
+              guaranteedCardsPool: (selectedPack as any).guaranteedCardsPool || null,
               userId: authUser?.id,
             } as any,
             Array.from(usedCharacterIds),

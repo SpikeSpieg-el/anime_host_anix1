@@ -112,6 +112,59 @@ export function BookmarksProvider({ children }: { children: React.ReactNode }) {
     
     // Слушаем событие синхронизации после входа
     window.addEventListener("auth-synced", fetchBookmarks)
+
+    // Слушаем обновление данных аниме от EpisodeUpdatesProvider
+    // и обновляем устаревшие данные в закладках
+    const handleAnimeDataRefreshed = (e: Event) => {
+      const detail = (e as CustomEvent).detail as Record<string, { status: string; episodesCurrent: number; episodesTotal: number; title: string }> | undefined
+      if (!detail) return
+
+      setItems((prev) => {
+        let changed = false
+        const updated = prev.map((item) => {
+          const fresh = detail[String(item.id)]
+          if (!fresh) return item
+
+          // Map Shikimori status to our internal status
+          const internalStatus = fresh.status === 'anons' ? 'Announcement' : fresh.status === 'ongoing' ? 'Ongoing' : 'Completed'
+
+          // Only update if something actually changed
+          if (item.status === internalStatus && item.episodesCurrent === fresh.episodesCurrent && item.episodesTotal === fresh.episodesTotal) {
+            return item
+          }
+
+          changed = true
+          return {
+            ...item,
+            status: internalStatus,
+            episodesCurrent: fresh.episodesCurrent,
+            episodesTotal: fresh.episodesTotal,
+            title: fresh.title || item.title,
+          }
+        })
+
+        if (changed && user) {
+          // Persist updated anime_data to DB for each changed bookmark
+          updated.forEach((item) => {
+            const fresh = detail[String(item.id)]
+            if (!fresh) return
+            const { status: _s, episodesCurrent: _ec, episodesTotal: _et, title: _t, ...restData } = item
+            supabase
+              .from('bookmarks')
+              .update({ anime_data: { ...restData, status: item.status, episodesCurrent: item.episodesCurrent, episodesTotal: item.episodesTotal, title: item.title } })
+              .match({ user_id: user.id, anime_id: item.id })
+              .then(({ error }: { error: any }) => {
+                if (error) loggers.bookmarks.error('Failed to refresh bookmark data:', error)
+              })
+          })
+        }
+
+        return changed ? updated : prev
+      })
+    }
+
+    window.addEventListener("anime-data-refreshed", handleAnimeDataRefreshed as EventListener)
+
     return () => {
       isMounted = false
       if (abortControllerRef.current) {
@@ -120,6 +173,7 @@ export function BookmarksProvider({ children }: { children: React.ReactNode }) {
       document.removeEventListener("visibilitychange", handleFocus)
       window.removeEventListener("focus", handleFocus)
       window.removeEventListener("auth-synced", fetchBookmarks)
+      window.removeEventListener("anime-data-refreshed", handleAnimeDataRefreshed as EventListener)
     }
   }, [user?.id])
 

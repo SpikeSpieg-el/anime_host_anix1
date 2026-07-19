@@ -65,6 +65,7 @@ export const BannerInfoModal = ({ banner, onClose, remainingPity: propRemainingP
   const [animePoolLoading, setAnimePoolLoading] = useState(false)
   const [liveRemainingPity, setLiveRemainingPity] = useState<number | undefined>(propRemainingPity)
   const [livePityClaimed, setLivePityClaimed] = useState<boolean | undefined>(propPityClaimed)
+  const [collectedGGs, setCollectedGGs] = useState<number[]>([])
   const cardsPerPage = 12
 
   useEffect(() => {
@@ -88,7 +89,11 @@ export const BannerInfoModal = ({ banner, onClose, remainingPity: propRemainingP
   useEffect(() => {
     setLiveRemainingPity(propRemainingPity)
     setLivePityClaimed(propPityClaimed)
-    if (!banner?.id || !banner.guaranteedCardPity || banner.guaranteedCardPity <= 0) return
+    setCollectedGGs([])
+    if (!banner?.id) return
+    const isDyn = banner.bannerType === 'dynamic'
+    const effectivePity = (isDyn && banner.guaranteedCardPity === 0) ? 50 : (banner.guaranteedCardPity || 0)
+    if (effectivePity <= 0) return
     const headers: Record<string, string> = {}
     if (sessionToken) headers['Authorization'] = `Bearer ${sessionToken}`
     fetch('/api/banners/pulls', { headers })
@@ -97,13 +102,16 @@ export const BannerInfoModal = ({ banner, onClose, remainingPity: propRemainingP
         if (data.pulls && data.pulls[banner.id]) {
           const pull = data.pulls[banner.id]
           setLivePityClaimed(pull.guaranteedClaimed)
+          if (pull.collectedGuaranteedCards) {
+            setCollectedGGs(pull.collectedGuaranteedCards)
+          }
           if (!pull.guaranteedClaimed) {
-            setLiveRemainingPity(Math.max(0, banner.guaranteedCardPity - pull.pullCount))
+            setLiveRemainingPity(Math.max(0, effectivePity - pull.pullCount))
           }
         }
       })
       .catch(() => {})
-  }, [banner?.id, banner?.guaranteedCardPity, propRemainingPity, propPityClaimed, sessionToken])
+  }, [banner?.id, banner?.guaranteedCardPity, banner?.bannerType, propRemainingPity, propPityClaimed, sessionToken])
 
   const handleEsc = useCallback((e: KeyboardEvent) => {
     if (e.key === "Escape") {
@@ -125,10 +133,31 @@ export const BannerInfoModal = ({ banner, onClose, remainingPity: propRemainingP
 
   if (!banner) return null
 
-  const allCards = banner.cards || []
+  const isDynamic = banner.bannerType === 'dynamic'
+  const dynContent = banner.dynamicContent
+
+  const ggCards: BannerCardItem[] = isDynamic && dynContent
+    ? dynContent.guaranteedCharacters.map((c: any) => ({
+        id: `dyn-${c.characterId}`,
+        cardPayload: {
+          ...c,
+          rarity: 'legendary',
+          name: c.characterName,
+          characterName: c.characterName,
+          animeName: c.animeName,
+          anime: c.animeName,
+          isMainCharacter: true,
+        },
+        weight: 1,
+        isFeatured: true,
+      }))
+    : []
+  const allCards: BannerCardItem[] = isDynamic ? [] : (banner.cards || [])
   const totalWeight = allCards.reduce((sum, c) => sum + (c.weight || 0), 0)
   const featuredCards = allCards.filter(c => c.isFeatured)
   const regularCards = allCards.filter(c => !c.isFeatured)
+  const dynamicPity = (isDynamic && banner.guaranteedCardPity === 0) ? 50 : (banner.guaranteedCardPity || 0)
+  const dynamicRemainingPity = liveRemainingPity !== undefined ? liveRemainingPity : dynamicPity
 
   const rarityDistribution: Record<string, { count: number; weight: number; chance: number }> = {}
   allCards.forEach(c => {
@@ -225,15 +254,19 @@ export const BannerInfoModal = ({ banner, onClose, remainingPity: propRemainingP
               <Shield className="w-4 h-4 sm:w-5 sm:h-5 text-pink-300" />
               <span className="text-[10px] sm:text-xs text-white/50 uppercase tracking-wide">Гарант</span>
               <span className="text-[11px] sm:text-sm font-black text-pink-200 text-center leading-tight">
-                {banner.boostedRarity
-                  ? getRarityLabel(banner.boostedRarity)
-                  : banner.guaranteedCardPayload && banner.guaranteedCardPity > 0
-                    ? livePityClaimed
-                      ? 'Получена'
-                      : liveRemainingPity !== undefined
-                        ? `Карта (${liveRemainingPity})`
-                        : `Карта (${banner.guaranteedCardPity})`
-                    : "Нет"}
+                {isDynamic
+                  ? dynamicPity > 0
+                    ? `3 ГГ (${dynamicRemainingPity})`
+                    : "Нет"
+                  : banner.boostedRarity
+                    ? getRarityLabel(banner.boostedRarity)
+                    : banner.guaranteedCardPayload && banner.guaranteedCardPity > 0
+                      ? livePityClaimed
+                        ? 'Получена'
+                        : liveRemainingPity !== undefined
+                          ? `Карта (${liveRemainingPity})`
+                          : `Карта (${banner.guaranteedCardPity})`
+                      : "Нет"}
               </span>
             </div>
 
@@ -242,20 +275,44 @@ export const BannerInfoModal = ({ banner, onClose, remainingPity: propRemainingP
               <Clock className="w-4 h-4 sm:w-5 sm:h-5 text-cyan-300" />
               <span className="text-[10px] sm:text-xs text-white/50 uppercase tracking-wide">Срок</span>
               <span className="text-[11px] sm:text-sm font-bold text-cyan-200 text-center leading-tight">
-                {banner.endDate ? formatDate(banner.endDate) : "Бессрочно"}
+                {isDynamic && dynContent
+                  ? `Смена через ${Math.ceil((new Date(dynContent.rotationEnd).getTime() - Date.now()) / (1000 * 60 * 60 * 24))}д`
+                  : banner.endDate ? formatDate(banner.endDate) : "Бессрочно"}
               </span>
             </div>
 
             {/* Total cards */}
             <div className="bg-slate-800/50 rounded-xl p-2.5 sm:p-3 border border-white/5 flex flex-col items-center gap-1">
               <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 text-purple-300" />
-              <span className="text-[10px] sm:text-xs text-white/50 uppercase tracking-wide">Карт</span>
-              <span className="text-sm sm:text-lg font-black text-white">{allCards.length}</span>
+              <span className="text-[10px] sm:text-xs text-white/50 uppercase tracking-wide">{isDynamic ? "Онгоингов" : "Карт"}</span>
+              <span className="text-sm sm:text-lg font-black text-white">
+                {isDynamic && dynContent ? dynContent.ongoingAnimeIds.length : allCards.length}
+              </span>
             </div>
           </div>
 
           {/* Anime pool */}
-          {banner.featuredAnimeIds && banner.featuredAnimeIds.length > 0 && (
+          {isDynamic && dynContent ? (
+            <div>
+              <h3 className="text-sm font-black text-cyan-300 uppercase tracking-wider mb-3 flex items-center gap-2">
+                <Tv className="w-4 h-4" />
+                Онгоинги в пуле ({dynContent.ongoingAnimeIds.length})
+              </h3>
+              <p className="text-xs text-white/50 mb-2">Роллы идут по всем онгоингам. Тайтл-фокус меняется каждые 3 дня.</p>
+              <div className="flex flex-wrap gap-2">
+                {dynContent.ongoingAnimeIds.slice(0, 30).map((id: number) => (
+                  <div key={id} className="px-2.5 py-1.5 rounded-lg bg-slate-800/60 border border-white/10">
+                    <span className="text-[11px] sm:text-xs font-bold text-white/50">#{id}</span>
+                  </div>
+                ))}
+                {dynContent.ongoingAnimeIds.length > 30 && (
+                  <div className="px-2.5 py-1.5 rounded-lg bg-slate-800/60 border border-white/10">
+                    <span className="text-[11px] sm:text-xs font-bold text-white/30">+{dynContent.ongoingAnimeIds.length - 30}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : banner.featuredAnimeIds && banner.featuredAnimeIds.length > 0 && (
             <div>
               <h3 className="text-sm font-black text-cyan-300 uppercase tracking-wider mb-3 flex items-center gap-2">
                 <Tv className="w-4 h-4" />
@@ -301,8 +358,68 @@ export const BannerInfoModal = ({ banner, onClose, remainingPity: propRemainingP
             </div>
           )}
 
-          {/* Featured cards */}
-          {featuredCards.length > 0 && (
+          {/* Dynamic banner: Guaranteed GG pool */}
+          {isDynamic && ggCards.length > 0 && (
+            <div className="bg-amber-500/10 rounded-xl p-3 sm:p-4 border border-amber-500/30">
+              <h3 className="text-sm font-black text-amber-300 uppercase tracking-wider mb-3 flex items-center gap-2">
+                <Flame className="w-4 h-4" />
+                Гарантированные ГГ ({ggCards.length})
+              </h3>
+              <div className="flex items-center gap-2 mb-3 flex-wrap">
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/20 border border-amber-500/40">
+                  <Flame className="w-3 h-3 text-amber-300" />
+                  <span className="text-[11px] font-bold text-amber-200">
+                    {collectedGGs.length >= ggCards.length
+                      ? 'Все ГГ собраны! Цикл сброшен'
+                      : `Гарант через ${dynamicRemainingPity} круток`}
+                  </span>
+                </div>
+                {collectedGGs.length > 0 && collectedGGs.length < ggCards.length && (
+                  <span className="text-[11px] text-white/50">
+                    Собрано: {collectedGGs.length}/{ggCards.length}
+                  </span>
+                )}
+              </div>
+              <div className="grid grid-cols-3 sm:grid-cols-3 gap-2 sm:gap-3">
+                {ggCards.map(gg => {
+                  const payload = gg.cardPayload
+                  const imgUrl = payload?.imageUrl || payload?.originalUrl || ""
+                  const isCollected = collectedGGs.includes(payload?.characterId)
+                  return (
+                    <div
+                      key={gg.id}
+                      className={`relative rounded-lg overflow-hidden border-2 bg-slate-800 shadow-lg cursor-pointer hover:scale-105 transition-transform ${isCollected ? 'border-emerald-500/60' : 'border-amber-500/50'}`}
+                      onClick={() => setViewedCard(payloadToCard(payload))}
+                    >
+                      <div className="aspect-[2/3] relative">
+                        {imgUrl ? (
+                          <img src={getProxiedSrc(imgUrl)} alt={payload?.characterName || payload?.name || ""} className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center">
+                            <Star className="w-6 h-6 text-slate-600" />
+                          </div>
+                        )}
+                        {isCollected && (
+                          <div className="absolute inset-0 bg-emerald-500/20 flex items-center justify-center">
+                            <div className="px-2 py-0.5 rounded-full bg-emerald-500/80 text-[10px] font-black text-white">
+                              СОБРАНА
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                      <div className="p-1.5 sm:p-2">
+                        <p className="text-[10px] sm:text-xs font-bold text-white truncate">{payload?.characterName || payload?.name || "???"}</p>
+                        <p className="text-[9px] sm:text-[10px] text-white/50 truncate">{payload?.animeName || payload?.anime || ""}</p>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Featured cards (standard banners only) */}
+          {!isDynamic && featuredCards.length > 0 && (
             <div>
               <h3 className="text-sm font-black text-pink-300 uppercase tracking-wider mb-3 flex items-center gap-2">
                 <Star className="w-4 h-4" />
@@ -316,8 +433,8 @@ export const BannerInfoModal = ({ banner, onClose, remainingPity: propRemainingP
             </div>
           )}
 
-          {/* Drop chances by rarity */}
-          {sortedRarities.length > 0 && (
+          {/* Drop chances by rarity (standard banners only) */}
+          {!isDynamic && sortedRarities.length > 0 && (
             <div>
               <h3 className="text-sm font-black text-cyan-300 uppercase tracking-wider mb-3 flex items-center gap-2">
                 <TrendingUp className="w-4 h-4" />
@@ -350,8 +467,8 @@ export const BannerInfoModal = ({ banner, onClose, remainingPity: propRemainingP
             </div>
           )}
 
-          {/* Guaranteed card pity */}
-          {banner.guaranteedCardPayload && banner.guaranteedCardPity > 0 && (
+          {/* Guaranteed card pity (standard banners only) */}
+          {!isDynamic && banner.guaranteedCardPayload && banner.guaranteedCardPity > 0 && (
             <div className="bg-amber-500/10 rounded-xl p-3 sm:p-4 border border-amber-500/30">
               <h3 className="text-sm font-black text-amber-300 uppercase tracking-wider mb-3 flex items-center gap-2">
                 <Flame className="w-4 h-4" />
@@ -395,8 +512,8 @@ export const BannerInfoModal = ({ banner, onClose, remainingPity: propRemainingP
             </div>
           )}
 
-          {/* All cards with pagination */}
-          {allCards.length > 0 && (
+          {/* All cards with pagination (standard banners only) */}
+          {!isDynamic && allCards.length > 0 && (
             <div>
               <h3 className="text-sm font-black text-purple-300 uppercase tracking-wider mb-3 flex items-center gap-2">
                 <Sparkles className="w-4 h-4" />
@@ -433,8 +550,8 @@ export const BannerInfoModal = ({ banner, onClose, remainingPity: propRemainingP
             </div>
           )}
 
-          {/* No cards fallback */}
-          {allCards.length === 0 && (
+          {/* No cards fallback (standard banners only) */}
+          {!isDynamic && allCards.length === 0 && (
             <div className="text-center py-8 text-white/40">
               <Sparkles className="w-8 h-8 mx-auto mb-2 opacity-50" />
               <p className="text-sm">Карты будут добавлены позже</p>
