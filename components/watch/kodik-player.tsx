@@ -63,7 +63,7 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCo
   const [selectedCountry, setSelectedCountry] = useState<string>('RU')
   const [errorMessage, setErrorMessage] = useState<string>('')
   const [showFullscreenHint, setShowFullscreenHint] = useState(false)
-  const [useProxy, setUseProxy] = useState(true)
+  const [useProxy, setUseProxy] = useState(false)
   const playerContainerRef = useRef<HTMLDivElement>(null)
   const lastTapRef = useRef<number>(0)
 
@@ -163,7 +163,7 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCo
     setSelectedTranslation(tr)
     saveTranslationId(shikimoriId, tr.translationId)
     setShowTranslationsMenu(false)
-    setUseProxy(true)
+    setUseProxy(false)
     if (isStarted) setIsLoading(true)
   }
 
@@ -704,10 +704,9 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCo
               key={`${selectedTranslation?.translationId || "default"}-${useProxy ? "proxy" : "direct"}`}
               src={playerSrc || undefined}
               className={`h-full w-full transition-opacity duration-700 ${isLoading ? 'opacity-0' : 'opacity-100'}`}
+              allow="autoplay; encrypted-media; fullscreen; picture-in-picture; screen-wake-lock"
               allowFullScreen
-              sandbox="allow-scripts allow-same-origin allow-presentation"
-              referrerPolicy="no-referrer"
-              loading="lazy"
+              sandbox="allow-scripts allow-same-origin allow-presentation allow-popups allow-forms allow-modals allow-downloads"
               onLoad={() => {
                 console.log(`✅ Kodik player loaded (${useProxy ? 'proxy' : 'direct'})`)
                 setIsLoading(false)
