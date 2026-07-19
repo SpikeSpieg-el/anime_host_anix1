@@ -13,6 +13,23 @@ interface PosterResponse {
   poster: string;
 }
 
+async function getShikimoriPosterUrl(id: string): Promise<string> {
+  try {
+    const response = await fetch(`https://shikimori.one/api/animes/${encodeURIComponent(id)}`, {
+      headers: { "User-Agent": "AnixStream/1.0" },
+      next: { revalidate: 86400 },
+    });
+
+    if (!response.ok) return "";
+
+    const anime = await response.json();
+    return anime.image?.original || anime.image?.large || anime.image?.x96 || "";
+  } catch (error) {
+    console.warn(`[Posters API] Failed to resolve Shikimori poster for ${id}:`, error);
+    return "";
+  }
+}
+
 export async function POST(req: NextRequest) {
   try {
     const { animes } = await req.json() as { animes: PosterRequest[] };
@@ -42,8 +59,9 @@ export async function POST(req: NextRequest) {
       const chunk = batch.slice(i, i + concurrencyLimit);
       const chunkPromises = chunk.map(async (anime) => {
         try {
+          const shikimoriUrl = anime.shikimoriUrl || await getShikimoriPosterUrl(anime.id);
           const poster = await resolveBestPoster(
-            anime.shikimoriUrl || "",
+            shikimoriUrl,
             anime.romajiName,
             anime.russianName,
             anime.id,
