@@ -591,7 +591,7 @@ export function GachaTutorial({ onComplete, gachaState, tutorialType = "gacha" }
   // Cat-girl mascot using PNG image
   const CatGirlMascot = ({ size = 80, className = "" }: { size?: number; className?: string }) => (
     <Image
-      src="/catgirl_tutorial.png"
+      src="/catgirl_tutorial.webp"
       alt="Кошкодевочка-проводник"
       width={size}
       height={size}

@@ -15,6 +15,7 @@ import { AuthProvider } from "@/components/auth/auth-provider"
 import { UserDataLoadingBar } from "@/components/shared/user-data-loading-bar"
 import { LogoutLoadingScreen } from "@/components/layout/logout-loading-screen"
 import { CookieConsent } from "@/components/layout/cookie-consent"
+import { ServiceWorkerRegister } from "@/components/layout/sw-register"
 import { ThemeProvider } from "@/components/providers/theme-provider"
 import { Toaster } from "sonner"
 import { OrganizationStructuredData, WebSiteStructuredData } from "@/components/seo/structured-data"
@@ -132,6 +133,7 @@ export default function RootLayout({
           </AuthProvider>
           <Analytics />
           <Toaster />
+          <ServiceWorkerRegister />
         </ThemeProvider>
       </body>
     </html>

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react"
 import Image from "next/image"
-import { Bell, Play, Check, ChevronRight, Clock, Sparkles, X } from "lucide-react"
+import { Bell, Play, Check, ChevronRight, Clock, Sparkles, X, BellRing, BellOff, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -14,6 +14,7 @@ import {
 import Link from "next/link"
 import { cn } from "@/lib/utils"
 import { useCover } from "@/components/providers/cover-provider"
+import { usePushNotifications } from "@/hooks/use-push-notifications"
 
 interface EpisodeUpdate {
   animeId: string
@@ -35,6 +36,8 @@ export function EpisodeUpdateBadge({ updates, onClearUpdate, onClearAll, classNa
   const [isOpen, setIsOpen] = useState(false)
   const [posters, setPosters] = useState<Record<string, string>>({})
   const { getPoster } = useCover()
+  const { isSupported: pushSupported, isSubscribed: pushSubscribed, permission: pushPermission, loading: pushLoading, subscribe: pushSubscribe, unsubscribe: pushUnsubscribe } = usePushNotifications()
+  const [pushStatus, setPushStatus] = useState<"idle" | "success" | "error">("idle")
   const postersRef = useRef<Record<string, string>>({})
   const getPosterRef = useRef(getPoster)
   getPosterRef.current = getPoster
@@ -120,6 +123,45 @@ export function EpisodeUpdateBadge({ updates, onClearUpdate, onClearAll, classNa
             </div>
             <p className="text-muted-foreground text-center font-medium mb-2">Нет новых уведомлений</p>
             <p className="text-muted-foreground/70 text-center text-sm">Здесь появятся уведомления о новых сериях ваших аниме</p>
+
+            {/* Push notifications enable button */}
+            {pushSupported && (
+              <div className="mt-4 w-full">
+                {pushSubscribed || pushPermission === "granted" ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={pushLoading}
+                    onClick={async () => { await pushUnsubscribe(); setPushStatus("idle") }}
+                    className="w-full h-10 rounded-xl text-muted-foreground hover:text-foreground"
+                  >
+                    {pushLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <BellOff className="w-4 h-4 mr-2" />}
+                    Отключить push-уведомления
+                  </Button>
+                ) : (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={pushLoading}
+                    onClick={async () => {
+                      const ok = await pushSubscribe()
+                      setPushStatus(ok ? "success" : "error")
+                      setTimeout(() => setPushStatus("idle"), 3000)
+                    }}
+                    className="w-full h-10 rounded-xl border-primary/50 hover:border-primary hover:bg-primary/10 text-primary"
+                  >
+                    {pushLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <BellRing className="w-4 h-4 mr-2" />}
+                    Включить push-уведомления
+                  </Button>
+                )}
+                {pushStatus === "success" && (
+                  <p className="text-xs text-green-500 text-center mt-2">Push-уведомления включены!</p>
+                )}
+                {pushStatus === "error" && (
+                  <p className="text-xs text-red-500 text-center mt-2">Не удалось включить. Проверьте разрешения браузера.</p>
+                )}
+              </div>
+            )}
           </div>
         </DialogContent>
       </Dialog>
@@ -255,6 +297,45 @@ export function EpisodeUpdateBadge({ updates, onClearUpdate, onClearAll, classNa
             </Link>
           ))}
         </div>
+
+        {/* Push notifications toggle */}
+        {pushSupported && (
+          <div className="px-3 py-2 border-b bg-muted/30">
+            {pushSubscribed || pushPermission === "granted" ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={pushLoading}
+                onClick={async () => { await pushUnsubscribe(); setPushStatus("idle") }}
+                className="w-full text-muted-foreground hover:text-foreground h-9 rounded-xl text-xs"
+              >
+                {pushLoading ? <Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" /> : <BellOff className="w-3.5 h-3.5 mr-2" />}
+                Отключить push-уведомления
+              </Button>
+            ) : (
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={pushLoading}
+                onClick={async () => {
+                  const ok = await pushSubscribe()
+                  setPushStatus(ok ? "success" : "error")
+                  setTimeout(() => setPushStatus("idle"), 3000)
+                }}
+                className="w-full text-primary hover:bg-primary/10 h-9 rounded-xl text-xs"
+              >
+                {pushLoading ? <Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" /> : <BellRing className="w-3.5 h-3.5 mr-2" />}
+                Включить push-уведомления о новых сериях
+              </Button>
+            )}
+            {pushStatus === "success" && (
+              <p className="text-xs text-green-500 text-center mt-1">Push-уведомления включены!</p>
+            )}
+            {pushStatus === "error" && (
+              <p className="text-xs text-red-500 text-center mt-1">Не удалось включить. Проверьте разрешения браузера.</p>
+            )}
+          </div>
+        )}
 
         {/* Футер */}
         <div className="p-3 border-t bg-muted/50 backdrop-blur-sm">

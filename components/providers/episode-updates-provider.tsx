@@ -350,6 +350,23 @@ export function EpisodeUpdatesProvider({ children }: { children: React.ReactNode
           }
 
           setUpdates(newUpdatesList)
+
+          const newOnly = newUpdatesList.filter(
+            (u) => !updatesRef.current.some((old) => old.animeId === u.animeId)
+          )
+          if (newOnly.length > 0) {
+            const topUpdate = newUpdatesList[0]
+            fetch("/api/push/send", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                userId: user.id,
+                title: `Weebx — Новая серия: ${topUpdate.animeTitle}`,
+                message: `Вышла серия ${topUpdate.newEpisode}${topUpdate.totalEpisodes ? ` из ${topUpdate.totalEpisodes}` : ""}`,
+                url: `/watch/${topUpdate.animeId}`,
+              }),
+            }).catch((e) => console.warn("Push send failed:", e))
+          }
         } else {
           localStorage.setItem(EPISODE_UPDATES_KEY, JSON.stringify(newUpdatesList))
           setUpdates(newUpdatesList)
