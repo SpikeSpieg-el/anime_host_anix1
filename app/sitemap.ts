@@ -82,6 +82,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.9,
     },
     {
+      url: `${SITE_URL}/search`,
+      lastModified: STATIC_PAGES_DATE,
+      changeFrequency: 'weekly',
+      priority: 0.6,
+    },
+    {
       url: `${SITE_URL}/gacha`,
       lastModified: STATIC_PAGES_DATE,
       changeFrequency: 'weekly',
