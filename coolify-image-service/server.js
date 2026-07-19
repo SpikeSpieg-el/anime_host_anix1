@@ -17,7 +17,7 @@ const SMTP_HOST = process.env.SMTP_HOST || ''
 const SMTP_PORT = parseInt(process.env.SMTP_PORT || '465', 10)
 const SMTP_USER = process.env.SMTP_USER || ''
 const SMTP_PASS = process.env.SMTP_PASS || ''
-const SMTP_FROM = process.env.SMTP_FROM || 'Weeb-X <noreply@weeb-x.com>'
+const SMTP_FROM = process.env.SMTP_FROM || 'Weeb-X <mail@weeb-x.com>'
 const MAIL_API_TOKEN = process.env.MAIL_API_TOKEN || ''
 
 let mailTransporter = null

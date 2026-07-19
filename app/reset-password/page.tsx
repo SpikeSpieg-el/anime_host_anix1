@@ -18,7 +18,30 @@ export default function ResetPasswordPage() {
 
   useEffect(() => {
     const checkSession = async () => {
-      const { data, error } = await supabase.auth.getSession()
+      // First try to get existing session (in case detectSessionInUrl already processed it)
+      let { data, error } = await supabase.auth.getSession()
+
+      if (!data.session) {
+        // Manually parse hash for access_token and refresh_token
+        // Supabase recovery links use implicit flow: #access_token=...&refresh_token=...
+        const hash = window.location.hash.substring(1)
+        const params = new URLSearchParams(hash)
+        const accessToken = params.get("access_token")
+        const refreshToken = params.get("refresh_token")
+        const type = params.get("type")
+
+        if (accessToken && refreshToken && type === "recovery") {
+          const result = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          })
+          data = result.data
+          error = result.error
+
+          // Clean the URL hash for security
+          window.history.replaceState(null, "", window.location.pathname)
+        }
+      }
 
       if (error || !data.session) {
         setError("Ссылка недействительна или истекла. Запросите новую ссылку для сброса пароля.")
