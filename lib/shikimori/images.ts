@@ -43,9 +43,13 @@ function isHighQualityImage(url: string, isPoster: boolean = true): boolean {
 export async function resolveBestPoster(shikimoriUrl: string, romajiName: string, russianName: string, shikimoriId: string, disableExternalAPIs: boolean = false): Promise<string> {
   const cacheKey = `${shikimoriId}-${romajiName}-${russianName}-${disableExternalAPIs}`;
   
-  // Проверяем кэш
-  if (posterCache.has(cacheKey)) {
-    return posterCache.get(cacheKey)!;
+  // Проверяем кэш, но не возвращаем сохранённые URL страниц вместо изображений
+  const cachedPoster = posterCache.get(cacheKey);
+  if (cachedPoster && (cachedPoster.startsWith('data:') || isHighQualityImage(cachedPoster, true))) {
+    return cachedPoster;
+  }
+  if (cachedPoster) {
+    posterCache.delete(cacheKey);
   }
   
   const targetName = russianName || romajiName || "Anime";
@@ -124,10 +128,12 @@ export async function resolveBestPoster(shikimoriUrl: string, romajiName: string
     const fullShikimoriUrl = shikimoriUrl.startsWith('http') 
       ? shikimoriUrl 
       : `https://shikimori.one${shikimoriUrl}`;
-    const proxied = proxyImage(fullShikimoriUrl);
-    if (proxied) {
-      posterCache.set(cacheKey, proxied);
-      return proxied;
+    if (isHighQualityImage(fullShikimoriUrl, true)) {
+      const proxied = proxyImage(fullShikimoriUrl);
+      if (proxied) {
+        posterCache.set(cacheKey, proxied);
+        return proxied;
+      }
     }
   }
 

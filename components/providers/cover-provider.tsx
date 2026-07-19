@@ -26,6 +26,14 @@ const CACHE_KEY = "cover-cache"
 const CACHE_VERSION = "v1"
 const CACHE_TTL = 7 * 24 * 60 * 60 * 1000 // 7 дней
 
+function isReusablePoster(poster: string): boolean {
+  return Boolean(
+    poster &&
+    !poster.startsWith('data:') &&
+    !/^https?:\/\/shikimori\.(one|io|org)\/animes\/\d+\/?(?:\?.*)?$/i.test(poster)
+  )
+}
+
 function loadCacheFromStorage(): CoverCache {
   if (typeof window === "undefined") return {}
   
@@ -43,8 +51,8 @@ function loadCacheFromStorage(): CoverCache {
     for (const [id, entry] of Object.entries(data.cache || {})) {
       const typedEntry = entry as { poster: string; backdrop: string | null; timestamp: number; sources: string[] }
       if (now - typedEntry.timestamp < CACHE_TTL) {
-        // Skip data URI fallback posters - they should be re-fetched
-        if (typedEntry.poster && typedEntry.poster.startsWith('data:')) continue
+        // Skip fallback and invalid Shikimori page URLs - they should be re-fetched
+        if (!isReusablePoster(typedEntry.poster)) continue
         cleaned[id] = typedEntry
       }
     }
@@ -98,7 +106,7 @@ export function CoverProvider({ children }: { children: React.ReactNode }) {
   ): Promise<string> => {
     // Проверяем кэш (но не возвращаем data URI заглушки)
     const cached = cache[animeId]
-    if (cached && cached.poster && !cached.poster.startsWith('data:')) {
+    if (cached && isReusablePoster(cached.poster)) {
       console.log(`[CoverProvider] Poster cache hit for ${animeId}`)
       return cached.poster
     }
@@ -256,8 +264,8 @@ export function CoverProvider({ children }: { children: React.ReactNode }) {
     // Ограничиваем 30, чтобы не тратить лимит трансформаций на всё подряд
     const toFetch = animes.filter(anime => {
       const cached = cache[anime.id];
-      // Don't skip if cached poster is a data URI fallback - allow re-fetching
-      if (cached && cached.poster && !cached.poster.startsWith('data:')) return false;
+      // Don't skip invalid or data URI fallback posters - allow re-fetching
+      if (cached && isReusablePoster(cached.poster)) return false;
       if (pendingRequestsRef.current.has(anime.id)) return false;
       return true;
     }).slice(0, 30);
