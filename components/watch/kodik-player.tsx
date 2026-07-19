@@ -37,6 +37,7 @@ interface KodikTranslation {
 }
 
 const STORAGE_KEY_PREFIX = "kodik-translation-"
+const UI_HIDE_DELAY = 3000
 
 function getSavedTranslationId(shikimoriId: string): string | null {
   if (typeof window === "undefined") return null
@@ -67,6 +68,10 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCo
   const playerContainerRef = useRef<HTMLDivElement>(null)
   const lastTapRef = useRef<number>(0)
 
+  // Автоскрытие кастомного UI поверх плеера
+  const [showUi, setShowUi] = useState(true)
+  const uiTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
   // --- Кастомное меню озвучек ---
   const [translations, setTranslations] = useState<KodikTranslation[]>([])
   const [translationsLoading, setTranslationsLoading] = useState(false)
@@ -74,6 +79,8 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCo
   const [showTranslationsMenu, setShowTranslationsMenu] = useState(false)
   const translationsMenuRef = useRef<HTMLDivElement>(null)
   const triggerButtonRef = useRef<HTMLButtonElement>(null)
+  const showTranslationsMenuRef = useRef(showTranslationsMenu)
+  showTranslationsMenuRef.current = showTranslationsMenu
   const [isMobile, setIsMobile] = useState(false)
   const [menuPos, setMenuPos] = useState<{ top: number; left: number; width: number } | null>(null)
   const [mounted, setMounted] = useState(false)
@@ -381,6 +388,22 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCo
     setLoadTimeout(timeout)
   }
 
+  const clearUiTimer = useCallback(() => {
+    if (uiTimerRef.current) {
+      clearTimeout(uiTimerRef.current)
+      uiTimerRef.current = null
+    }
+  }, [])
+
+  const showUiAndResetTimer = useCallback(() => {
+    setShowUi(true)
+    clearUiTimer()
+    if (showTranslationsMenuRef.current) return
+    uiTimerRef.current = setTimeout(() => {
+      setShowUi(false)
+    }, UI_HIDE_DELAY)
+  }, [clearUiTimer])
+
   useEffect(() => {
     return () => {
       if (loadTimeout) {
@@ -415,6 +438,37 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCo
       clearInterval(checkInterval)
     }
   }, [isStarted, isLoading, hasError])
+
+  // Автоскрытие кастомного UI плеера: скрываем через UI_HIDE_DELAY мс
+  // после окончания взаимодействия, показываем при mouseenter/click/touchstart.
+  useEffect(() => {
+    if (!isStarted || isLoading || hasError) return
+
+    const container = playerContainerRef.current
+    if (!container) return
+
+    const handle = () => showUiAndResetTimer()
+    const events = ['mouseenter', 'click', 'touchstart'] as const
+    events.forEach((event) => container.addEventListener(event, handle))
+
+    showUiAndResetTimer()
+
+    return () => {
+      events.forEach((event) => container.removeEventListener(event, handle))
+      clearUiTimer()
+    }
+  }, [isStarted, isLoading, hasError, showUiAndResetTimer, clearUiTimer])
+
+  // Когда открыто меню озвучек — UI не скрываем
+  useEffect(() => {
+    if (!isStarted) return
+    if (showTranslationsMenu) {
+      clearUiTimer()
+      setShowUi(true)
+    } else {
+      showUiAndResetTimer()
+    }
+  }, [showTranslationsMenu, isStarted, clearUiTimer, showUiAndResetTimer])
 
   // Обработчик postMessage сообщений от плеера Kodik
   useEffect(() => {
@@ -579,9 +633,19 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCo
         </div>
       ) : (
         <>
+          {/* Прозрачный оверлей для пробуждения UI при клике/касании */}
+          <div
+            className={`absolute inset-0 z-20 bg-transparent transition-opacity duration-300 ${
+              showUi ? 'pointer-events-none opacity-0' : 'pointer-events-auto opacity-0'
+            }`}
+            onClick={showUiAndResetTimer}
+          />
+
           {/* Боковые зоны для двойного тапа (fullscreen) — шире на мобильных */}
           <div
-            className="absolute left-0 top-0 w-[48px] sm:w-[40px] h-full z-10 cursor-pointer pointer-events-auto touch-none"
+            className={`absolute left-0 top-0 w-[48px] sm:w-[40px] h-full z-30 cursor-pointer pointer-events-auto touch-none transition-opacity duration-300 ${
+              showUi ? 'opacity-100' : 'opacity-0 pointer-events-none'
+            }`}
             onClick={(e) => {
               const isDouble = handleDoubleTap()
               if (isDouble) e.stopPropagation()
@@ -596,7 +660,9 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCo
             )}
           </div>
           <div
-            className="absolute right-0 top-0 w-[48px] sm:w-[40px] h-full z-10 cursor-pointer pointer-events-auto touch-none"
+            className={`absolute right-0 top-0 w-[48px] sm:w-[40px] h-full z-30 cursor-pointer pointer-events-auto touch-none transition-opacity duration-300 ${
+              showUi ? 'opacity-100' : 'opacity-0 pointer-events-none'
+            }`}
             onClick={(e) => {
               const isDouble = handleDoubleTap()
               if (isDouble) e.stopPropagation()
@@ -612,8 +678,10 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCo
           </div>
 
           {/* Кастомное меню выбора озвучки (поверх плеера) */}
-          {translations.length > 0 && (
-            <div className="absolute top-2 left-2 sm:top-3 sm:left-3 z-30 max-w-[calc(100vw-1rem)]">
+          {showUi && translations.length > 0 && (
+            <div className={`absolute top-2 left-2 sm:top-3 sm:left-3 z-30 max-w-[calc(100vw-1rem)] transition-opacity duration-300 ${
+              showUi ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+            }`}>
               <button
                 ref={triggerButtonRef}
                 onClick={() => (showTranslationsMenu ? setShowTranslationsMenu(false) : openMenu())}
@@ -633,8 +701,8 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCo
           )}
 
           {/* Центральная подсказка при одиночном тапе по бокам */}
-          {showFullscreenHint && (
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20 pointer-events-none px-4 w-full max-w-xs">
+          {showUi && showFullscreenHint && (
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 pointer-events-none px-4 w-full max-w-xs transition-opacity duration-300">
               <style>{`
                 @keyframes ripple-wave {
                   0% { transform: scale(0.8); opacity: 0; }
@@ -659,13 +727,13 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCo
           )}
 
           {isLoading && !hasError && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center">
+            <div className="absolute inset-0 z-50 flex flex-col items-center justify-center">
               <PlayerLoading />
             </div>
           )}
 
           {hasError ? (
-             <div className="absolute inset-0 flex flex-col items-center justify-center text-zinc-400 gap-3 sm:gap-4 bg-zinc-900 p-4 sm:p-6">
+             <div className="absolute inset-0 z-50 flex flex-col items-center justify-center text-zinc-400 gap-3 sm:gap-4 bg-zinc-900 p-4 sm:p-6">
                 <AlertCircle className="w-10 h-10 sm:w-12 sm:h-12 text-red-500 flex-shrink-0" />
                 <div className="text-center">
                   <p className="text-base sm:text-lg font-medium text-white mb-2">Плеер недоступен</p>
