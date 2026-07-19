@@ -43,8 +43,7 @@ const ALLOWED_HOSTS = [
   'raw.githubusercontent.com',
   'objects.githubusercontent.com',
   'picsum.photos',
-  'transparenttextures.com',
-  'supabase.co'
+  'transparenttextures.com'
 ];
 
 export const maxDuration = 15;

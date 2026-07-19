@@ -63,14 +63,15 @@ export function isExternalImageUrl(url: string): boolean {
     'raw.githubusercontent.com',
     'objects.githubusercontent.com',
     'picsum.photos',
-    'transparenttextures.com',
-    'supabase.co'
+    'transparenttextures.com'
   ]
   return externalDomains.some(domain => url.includes(domain))
 }
 
 export function getProxiedSrc(url: string): string {
   if (!url) return ""
+  // Supabase Storage URLs are our own infrastructure — load directly, no proxy needed
+  if (url.includes('supabase.co/storage/')) return url
   if (IMAGE_SERVER_URL) {
     return `${IMAGE_SERVER_URL}/proxy?url=${encodeURIComponent(url)}`
   }
