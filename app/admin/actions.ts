@@ -265,6 +265,95 @@ async function getAdminSupabase() {
   })
 }
 
+export async function getBattleAIDashboard() {
+  const supabase = await getAdminSupabase()
+  const [locationsResult, profilesResult, profilesCountResult] = await Promise.all([
+    supabase
+      .from("ai_dungeon_learning")
+      .select("dungeon_id, battles, wins, losses, total_turns, updated_at")
+      .order("battles", { ascending: false }),
+    supabase
+      .from("ai_player_dungeon_profiles")
+      .select("user_id, dungeon_id, battles, wins, losses, consecutive_wins, updated_at")
+      .order("consecutive_wins", { ascending: false })
+      .order("wins", { ascending: false })
+      .limit(100),
+    supabase
+      .from("ai_player_dungeon_profiles")
+      .select("*", { count: "exact", head: true }),
+  ])
+
+  if (locationsResult.error) throw locationsResult.error
+  if (profilesResult.error) throw profilesResult.error
+  if (profilesCountResult.error) throw profilesCountResult.error
+
+  const playerProfiles = profilesResult.data || []
+  const userIds = Array.from(new Set(playerProfiles.map((profile: any) => profile.user_id)))
+  const { data: users, error: usersError } = userIds.length > 0
+    ? await supabase.from("profiles").select("id, username, avatar_url").in("id", userIds)
+    : { data: [], error: null }
+  if (usersError) throw usersError
+
+  const userMap = new Map((users || []).map((user: any) => [user.id, user]))
+  const locations = (locationsResult.data || []).map((location: any) => {
+    const playerWinRate = location.battles > 0 ? location.wins / location.battles : 0
+    const avgTurns = location.battles > 0 ? location.total_turns / location.battles : 0
+    const balanceStatus = location.battles < 20
+      ? "insufficient"
+      : playerWinRate > 0.65
+        ? "player_advantage"
+        : playerWinRate < 0.45
+          ? "ai_advantage"
+          : "balanced"
+
+    return {
+      ...location,
+      playerWinRate,
+      aiWinRate: 1 - playerWinRate,
+      avgTurns,
+      balanceStatus,
+    }
+  })
+  const farmProfiles = playerProfiles.map((profile: any) => {
+    const user = userMap.get(profile.user_id)
+    const winRate = profile.battles > 0 ? profile.wins / profile.battles : 0
+    const riskLevel = profile.battles >= 12 && winRate >= 0.8 && profile.consecutive_wins >= 5
+      ? "high"
+      : profile.battles >= 6 && winRate >= 0.65
+        ? "medium"
+        : "normal"
+
+    return {
+      ...profile,
+      username: user?.username || null,
+      avatar_url: user?.avatar_url || null,
+      winRate,
+      riskLevel,
+    }
+  })
+  const totalBattles = locations.reduce((total, location) => total + location.battles, 0)
+  const totalWins = locations.reduce((total, location) => total + location.wins, 0)
+  const totalTurns = locations.reduce((total, location) => total + location.total_turns, 0)
+
+  return {
+    generatedAt: new Date().toISOString(),
+    summary: {
+      totalBattles,
+      playerWinRate: totalBattles > 0 ? totalWins / totalBattles : 0,
+      averageTurns: totalBattles > 0 ? totalTurns / totalBattles : 0,
+      activeLocations: locations.length,
+      trackedProfiles: profilesCountResult.count || 0,
+      highRiskProfiles: farmProfiles.filter(profile => profile.riskLevel === "high").length,
+      balancedLocations: locations.filter(location => location.balanceStatus === "balanced").length,
+      insufficientLocations: locations.filter(location => location.balanceStatus === "insufficient").length,
+      playerAdvantageLocations: locations.filter(location => location.balanceStatus === "player_advantage").length,
+      aiAdvantageLocations: locations.filter(location => location.balanceStatus === "ai_advantage").length,
+    },
+    locations,
+    farmProfiles,
+  }
+}
+
 // ============================================================
 // Lightweight users list (for card-gifting / mail targeting)
 // Returns: id, username, avatar_url, email, created_at

@@ -8,6 +8,7 @@ import {
   type BattleCard,
   type BattleEnemy,
 } from '@/lib/battle-engine'
+import { getAdaptiveAIProfile } from '@/app/battle/ai/difficulty'
 
 async function getAuthenticatedUser(request: Request) {
   const authHeader = request.headers.get('authorization')
@@ -679,6 +680,14 @@ export async function POST(request: NextRequest) {
           energy_cost: energyCost,
         })
 
+      const { error: learningError } = await supabaseAdmin.rpc('record_ai_battle_learning', {
+        p_user_id: user.id,
+        p_dungeon_id: dungeonId,
+        p_result: result,
+        p_turns: Math.max(0, Math.min(Number(turns) || 3, 20)),
+      })
+      if (learningError) console.error('[Battle API] Failed to record AI learning:', learningError)
+
       return NextResponse.json({ 
         success: true,
         coinsEarned,
@@ -935,10 +944,35 @@ export async function POST(request: NextRequest) {
         battleToken = null
       }
 
+      const [{ data: playerLearning, error: playerLearningError }, { data: globalLearning, error: globalLearningError }] = await Promise.all([
+        supabaseAdmin
+          .from('ai_player_dungeon_profiles')
+          .select('battles, wins, losses, consecutive_wins')
+          .eq('user_id', user.id)
+          .eq('dungeon_id', dungeonId)
+          .maybeSingle(),
+        supabaseAdmin
+          .from('ai_dungeon_learning')
+          .select('battles, wins, losses')
+          .eq('dungeon_id', dungeonId)
+          .maybeSingle(),
+      ])
+      if (playerLearningError || globalLearningError) {
+        console.error('[Battle API] Failed to load AI learning profile:', playerLearningError || globalLearningError)
+      }
+
+      const aiConfig = getAdaptiveAIProfile({
+        playerLevel: progress.level,
+        dungeonDifficulty: dungeon.difficulty,
+        player: playerLearning,
+        global: globalLearning,
+      })
+
       return NextResponse.json({
         success: true,
         staminaUsed: dungeon.energy_cost,
         battleToken,
+        aiConfig,
       })
     }
 

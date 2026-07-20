@@ -317,9 +317,11 @@ export function getAIDeckForDungeon(theme: string): Card[] {
 export function generateAdaptiveAIDeck(
   playerFavoriteCards: PlayerCardUsage[],
   baseDeck: Card[],
-  targetProvision: number = PROVISION_LIMIT
+  targetProvision: number = PROVISION_LIMIT,
+  counterPickStrength: number = 1
 ): Card[] {
-  if (playerFavoriteCards.length === 0) {
+  const normalizedCounterPickStrength = Math.min(1, Math.max(0, counterPickStrength))
+  if (playerFavoriteCards.length === 0 || normalizedCounterPickStrength === 0) {
     return baseDeck.slice(0, DECK_SIZE)
   }
 
@@ -347,8 +349,9 @@ export function generateAdaptiveAIDeck(
     const adaptiveDeck: Card[] = []
     let totalProvision = 0
     
+    const targetCounterCards = Math.max(1, Math.round(DECK_SIZE * normalizedCounterPickStrength))
     for (const card of counterCards) {
-      if (adaptiveDeck.length >= DECK_SIZE) break
+      if (adaptiveDeck.length >= targetCounterCards) break
       // Check for duplicate characters (same name + anime)
       if (adaptiveDeck.some(c => c.name === card.name && c.anime === card.anime)) continue
       const cardProvision = getCardProvision(card)
@@ -377,7 +380,7 @@ export function generateAdaptiveAIDeck(
 
   // Fallback: return base deck with some counter cards mixed in
   const mixedDeck = [...baseDeck]
-  const counterCount = Math.min(counterCards.length, 2)
+  const counterCount = Math.min(counterCards.length, Math.round(2 * normalizedCounterPickStrength))
   const usedIndices = new Set<number>()
   
   // Replace some cards with counter cards (avoid duplicates)

@@ -14,6 +14,8 @@ export interface AIConfig {
   aggressiveness?: number // 0-1, выше = более агрессивный
   defensiveness?: number // 0-1, выше = более защитный
   bluffChance?: number // 0-1, шанс сыграть слабую карту секретно
+  decisionQuality?: number // 0-1, вероятность выбрать лучшее тактическое решение
+  mistakeChance?: number // 0-1, вероятность намеренно неидеального выбора
   userId?: string // ID пользователя для адаптивного обучения
 }
 
@@ -268,6 +270,22 @@ class AIStrategy {
   }
 }
 
+function selectScoredCandidate<T extends { score: number }>(candidates: T[], config: AIConfig): T | undefined {
+  if (candidates.length === 0) return undefined
+
+  const decisionQuality = Math.min(1, Math.max(0, config.decisionQuality ?? 0.7))
+  const mistakeChance = Math.min(1, Math.max(0, config.mistakeChance ?? 0.16))
+  if (Math.random() < mistakeChance) {
+    const firstNonOptimal = Math.min(candidates.length - 1, Math.floor(candidates.length * 0.35))
+    return candidates[firstNonOptimal + Math.floor(Math.random() * (candidates.length - firstNonOptimal))]
+  }
+
+  if (Math.random() < decisionQuality) return candidates[0]
+
+  const topChoices = Math.max(2, Math.ceil((1 - decisionQuality) * 6))
+  return candidates[Math.floor(Math.random() * Math.min(topChoices, candidates.length))]
+}
+
 class RandomStrategy extends AIStrategy {
   decideCard(context: AIDecisionContext): AICardDecision | null {
     this.log("Использование случайной стратегии", "basic")
@@ -349,7 +367,7 @@ class StrategicStrategy extends AIStrategy {
     }
     
     decisions.sort((a, b) => b.score - a.score)
-    const best = decisions[0]
+    const best = selectScoredCandidate(decisions, this.config)
     
     if (!best) return null
     
@@ -438,7 +456,7 @@ class AdaptiveStrategy extends AIStrategy {
           
           // Пытаемся отвоевать отстающую линию агрессивной атакой
           if (getCardRole(card) === "vanguard") {
-            finalScore += 50
+            finalScore += 25 + 50 * (this.config.aggressiveness ?? 0.6)
           }
         } else if (zoneState.status === "winning") {
           // Если уже есть выигранная зона, штрафуем за укрепление ещё одной
@@ -446,6 +464,8 @@ class AdaptiveStrategy extends AIStrategy {
           if (alreadyHaveWinningZone) {
             finalScore -= 60 // Сильный штраф за "жадность" к одной зоне
             this.log(`Штраф за укрепление уже выигранной зоны ${zoneState.zone.nameRu} (нужна вторая зона)`, "detailed")
+          } else if (getCardRole(card) === "guard") {
+            finalScore += 35 * (this.config.defensiveness ?? 0.4)
           } else {
             // Первую выигранную зону можно укреплять, но без бонусов за роль
             // Все роли работают одинаково для защиты
@@ -476,7 +496,7 @@ class AdaptiveStrategy extends AIStrategy {
     }
 
     candidates.sort((a, b) => b.score - a.score)
-    const bestCandidate = candidates[0]
+    const bestCandidate = selectScoredCandidate(candidates, this.config)
 
     // Фолбэк на случай непредвиденных пустых результатов оценивания
     if (!bestCandidate) {

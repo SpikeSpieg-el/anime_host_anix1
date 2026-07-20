@@ -9,7 +9,6 @@ import { PROVISION_LIMIT, DECK_SIZE, TERRITORY_MODIFIERS, FormationId, MAX_CARDS
 import { Rarity } from "@/types/gacha"
 import { getAIDeckForDungeon, getRandomMarketDeck, generateAdaptiveAIDeck } from "../ai-decks"
 import { createAI, createAIDecisionContext, AIConfig } from "../ai"
-import { recordPlayerBattle, getAdaptiveLearning } from "../ai/adaptive-learning"
 
 // Helper function to preload card images in background
 const preloadCardImages = (cards: Card[]) => {
@@ -852,36 +851,36 @@ export function useBattleData() {
       }
       console.log('[Battle] AI deck generated, size:', predefinedDeck.length)
 
-      // Apply adaptive deck generation if player has enough battle history
-      if (user) {
-        try {
-          const adaptiveLearning = getAdaptiveLearning(user.id)
-          const playstyleStats = adaptiveLearning.getPlaystyleStats()
-          
-          if (playstyleStats && playstyleStats.totalBattles >= 5) {
-            // Use adaptive deck with counter-picks against player's favorite cards
-            predefinedDeck = generateAdaptiveAIDeck(
-              playstyleStats.favoriteCards,
-              predefinedDeck,
-              PROVISION_LIMIT
-            )
-            console.log('[Battle] Using adaptive AI deck based on player playstyle')
-          }
-        } catch (err) {
-          console.error('[Battle] Error generating adaptive deck:', err)
-        }
-      }
+      const serverAIConfig = (spendData.aiConfig || {}) as Partial<AIConfig> & { counterPickStrength?: number }
+      const playerCardUsage = selectedCards.map(card => ({
+        cardId: card.uniqueId,
+        cardName: card.name,
+        anime: card.anime,
+        rarity: card.rarity,
+        role: card.role || getCardRole(card),
+        usageCount: 1,
+        lastUsed: Date.now(),
+        winRate: 0,
+        totalBattles: 0,
+        wins: 0,
+      }))
+      predefinedDeck = generateAdaptiveAIDeck(
+        playerCardUsage,
+        predefinedDeck,
+        PROVISION_LIMIT,
+        serverAIConfig.counterPickStrength
+      )
 
       // Initialize AI Engine with strategic strategy and adaptive learning
       console.log('[Battle] Initializing AI engine')
       aiEngineRef.current = createAI({
-        strategy: "strategic",
+        strategy: "adaptive",
         enableLogging: false, // Disable logging in production
         logLevel: "none",
         aggressiveness: 0.6,
         defensiveness: 0.4,
         bluffChance: 0.3,
-        userId: user?.id // Enable adaptive learning based on player's playstyle
+        ...serverAIConfig,
       })
       console.log('[Battle] AI engine initialized')
       
@@ -1615,13 +1614,6 @@ export function useBattleData() {
         victory = totalPlayerPower >= totalAIPower
       }
 
-      // Record battle statistics for adaptive AI learning (fire and forget)
-      if (user && selectedCards.length > 0) {
-        recordPlayerBattle(user.id, selectedCards, victory, selectedCards).catch(err => {
-          console.error('[Battle] Error recording battle for adaptive learning:', err)
-        })
-      }
-
       // Calculate MVP (Strongest Player card deployed on any zone)
       let mvpCard = { name: "Герой", power: 0 }
       nextZones.forEach(z => {
@@ -1701,7 +1693,6 @@ export function useBattleData() {
     // Use provided data or fallback to state
     const dungeonIdToFinish = overrideDungeonId || selectedDungeon?.id
     const resultToFinish = overrideResult || (ccgState?.victory ? 'win' : 'loss')
-    const isVictoryToFinish = resultToFinish === 'win'
     
     try {
       // Transition from finalizing to ended phase to show results modal
@@ -1721,7 +1712,7 @@ export function useBattleData() {
       }
 
       // Process rewards and API calls in background
-      if (isVictoryToFinish) {
+      if (!isPvPMode) {
         const token = session?.access_token
         console.log('[Battle] Processing victory rewards. Dungeon:', dungeonIdToFinish, 'Token:', !!token)
         if (token) {
@@ -1734,7 +1725,7 @@ export function useBattleData() {
                 body: JSON.stringify({
                   action: 'finish_battle',
                   dungeonId: dungeonIdToFinish,
-                  result: 'win',
+                  result: resultToFinish,
                   battleToken: battleTokenRef.current,
                   turns: 3
                 })
