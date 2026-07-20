@@ -105,7 +105,7 @@ interface SelectedTeamPanelProps {
   setFormation: (formation: FormationId) => void
   onCardClick?: (card: Card) => void
   onOpenLocationSelector?: () => void
-  autoBuildDeck?: () => void
+  onAutoBuild?: () => void
 }
 
 // Helper function to convert difficulty to vague threat description
@@ -147,7 +147,7 @@ export const SelectedTeamPanel: React.FC<SelectedTeamPanelProps> = ({
   setFormation,
   onCardClick,
   onOpenLocationSelector,
-  autoBuildDeck,
+  onAutoBuild,
 }) => {
   const [viewedSynergy, setViewedSynergy] = useState<DeckSynergy | null>(null)
   const [showPowerBreakdown, setShowPowerBreakdown] = useState(false)
@@ -274,9 +274,9 @@ export const SelectedTeamPanel: React.FC<SelectedTeamPanelProps> = ({
               >
                 <Target className="w-3.5 h-3.5 lg:w-5 lg:h-5" /> Изменить состав
               </button>
-              {autoBuildDeck && (
+              {onAutoBuild && (
                 <button
-                  onClick={autoBuildDeck}
+                  onClick={onAutoBuild}
                   className="px-3 lg:px-4 py-3 lg:py-4 rounded-xl text-xs lg:text-sm font-black uppercase tracking-wider flex items-center justify-center gap-2 bg-violet-500/15 hover:bg-violet-500/25 text-violet-300 border border-violet-500/30 active:scale-95 transition-all"
                   title="Автоматически собрать лучшую колоду из ваших карт"
                 >

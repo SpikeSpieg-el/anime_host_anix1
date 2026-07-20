@@ -338,6 +338,24 @@ export async function rollFromAnimePack(
   }
 }
 
+function normalizeBannerCardPayload(payload: any): GachaResult {
+  const rarity = payload.rarity || 'common'
+
+  return {
+    ...payload,
+    characterName: payload.characterName || payload.name || '',
+    animeName: payload.animeName || payload.anime || '',
+    characterId: payload.characterId ?? payload.id ?? 0,
+    imageUrl: payload.imageUrl || payload.originalUrl || '',
+    originalUrl: payload.originalUrl || payload.imageUrl || '',
+    rarity,
+    score: payload.score ?? payload.animeScore ?? 0,
+    shikiId: payload.shikiId ?? payload.animeId ?? 0,
+    stats: payload.stats || generateStats(rarity),
+    isMainCharacter: payload.isMainCharacter || false,
+  }
+}
+
 export async function rollFromBanner(
   banner: {
     id: string;
@@ -404,13 +422,10 @@ export async function rollFromBanner(
 
           console.log(`[rollFromBanner] Awarding guaranteed GG: ${chosenGG.characterName || chosenGG.name} after ${newCount} pulls!`)
           const guaranteedResult = {
-            ...chosenGG,
+            ...normalizeBannerCardPayload(chosenGG),
             packId: 'banner:' + banner.id,
             packName: banner.name,
-            stats: chosenGG.stats || generateStats(chosenGG.rarity || 'legendary'),
-            score: chosenGG.score ?? chosenGG.animeScore ?? 0,
-            shikiId: chosenGG.shikiId ?? chosenGG.animeId ?? 0,
-          } as GachaResult
+          }
           return guaranteedResult
         }
 
@@ -468,13 +483,10 @@ export async function rollFromBanner(
             console.log(`[rollFromBanner] Awarding guaranteed card after ${newCount} pulls!`)
             const payload = banner.guaranteedCardPayload
             const guaranteedResult = {
-              ...payload,
+              ...normalizeBannerCardPayload(payload),
               packId: 'banner:' + banner.id,
               packName: banner.name,
-              stats: payload.stats || generateStats(payload.rarity || 'legendary'),
-              score: payload.score ?? payload.animeScore ?? 0,
-              shikiId: payload.shikiId ?? payload.animeId ?? 0,
-            } as GachaResult
+            }
             return guaranteedResult
           }
         }
@@ -501,10 +513,10 @@ export async function rollFromBanner(
       if (!cardPayload) return null
 
       return {
-        ...cardPayload,
+        ...normalizeBannerCardPayload(cardPayload),
         packId: 'banner:' + banner.id,
         packName: banner.name,
-      } as GachaResult
+      }
     }
 
     if (banner.featuredAnimeIds && banner.featuredAnimeIds.length > 0) {

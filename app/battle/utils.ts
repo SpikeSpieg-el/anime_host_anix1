@@ -446,39 +446,60 @@ export interface AutoDeckResult {
   totalProvision: number
 }
 
-export const buildAutoDeck = (cards: Card[]): AutoDeckResult => {
+export const buildAutoDeck = (cards: Card[], keepCards?: Card[]): AutoDeckResult => {
   if (cards.length === 0) return { deck: [], leaderId: null, totalProvision: 0 }
 
-  const sorted = cards.slice().sort((a, b) => getCardBasePower(b) - getCardBasePower(a))
-
-  // If player has ≤ DECK_SIZE cards, use all of them
-  if (sorted.length <= DECK_SIZE) {
-    const deck = sorted
-    const totalProvision = deck.reduce((acc, c) => acc + (c.provisionCost || getCardProvision(c)), 0)
-    const leader = deck[0]
-    return { deck, leaderId: leader?.uniqueId || null, totalProvision }
-  }
-
+  const keepUniqueIds = new Set<string>()
   let deck: Card[] = []
   let totalProv = 0
+  const rolesPresent = new Set<CardRole>()
+
+  // Phase 0: start with cards the player wants to keep
+  if (keepCards) {
+    for (const c of keepCards) {
+      if (deck.some(d => d.uniqueId === c.uniqueId)) continue
+      const card = { ...c }
+      card.provisionCost = card.provisionCost || getCardProvision(card)
+      card.role = card.role || getCardRole(card)
+      deck.push(card)
+      keepUniqueIds.add(card.uniqueId)
+      totalProv += card.provisionCost
+      rolesPresent.add(card.role)
+    }
+  }
+
+  const sorted = cards
+    .filter(c => !keepUniqueIds.has(c.uniqueId))
+    .sort((a, b) => getCardBasePower(b) - getCardBasePower(a))
+
+  // If player has ≤ remaining slots, use all non-kept cards
+  if (sorted.length <= DECK_SIZE - deck.length) {
+    for (const card of sorted) {
+      const prov = card.provisionCost || getCardProvision(card)
+      deck.push(card)
+      totalProv += prov
+    }
+    const finalDeck = deck.slice(0, DECK_SIZE)
+    const leader = finalDeck.slice().sort((a, b) => getCardBasePower(b) - getCardBasePower(a))[0]
+    return { deck: finalDeck, leaderId: leader?.uniqueId || null, totalProvision: totalProv }
+  }
 
   // Phase 1: Ensure at least 1 of each role for role_harmony synergy
   const roles: CardRole[] = ["vanguard", "guard", "trickster"]
   for (const role of roles) {
     if (deck.length >= DECK_SIZE) break
-    const best = sorted.find(c =>
-      !deck.some(d => d.uniqueId === c.uniqueId) &&
-      (c.role || getCardRole(c)) === role
-    )
+    if (rolesPresent.has(role)) continue
+
+    const best = sorted.find(c => (c.role || getCardRole(c)) === role)
     if (best) {
       const prov = best.provisionCost || getCardProvision(best)
       if (totalProv + prov <= PROVISION_LIMIT) {
         deck.push(best)
         totalProv += prov
+        rolesPresent.add(role)
       } else {
         // Find cheapest card of this role that fits
         const cheap = sorted.find(c =>
-          !deck.some(d => d.uniqueId === c.uniqueId) &&
           (c.role || getCardRole(c)) === role &&
           (c.provisionCost || getCardProvision(c)) + totalProv <= PROVISION_LIMIT
         )
@@ -486,6 +507,7 @@ export const buildAutoDeck = (cards: Card[]): AutoDeckResult => {
           const cheapProv = cheap.provisionCost || getCardProvision(cheap)
           deck.push(cheap)
           totalProv += cheapProv
+          rolesPresent.add(role)
         }
       }
     }
@@ -502,7 +524,7 @@ export const buildAutoDeck = (cards: Card[]): AutoDeckResult => {
     }
   }
 
-  // Phase 3: If not full, swap expensive deck cards for cheaper alternatives
+  // Phase 3: If not full, swap expensive auto-picked deck cards for cheaper alternatives
   if (deck.length < DECK_SIZE) {
     const remaining = sorted
       .filter(c => !deck.some(d => d.uniqueId === c.uniqueId))
@@ -519,8 +541,9 @@ export const buildAutoDeck = (cards: Card[]): AutoDeckResult => {
         continue
       }
 
-      // Try swapping: replace most expensive deck card with this cheaper one
-      const deckByCost = deck.slice().sort((a, b) =>
+      // Try swapping: replace most expensive non-kept deck card with this cheaper one
+      const autoPicked = deck.filter(c => !keepUniqueIds.has(c.uniqueId))
+      const deckByCost = autoPicked.sort((a, b) =>
         (b.provisionCost || getCardProvision(b)) - (a.provisionCost || getCardProvision(a))
       )
 

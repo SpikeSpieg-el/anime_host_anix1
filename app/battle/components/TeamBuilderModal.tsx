@@ -24,7 +24,7 @@ interface TeamBuilderModalProps {
   setLeaderId: (id: string | null) => void
   activeSynergies: DeckSynergy[]
   onCardClick?: (card: Card) => void
-  autoBuildDeck?: () => void
+  onAutoBuild?: () => void
 }
 
 export const TeamBuilderModal: React.FC<TeamBuilderModalProps> = ({
@@ -43,7 +43,7 @@ export const TeamBuilderModal: React.FC<TeamBuilderModalProps> = ({
   leaderId,
   setLeaderId,
   activeSynergies,
-  autoBuildDeck,
+  onAutoBuild,
 }) => {
   if (!showTeamBuilder) return null
 
@@ -422,9 +422,9 @@ export const TeamBuilderModal: React.FC<TeamBuilderModalProps> = ({
             </div>
           )}
           <div className="flex gap-3">
-            {autoBuildDeck && (
+            {onAutoBuild && (
               <button
-                onClick={autoBuildDeck}
+                onClick={onAutoBuild}
                 className="px-5 py-4 bg-violet-500/15 hover:bg-violet-500/25 text-violet-300 border border-violet-500/30 font-black uppercase tracking-widest rounded-xl transition-all active:scale-95 flex items-center justify-center gap-2 whitespace-nowrap"
                 title="Автоматически собрать лучшую колоду из ваших карт"
               >

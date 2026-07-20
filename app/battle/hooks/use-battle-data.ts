@@ -591,13 +591,13 @@ export function useBattleData() {
     refreshCoins()
   }, [user, refreshCoins])
 
-  const autoBuildDeck = useCallback(() => {
+  const autoBuildDeck = useCallback((keepCards?: Card[]) => {
     if (collectedCards.length === 0) {
       setError("У вас нет карт! Получите карты в гаче.")
       return
     }
 
-    const { deck, leaderId: autoLeader, totalProvision } = buildAutoDeck(collectedCards)
+    const { deck, leaderId: autoLeader, totalProvision } = buildAutoDeck(collectedCards, keepCards)
 
     if (deck.length === 0) {
       setError("Не удалось собрать колоду.")

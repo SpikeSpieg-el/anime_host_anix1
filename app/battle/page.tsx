@@ -17,6 +17,7 @@ import { SelectedTeamPanel, SelectedTeamPanelSkeleton } from "./components/Selec
 import { BattleArena } from "./components/BattleArena"
 import { BattleResultView } from "./components/BattleResultView"
 import { TeamBuilderModal } from "./components/TeamBuilderModal"
+import { AutoBuildConfirmModal } from "./components/AutoBuildConfirmModal"
 import { PvPArena } from "./components/PvPArena"
 import { Leaderboard } from "./components/Leaderboard"
 import { usePvPBattle } from "./hooks/use-pvp-battle"
@@ -294,6 +295,7 @@ export default function BattlePage() {
   const [viewedCard, setViewedCard] = useState<Card | null>(null)
   const [isPvPMode, setIsPvPMode] = useState(false)
   const [showBattleTutorial, setShowBattleTutorial] = useState(false)
+  const [showAutoBuildConfirm, setShowAutoBuildConfirm] = useState(false)
   const [retryCount, setRetryCount] = useState(0)
   const prevRoundResultsRef = useRef<any>(null)
   const {
@@ -436,6 +438,20 @@ export default function BattlePage() {
   const handleCardClick = (card: Card) => {
     setViewedCard(card)
   }
+
+  const handleAutoBuildRequest = useCallback(() => {
+    if (selectedCards.length === 0) {
+      autoBuildDeck()
+    } else {
+      setShowAutoBuildConfirm(true)
+    }
+  }, [selectedCards.length, autoBuildDeck])
+
+  const handleAutoBuildConfirm = useCallback((keepIds: string[]) => {
+    setShowAutoBuildConfirm(false)
+    const keepCards = selectedCards.filter(c => keepIds.includes(c.uniqueId))
+    autoBuildDeck(keepCards)
+  }, [selectedCards, autoBuildDeck])
 
   const handleSharePage = async () => {
     const shareText = isPvPMode
@@ -671,7 +687,7 @@ export default function BattlePage() {
                   setFormation={setFormation}
                   onCardClick={handleCardClick}
                   onOpenLocationSelector={() => setShowModeSelector(true)}
-                  autoBuildDeck={autoBuildDeck}
+                  onAutoBuild={handleAutoBuildRequest}
                 />
               )}
             </div>
@@ -839,7 +855,15 @@ export default function BattlePage() {
         setLeaderId={setLeaderId}
         activeSynergies={activeSynergies}
         onCardClick={handleCardClick}
-        autoBuildDeck={autoBuildDeck}
+        onAutoBuild={handleAutoBuildRequest}
+      />
+
+      {/* Auto-build confirmation modal */}
+      <AutoBuildConfirmModal
+        isOpen={showAutoBuildConfirm}
+        onClose={() => setShowAutoBuildConfirm(false)}
+        selectedCards={selectedCards}
+        onConfirm={handleAutoBuildConfirm}
       />
 
       {/* Viewed Card Modal */}

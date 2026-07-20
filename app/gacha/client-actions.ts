@@ -287,7 +287,21 @@ export async function deleteCardFromDatabase(uniqueId: string, session?: any): P
  * Save cards to localStorage queue for later sync to DB
  * Used when DB save fails due to network issues or tab switching
  */
+function isValidCardForSync(card: Partial<Card>): card is Card {
+  return Boolean(
+    card.uniqueId &&
+    card.name?.trim() &&
+    typeof card.characterId === 'number' &&
+    Number.isFinite(card.characterId),
+  )
+}
+
 export function queueCardForSync(card: Card) {
+  if (!isValidCardForSync(card)) {
+    console.warn('[queueCardForSync] Skipping malformed card:', (card as Partial<Card>).uniqueId)
+    return
+  }
+
   try {
     const queue = JSON.parse(localStorage.getItem('gacha-sync-queue') || '[]');
     // Check if card already in queue
@@ -322,15 +336,25 @@ export async function syncQueuedCards(session?: any): Promise<{ success: number;
       return { success: 0, failed: 0, remaining: 0 };
     }
 
-    const queue = JSON.parse(localStorage.getItem('gacha-sync-queue') || '[]');
+    const storedQueue = JSON.parse(localStorage.getItem('gacha-sync-queue') || '[]');
+    const queue = Array.isArray(storedQueue)
+      ? storedQueue.filter(isValidCardForSync)
+      : []
+    const discarded = Array.isArray(storedQueue) ? storedQueue.length - queue.length : 0
+
+    if (discarded > 0) {
+      console.warn('[syncQueuedCards] Discarded malformed cards from sync queue:', discarded)
+      localStorage.setItem('gacha-sync-queue', JSON.stringify(queue))
+    }
+
     if (queue.length === 0) {
-      return { success: 0, failed: 0, remaining: 0 };
+      return { success: 0, failed: discarded, remaining: 0 };
     }
 
     console.log('[syncQueuedCards] Syncing', queue.length, 'cards');
     
     let success = 0;
-    let failed = 0;
+    let failed = discarded;
     const successfullySyncedIds: string[] = [];
 
     for (const card of queue) {
