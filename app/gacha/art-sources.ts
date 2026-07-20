@@ -6,15 +6,29 @@ export interface ArtResult {
   url: string;
   source: string;
   tag: string;
+  hash?: string;
 }
 
 interface CacheEntry {
   pool: ArtResult[];
   pages: Record<string, number>;
   returnedUrls: Set<string>; // Track URLs already returned to client
+  returnedHashes: Set<string>;
 }
 
 const characterArtCache = new Map<string, CacheEntry>();
+const canonicalTagCache = new Map<string, BooruTagResolution>();
+
+interface BooruTagResolution {
+  exact: string[];
+  characterOnly: string[];
+}
+
+interface DanbooruTag {
+  name: string;
+  category: number;
+  post_count: number;
+}
 
 function getCharacterTags(name: string, animeName?: string): { booru: string[], zerochan: string[] } {
   const engName = name.includes('/') ? name.split('/')[1] : name;
@@ -48,18 +62,139 @@ function getCharacterTags(name: string, animeName?: string): { booru: string[], 
       enrichedBooru.push(`${tag}+${baseAnimeTag}`); 
     });
     
-    // Добавляем обычные теги как fallback
-    booru.forEach(tag => {
-      enrichedBooru.push(tag);
-    });
-    
     return { 
       booru:[...new Set(enrichedBooru)], 
-      zerochan:[`${cleanName} (${animeName})`, cleanName] 
+      zerochan:[`${cleanName} (${animeName})`]
     };
   }
 
   return { booru: [...new Set(booru)], zerochan: [cleanName] };
+}
+
+function normalizeTagName(value: string): string {
+  return value
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\([^)]*\)/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9']+/g, '_')
+    .replace(/^_+|_+$/g, '');
+}
+
+function splitTags(value: unknown): string[] {
+  if (typeof value === 'string') return value.split(/\s+/).filter(Boolean);
+  if (Array.isArray(value)) {
+    return value.flatMap(tag => typeof tag === 'string' ? tag.split(/\s+/) : []);
+  }
+  return [];
+}
+
+function getRequestedTags(query: string): { character: string; copyright: string[] } | null {
+  const tags = query.split('+').filter(Boolean);
+  if (!tags[0]) return null;
+  return { character: tags[0], copyright: tags.slice(1) };
+}
+
+function hasExactTags(post: Record<string, unknown>, source: string, query: string): boolean {
+  const requested = getRequestedTags(query);
+  if (!requested) return false;
+
+  if (source === 'danbooru') {
+    const characters = splitTags(post.tag_string_character);
+    const copyrights = splitTags(post.tag_string_copyright);
+    const rating = typeof post.rating === 'string' ? post.rating : '';
+    return (rating === 'g' || rating === 's') &&
+      characters.includes(requested.character) &&
+      requested.copyright.every(tag => copyrights.includes(tag));
+  }
+
+  const tags = splitTags(post.tags);
+  return tags.includes(requested.character) && requested.copyright.every(tag => tags.includes(tag));
+}
+
+function getNameVariants(name: string): string[] {
+  const englishName = name.includes('/') ? name.split('/').at(-1) || name : name;
+  const normalized = normalizeTagName(englishName);
+  const parts = normalized.split('_').filter(Boolean);
+  if (!normalized) return [];
+  return [...new Set([normalized, parts.slice().reverse().join('_'), parts[0]])];
+}
+
+function getTagQualifier(tag: string): string | null {
+  const match = tag.match(/_\(([^)]+)\)$/);
+  return match?.[1] || null;
+}
+
+async function getDanbooruTags(pattern: string, category: 3 | 4 = 4): Promise<DanbooruTag[]> {
+  if (!pattern) return [];
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 2500);
+  try {
+    const response = await fetch(
+      `https://danbooru.donmai.us/tags.json?search[name_matches]=${encodeURIComponent(`${pattern}*`)}&search[category]=${category}&limit=50`,
+      { signal: controller.signal, headers: { 'User-Agent': 'Weebx-Art-Resolver/1.0' } }
+    );
+    if (!response.ok) return [];
+    const data: unknown = await response.json();
+    if (!Array.isArray(data)) return [];
+    return data.filter((tag): tag is DanbooruTag =>
+      typeof tag?.name === 'string' && tag.category === category && typeof tag.post_count === 'number'
+    );
+  } catch (error) {
+    console.warn(`[Art Engine] Could not resolve Danbooru tags for "${pattern}":`, error);
+    return [];
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+async function resolveCanonicalBooruTags(characterName: string, animeName?: string): Promise<BooruTagResolution> {
+  const cacheKey = `${characterName}:${animeName || ''}`;
+  const cached = canonicalTagCache.get(cacheKey);
+  if (cached) return cached;
+
+  const characterVariants = getNameVariants(characterName);
+  const titleVariants = getNameVariants(animeName || '');
+  const titleTokens = normalizeTagName(animeName || '').split('_').filter(token => token.length > 2);
+  const [candidates, copyrightCandidates] = await Promise.all([
+    Promise.all(characterVariants.slice(0, 2).map(pattern => getDanbooruTags(pattern))).then(results => results.flat()),
+    Promise.all(titleVariants.slice(0, 2).map(pattern => getDanbooruTags(pattern, 3))).then(results => results.flat())
+  ]);
+  const uniqueCandidates = [...new Map(candidates.map(tag => [tag.name, tag])).values()];
+  const requestedNameTags = new Set(characterVariants.slice(0, 2));
+  const requestedTitleTags = new Set(titleVariants.slice(0, 2));
+  const canonicalCopyrights = [...new Map(copyrightCandidates.map(tag => [tag.name, tag])).values()]
+    .filter(tag => requestedTitleTags.has(tag.name))
+    .sort((left, right) => right.post_count - left.post_count)
+    .map(tag => tag.name);
+
+  const characterTags = uniqueCandidates
+    .filter(tag => {
+      const unqualified = tag.name.replace(/_\([^)]*\)$/, '');
+      const qualifier = getTagQualifier(tag.name);
+      return requestedNameTags.has(unqualified) &&
+        (!canonicalCopyrights.length || !qualifier || canonicalCopyrights.includes(qualifier));
+    })
+    .sort((left, right) => {
+      const score = (tag: DanbooruTag) => {
+        const qualifier = getTagQualifier(tag.name) || '';
+        const titleMatches = titleTokens.filter(token => qualifier.includes(token)).length;
+        return titleMatches * 1000000 + tag.post_count;
+      };
+      return score(right) - score(left);
+    })
+    .slice(0, 3);
+
+  const exact = characterTags.map(tag => {
+    const copyright = getTagQualifier(tag.name) || canonicalCopyrights[0];
+    return copyright ? `${tag.name}+${copyright}` : tag.name;
+  });
+  const characterOnly = characterTags.length === 1 && exact[0]?.includes('+') ? [characterTags[0].name] : [];
+  const resolution = { exact, characterOnly };
+
+  canonicalTagCache.set(cacheKey, resolution);
+  return resolution;
 }
 
 async function fetchFromSource(
@@ -122,7 +257,7 @@ async function fetchFromSource(
     if (items.length === 0) return[];
 
     items.forEach((p: any) => {
-      const h = parseInt(p.height || 0);
+      const h = parseInt(p.height || p.image_height || 0);
       
       // Фильтр качества (высота >= 700)
       if (h >= 700) {
@@ -136,8 +271,8 @@ async function fetchFromSource(
           finalUrl = p.thumbnail.replace(/\/240\//, '/600/').replace(/\.avif$/, '.jpg');
         }
 
-        if (finalUrl && !ignoredUrls.includes(finalUrl)) {
-          results.push({ url: finalUrl, source, tag });
+        if (finalUrl && !ignoredUrls.includes(finalUrl) && hasExactTags(p, source, tag)) {
+          results.push({ url: finalUrl, source, tag, hash: p.md5 || p.hash });
         }
       }
     });
@@ -156,21 +291,22 @@ export async function fetchHighQualityArt(
   ignoredUrls: string[],
   forceNew: boolean = false,
   customTags?: { booru?: string[], zerochan?: string[] },
-  animeName?: string
+  animeName?: string,
+  useCharacterFallback: boolean = false
 ): Promise<ArtResult | null> {
   
   const cacheKey = customTags ? `custom:${characterName}:${JSON.stringify(customTags)}` : 
                    (animeName ? `${characterName}:${animeName}` : characterName);
   
-  const { booru: defaultBooru, zerochan: defaultZerochan } = getCharacterTags(characterName, animeName);
+  const tagResolution = await resolveCanonicalBooruTags(characterName, animeName);
   
-  const booru = customTags?.booru || defaultBooru;
-  const zerochan = customTags?.zerochan || defaultZerochan;
+  const booru = customTags?.booru || (useCharacterFallback ? tagResolution.characterOnly : tagResolution.exact);
+  const zerochan = customTags?.zerochan || [];
 
   // 1. Инициализация кэша персонажа
   if (!characterArtCache.has(cacheKey) || forceNew) {
     if (!characterArtCache.has(cacheKey)) {
-      characterArtCache.set(cacheKey, { pool:[], pages: {}, returnedUrls: new Set() });
+      characterArtCache.set(cacheKey, { pool:[], pages: {}, returnedUrls: new Set(), returnedHashes: new Set() });
     }
   }
   
@@ -178,7 +314,9 @@ export async function fetchHighQualityArt(
   
   // 2. Фильтруем текущий пул от банов и уже возвращённых URL
   entry.pool = entry.pool.filter(item => 
-    !ignoredUrls.includes(item.url) && !entry.returnedUrls.has(item.url)
+    !ignoredUrls.includes(item.url) &&
+    !entry.returnedUrls.has(item.url) &&
+    (!item.hash || !entry.returnedHashes.has(item.hash))
   );
 
   // 3. Если в пуле мало артов — идем добывать новые
@@ -218,7 +356,7 @@ export async function fetchHighQualityArt(
         sourceResults[src] = (sourceResults[src] || 0) + results.length;
         const list = sourceBuckets.get(src) ||[];
         results.forEach(item => {
-          if (!list.some(x => x.url === item.url)) list.push(item);
+          if (!list.some(x => x.url === item.url || (item.hash && x.hash === item.hash))) list.push(item);
         });
         if (list.length > 0) sourceBuckets.set(src, list);
       }
@@ -250,8 +388,16 @@ export async function fetchHighQualityArt(
       }
     }
 
-    entry.pool =[...entry.pool, ...interleaved];
-    console.log(`[Art Engine] Infinite Pool: +${interleaved.length} new images. Next pages tracked.`);
+    const poolUrls = new Set([...entry.returnedUrls, ...entry.pool.map(item => item.url)]);
+    const poolHashes = new Set([...entry.returnedHashes, ...entry.pool.flatMap(item => item.hash ? [item.hash] : [])]);
+    const uniqueInterleaved = interleaved.filter(item => {
+      if (poolUrls.has(item.url) || (item.hash && poolHashes.has(item.hash))) return false;
+      poolUrls.add(item.url);
+      if (item.hash) poolHashes.add(item.hash);
+      return true;
+    });
+    entry.pool =[...entry.pool, ...uniqueInterleaved];
+    console.log(`[Art Engine] Infinite Pool: +${uniqueInterleaved.length} new images. Next pages tracked.`);
     
     // ИСПРАВЛЕНИЕ: Автоматический ретрай, если ничего не найдено (сброс и попытка с 1-й страницы)
     if (entry.pool.length === 0) {
@@ -260,7 +406,11 @@ export async function fetchHighQualityArt(
       // Предотвращаем бесконечный цикл: ретрай только если это не forceNew запрос
       if (!forceNew) {
          console.log(`[Art Engine] Retrying search from page 1...`);
-         return fetchHighQualityArt(characterName, ignoredUrls, true, customTags, animeName);
+         return fetchHighQualityArt(characterName, ignoredUrls, true, customTags, animeName, useCharacterFallback);
+      }
+      if (!customTags && !useCharacterFallback && tagResolution.characterOnly.length > 0) {
+        console.log(`[Art Engine] No exact copyright match for ${characterName}; using its unique character tag.`);
+        return fetchHighQualityArt(characterName, ignoredUrls, true, undefined, animeName, true);
       }
     }
   }
@@ -295,6 +445,7 @@ export async function fetchHighQualityArt(
 
   if (selected) {
     entry.returnedUrls.add(selected.url);
+    if (selected.hash) entry.returnedHashes.add(selected.hash);
     console.log(`[Art Engine] Selected: ${selected.source.toUpperCase()} | Page: ${entry.pages[`${selected.source}:${selected.tag}`]} | ${characterName}`);
     return selected;
   }

@@ -200,7 +200,7 @@ async function processCharacterData(
 
   if (isMain) {
     try {
-        const artPromise = fetchHighQualityArt(char.name, ignoredUrls, false);
+        const artPromise = fetchHighQualityArt(char.name, ignoredUrls, false, undefined, anime.name || anime.russian);
         const timeoutPromise = new Promise<null>((_, reject) => 
             setTimeout(() => reject(new Error('Art fetch timeout')), 10000)
         );

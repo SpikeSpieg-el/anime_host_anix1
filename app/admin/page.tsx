@@ -1246,7 +1246,8 @@ export default function AdminPage() {
                       {/* Avatar */}
                       <div className="relative">
                         {user.avatar_url ? (
-                          <Image
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
                             src={user.avatar_url}
                             alt={user.username || 'User'}
                             width={48}
@@ -1772,7 +1773,8 @@ export default function AdminPage() {
                         <td className="px-3 sm:px-6 py-3 sm:py-4">
                           <div className="flex items-center gap-2">
                             {log.player1.avatar_url && (
-                              <Image src={log.player1.avatar_url} alt="" width={24} height={24} className="rounded-full" />
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={log.player1.avatar_url} alt="" width={24} height={24} className="rounded-full" />
                             )}
                             <div className="flex flex-col">
                               <span className="font-medium truncate max-w-[80px]">{log.player1.username || 'P1'}</span>
@@ -1783,7 +1785,8 @@ export default function AdminPage() {
                         <td className="px-3 sm:px-6 py-3 sm:py-4">
                           <div className="flex items-center gap-2">
                             {log.player2.avatar_url && (
-                              <Image src={log.player2.avatar_url} alt="" width={24} height={24} className="rounded-full" />
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={log.player2.avatar_url} alt="" width={24} height={24} className="rounded-full" />
                             )}
                             <div className="flex flex-col">
                               <span className="font-medium truncate max-w-[80px]">{log.player2.username || 'P2'}</span>

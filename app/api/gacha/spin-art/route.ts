@@ -99,32 +99,16 @@ async function searchArtWithFallback(
     }
 
     for (const name of searchNames) {
-      const tags = generateSearchTags(name)
-      
-      for (const tag of tags) {
-        const result = await fetchHighQualityArt(tag, allIgnoredUrls, true, undefined, charData.animeName)
-        if (result) {
-          // Проверяем, не забанен ли этот URL
-          if (allIgnoredUrls.includes(result.url)) {
-            console.log(`[Spin Art] Art ${result.url} is already ignored, continuing search...`)
-            continue
-          }
-          
-          console.log(`[Spin Art] Found art for "${name}" using tag "${tag}" from ${result.source}`)
-          return { url: result.url, source: result.source, tag: result.tag }
-        }
-      }
-      
+      const result = await fetchHighQualityArt(name, allIgnoredUrls, true, undefined, charData.animeName)
       // Если обычный поиск не нашёл, пробуем с forceNew=true
-      const resultWithForce = await fetchHighQualityArt(name, allIgnoredUrls, true, undefined, charData.animeName)
-      if (resultWithForce) {
-        if (allIgnoredUrls.includes(resultWithForce.url)) {
-          console.log(`[Spin Art] Art ${resultWithForce.url} is already ignored, continuing search...`)
-          continue
-        }
-        console.log(`[Spin Art] Found art for "${name}" with forceNew from ${resultWithForce.source}`)
-        return { url: resultWithForce.url, source: resultWithForce.source, tag: resultWithForce.tag }
+      if (!result) continue
+      // Проверяем, не забанен ли этот URL
+      if (allIgnoredUrls.includes(result.url)) {
+        console.log(`[Spin Art] Art ${result.url} is already ignored, continuing search...`)
+        continue
       }
+      console.log(`[Spin Art] Found exact-tag art for "${name}" from ${result.source}`)
+      return { url: result.url, source: result.source, tag: result.tag }
     }
     
     // Если все попытки вернули забаненные URL, пробуем глубже
