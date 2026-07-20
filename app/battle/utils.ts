@@ -3,6 +3,7 @@ import { calculateEnemyTeamPower } from "@/lib/battle-engine"
 import {
   RARITY_PROVISION_BASE, RARITY_AVG_STATS, PROVISION_VARIANCE, SYNERGY_VALUES, SYNERGY_DEFINITIONS, LIGHT_STEP_THRESHOLD, ELITE_RARITIES,
   SYNERGY_TOTAL_CAP, SYNERGY_TOTAL_FLOOR, LEADER_AURA_VALUE, FORMATION_CONFIG, FormationId,
+  DECK_SIZE, PROVISION_LIMIT,
 } from "./config"
 
 // Calculate Enemy dungeon power for old compatibility/reference (if needed)
@@ -433,4 +434,124 @@ export const getTerritoryBuff = (
     value: buff,
     description: descriptions[zoneModifierId] || "0"
   }
+}
+
+// ==========================================
+// AUTO-DECK BUILDER
+// ==========================================
+
+export interface AutoDeckResult {
+  deck: Card[]
+  leaderId: string | null
+  totalProvision: number
+}
+
+export const buildAutoDeck = (cards: Card[]): AutoDeckResult => {
+  if (cards.length === 0) return { deck: [], leaderId: null, totalProvision: 0 }
+
+  const sorted = cards.slice().sort((a, b) => getCardBasePower(b) - getCardBasePower(a))
+
+  // If player has ≤ DECK_SIZE cards, use all of them
+  if (sorted.length <= DECK_SIZE) {
+    const deck = sorted
+    const totalProvision = deck.reduce((acc, c) => acc + (c.provisionCost || getCardProvision(c)), 0)
+    const leader = deck[0]
+    return { deck, leaderId: leader?.uniqueId || null, totalProvision }
+  }
+
+  let deck: Card[] = []
+  let totalProv = 0
+
+  // Phase 1: Ensure at least 1 of each role for role_harmony synergy
+  const roles: CardRole[] = ["vanguard", "guard", "trickster"]
+  for (const role of roles) {
+    if (deck.length >= DECK_SIZE) break
+    const best = sorted.find(c =>
+      !deck.some(d => d.uniqueId === c.uniqueId) &&
+      (c.role || getCardRole(c)) === role
+    )
+    if (best) {
+      const prov = best.provisionCost || getCardProvision(best)
+      if (totalProv + prov <= PROVISION_LIMIT) {
+        deck.push(best)
+        totalProv += prov
+      } else {
+        // Find cheapest card of this role that fits
+        const cheap = sorted.find(c =>
+          !deck.some(d => d.uniqueId === c.uniqueId) &&
+          (c.role || getCardRole(c)) === role &&
+          (c.provisionCost || getCardProvision(c)) + totalProv <= PROVISION_LIMIT
+        )
+        if (cheap) {
+          const cheapProv = cheap.provisionCost || getCardProvision(cheap)
+          deck.push(cheap)
+          totalProv += cheapProv
+        }
+      }
+    }
+  }
+
+  // Phase 2: Fill remaining slots with highest power cards that fit
+  for (const card of sorted) {
+    if (deck.length >= DECK_SIZE) break
+    if (deck.some(d => d.uniqueId === card.uniqueId)) continue
+    const prov = card.provisionCost || getCardProvision(card)
+    if (totalProv + prov <= PROVISION_LIMIT) {
+      deck.push(card)
+      totalProv += prov
+    }
+  }
+
+  // Phase 3: If not full, swap expensive deck cards for cheaper alternatives
+  if (deck.length < DECK_SIZE) {
+    const remaining = sorted
+      .filter(c => !deck.some(d => d.uniqueId === c.uniqueId))
+      .sort((a, b) => (a.provisionCost || getCardProvision(a)) - (b.provisionCost || getCardProvision(b)))
+
+    for (const cheap of remaining) {
+      if (deck.length >= DECK_SIZE) break
+      const cheapProv = cheap.provisionCost || getCardProvision(cheap)
+
+      // Can we just add it?
+      if (totalProv + cheapProv <= PROVISION_LIMIT) {
+        deck.push(cheap)
+        totalProv += cheapProv
+        continue
+      }
+
+      // Try swapping: replace most expensive deck card with this cheaper one
+      const deckByCost = deck.slice().sort((a, b) =>
+        (b.provisionCost || getCardProvision(b)) - (a.provisionCost || getCardProvision(a))
+      )
+
+      for (const expensive of deckByCost) {
+        const expProv = expensive.provisionCost || getCardProvision(expensive)
+        if (expProv > cheapProv) {
+          const newTotal = totalProv - expProv + cheapProv
+          if (newTotal <= PROVISION_LIMIT) {
+            deck = deck.map(c => c.uniqueId === expensive.uniqueId ? cheap : c)
+            totalProv = newTotal
+            break
+          }
+        }
+      }
+    }
+  }
+
+  // Phase 4: Last resort — fill with cheapest remaining cards even if over provision
+  if (deck.length < DECK_SIZE) {
+    const remaining = sorted
+      .filter(c => !deck.some(d => d.uniqueId === c.uniqueId))
+      .sort((a, b) => (a.provisionCost || getCardProvision(a)) - (b.provisionCost || getCardProvision(b)))
+    for (const card of remaining) {
+      if (deck.length >= DECK_SIZE) break
+      deck.push(card)
+      totalProv += card.provisionCost || getCardProvision(card)
+    }
+  }
+
+  // Auto-set leader to highest power card in deck
+  const leader = deck.slice().sort((a, b) => getCardBasePower(b) - getCardBasePower(a))[0]
+
+  return { deck: deck.slice(0, DECK_SIZE), leaderId: leader?.uniqueId || null, totalProvision: totalProv }
 }

@@ -101,7 +101,7 @@ export function AuthModal({ isOpen: externalIsOpen, onClose, children }: AuthMod
         })
 
         if (error) {
-          loggers.auth.error("signInWithPassword", {
+          loggers.auth.warn("signInWithPassword", {
             message: error.message,
             status: error.status,
             code: (error as { code?: string }).code,
@@ -118,7 +118,7 @@ export function AuthModal({ isOpen: externalIsOpen, onClose, children }: AuthMod
         })
 
         if (error) {
-          loggers.auth.error("signUp", {
+          loggers.auth.warn("signUp", {
             message: error.message,
             status: error.status,
             code: (error as { code?: string }).code,
@@ -136,7 +136,7 @@ export function AuthModal({ isOpen: externalIsOpen, onClose, children }: AuthMod
         }
       }
     } catch (err: any) {
-      loggers.auth.error("Auth error:", err)
+      loggers.auth.warn("Auth error:", err)
       setError(userFacingAuthError(err))
     } finally {
       setLoading(false)
@@ -177,7 +177,7 @@ export function AuthModal({ isOpen: externalIsOpen, onClose, children }: AuthMod
 
       setResetSent(true)
     } catch (err: any) {
-      loggers.auth.error("Reset password error:", err)
+      loggers.auth.warn("Reset password error:", err)
       setError("Не удалось отправить письмо. Попробуйте позже.")
     } finally {
       setLoading(false)

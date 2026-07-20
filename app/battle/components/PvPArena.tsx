@@ -72,10 +72,19 @@ export const PvPArena: React.FC<PvPArenaProps> = ({
             .from('user_ladder')
             .select('*')
             .eq('user_id', user.id)
-            .single()
+            .maybeSingle()
 
           if (error) throw error
-          setLadderData(data)
+
+          // If no row exists, use default values (user hasn't played PvP yet)
+          setLadderData(data || {
+            user_id: user.id,
+            mmr: 1000,
+            wins: 0,
+            losses: 0,
+            rank_tier: 'bronze',
+            highest_mmr: 1000
+          })
           setLadderLoading(false)
           return // Success, exit retry loop
         } catch (err) {

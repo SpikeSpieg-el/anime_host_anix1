@@ -4,7 +4,7 @@ import { useCoins } from "@/hooks/use-coins"
 import { useDust } from "@/hooks/use-dust"
 import { arrayMove } from "@dnd-kit/sortable"
 import { Card, Dungeon, Enemy, BattleProgress, BattleLog, CCGBattleState, BattleZone, ZoneCard, CardRole, DeckContext } from "../types"
-import { getCardRole, getCardProvision, calculateCardPowerOnZone, getCardBasePower, computeDeckSynergies } from "../utils"
+import { getCardRole, getCardProvision, calculateCardPowerOnZone, getCardBasePower, computeDeckSynergies, buildAutoDeck } from "../utils"
 import { PROVISION_LIMIT, DECK_SIZE, TERRITORY_MODIFIERS, FormationId, MAX_CARDS_PER_SIDE } from "../config"
 import { Rarity } from "@/types/gacha"
 import { getAIDeckForDungeon, getRandomMarketDeck, generateAdaptiveAIDeck } from "../ai-decks"
@@ -52,6 +52,16 @@ export function useBattleData() {
   const [leaderId, setLeaderId] = useState<string | null>(null)
   const [formation, setFormation] = useState<FormationId>("balance")
   const [isInitializing, setIsInitializing] = useState(true)
+
+  // Refs to avoid re-creating saveDeckToAPI on every state change (prevents save spam)
+  const selectedCardsRef = useRef<Card[]>([])
+  const leaderIdRef = useRef<string | null>(null)
+  const formationRef = useRef<FormationId>("balance")
+  const saveDeckTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => { selectedCardsRef.current = selectedCards }, [selectedCards])
+  useEffect(() => { leaderIdRef.current = leaderId }, [leaderId])
+  useEffect(() => { formationRef.current = formation }, [formation])
 
   const [battleState, setBattleState] = useState<"idle" | "loading" | "battle" | "result">("idle")
   
@@ -144,19 +154,56 @@ export function useBattleData() {
   const loadUserCards = useCallback(async () => {
     if (!user) return
     try {
-      const { supabase } = await import("@/lib/supabase")
-      const { data, error } = await supabase.rpc('get_battle_available_cards', {
-        p_user_id: user.id
-      })
+      let rawCards: any[] = []
 
-      let rawCards = []
-      if (!error && data) {
-        rawCards = data
-      } else {
-        const { data: fallbackData } = await supabase
-          .from('user_cards')
-          .select('unique_id, name, anime, rarity, image_url, stats_hp, stats_atk, stats_def, stats_spd, stats_luck, is_main_character, score, art_position')
-        if (fallbackData) rawCards = fallbackData
+      // Primary: use /api/cards with explicit session token (reliable during client-side navigation)
+      const accessToken = session?.access_token
+      if (accessToken) {
+        try {
+          const res = await fetch('/api/cards', {
+            headers: { 'Authorization': `Bearer ${accessToken}` }
+          })
+          if (res.ok) {
+            const data = await res.json()
+            if (data.cards && Array.isArray(data.cards)) {
+              rawCards = data.cards.map((c: any) => ({
+                unique_id: c.uniqueId,
+                name: c.name,
+                anime: c.anime,
+                rarity: c.rarity,
+                image_url: c.imageUrl,
+                stats_hp: c.stats?.hp ?? 0,
+                stats_atk: c.stats?.atk ?? 0,
+                stats_def: c.stats?.def ?? 0,
+                stats_spd: c.stats?.spd ?? 0,
+                stats_luck: c.stats?.luck ?? 0,
+                is_main_character: c.isMainCharacter || false,
+                score: c.score,
+                art_position: c.artPosition || null,
+              }))
+            }
+          }
+        } catch (apiErr) {
+          console.error('[BattlePage] /api/cards fetch failed, falling back to supabase.rpc:', apiErr)
+        }
+      }
+
+      // Fallback: use supabase.rpc if API didn't return cards
+      if (rawCards.length === 0) {
+        const { supabase } = await import("@/lib/supabase")
+        const { data, error } = await supabase.rpc('get_battle_available_cards', {
+          p_user_id: user.id
+        })
+
+        if (!error && data) {
+          rawCards = data
+        } else {
+          const { data: fallbackData } = await supabase
+            .from('user_cards')
+            .select('unique_id, name, anime, rarity, image_url, stats_hp, stats_atk, stats_def, stats_spd, stats_luck, is_main_character, score, art_position')
+            .eq('user_id', user.id)
+          if (fallbackData) rawCards = fallbackData
+        }
       }
 
       const mapped = rawCards.map((c: any) => {
@@ -214,21 +261,21 @@ export function useBattleData() {
         })
         setSelectedCards(savedDeck)
       } else {
-        // Fallback: select top DECK_SIZE cards by power
-        const defaultDeck = mapped
-          .slice()
-          .sort((a: Card, b: Card) => getCardBasePower(b) - getCardBasePower(a))
-          .slice(0, DECK_SIZE)
+        // Fallback: auto-build deck from collected cards
+        const { deck: autoDeck, leaderId: autoLeader, totalProvision: autoProv } = buildAutoDeck(mapped)
 
-        // Recalculate provision costs and roles for default deck
-        defaultDeck.forEach((c: Card) => {
-          c.provisionCost = getCardProvision(c)
-          c.role = getCardRole(c)
-        })
-
-        const provisionSum = defaultDeck.reduce((acc: number, c: Card) => acc + (c.provisionCost || getCardProvision(c)), 0)
-        if (provisionSum <= PROVISION_LIMIT && defaultDeck.length === DECK_SIZE) {
-          setSelectedCards(defaultDeck)
+        if (autoDeck.length > 0) {
+          autoDeck.forEach((c: Card) => {
+            c.provisionCost = getCardProvision(c)
+            c.role = getCardRole(c)
+          })
+          setSelectedCards(autoDeck)
+          if (autoLeader) {
+            setLeaderId(autoLeader)
+          }
+          if (autoProv > PROVISION_LIMIT) {
+            console.warn('[BattlePage] Auto-deck exceeds provision limit:', autoProv, '/', PROVISION_LIMIT)
+          }
         }
       }
 
@@ -249,56 +296,57 @@ export function useBattleData() {
     }
   }, [user, sessionLoading, loadBattleData, loadUserCards])
 
-  // Save leaderId and formation to API when they change
+  // Save deck to API — debounced and using refs to keep callback identity stable
   const saveDeckToAPI = useCallback(async (cardIds?: string[], currentLeaderId?: string | null, currentFormation?: FormationId) => {
     if (!user || !session || isInitializing) return
-    try {
-      const cardsToSave = cardIds || selectedCards.map(c => c.uniqueId)
-      const leaderToSave = currentLeaderId !== undefined ? currentLeaderId : leaderId
-      const formationToSave = currentFormation !== undefined ? currentFormation : formation
 
-      console.log('[BattlePage] Saving deck to API:', { leaderId: leaderToSave, formation: formationToSave, cardCount: cardsToSave.length })
-      const res = await fetch('/api/battle/deck', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`
-        },
-        body: JSON.stringify({
-          card_ids: cardsToSave,
-          leader_id: leaderToSave,
-          formation: formationToSave
+    const cardsToSave = cardIds || selectedCardsRef.current.map(c => c.uniqueId)
+    const leaderToSave = currentLeaderId !== undefined ? currentLeaderId : leaderIdRef.current
+    const formationToSave = currentFormation !== undefined ? currentFormation : formationRef.current
+
+    // Debounce: clear previous timer and set a new one
+    if (saveDeckTimerRef.current) clearTimeout(saveDeckTimerRef.current)
+    saveDeckTimerRef.current = setTimeout(async () => {
+      try {
+        console.log('[BattlePage] Saving deck to API:', { leaderId: leaderToSave, formation: formationToSave, cardCount: cardsToSave.length })
+        const res = await fetch('/api/battle/deck', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`
+          },
+          body: JSON.stringify({
+            card_ids: cardsToSave,
+            leader_id: leaderToSave,
+            formation: formationToSave
+          })
         })
-      })
-      if (!res.ok) {
-        const error = await res.json()
-        console.error('[BattlePage] API Error saving deck:', error)
-      } else {
-        console.log('[BattlePage] Deck saved successfully')
+        if (!res.ok) {
+          const error = await res.json()
+          console.error('[BattlePage] API Error saving deck:', error)
+        } else {
+          console.log('[BattlePage] Deck saved successfully')
+        }
+      } catch (err) {
+        console.error('[BattlePage] Error saving deck to API:', err)
       }
-    } catch (err) {
-      console.error('[BattlePage] Error saving deck to API:', err)
-    }
-  }, [user, session, isInitializing, selectedCards, leaderId, formation])
+    }, 800)
+  }, [user, session, isInitializing])
 
   useEffect(() => {
     if (user && !isInitializing) {
-      // Save to localStorage as fallback
       if (leaderId) {
         localStorage.setItem(`battle_leader_${user.id}`, leaderId)
       } else {
         localStorage.removeItem(`battle_leader_${user.id}`)
       }
-      // Save to API with current values
       saveDeckToAPI(undefined, leaderId, undefined)
     }
   }, [leaderId, user, isInitializing, saveDeckToAPI])
 
   useEffect(() => {
     if (user && !isInitializing) {
-      // Save to localStorage as fallback
       localStorage.setItem(`battle_formation_${user.id}`, formation)
-      // Save to API with current values
       saveDeckToAPI(undefined, undefined, formation)
     }
   }, [formation, user, isInitializing, saveDeckToAPI])
@@ -543,6 +591,47 @@ export function useBattleData() {
     // In PvP, we might want to refresh profile for MMR updates immediately
     refreshCoins()
   }, [user, refreshCoins])
+
+  const autoBuildDeck = useCallback(() => {
+    if (collectedCards.length === 0) {
+      setError("У вас нет карт! Получите карты в гаче.")
+      return
+    }
+
+    const { deck, leaderId: autoLeader, totalProvision } = buildAutoDeck(collectedCards)
+
+    if (deck.length === 0) {
+      setError("Не удалось собрать колоду.")
+      return
+    }
+
+    // Ensure roles and provision costs are set
+    deck.forEach((c: Card) => {
+      c.provisionCost = getCardProvision(c)
+      c.role = getCardRole(c)
+    })
+
+    setSelectedCards(deck)
+    setLeaderId(autoLeader)
+    setFormation("balance")
+
+    // Save to localStorage and API
+    if (user) {
+      const cardIds = deck.map(c => c.uniqueId)
+      localStorage.setItem(`battle_deck_${DECK_SIZE}_${user.id}`, JSON.stringify(cardIds))
+      if (autoLeader) {
+        localStorage.setItem(`battle_leader_${user.id}`, autoLeader)
+      }
+      localStorage.setItem(`battle_formation_${user.id}`, "balance")
+      saveDeckToAPI(cardIds, autoLeader, "balance")
+    }
+
+    if (totalProvision > PROVISION_LIMIT) {
+      setError(`Автосборка: вес ${totalProvision}/${PROVISION_LIMIT}. Замените тяжёлые карты на более лёгкие.`)
+    } else {
+      setError(null)
+    }
+  }, [collectedCards, user, saveDeckToAPI])
 
   const toggleCardSelection = (card: Card) => {
     setSelectedCards(prev => {
@@ -1775,6 +1864,7 @@ export function useBattleData() {
     setError,
     staminaTime,
     toggleCardSelection,
+    autoBuildDeck,
     startBattle,
     startPvPBattle,
     finishBattle,

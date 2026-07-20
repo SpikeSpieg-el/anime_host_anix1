@@ -3,6 +3,7 @@
 import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
 import { createClient } from "@supabase/supabase-js"
+import webpush from "web-push"
 
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD
@@ -156,16 +157,32 @@ export async function getPvPLogs(limit = 100) {
 
   const { data, error } = await supabase
     .from("pvp_logs")
-    .select(`
-      *,
-      player1:profiles!player1_id(username, avatar_url),
-      player2:profiles!player2_id(username, avatar_url)
-    `)
+    .select("*")
     .order("created_at", { ascending: false })
     .limit(limit)
 
   if (error) throw error
-  return data
+  if (!data || data.length === 0) return []
+
+  const userIds = new Set<string>()
+  data.forEach((log: any) => {
+    if (log.player1_id) userIds.add(log.player1_id)
+    if (log.player2_id) userIds.add(log.player2_id)
+  })
+
+  const { data: profiles } = await supabase
+    .from("profiles")
+    .select("id, username, avatar_url")
+    .in("id", Array.from(userIds))
+
+  const profileMap = new Map<string, any>()
+  profiles?.forEach((p: any) => profileMap.set(p.id, p))
+
+  return data.map((log: any) => ({
+    ...log,
+    player1: profileMap.get(log.player1_id) || { username: null, avatar_url: null },
+    player2: profileMap.get(log.player2_id) || { username: null, avatar_url: null },
+  }))
 }
 
 export async function getPvPLocations() {
@@ -320,6 +337,23 @@ export async function adminSendMail(input: AdminMailInput) {
     .single()
 
   if (error) throw error
+
+  // Send push notification if user has subscriptions
+  try {
+    const mailTypeLabel: Record<string, string> = {
+      card_gift: "Подарок: новая карта!",
+      coins: "Начислены монеты",
+      dust: "Начислена пыль",
+      event_reward: "Награда события",
+      message: "Новое сообщение",
+    }
+    const pushTitle = mailTypeLabel[input.type] || "Новое письмо"
+    const pushBody = input.title
+    await adminSendPushNotification(input.userId, pushTitle, pushBody, "/gacha")
+  } catch (e) {
+    console.warn("Failed to send push for mail:", e)
+  }
+
   return data
 }
 
@@ -342,6 +376,23 @@ export async function adminSendMailBulk(input: Omit<AdminMailInput, "userId"> & 
 
   const { data, error } = await supabase.from("user_mail").insert(rows).select()
   if (error) throw error
+
+  // Send push notifications to all recipients who have subscriptions
+  try {
+    const mailTypeLabel: Record<string, string> = {
+      card_gift: "Подарок: новая карта!",
+      coins: "Начислены монеты",
+      dust: "Начислена пыль",
+      event_reward: "Награда события",
+      message: "Новое сообщение",
+    }
+    const pushTitle = mailTypeLabel[input.type] || "Новое письмо"
+    const pushBody = input.title
+    await adminSendPushNotificationBulk(input.userIds, pushTitle, pushBody, "/gacha")
+  } catch (e) {
+    console.warn("Failed to send bulk push for mail:", e)
+  }
+
   return { sent: data?.length ?? 0 }
 }
 
@@ -666,4 +717,113 @@ export async function searchUserCardsForBanner(query?: string, rarity?: string) 
     uniqueId: `picker-${c.unique_id}`,
     orderIndex: Date.now(),
   }))
+}
+
+// ============================================================
+// PUSH NOTIFICATIONS: send to a single user or all users
+// ============================================================
+export async function adminSendPushNotification(userId: string, title: string, body?: string, url?: string) {
+  const supabase = await getAdminSupabase()
+
+  const publicKey = process.env.VAPID_PUBLIC_KEY
+  const privateKey = process.env.VAPID_PRIVATE_KEY
+
+  if (!publicKey || !privateKey) {
+    throw new Error("VAPID keys not configured")
+  }
+
+  webpush.setVapidDetails("mailto:admin@weeb-x.com", publicKey, privateKey)
+
+  const { data: subs, error } = await supabase
+    .from("push_subscriptions")
+    .select("endpoint, p256dh, auth")
+    .eq("user_id", userId)
+
+  if (error) throw error
+  if (!subs || subs.length === 0) {
+    return { sent: 0, total: 0 }
+  }
+
+  const payload = JSON.stringify({
+    title,
+    body,
+    data: { url: url || "/" },
+    tag: "admin-notification",
+  })
+
+  let sentCount = 0
+  const failedEndpoints: string[] = []
+
+  for (const sub of subs) {
+    try {
+      await webpush.sendNotification(
+        { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+        payload
+      )
+      sentCount++
+    } catch (err: any) {
+      if (err.statusCode === 410 || err.statusCode === 404) {
+        failedEndpoints.push(sub.endpoint)
+      }
+    }
+  }
+
+  if (failedEndpoints.length > 0) {
+    await supabase.from("push_subscriptions").delete().in("endpoint", failedEndpoints)
+  }
+
+  return { sent: sentCount, total: subs.length }
+}
+
+export async function adminSendPushNotificationBulk(userIds: string[], title: string, body?: string, url?: string) {
+  const supabase = await getAdminSupabase()
+
+  const publicKey = process.env.VAPID_PUBLIC_KEY
+  const privateKey = process.env.VAPID_PRIVATE_KEY
+
+  if (!publicKey || !privateKey) {
+    throw new Error("VAPID keys not configured")
+  }
+
+  webpush.setVapidDetails("mailto:admin@weeb-x.com", publicKey, privateKey)
+
+  const { data: subs, error } = await supabase
+    .from("push_subscriptions")
+    .select("endpoint, p256dh, auth, user_id")
+    .in("user_id", userIds)
+
+  if (error) throw error
+  if (!subs || subs.length === 0) {
+    return { sent: 0, total: 0 }
+  }
+
+  const payload = JSON.stringify({
+    title,
+    body,
+    data: { url: url || "/" },
+    tag: "admin-notification",
+  })
+
+  let sentCount = 0
+  const failedEndpoints: string[] = []
+
+  for (const sub of subs) {
+    try {
+      await webpush.sendNotification(
+        { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+        payload
+      )
+      sentCount++
+    } catch (err: any) {
+      if (err.statusCode === 410 || err.statusCode === 404) {
+        failedEndpoints.push(sub.endpoint)
+      }
+    }
+  }
+
+  if (failedEndpoints.length > 0) {
+    await supabase.from("push_subscriptions").delete().in("endpoint", failedEndpoints)
+  }
+
+  return { sent: sentCount, total: subs.length }
 }

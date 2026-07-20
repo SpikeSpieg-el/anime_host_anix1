@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Shield, Swords as SwordsIcon, Target, Info, Trophy, Skull, Dumbbell, Crown, Sparkles, Zap, X, Mountain, Footprints } from 'lucide-react';
+import { Shield, Swords as SwordsIcon, Target, Info, Trophy, Skull, Dumbbell, Crown, Sparkles, Zap, X, Mountain, Footprints, Wand2 } from 'lucide-react';
 import { Card, Dungeon, Enemy, BattleProgress, BattleLog, DeckSynergy } from '../types';
 import { glassCard, glassButton, PROVISION_LIMIT, DECK_SIZE, FORMATION_CONFIG, SYNERGY_DEFINITIONS, SYNERGY_TOTAL_CAP, FormationId, THEME_CONFIG, LEADER_AURA_CONFIG, LEADER_AURA_VALUE, ROLE_CONFIG } from '../config';
 import { getDeckPowerModifier } from '../utils';
@@ -105,6 +105,7 @@ interface SelectedTeamPanelProps {
   setFormation: (formation: FormationId) => void
   onCardClick?: (card: Card) => void
   onOpenLocationSelector?: () => void
+  autoBuildDeck?: () => void
 }
 
 // Helper function to convert difficulty to vague threat description
@@ -146,6 +147,7 @@ export const SelectedTeamPanel: React.FC<SelectedTeamPanelProps> = ({
   setFormation,
   onCardClick,
   onOpenLocationSelector,
+  autoBuildDeck,
 }) => {
   const [viewedSynergy, setViewedSynergy] = useState<DeckSynergy | null>(null)
   const [showPowerBreakdown, setShowPowerBreakdown] = useState(false)
@@ -265,12 +267,24 @@ export const SelectedTeamPanel: React.FC<SelectedTeamPanelProps> = ({
               })}
             </div>
 
-            <button
-              onClick={() => setShowTeamBuilder(true)}
-              className={`w-full py-3 lg:py-4 rounded-xl text-xs lg:text-base font-black uppercase tracking-wider flex items-center justify-center gap-2 ${glassButton} text-indigo-300 border border-indigo-500/20 active:scale-98 transition-all`}
-            >
-              <Target className="w-3.5 h-3.5 lg:w-5 lg:h-5" /> Изменить состав
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShowTeamBuilder(true)}
+                className={`flex-1 py-3 lg:py-4 rounded-xl text-xs lg:text-base font-black uppercase tracking-wider flex items-center justify-center gap-2 ${glassButton} text-indigo-300 border border-indigo-500/20 active:scale-98 transition-all`}
+              >
+                <Target className="w-3.5 h-3.5 lg:w-5 lg:h-5" /> Изменить состав
+              </button>
+              {autoBuildDeck && (
+                <button
+                  onClick={autoBuildDeck}
+                  className="px-3 lg:px-4 py-3 lg:py-4 rounded-xl text-xs lg:text-sm font-black uppercase tracking-wider flex items-center justify-center gap-2 bg-violet-500/15 hover:bg-violet-500/25 text-violet-300 border border-violet-500/30 active:scale-95 transition-all"
+                  title="Автоматически собрать лучшую колоду из ваших карт"
+                >
+                  <Wand2 className="w-3.5 h-3.5 lg:w-5 lg:h-5" />
+                  <span className="hidden sm:inline">Авто</span>
+                </button>
+              )}
+            </div>
           </div>
 
           {/* ПРАВАЯ КОЛОНКА — Управление и статы */}

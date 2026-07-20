@@ -14,7 +14,7 @@ import {
 import Link from "next/link"
 import { cn } from "@/lib/utils"
 import { useCover } from "@/components/providers/cover-provider"
-import { usePushNotifications } from "@/hooks/use-push-notifications"
+import { usePushNotifications, type PushErrorReason } from "@/hooks/use-push-notifications"
 
 interface EpisodeUpdate {
   animeId: string
@@ -36,8 +36,35 @@ export function EpisodeUpdateBadge({ updates, onClearUpdate, onClearAll, classNa
   const [isOpen, setIsOpen] = useState(false)
   const [posters, setPosters] = useState<Record<string, string>>({})
   const { getPoster } = useCover()
-  const { isSupported: pushSupported, isSubscribed: pushSubscribed, permission: pushPermission, loading: pushLoading, subscribe: pushSubscribe, unsubscribe: pushUnsubscribe } = usePushNotifications()
+  const { isSupported: pushSupported, isSubscribed: pushSubscribed, permission: pushPermission, loading: pushLoading, errorReason: pushErrorReason, subscribe: pushSubscribe, unsubscribe: pushUnsubscribe } = usePushNotifications()
   const [pushStatus, setPushStatus] = useState<"idle" | "success" | "error">("idle")
+
+  const getPushErrorMessage = (reason: PushErrorReason | null): string => {
+    switch (reason) {
+      case "permission-denied":
+        return "Разрешение отклонено. Откройте настройки сайта (иконка замка в адресной строке) → Уведомления → Разрешить, затем попробуйте снова."
+      case "permission-dismissed":
+        return "Окно разрешения было закрыто. Нажмите кнопку ещё раз."
+      case "not-logged-in":
+        return "Войдите в аккаунт, чтобы включить push-уведомления."
+      case "not-secure-context":
+        return "Push-уведомления работают только на HTTPS-соединении."
+      case "no-notification-api":
+        return "Этот браузер не поддерживает уведомления."
+      case "sw-registration-failed":
+        return "Не удалось зарегистрировать service worker. Очистите кэш браузера и попробуйте снова."
+      case "no-vapid-key":
+        return "Сервер не настроен для push-уведомлений (VAPID ключи). Обратитесь к администратору."
+      case "push-subscribe-failed":
+        return "Браузер отказался создавать подписку. Возможно, push заблокирован в настройках браузера."
+      case "save-failed":
+        return "Не удалось сохранить подписку на сервере. Попробуйте позже."
+      case "unsupported":
+        return "Этот браузер не поддерживает push-уведомления."
+      default:
+        return "Не удалось включить. Проверьте разрешения браузера."
+    }
+  }
   const postersRef = useRef<Record<string, string>>({})
   const getPosterRef = useRef(getPoster)
   getPosterRef.current = getPoster
@@ -127,7 +154,7 @@ export function EpisodeUpdateBadge({ updates, onClearUpdate, onClearAll, classNa
             {/* Push notifications enable button */}
             {pushSupported && (
               <div className="mt-4 w-full">
-                {pushSubscribed || pushPermission === "granted" ? (
+                {pushSubscribed ? (
                   <Button
                     variant="outline"
                     size="sm"
@@ -144,9 +171,9 @@ export function EpisodeUpdateBadge({ updates, onClearUpdate, onClearAll, classNa
                     size="sm"
                     disabled={pushLoading}
                     onClick={async () => {
-                      const ok = await pushSubscribe()
-                      setPushStatus(ok ? "success" : "error")
-                      setTimeout(() => setPushStatus("idle"), 3000)
+                      const result = await pushSubscribe()
+                      setPushStatus(result.ok ? "success" : "error")
+                      if (result.ok) setTimeout(() => setPushStatus("idle"), 3000)
                     }}
                     className="w-full h-10 rounded-xl border-primary/50 hover:border-primary hover:bg-primary/10 text-primary"
                   >
@@ -158,7 +185,9 @@ export function EpisodeUpdateBadge({ updates, onClearUpdate, onClearAll, classNa
                   <p className="text-xs text-green-500 text-center mt-2">Push-уведомления включены!</p>
                 )}
                 {pushStatus === "error" && (
-                  <p className="text-xs text-red-500 text-center mt-2">Не удалось включить. Проверьте разрешения браузера.</p>
+                  <div className="mt-2 p-2.5 rounded-lg bg-red-500/10 border border-red-500/30">
+                    <p className="text-xs text-red-500 text-center leading-relaxed">{getPushErrorMessage(pushErrorReason)}</p>
+                  </div>
                 )}
               </div>
             )}
@@ -301,7 +330,7 @@ export function EpisodeUpdateBadge({ updates, onClearUpdate, onClearAll, classNa
         {/* Push notifications toggle */}
         {pushSupported && (
           <div className="px-3 py-2 border-b bg-muted/30">
-            {pushSubscribed || pushPermission === "granted" ? (
+            {pushSubscribed ? (
               <Button
                 variant="ghost"
                 size="sm"
@@ -318,9 +347,9 @@ export function EpisodeUpdateBadge({ updates, onClearUpdate, onClearAll, classNa
                 size="sm"
                 disabled={pushLoading}
                 onClick={async () => {
-                  const ok = await pushSubscribe()
-                  setPushStatus(ok ? "success" : "error")
-                  setTimeout(() => setPushStatus("idle"), 3000)
+                  const result = await pushSubscribe()
+                  setPushStatus(result.ok ? "success" : "error")
+                  if (result.ok) setTimeout(() => setPushStatus("idle"), 3000)
                 }}
                 className="w-full text-primary hover:bg-primary/10 h-9 rounded-xl text-xs"
               >
@@ -332,7 +361,9 @@ export function EpisodeUpdateBadge({ updates, onClearUpdate, onClearAll, classNa
               <p className="text-xs text-green-500 text-center mt-1">Push-уведомления включены!</p>
             )}
             {pushStatus === "error" && (
-              <p className="text-xs text-red-500 text-center mt-1">Не удалось включить. Проверьте разрешения браузера.</p>
+              <div className="mt-1 p-2 rounded-lg bg-red-500/10 border border-red-500/30">
+                <p className="text-xs text-red-500 text-center leading-relaxed">{getPushErrorMessage(pushErrorReason)}</p>
+              </div>
             )}
           </div>
         )}

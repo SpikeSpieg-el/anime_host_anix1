@@ -204,9 +204,10 @@ export function usePvPBattle(options?: {
     })
 
     socket.on('error', (data) => {
-      console.log('[PvP] Server error received')
+      console.log('[PvP] Server error received:', data)
       setPvpState(prev => ({
         ...prev,
+        status: 'idle',
         error: data.message || 'Ошибка PvP сервера'
       }))
     })

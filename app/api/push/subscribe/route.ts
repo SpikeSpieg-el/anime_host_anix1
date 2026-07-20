@@ -1,7 +1,16 @@
+import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from "next/server"
-import { supabase } from "@/lib/supabase"
 
 export const dynamic = "force-dynamic"
+
+function getSupabaseAdmin() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!supabaseUrl || !supabaseServiceKey) return null
+  return createClient(supabaseUrl, supabaseServiceKey, {
+    auth: { autoRefreshToken: false, persistSession: false }
+  })
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -16,7 +25,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "User ID required" }, { status: 401 })
     }
 
-    const { error } = await supabase
+    const supabaseAdmin = getSupabaseAdmin()
+    if (!supabaseAdmin) {
+      return NextResponse.json({ error: "Server not configured" }, { status: 500 })
+    }
+
+    const { error } = await supabaseAdmin
       .from("push_subscriptions")
       .upsert(
         {

@@ -338,6 +338,7 @@ export default function BattlePage() {
     setError,
     staminaTime,
     toggleCardSelection,
+    autoBuildDeck,
     startBattle,
     startPvPBattle,
     finishBattle,
@@ -670,6 +671,7 @@ export default function BattlePage() {
                   setFormation={setFormation}
                   onCardClick={handleCardClick}
                   onOpenLocationSelector={() => setShowModeSelector(true)}
+                  autoBuildDeck={autoBuildDeck}
                 />
               )}
             </div>
@@ -837,6 +839,7 @@ export default function BattlePage() {
         setLeaderId={setLeaderId}
         activeSynergies={activeSynergies}
         onCardClick={handleCardClick}
+        autoBuildDeck={autoBuildDeck}
       />
 
       {/* Viewed Card Modal */}

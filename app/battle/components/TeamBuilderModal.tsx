@@ -1,7 +1,7 @@
 import React, { useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
-import { X, ShieldHalf, CheckCircle2, Heart, Swords as SwordsIcon, Shield, Zap, Star, Crown, Sparkles, HelpCircle } from "lucide-react"
+import { X, ShieldHalf, CheckCircle2, Heart, Swords as SwordsIcon, Shield, Zap, Star, Crown, Sparkles, HelpCircle, Wand2 } from "lucide-react"
 import { Card, DeckSynergy } from "../types"
 import { rarityConfig } from "@/types/gacha"
 import { DECK_SIZE, ROLE_CONFIG, PROVISION_LIMIT, SYNERGY_DEFINITIONS } from "../config"
@@ -24,6 +24,7 @@ interface TeamBuilderModalProps {
   setLeaderId: (id: string | null) => void
   activeSynergies: DeckSynergy[]
   onCardClick?: (card: Card) => void
+  autoBuildDeck?: () => void
 }
 
 export const TeamBuilderModal: React.FC<TeamBuilderModalProps> = ({
@@ -42,6 +43,7 @@ export const TeamBuilderModal: React.FC<TeamBuilderModalProps> = ({
   leaderId,
   setLeaderId,
   activeSynergies,
+  autoBuildDeck,
 }) => {
   if (!showTeamBuilder) return null
 
@@ -419,12 +421,24 @@ export const TeamBuilderModal: React.FC<TeamBuilderModalProps> = ({
               ⚠️ Общий вес превышает {PROVISION_LIMIT} очков ({totalProvisionUsed} / {PROVISION_LIMIT}). Вы можете подтвердить выбор, но перед началом дуэли вам потребуется убрать лишний вес или сделать замену.
             </div>
           )}
-          <button
-            onClick={() => setShowTeamBuilder(false)}
-            className="w-full py-4 bg-white text-black hover:bg-slate-200 font-black uppercase tracking-widest rounded-xl transition-all active:scale-95 shadow-[0_0_20px_rgba(255,255,255,0.2)]"
-          >
-            Подтвердить выбор ({selectedCards.length} / {DECK_SIZE})
-          </button>
+          <div className="flex gap-3">
+            {autoBuildDeck && (
+              <button
+                onClick={autoBuildDeck}
+                className="px-5 py-4 bg-violet-500/15 hover:bg-violet-500/25 text-violet-300 border border-violet-500/30 font-black uppercase tracking-widest rounded-xl transition-all active:scale-95 flex items-center justify-center gap-2 whitespace-nowrap"
+                title="Автоматически собрать лучшую колоду из ваших карт"
+              >
+                <Wand2 className="w-5 h-5" />
+                Авто
+              </button>
+            )}
+            <button
+              onClick={() => setShowTeamBuilder(false)}
+              className="flex-1 py-4 bg-white text-black hover:bg-slate-200 font-black uppercase tracking-widest rounded-xl transition-all active:scale-95 shadow-[0_0_20px_rgba(255,255,255,0.2)]"
+            >
+              Подтвердить выбор ({selectedCards.length} / {DECK_SIZE})
+            </button>
+          </div>
         </div>
       </div>
 

@@ -1,12 +1,12 @@
 "use client"
 
 import { useEffect, useState, useTransition } from "react"
-import { Users, Eye, Bookmark, User, Search, LogOut, Lock, Brain, Sword, Shield, Map, Settings, Trash2, Plus, Check, X, History, Trophy, Gift, Mail, Calendar, Edit, Sparkles, BookOpen, ChevronDown, ChevronRight, Lightbulb, CheckCircle, AlertTriangle } from "lucide-react"
+import { Users, Eye, Bookmark, User, Search, LogOut, Lock, Brain, Sword, Shield, Map, Settings, Trash2, Plus, Check, X, History, Trophy, Gift, Mail, Calendar, Edit, Sparkles, BookOpen, ChevronDown, ChevronRight, Lightbulb, CheckCircle, AlertTriangle, BellRing, Send } from "lucide-react"
 import Image from "next/image"
 import Link from "next/link"
 import { ScrollToTop } from "@/components/layout/scroll-to-top"
 import { Footer } from "@/components/layout/footer"
-import { adminLogin, adminLogout, checkAdminAuth, getAdminUsers, getPvPRules, updatePvPRule, getPvPLocations, createPvPLocation, deletePvPLocation, getPvPLogs, getAdminUsersSimple, getBanners, createBanner, updateBanner, deleteBanner, getBannerCards, addBannerCard, updateBannerCard, deleteBannerCard, adminSendMail, adminSendMailBulk, adminGiftCardToUser, searchCharactersForBanner, searchUserCardsForBanner } from "./actions"
+import { adminLogin, adminLogout, checkAdminAuth, getAdminUsers, getPvPRules, updatePvPRule, getPvPLocations, createPvPLocation, deletePvPLocation, getPvPLogs, getAdminUsersSimple, getBanners, createBanner, updateBanner, deleteBanner, getBannerCards, addBannerCard, updateBannerCard, deleteBannerCard, adminSendMail, adminSendMailBulk, adminGiftCardToUser, searchCharactersForBanner, searchUserCardsForBanner, adminSendPushNotification, adminSendPushNotificationBulk } from "./actions"
 import { rarityConfig } from "@/types/gacha"
 import type { Rarity } from "@/types/gacha"
 import { toast } from "sonner"
@@ -94,8 +94,8 @@ interface PvPLog {
   battle_data: any
   duration_seconds: number
   created_at: string
-  player1: { username: string; avatar_url: string }
-  player2: { username: string; avatar_url: string }
+  player1: { username: string | null; avatar_url: string | null }
+  player2: { username: string | null; avatar_url: string | null }
 }
 
 interface SimpleUser {
@@ -378,6 +378,8 @@ export default function AdminPage() {
   // Battle Logs state
   const [pvpLogs, setPvPLogs] = useState<PvPLog[]>([])
   const [isLogsLoading, setIsLogsLoading] = useState(false)
+  const [logsLoaded, setLogsLoaded] = useState(false)
+  const [logsError, setLogsError] = useState<string | null>(null)
 
   // Mail tab state
   const [simpleUsers, setSimpleUsers] = useState<SimpleUser[]>([])
@@ -389,6 +391,13 @@ export default function AdminPage() {
   const [mailCardJson, setMailCardJson] = useState("")
   const [isMailSending, setIsMailSending] = useState(false)
   const [mailLoaded, setMailLoaded] = useState(false)
+
+  // Push notification state
+  const [pushTargetUserId, setPushTargetUserId] = useState<string>("")
+  const [pushTitle, setPushTitle] = useState("")
+  const [pushBody, setPushBody] = useState("")
+  const [pushUrl, setPushUrl] = useState("")
+  const [isPushSending, setIsPushSending] = useState(false)
 
   // Events (banners) tab state
   const [banners, setBanners] = useState<Banner[]>([])
@@ -513,10 +522,14 @@ export default function AdminPage() {
   const fetchPvPLogs = async () => {
     try {
       setIsLogsLoading(true)
+      setLogsError(null)
       const logs = await getPvPLogs()
       setPvPLogs(logs)
+      setLogsLoaded(true)
     } catch (err) {
       console.error("Failed to fetch PvP logs:", err)
+      setLogsError(err instanceof Error ? err.message : 'Не удалось загрузить логи')
+      toast.error("Не удалось загрузить логи PvP-битв")
     } finally {
       setIsLogsLoading(false)
     }
@@ -568,7 +581,10 @@ export default function AdminPage() {
     if (activeTab === 'events' && !bannersLoaded && isAuthenticated) {
       fetchBanners()
     }
-  }, [activeTab, isAuthenticated, mailLoaded, bannersLoaded])
+    if (activeTab === 'battle_logs' && !logsLoaded && isAuthenticated) {
+      fetchPvPLogs()
+    }
+  }, [activeTab, isAuthenticated, mailLoaded, bannersLoaded, logsLoaded])
 
   const handleToggleRule = async (id: string, currentStatus: boolean) => {
     try {
@@ -697,6 +713,68 @@ export default function AdminPage() {
       toast.error("Ошибка при массовой рассылке")
     } finally {
       setIsMailSending(false)
+    }
+  }
+
+  // ===== Push notification handlers =====
+  const handleSendPush = async () => {
+    if (!pushTargetUserId) {
+      toast.error("Выберите получателя")
+      return
+    }
+    if (!pushTitle.trim()) {
+      toast.error("Введите заголовок уведомления")
+      return
+    }
+    try {
+      setIsPushSending(true)
+      const result = await adminSendPushNotification(pushTargetUserId, pushTitle, pushBody || undefined, pushUrl || undefined)
+      if (result.total === 0) {
+        toast.info("У пользователя нет активных push-подписок")
+      } else {
+        toast.success(`Отправлено ${result.sent} из ${result.total} уведомлений`)
+      }
+      setPushTitle("")
+      setPushBody("")
+      setPushUrl("")
+    } catch (err) {
+      console.error("Failed to send push:", err)
+      toast.error("Ошибка при отправке push-уведомления")
+    } finally {
+      setIsPushSending(false)
+    }
+  }
+
+  const handleSendPushBulk = async () => {
+    if (simpleUsers.length === 0) {
+      toast.error("Нет пользователей для рассылки")
+      return
+    }
+    if (!pushTitle.trim()) {
+      toast.error("Введите заголовок уведомления")
+      return
+    }
+    try {
+      setIsPushSending(true)
+      const result = await adminSendPushNotificationBulk(
+        simpleUsers.map(u => u.id),
+        pushTitle,
+        pushBody || undefined,
+        pushUrl || undefined
+      )
+      if (result.total === 0) {
+        toast.info("Нет активных push-подписок у пользователей")
+      } else {
+        toast.success(`Отправлено ${result.sent} из ${result.total} уведомлений`)
+      }
+      setPushTitle("")
+      setPushBody("")
+      setPushUrl("")
+    } catch (err) {
+      console.error("Failed to bulk send push:", err)
+      toast.error("Ошибка при массовой отправке push-уведомлений")
+    } finally {
+      setIsPushSending(false)
     }
   }
 
@@ -1665,6 +1743,11 @@ export default function AdminPage() {
               <div className="flex justify-center py-12">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
               </div>
+            ) : logsError ? (
+              <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 mb-4">
+                <p className="text-sm text-red-500 font-medium">Ошибка загрузки логов: {logsError}</p>
+                <button onClick={fetchPvPLogs} className="mt-2 text-xs text-red-400 hover:underline">Попробовать снова</button>
+              </div>
             ) : (
               <div className="bg-card border border-border rounded-xl overflow-hidden shadow-sm">
                 <div className="overflow-x-auto">
@@ -1896,6 +1979,85 @@ export default function AdminPage() {
                   <Gift size={18} />
                   {isMailSending ? "Отправка..." : `Отправить всем (${simpleUsers.length})`}
                 </button>
+              </div>
+            </div>
+
+            {/* Push Notifications Section */}
+            <div className="border-t border-border pt-4 mt-4">
+              <h3 className="text-base font-bold flex items-center gap-2 mb-3">
+                <BellRing size={18} className="text-primary" />
+                Push-уведомления
+              </h3>
+              <div className="bg-muted/30 rounded-lg p-4 space-y-3">
+                <div>
+                  <label className="block text-xs font-medium text-muted-foreground mb-1 uppercase">Получатель</label>
+                  <select
+                    value={pushTargetUserId}
+                    onChange={(e) => setPushTargetUserId(e.target.value)}
+                    className="w-full px-3 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-sm"
+                  >
+                    <option value="">Выберите пользователя...</option>
+                    {simpleUsers.map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {u.username || "Без имени"} {u.email ? `(${u.email})` : ""}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-muted-foreground mb-1 uppercase">Заголовок</label>
+                  <input
+                    type="text"
+                    value={pushTitle}
+                    onChange={(e) => setPushTitle(e.target.value)}
+                    placeholder="Заголовок уведомления..."
+                    className="w-full px-3 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-sm"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-muted-foreground mb-1 uppercase">Текст</label>
+                  <textarea
+                    value={pushBody}
+                    onChange={(e) => setPushBody(e.target.value)}
+                    placeholder="Текст уведомления..."
+                    className="w-full px-3 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-sm h-20"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-muted-foreground mb-1 uppercase">URL (опционально)</label>
+                  <input
+                    type="text"
+                    value={pushUrl}
+                    onChange={(e) => setPushUrl(e.target.value)}
+                    placeholder="/watch/12345 или https://..."
+                    className="w-full px-3 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-sm"
+                  />
+                </div>
+
+                <div className="flex flex-col sm:flex-row gap-3 pt-1">
+                  <button
+                    onClick={handleSendPush}
+                    disabled={isPushSending || !pushTargetUserId}
+                    className="flex items-center justify-center gap-2 px-6 py-2 bg-primary text-primary-foreground rounded-lg font-semibold hover:bg-primary/90 transition disabled:opacity-50"
+                  >
+                    <Send size={16} />
+                    {isPushSending ? "Отправка..." : "Отправить"}
+                  </button>
+                  <button
+                    onClick={handleSendPushBulk}
+                    disabled={isPushSending}
+                    className="flex items-center justify-center gap-2 px-6 py-2 bg-secondary text-secondary-foreground rounded-lg font-semibold hover:bg-secondary/80 transition disabled:opacity-50"
+                  >
+                    <BellRing size={16} />
+                    {isPushSending ? "Отправка..." : `Всем (${simpleUsers.length})`}
+                  </button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Push-уведомления получают только пользователи с активной подпиской. Устройства с истёкшими подписками удаляются автоматически.
+                </p>
               </div>
             </div>
           </div>

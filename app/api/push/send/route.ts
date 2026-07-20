@@ -1,8 +1,17 @@
+import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from "next/server"
 import webpush from "web-push"
-import { supabase } from "@/lib/supabase"
 
 export const dynamic = "force-dynamic"
+
+function getSupabaseAdmin() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!supabaseUrl || !supabaseServiceKey) return null
+  return createClient(supabaseUrl, supabaseServiceKey, {
+    auth: { autoRefreshToken: false, persistSession: false }
+  })
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -20,13 +29,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "VAPID keys not configured" }, { status: 500 })
     }
 
+    const supabaseAdmin = getSupabaseAdmin()
+    if (!supabaseAdmin) {
+      return NextResponse.json({ error: "Server not configured" }, { status: 500 })
+    }
+
     webpush.setVapidDetails(
       "mailto:admin@weeb-x.com",
       publicKey,
       privateKey
     )
 
-    const { data: subs, error } = await supabase
+    const { data: subs, error } = await supabaseAdmin
       .from("push_subscriptions")
       .select("endpoint, p256dh, auth")
       .eq("user_id", userId)
@@ -62,7 +76,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (failedEndpoints.length > 0) {
-      await supabase
+      await supabaseAdmin
         .from("push_subscriptions")
         .delete()
         .in("endpoint", failedEndpoints)

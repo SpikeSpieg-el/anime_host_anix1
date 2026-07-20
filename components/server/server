@@ -470,12 +470,12 @@ io.on('connection', (socket) => {
         role: card.role || getCardRole(card)
       }))
 
-      // Get user's MMR from database
+      // Get user's MMR from database (use maybeSingle to handle missing row)
       const { data: ladderData, error } = await supabase
         .from('user_ladder')
         .select('mmr')
         .eq('user_id', userId)
-        .single()
+        .maybeSingle()
 
       if (error) {
         console.error('[Queue] Error fetching MMR:', error)
