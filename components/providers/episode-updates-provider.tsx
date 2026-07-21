@@ -8,6 +8,7 @@ import { useAuth } from "@/components/auth/auth-provider"
 export interface EpisodeUpdate {
   animeId: string
   animeTitle: string
+  poster?: string
   oldEpisode: number
   newEpisode: number
   totalEpisodes?: number
@@ -248,10 +249,11 @@ export function EpisodeUpdatesProvider({ children }: { children: React.ReactNode
         if (anime.episodesCurrent > watchedEp) {
           const existingIdx = newUpdatesList.findIndex((u) => u.animeId === anime.id)
 
-          if (existingIdx === -1 || newUpdatesList[existingIdx].newEpisode < anime.episodesCurrent) {
+          if (existingIdx === -1 || newUpdatesList[existingIdx].newEpisode < anime.episodesCurrent || !newUpdatesList[existingIdx].poster) {
             const updateObj: EpisodeUpdate = {
               animeId: anime.id,
               animeTitle: anime.title,
+              poster: anime.poster,
               oldEpisode: watchedEp,
               newEpisode: anime.episodesCurrent,
               totalEpisodes: anime.episodesTotal,

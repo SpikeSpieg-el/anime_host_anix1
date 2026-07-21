@@ -13,20 +13,25 @@ interface PosterResponse {
   poster: string;
 }
 
-async function getShikimoriPosterUrl(id: string): Promise<string> {
+async function getShikimoriAnimeData(id: string): Promise<{ posterUrl: string; romajiName: string }> {
   try {
     const response = await fetch(`https://shikimori.one/api/animes/${encodeURIComponent(id)}`, {
       headers: { "User-Agent": "AnixStream/1.0" },
       next: { revalidate: 86400 },
     });
 
-    if (!response.ok) return "";
+    if (!response.ok) return { posterUrl: "", romajiName: "" };
 
     const anime = await response.json();
-    return anime.image?.original || anime.image?.large || anime.image?.x96 || "";
+    const rawPoster = anime.image?.original || anime.image?.large || anime.image?.x96 || "";
+    const isPlaceholder = ['missing', 'stub', 'placeholder', 'default'].some(s => rawPoster.toLowerCase().includes(s));
+    return {
+      posterUrl: isPlaceholder ? "" : rawPoster,
+      romajiName: anime.name || "",
+    };
   } catch (error) {
-    console.warn(`[Posters API] Failed to resolve Shikimori poster for ${id}:`, error);
-    return "";
+    console.warn(`[Posters API] Failed to resolve Shikimori data for ${id}:`, error);
+    return { posterUrl: "", romajiName: "" };
   }
 }
 
@@ -59,10 +64,20 @@ export async function POST(req: NextRequest) {
       const chunk = batch.slice(i, i + concurrencyLimit);
       const chunkPromises = chunk.map(async (anime) => {
         try {
-          const shikimoriUrl = anime.shikimoriUrl || await getShikimoriPosterUrl(anime.id);
+          let shikimoriUrl = anime.shikimoriUrl || "";
+          let romajiName = anime.romajiName || "";
+
+          // If no shikimoriUrl provided, fetch from Shikimori API by ID
+          if (!shikimoriUrl) {
+            const shikiData = await getShikimoriAnimeData(anime.id);
+            shikimoriUrl = shikiData.posterUrl;
+            // Use the romaji name from Shikimori API for accurate external API searches
+            if (shikiData.romajiName) romajiName = shikiData.romajiName;
+          }
+
           const poster = await resolveBestPoster(
             shikimoriUrl,
-            anime.romajiName,
+            romajiName,
             anime.russianName,
             anime.id,
             false // allow external APIs

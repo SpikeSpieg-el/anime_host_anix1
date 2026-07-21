@@ -1,7 +1,10 @@
 "use server"
+import { upgradeShikimoriUrl } from "@/lib/shikimori/utils"
+
 interface AnimeUpdateData {
   id: string
   title: string
+  poster: string
   episodesCurrent: number // Текущее кол-во вышедших серий
   episodesTotal: number // Всего запланировано
   status: string // ongoing, released, anons
@@ -56,9 +59,13 @@ export async function getFreshAnimeData(ids: string[]): Promise<AnimeUpdateData[
         // Если статус 'ongoing' но episodes_aired = 0, считаем что вышла минимум 1 серия.
         const episodesCurrent = (status === 'ongoing' && episodesAired === 0) ? 1 : episodesAired
 
+        const rawPoster = anime.image?.original || ''
+        const isPlaceholder = ['missing', 'stub', 'placeholder', 'default'].some(s => rawPoster.toLowerCase().includes(s))
+
         return {
           id: String(anime.id),
           title: anime.russian || anime.name,
+          poster: isPlaceholder ? '' : upgradeShikimoriUrl(rawPoster),
           episodesCurrent,
           episodesTotal,
           status,

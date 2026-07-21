@@ -19,6 +19,7 @@ import { usePushNotifications, type PushErrorReason } from "@/hooks/use-push-not
 interface EpisodeUpdate {
   animeId: string
   animeTitle: string
+  poster?: string
   oldEpisode: number
   newEpisode: number
   totalEpisodes?: number
@@ -34,10 +35,51 @@ interface EpisodeUpdateBadgeProps {
 
 export function EpisodeUpdateBadge({ updates, onClearUpdate, onClearAll, className }: EpisodeUpdateBadgeProps) {
   const [isOpen, setIsOpen] = useState(false)
-  const [posters, setPosters] = useState<Record<string, string>>({})
+  const [failedPosters, setFailedPosters] = useState<Set<string>>(new Set())
+  const [fallbackPosters, setFallbackPosters] = useState<Record<string, string>>({})
   const { getPoster } = useCover()
   const { isSupported: pushSupported, isSubscribed: pushSubscribed, permission: pushPermission, loading: pushLoading, errorReason: pushErrorReason, subscribe: pushSubscribe, unsubscribe: pushUnsubscribe } = usePushNotifications()
   const [pushStatus, setPushStatus] = useState<"idle" | "success" | "error">("idle")
+
+  const failedRef = useRef<Set<string>>(new Set())
+  const getPosterRef = useRef(getPoster)
+  getPosterRef.current = getPoster
+
+  function isPlaceholderPoster(url: string | undefined): boolean {
+    if (!url) return true
+    const lower = url.toLowerCase()
+    return ['missing', 'stub', 'placeholder', 'default'].some(s => lower.includes(s))
+  }
+
+  // When posters fail (Shikimori didn't return image), fetch from CoverProvider (AniList/Kitsu/MAL)
+  useEffect(() => {
+    const failedIds = updates
+      .filter((u) => (failedRef.current.has(u.animeId) || isPlaceholderPoster(u.poster)) && !fallbackPosters[u.animeId])
+      .map((u) => u.animeId)
+    if (failedIds.length === 0) return
+
+    let cancelled = false
+    ;(async () => {
+      const loaded = await Promise.all(
+        failedIds.map(async (id) => {
+          const update = updates.find((u) => u.animeId === id)
+          if (!update) return null
+          const poster = await getPosterRef.current(
+            update.animeId,
+            "",
+            "",
+            update.animeTitle,
+          )
+          return [id, poster] as const
+        }),
+      )
+      if (!cancelled) {
+        const newFallbacks = Object.fromEntries(loaded.filter(Boolean) as [string, string][])
+        setFallbackPosters((prev) => ({ ...prev, ...newFallbacks }))
+      }
+    })()
+    return () => { cancelled = true }
+  }, [updates, failedPosters, fallbackPosters])
 
   const getPushErrorMessage = (reason: PushErrorReason | null): string => {
     switch (reason) {
@@ -65,41 +107,6 @@ export function EpisodeUpdateBadge({ updates, onClearUpdate, onClearAll, classNa
         return "Не удалось включить. Проверьте разрешения браузера."
     }
   }
-  const postersRef = useRef<Record<string, string>>({})
-  const getPosterRef = useRef(getPoster)
-  getPosterRef.current = getPoster
-
-  useEffect(() => {
-    let cancelled = false
-
-    const loadPosters = async () => {
-      const missingUpdates = updates.filter((update) => !postersRef.current[update.animeId])
-      if (missingUpdates.length === 0) return
-
-      const loaded = await Promise.all(
-        missingUpdates.map(async (update) => {
-          const poster = await getPosterRef.current(
-            update.animeId,
-            "",
-            update.animeTitle,
-            update.animeTitle,
-          )
-          return [update.animeId, poster] as const
-        }),
-      )
-
-      if (!cancelled) {
-        const newPosters = Object.fromEntries(loaded)
-        postersRef.current = { ...postersRef.current, ...newPosters }
-        setPosters((current) => ({ ...current, ...newPosters }))
-      }
-    }
-
-    loadPosters()
-    return () => {
-      cancelled = true
-    }
-  }, [updates])
 
   const combinedClassName = cn("ml-2", className)
 
@@ -271,16 +278,29 @@ export function EpisodeUpdateBadge({ updates, onClearUpdate, onClearAll, classNa
             >
               {/* Обложка тайтла мягко проявляется справа налево */}
               <div className="absolute inset-y-0 right-0 w-[72%] overflow-hidden pointer-events-none">
-                {posters[update.animeId] && (
-                  <Image
-                    src={posters[update.animeId]}
-                    alt=""
-                    fill
-                    sizes="260px"
-                    className="object-cover object-center opacity-75 transition-transform duration-500 group-hover:scale-105"
-                    unoptimized={posters[update.animeId].startsWith("data:image")}
-                  />
-                )}
+                {(() => {
+                  const shikimoriFailed = failedPosters.has(update.animeId) || isPlaceholderPoster(update.poster)
+                  const src = !shikimoriFailed && update.poster
+                    ? update.poster
+                    : fallbackPosters[update.animeId]
+                  if (!src) return null
+                  return (
+                    <Image
+                      src={src}
+                      alt=""
+                      fill
+                      sizes="260px"
+                      className="object-cover object-center opacity-75 transition-transform duration-500 group-hover:scale-105"
+                      unoptimized={src.startsWith("data:image")}
+                      onError={() => {
+                        if (!shikimoriFailed) {
+                          failedRef.current = new Set(failedRef.current).add(update.animeId)
+                          setFailedPosters(prev => new Set(prev).add(update.animeId))
+                        }
+                      }}
+                    />
+                  )
+                })()}
                 <div className="absolute inset-0 bg-gradient-to-r from-muted/95 via-muted/75 via-45% to-muted/15 dark:from-zinc-900/95 dark:via-zinc-900/75 dark:to-zinc-900/15" />
                 <div className="absolute inset-0 bg-gradient-to-t from-muted/70 via-transparent to-muted/20 dark:from-zinc-900/70 dark:to-zinc-900/20" />
               </div>
