@@ -24,8 +24,12 @@ export interface PlayerPlaystyle {
   preferredRoles: Record<string, number> // { vanguard: 5, guard: 3, trickster: 2 }
   preferredRarities: Record<string, number> // { legendary: 3, epic: 5, ... }
   avgProvisionCost: number
-  aggressiveRating: number // 0-1, выше = чаще играет агрессивно
-  defensiveRating: number // 0-1, выше = чаще играет защитно
+  // RPS-based: what roles the player prefers (0-1 each, normalized)
+  rolePreference: { vanguard: number; guard: number; trickster: number }
+  // Which counter-roles AI should prioritize (0-1 each)
+  counterRolePriority: { vanguard: number; guard: number; trickster: number }
+  // How often player uses secret cards as bluff (0-1)
+  bluffTendency: number
   totalBattles: number
   lastBattleDate: number
 }
@@ -98,8 +102,9 @@ class AIAdaptiveLearning {
           preferred_roles: this.playerPlaystyle.preferredRoles,
           preferred_rarities: this.playerPlaystyle.preferredRarities,
           avg_provision_cost: this.playerPlaystyle.avgProvisionCost,
-          aggressive_rating: this.playerPlaystyle.aggressiveRating,
-          defensive_rating: this.playerPlaystyle.defensiveRating,
+          role_preference: this.playerPlaystyle.rolePreference,
+          counter_role_priority: this.playerPlaystyle.counterRolePriority,
+          bluff_tendency: this.playerPlaystyle.bluffTendency,
           updated_at: new Date().toISOString()
         }, {
           onConflict: 'user_id'
@@ -133,8 +138,9 @@ class AIAdaptiveLearning {
         preferredRoles: { vanguard: 0, guard: 0, trickster: 0 },
         preferredRarities: {},
         avgProvisionCost: 0,
-        aggressiveRating: 0.5,
-        defensiveRating: 0.5,
+        rolePreference: { vanguard: 0.33, guard: 0.33, trickster: 0.34 },
+        counterRolePriority: { vanguard: 0.33, guard: 0.33, trickster: 0.34 },
+        bluffTendency: 0.5,
         totalBattles: 0,
         lastBattleDate: now
       }
@@ -181,16 +187,26 @@ class AIAdaptiveLearning {
     const totalProvision = playerDeck.reduce((sum, c) => sum + (c.provisionCost || getCardProvision(c)), 0)
     playstyle.avgProvisionCost = totalProvision / playerDeck.length
 
-    // Оцениваем агрессивность/защиту на основе ролей
+    // RPS-based role preference (normalized 0-1)
     const totalRoleUsage = Object.values(playstyle.preferredRoles).reduce((a, b) => a + b, 0)
     if (totalRoleUsage > 0) {
       const vanguardRatio = (playstyle.preferredRoles.vanguard || 0) / totalRoleUsage
       const guardRatio = (playstyle.preferredRoles.guard || 0) / totalRoleUsage
       const tricksterRatio = (playstyle.preferredRoles.trickster || 0) / totalRoleUsage
 
-      // Vanguard = агрессивный, Guard = защитный, Trickster = хитрый
-      playstyle.aggressiveRating = vanguardRatio * 0.7 + tricksterRatio * 0.3
-      playstyle.defensiveRating = guardRatio * 0.8 + tricksterRatio * 0.2
+      playstyle.rolePreference = {
+        vanguard: vanguardRatio,
+        guard: guardRatio,
+        trickster: tricksterRatio
+      }
+
+      // Counter-pick: if player prefers X, AI should prioritize counter-role
+      // RPS: guard beats vanguard, trickster beats guard, vanguard beats trickster
+      playstyle.counterRolePriority = {
+        guard: vanguardRatio,       // player likes vanguard → AI needs guard
+        trickster: guardRatio,      // player likes guard → AI needs trickster
+        vanguard: tricksterRatio    // player likes trickster → AI needs vanguard
+      }
     }
 
     // Сортируем любимые карты по частоте использования
@@ -206,7 +222,7 @@ class AIAdaptiveLearning {
   }
 
   // Получить адаптированную конфигурацию AI
-  getAdaptedAIConfig(): Partial<{ aggressiveness: number; defensiveness: number; bluffChance: number }> {
+  getAdaptedAIConfig(): Partial<{ aggressiveness: number; defensiveness: number; bluffChance: number; counterRolePriority: { vanguard: number; guard: number; trickster: number } }> {
     if (!this.config.enableAdaptiveLearning || !this.playerPlaystyle) {
       return {}
     }
@@ -219,20 +235,29 @@ class AIAdaptiveLearning {
       return {}
     }
 
-    const adaptedConfig: Partial<{ aggressiveness: number; defensiveness: number; bluffChance: number }> = {}
+    const adaptedConfig: Partial<{ aggressiveness: number; defensiveness: number; bluffChance: number; counterRolePriority: { vanguard: number; guard: number; trickster: number } }> = {}
 
-    // Адаптируем агрессивность/защиту под стиль игрока
+    // Pass counter-role priority to AI config
     if (this.config.adaptToPlaystyle) {
-      // Если игрок агрессивный - бот становится более защитным
-      // Если игрок защитный - бот становится более агрессивным
-      adaptedConfig.aggressiveness = 0.6 + (0.4 - playstyle.aggressiveRating) * adaptation
-      adaptedConfig.defensiveness = 0.4 + (0.6 - playstyle.defensiveRating) * adaptation
+      adaptedConfig.counterRolePriority = playstyle.counterRolePriority
     }
 
-    // Если игрок часто блефует (трюкач) - увеличиваем шанс блефа бота
-    if (playstyle.preferredRoles.trickster > 0) {
-      const tricksterRatio = playstyle.preferredRoles.trickster / playstyle.totalBattles
-      adaptedConfig.bluffChance = 0.3 + tricksterRatio * adaptation * 0.5
+    // Bluff chance: normalized 0-1 based on player's trickster preference
+    // High trickster preference = player bluffs more = AI should also bluff more to stay unpredictable
+    adaptedConfig.bluffChance = Math.min(1, 0.2 + playstyle.rolePreference.trickster * adaptation)
+
+    // Aggressiveness/defensiveness: keep as zone-placement heuristics
+    // but base them on how much the player invests in each zone (provision cost)
+    // rather than role assumptions
+    const highProvision = playstyle.avgProvisionCost > 4
+    if (highProvision) {
+      // Player uses expensive cards → AI should be more defensive (spread to win 2 zones)
+      adaptedConfig.aggressiveness = Math.max(0.3, 0.6 - adaptation * 0.2)
+      adaptedConfig.defensiveness = Math.min(0.8, 0.4 + adaptation * 0.2)
+    } else {
+      // Player uses cheap cards → AI can be more aggressive (overpower)
+      adaptedConfig.aggressiveness = Math.min(0.8, 0.6 + adaptation * 0.1)
+      adaptedConfig.defensiveness = Math.max(0.3, 0.4 - adaptation * 0.1)
     }
 
     return adaptedConfig
@@ -293,7 +318,7 @@ export async function recordPlayerBattle(
   await adaptive.recordBattle(playerCards, playerWon, playerDeck, userId)
 }
 
-export function getAdaptedAIConfig(userId: string): Partial<{ aggressiveness: number; defensiveness: number; bluffChance: number }> {
+export function getAdaptedAIConfig(userId: string): Partial<{ aggressiveness: number; defensiveness: number; bluffChance: number; counterRolePriority: { vanguard: number; guard: number; trickster: number } }> {
   const adaptive = getAdaptiveLearning(userId)
   return adaptive.getAdaptedAIConfig()
 }

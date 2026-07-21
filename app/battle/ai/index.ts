@@ -17,6 +17,7 @@ export interface AIConfig {
   decisionQuality?: number // 0-1, вероятность выбрать лучшее тактическое решение
   mistakeChance?: number // 0-1, вероятность намеренно неидеального выбора
   userId?: string // ID пользователя для адаптивного обучения
+  counterRolePriority?: { vanguard: number; guard: number; trickster: number }
 }
 
 export const DEFAULT_AI_CONFIG: AIConfig = {
@@ -430,59 +431,64 @@ class AdaptiveStrategy extends AIStrategy {
 
     const candidates: Array<{ card: Card; zoneId: string; score: number; reasoning: string }> = []
     const isSecret = context.cardsPlacedThisRound === 1
+    const counterRolePriority = this.config.counterRolePriority
 
     for (const card of context.hand) {
       for (const zoneState of zoneStates) {
         const evaluation = evaluateZoneCardCombo(card, zoneState.zone, isSecret, context)
-        // Пропускаем решения с отрицательным баллом (зона заполнена)
         if (evaluation.score < 0) continue
         let finalScore = evaluation.score
+        const cardRole = getCardRole(card)
+        const reasons: string[] = [evaluation.reasoning]
 
-        // Оцениваем потенциальную силу карты в этой зоне
-        const cardPotentialPower = evaluation.score
-        
-        // Если зона проигрывает, проверяем может ли эта карта перебить
+        // RPS counter-pick: check visible player cards in this zone
+        const visiblePlayerCards = zoneState.zone.playerCards.filter(zc => !zc.isSecret)
+        let rpsCounterBonus = 0
+        visiblePlayerCards.forEach(zc => {
+          const playerRole = getCardRole(zc.card)
+          // Does this card's role beat the player's visible card?
+          if (cardRole === "guard" && playerRole === "vanguard") { rpsCounterBonus += 50; reasons.push("КНБ: страж бьёт авангарда") }
+          if (cardRole === "trickster" && playerRole === "guard") { rpsCounterBonus += 50; reasons.push("КНБ: плут бьёт стража") }
+          if (cardRole === "vanguard" && playerRole === "trickster") { rpsCounterBonus += 50; reasons.push("КНБ: авангард бьёт плута") }
+        })
+
+        // Apply adaptive counter-role priority bonus
+        if (counterRolePriority) {
+          const priority = counterRolePriority[cardRole] ?? 0
+          if (priority > 0.4) {
+            const adaptBonus = Math.round((priority - 0.33) * 60)
+            rpsCounterBonus += adaptBonus
+            if (adaptBonus > 0) reasons.push(`Адаптивный контр-пик +${adaptBonus}`)
+          }
+        }
+
+        finalScore += rpsCounterBonus
+
+        // Zone status logic — no role assumptions, just power-based
         if (zoneState.status === "losing") {
           const gapToClose = Math.abs(zoneState.diff)
-          
-          // Если карта может потенциально закрыть разрыв (с учётом модификаторов)
-          if (cardPotentialPower >= gapToClose * 0.8) {
-            finalScore += 80 // Бонус за попытку перебить
-            this.log(`Карта ${card.name} может перебить отставание в ${zoneState.zone.nameRu} (разрыв: ${gapToClose.toFixed(0)}, потенциал: ${cardPotentialPower.toFixed(0)})`, "detailed")
+          if (evaluation.score >= gapToClose * 0.8) {
+            finalScore += 80
+            this.log(`Карта ${card.name} может перебить отставание в ${zoneState.zone.nameRu} (разрыв: ${gapToClose.toFixed(0)}, потенциал: ${evaluation.score.toFixed(0)})`, "detailed")
           } else {
-            // Если не может перебить - штрафуем, чтобы выбрать другую зону
             finalScore -= 30
           }
-          
-          // Пытаемся отвоевать отстающую линию агрессивной атакой
-          if (getCardRole(card) === "vanguard") {
-            finalScore += 25 + 50 * (this.config.aggressiveness ?? 0.6)
-          }
         } else if (zoneState.status === "winning") {
-          // Если уже есть выигранная зона, штрафуем за укрепление ещё одной
-          // Нужно захватить 2 зоны, а не укреплять одну
           if (alreadyHaveWinningZone) {
-            finalScore -= 60 // Сильный штраф за "жадность" к одной зоне
+            finalScore -= 60
             this.log(`Штраф за укрепление уже выигранной зоны ${zoneState.zone.nameRu} (нужна вторая зона)`, "detailed")
-          } else if (getCardRole(card) === "guard") {
-            finalScore += 35 * (this.config.defensiveness ?? 0.4)
-          } else {
-            // Первую выигранную зону можно укреплять, но без бонусов за роль
-            // Все роли работают одинаково для защиты
           }
         } else {
-          // Равный бой — повышаем значимость зоны для закрепления преимущества
           finalScore += 25
         }
 
-        // Если зона сильно проигрывает (более 200) и у нас нет карты которая может перебрать
-        // и есть другие зоны с меньшим отставанием - приоритизируем их
-        if (zoneState.diff < -200 && cardPotentialPower < Math.abs(zoneState.diff) * 0.8) {
-          const otherZonesWithLessLoss = zoneStates.filter(zs => 
+        // If zone is hopelessly lost, prefer other zones
+        if (zoneState.diff < -200 && evaluation.score < Math.abs(zoneState.diff) * 0.8) {
+          const otherZonesWithLessLoss = zoneStates.filter(zs =>
             zs.zone.id !== zoneState.zone.id && zs.diff > zoneState.diff
           )
           if (otherZonesWithLessLoss.length > 0) {
-            finalScore -= 50 // Штраф за попытку борьбы в безнадежной зоне
+            finalScore -= 50
           }
         }
 
@@ -490,7 +496,7 @@ class AdaptiveStrategy extends AIStrategy {
           card,
           zoneId: zoneState.zone.id,
           score: finalScore,
-          reasoning: evaluation.reasoning
+          reasoning: reasons.join(", ")
         })
       }
     }

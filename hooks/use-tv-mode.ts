@@ -18,6 +18,7 @@ export function useTVMode() {
          userAgent.includes('aftm') || 
          userAgent.includes('aftb'))
 
+      const isHeadless = userAgent.includes('headless') || userAgent.includes('lighthouse')
       const isLargeScreen = window.innerWidth >= 1280 && window.innerHeight >= 720
 
       const storedPreference = localStorage.getItem('tv-mode-enabled')
@@ -26,7 +27,9 @@ export function useTVMode() {
         return storedPreference === 'true'
       }
 
-      return isAndroidTV || (isLargeScreen && window.matchMedia('(hover: none)').matches)
+      if (isHeadless) return false
+
+      return isAndroidTV || (isLargeScreen && window.matchMedia('(hover: none)').matches && window.matchMedia('(pointer: coarse)').matches)
     }
 
     setIsTVMode(checkTVMode())
