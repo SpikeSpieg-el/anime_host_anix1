@@ -8,19 +8,76 @@ import webpush from "web-push"
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD
 
+const MAX_ATTEMPTS = 5
+const LOCKOUT_MS = 15 * 60 * 1000 // 15 minutes
+
 export async function adminLogin(formData: FormData) {
   const username = formData.get("username") as string
   const password = formData.get("password") as string
+
+  const cookieStore = await cookies()
+
+  // Rate limiting: check failed attempts from cookie
+  const attemptsCookie = cookieStore.get("admin_attempts")?.value
+  let attempts: { count: number; firstAttempt: number; lastAttempt: number } = {
+    count: 0,
+    firstAttempt: 0,
+    lastAttempt: 0,
+  }
+
+  if (attemptsCookie) {
+    try {
+      attempts = JSON.parse(attemptsCookie)
+    } catch {
+      // corrupted cookie, reset
+    }
+  }
+
+  const now = Date.now()
+
+  // Reset attempts if lockout period has passed
+  if (attempts.firstAttempt && now - attempts.firstAttempt > LOCKOUT_MS) {
+    attempts = { count: 0, firstAttempt: 0, lastAttempt: 0 }
+  }
+
+  // Check if currently locked out
+  if (attempts.count >= MAX_ATTEMPTS) {
+    const remainingMs = LOCKOUT_MS - (now - attempts.firstAttempt)
+    const remainingMin = Math.ceil(remainingMs / 60000)
+    return {
+      error: `Слишком много попыток. Повторите через ${remainingMin} мин.`
+    }
+  }
 
   if (!username || !password) {
     return { error: "Введите логин и пароль" }
   }
 
   if (username !== ADMIN_USERNAME || password !== ADMIN_PASSWORD) {
-    return { error: "Неверный логин или пароль" }
+    // Increment failed attempts
+    attempts.count += 1
+    attempts.lastAttempt = now
+    if (!attempts.firstAttempt) attempts.firstAttempt = now
+
+    cookieStore.set("admin_attempts", JSON.stringify(attempts), {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 60 * 30, // 30 minutes
+      path: "/",
+    })
+
+    const remaining = MAX_ATTEMPTS - attempts.count
+    if (remaining > 0) {
+      return { error: `Неверный логин или пароль. Осталось попыток: ${remaining}` }
+    } else {
+      return { error: "Слишком много попыток. Аккаунт заблокирован на 15 минут." }
+    }
   }
 
-  const cookieStore = await cookies()
+  // Success: clear attempts cookie
+  cookieStore.delete("admin_attempts")
+
   cookieStore.set("admin_auth", "true", {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",

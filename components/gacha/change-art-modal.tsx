@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import Image from "next/image"
 import { X, RefreshCcw, Sparkles, Loader2, Check } from "lucide-react"
 import type { Card } from "@/app/gacha/types"
@@ -10,6 +10,28 @@ import { supabase } from "@/lib/supabase"
 import { getProxiedSrc, isExternalImageUrl } from "@/lib/image-loader"
 
 const ART_CHANGE_COST = 50
+
+function useSpendAnimation(value: number) {
+  const [flash, setFlash] = useState(false)
+  const [delta, setDelta] = useState<number | null>(null)
+  const prevRef = useRef<number | null>(null)
+
+  useEffect(() => {
+    if (prevRef.current !== null && value < prevRef.current) {
+      setDelta(prevRef.current - value)
+      setFlash(true)
+      const t1 = setTimeout(() => setFlash(false), 600)
+      const t2 = setTimeout(() => setDelta(null), 900)
+      return () => {
+        clearTimeout(t1)
+        clearTimeout(t2)
+      }
+    }
+    prevRef.current = value
+  }, [value])
+
+  return { flash, delta }
+}
 
 const isPinterestUrl = (url: string) => url.includes('i.pinimg.com') || url.includes('pinimg.com');
 
@@ -35,6 +57,7 @@ export function ChangeArtModal({ card, onClose, onArtChanged, dust, refreshDust:
   const [success, setSuccess] = useState(false)
   const [spinAttempts, setSpinAttempts] = useState(0)
   const [failedUrls, setFailedUrls] = useState<string[]>([])
+  const dustAnim = useSpendAnimation(dust)
 
   useEffect(() => {
     if (card) {
@@ -347,10 +370,15 @@ export function ChangeArtModal({ card, onClose, onArtChanged, dust, refreshDust:
         </div>
 
         {/* Dust Cost */}
-        <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-500/10 border border-amber-500/30 mb-6">
+        <div className={`relative flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-500/10 border border-amber-500/30 mb-6 transition-all duration-200 ${dustAnim.flash ? 'ring-2 ring-red-500/70 ring-offset-2 ring-offset-slate-950' : ''}`}>
           <Sparkles className="w-5 h-5 text-amber-400" />
           <span className="text-amber-300 font-bold">Стоимость: {ART_CHANGE_COST} пыли</span>
-          <span className="text-amber-200 text-sm">(Ваш баланс: {dust})</span>
+          <span className={`text-sm font-bold transition-colors duration-200 ${dustAnim.flash ? 'text-red-500 animate-spend' : 'text-amber-200'}`}>(Ваш баланс: {dust.toLocaleString()})</span>
+          {dustAnim.delta !== null && (
+            <span className="absolute -top-5 left-1/2 text-red-400 font-black text-xs animate-float-minus whitespace-nowrap pointer-events-none">
+              -{dustAnim.delta.toLocaleString()}
+            </span>
+          )}
         </div>
 
         {/* Error Message */}

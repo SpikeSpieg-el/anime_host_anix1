@@ -17,6 +17,44 @@ const CSRF_EXEMPT_PATHS = [
 // Paths that are API routes (for header checks)
 const API_PATH_PREFIX = "/api/"
 
+// Security headers applied to ALL responses (including GET)
+const SECURITY_HEADERS: Record<string, string> = {
+  "X-Content-Type-Options": "nosniff",
+  "X-Frame-Options": "DENY",
+  "X-XSS-Protection": "1; mode=block",
+  "Referrer-Policy": "no-referrer",
+  "Permissions-Policy": "camera=(), microphone=(), geolocation=(), browsing-topics=()",
+  "Content-Security-Policy": [
+    "default-src 'self'",
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://vercel.live https://assets.vercel.com",
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob: https: http:",
+    "font-src 'self' data:",
+    "connect-src 'self' https://*.supabase.co https://*.vercel.app https://*.analytics.vercel.com wss://*.vercel.app",
+    "frame-src 'self' https: http:",
+    "media-src 'self' https: http: blob:",
+    "object-src 'none'",
+    "base-uri 'self'",
+  ].join("; "),
+}
+
+// Headers to strip (tech stack disclosure)
+const STRIP_HEADERS = [
+  "X-Powered-By",
+  "X-Nextjs-Prerender",
+  "X-Matched-Path",
+]
+
+function applySecurityHeaders(response: NextResponse) {
+  for (const [key, value] of Object.entries(SECURITY_HEADERS)) {
+    response.headers.set(key, value)
+  }
+  for (const header of STRIP_HEADERS) {
+    response.headers.delete(header)
+  }
+  return response
+}
+
 export function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname
   const method = request.method
@@ -25,7 +63,8 @@ export function middleware(request: NextRequest) {
   const isStateChangingMethod = ["POST", "PUT", "DELETE", "PATCH"].includes(method)
 
   if (!isStateChangingMethod) {
-    return NextResponse.next()
+    // Apply security headers even on GET requests
+    return applySecurityHeaders(NextResponse.next())
   }
 
   // Check if path is exempt from CSRF (external integrations like Lampa)
@@ -35,14 +74,14 @@ export function middleware(request: NextRequest) {
     response.headers.set("Access-Control-Allow-Origin", "*")
     response.headers.set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
     response.headers.set("Access-Control-Allow-Headers", "Content-Type, Authorization")
-    return response
+    return applySecurityHeaders(response)
   }
 
   // Check if path requires CSRF protection
   const requiresCsrf = CSRF_PROTECTED_PATHS.some((path) => pathname.startsWith(path))
 
   if (!requiresCsrf) {
-    return NextResponse.next()
+    return applySecurityHeaders(NextResponse.next())
   }
 
   // For API routes, check for required headers
@@ -69,28 +108,7 @@ export function middleware(request: NextRequest) {
   }
 
   const response = NextResponse.next()
-
-  // Add security headers to all responses
-  response.headers.set("X-Content-Type-Options", "nosniff")
-  response.headers.set("X-Frame-Options", "DENY")
-  response.headers.set("X-XSS-Protection", "1; mode=block")
-  response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin")
-
-  // CSP header - adjust based on your needs
-  const cspDirectives = [
-    "default-src 'self'",
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://vercel.live https://assets.vercel.com",
-    "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data: blob: https: http:",
-    "font-src 'self' data:",
-    "connect-src 'self' https://*.supabase.co https://*.vercel.app https://*.analytics.vercel.com",
-    "frame-src 'self' https: http:",
-    "media-src 'self' https: http: blob:",
-  ]
-
-  response.headers.set("Content-Security-Policy", cspDirectives.join("; "))
-
-  return response
+  return applySecurityHeaders(response)
 }
 
 export const config = {

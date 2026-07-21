@@ -27,7 +27,7 @@ import { useDust } from "@/hooks/use-dust"
 import { useAuth } from "@/components/auth/auth-provider"
 import { Card } from "../types"
 import { rarityConfig, getDismantleValue, Rarity } from "@/types/gacha"
-import { generateCardUniqueId, calculateCollectionRating } from "../utils"
+import { generateCardUniqueId, calculateCollectionRating, signCard, verifyCard } from "../utils"
 
 export function useGachaState() {
   const router = useRouter()
@@ -88,6 +88,11 @@ export function useGachaState() {
 
   // Ref for tracking if component is mounted
   const isMounted = useRef(true)
+
+  // Refs for pending card persistence (restore after refresh/page exit)
+  const hasRestoredPendingCard = useRef(false)
+  const hasPersistedOnce = useRef(false)
+  const prevShowCardRef = useRef(false)
 
   const ART_BAN_LIMIT = 10
 
@@ -525,6 +530,11 @@ export function useGachaState() {
   useEffect(() => {
     isMounted.current = true
 
+    // Сбрасываем счётчик гостевых круток при входе в аккаунт
+    if (authUser) {
+      localStorage.removeItem('gacha-guest-rolls')
+    }
+
     const loadPityData = async () => {
       try {
         const data = await loadUserPity(session)
@@ -543,7 +553,7 @@ export function useGachaState() {
     return () => {
       isMounted.current = false
     }
-  }, [session])
+  }, [session, authUser])
 
   useEffect(() => {
     setRevealedCard(null)
@@ -561,6 +571,56 @@ export function useGachaState() {
     }
   }, [selectedPack])
 
+  // Restore pending card on mount (if user refreshed/exited after rolling but before saving/discarding)
+  useEffect(() => {
+    try {
+      const pending = localStorage.getItem('gacha-pending-card')
+      if (pending) {
+        const { card, sig } = JSON.parse(pending) as { card: Card; sig: string }
+        if (card && sig && verifyCard(card, sig)) {
+          console.log('[restorePendingCard] Found valid pending card:', card.name)
+          setRevealedCard(card)
+          setShowCard(true)
+          setIsRolling(false)
+          prevShowCardRef.current = true
+        } else {
+          console.warn('[restorePendingCard] Card signature mismatch, discarding tampered card')
+          localStorage.removeItem('gacha-pending-card')
+        }
+      }
+    } catch (e) {
+      console.error('[restorePendingCard] Error:', e)
+      localStorage.removeItem('gacha-pending-card')
+    }
+    hasRestoredPendingCard.current = true
+  }, [])
+
+  // Persist/clear pending card to localStorage
+  useEffect(() => {
+    if (!hasRestoredPendingCard.current) return
+
+    // Only clear after the first persist run (avoids clearing before restore state is applied)
+    if (hasPersistedOnce.current) {
+      // Clear when card is null (new roll/reset) or user took action (showCard went true→false)
+      if (!revealedCard || (prevShowCardRef.current && !showCard)) {
+        try {
+          localStorage.removeItem('gacha-pending-card')
+        } catch (e) { console.error(e) }
+      }
+    }
+
+    // Save card to localStorage whenever it's set (even during animation)
+    if (revealedCard) {
+      try {
+        const payload = JSON.stringify({ card: revealedCard, sig: signCard(revealedCard) })
+        localStorage.setItem('gacha-pending-card', payload)
+      } catch (e) { console.error(e) }
+    }
+
+    hasPersistedOnce.current = true
+    prevShowCardRef.current = showCard
+  }, [showCard, revealedCard])
+
   const handleEmptyResult = async () => {
     setIsRolling(false)
     if (!selectedPack) return
@@ -577,8 +637,25 @@ export function useGachaState() {
     } catch (e) {}
   }
 
+  const GUEST_ROLL_LIMIT = 10
+
   const handleRoll = async () => {
     if (isRolling) return
+
+    // Гости могут крутить только 10 раз
+    if (!authUser) {
+      const guestRolls = parseInt(localStorage.getItem('gacha-guest-rolls') || '0', 10)
+      if (guestRolls >= GUEST_ROLL_LIMIT) {
+        setErrorPopupConfig({
+          title: "Время войти в аккаунт",
+          message: `Вы использовали все ${GUEST_ROLL_LIMIT} бесплатных круток. Войдите в аккаунт, чтобы продолжить играть и сохранить свою коллекцию!`,
+          type: "warning"
+        })
+        setShowErrorPopup(true)
+        window.dispatchEvent(new Event('open-auth-modal'))
+        return
+      }
+    }
 
     const rollCost = selectedPack ? selectedPack.price : 50
     if (userCoins < rollCost) {
@@ -725,7 +802,13 @@ export function useGachaState() {
         }
 
         setRevealedCard(newCard)
-        
+
+        // Увеличиваем счётчик круток для гостей
+        if (!authUser) {
+          const currentGuestRolls = parseInt(localStorage.getItem('gacha-guest-rolls') || '0', 10)
+          localStorage.setItem('gacha-guest-rolls', String(currentGuestRolls + 1))
+        }
+
         console.log('[handleRoll] Roll result ready, waiting for animation:', newCard.name)
       } else {
         // No result - refund coins
@@ -759,6 +842,7 @@ export function useGachaState() {
     const isAlreadyIn = collectedCards.some(c => c.uniqueId === card.uniqueId)
     if (isAlreadyIn) {
       setShowCard(false)
+      setRevealedCard(null)
       return
     }
     
@@ -780,6 +864,7 @@ export function useGachaState() {
     }
 
     setShowCard(false)
+    setRevealedCard(null)
     setIsSavingCard(true)
     operationStartTime.current = Date.now()
 
@@ -800,6 +885,11 @@ export function useGachaState() {
       operationStartTime.current = null
     }
   }
+
+  const discardRevealedCard = useCallback(() => {
+    setShowCard(false)
+    setRevealedCard(null)
+  }, [])
 
   const handlePackSelect = async (pack: AnimePack) => {
     if (userCoins >= pack.price) {
@@ -1412,6 +1502,7 @@ export function useGachaState() {
     devForcedRarity,
     setDevForcedRarity,
     saveCard,
+    discardRevealedCard,
     handlePackSelect,
     handleRandomRoll,
     handleCreateCustomPack,

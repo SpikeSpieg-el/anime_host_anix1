@@ -1,7 +1,7 @@
 "use client"
 
 import { useRouter } from "next/navigation"
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { Navbar } from "@/components/layout/navbar"
 import { Footer } from "@/components/layout/footer"
 import { Sparkles, Star, Heart, Loader2, X, ZoomIn, ExternalLink, RefreshCcw, Trash, Trash2, Crown, Package, Coins, Search, Database, Store, Share, Swords, Wrench, Move, Mail, Calendar, ChevronDown } from "lucide-react"
@@ -54,6 +54,28 @@ const StatBar = ({ label, value, color }: { label: string; value: number; color:
 )
 
 const RARITY_ORDER = ["trash", "common", "uncommon", "rare", "super_rare", "epic", "mythic", "legendary", "ancient", "divine", "transcendent", "omnipotent"] as const
+
+function useSpendAnimation(value: number) {
+  const [flash, setFlash] = useState(false)
+  const [delta, setDelta] = useState<number | null>(null)
+  const prevRef = useRef<number | null>(null)
+
+  useEffect(() => {
+    if (prevRef.current !== null && value < prevRef.current) {
+      setDelta(prevRef.current - value)
+      setFlash(true)
+      const t1 = setTimeout(() => setFlash(false), 600)
+      const t2 = setTimeout(() => setDelta(null), 900)
+      return () => {
+        clearTimeout(t1)
+        clearTimeout(t2)
+      }
+    }
+    prevRef.current = value
+  }, [value])
+
+  return { flash, delta }
+}
 
 export default function GachaPage() {
   const {
@@ -175,6 +197,7 @@ export default function GachaPage() {
     devForcedRarity,
     setDevForcedRarity,
     saveCard,
+    discardRevealedCard,
     handlePackSelect,
     handleRandomRoll,
     handleCreateCustomPack,
@@ -198,6 +221,9 @@ export default function GachaPage() {
     getUniquePacks,
     filteredAndSortedCards
   } = useGachaState()
+
+  const coinsAnim = useSpendAnimation(userCoins)
+  const dustAnim = useSpendAnimation(dust)
 
   const router = useRouter()
 
@@ -746,7 +772,7 @@ export default function GachaPage() {
                     }
 
                     unblacklistArt(revealedCard);
-                    setShowCard(false);
+                    discardRevealedCard();
                     setShowArtWarning(false);
                   }}
                   className="w-full py-3.5 sm:py-4 bg-red-500/20 hover:bg-red-500/30 text-red-300 font-bold rounded-xl transition-all border border-red-500/30"
@@ -816,7 +842,7 @@ export default function GachaPage() {
                 
                 <button
                   onClick={() => {
-                    setShowCard(false);
+                    discardRevealedCard();
                     setShowArtLimitWarning(false);
                   }}
                   className="w-full py-3.5 sm:py-4 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-xl transition-all border border-slate-600"
@@ -1084,21 +1110,31 @@ export default function GachaPage() {
           </p>
           
           <div className="flex flex-wrap justify-center items-center gap-2 sm:gap-4 mt-6 sm:mt-8 px-2 sm:px-0">
-            <div data-tutorial="coins" className="flex items-center gap-2 px-3 py-2 sm:px-5 sm:py-2.5 rounded-xl sm:rounded-2xl bg-slate-900/80 backdrop-blur-md border border-slate-800 shadow-xl shadow-yellow-500/5">
+            <div data-tutorial="coins" className={`relative flex items-center gap-2 px-3 py-2 sm:px-5 sm:py-2.5 rounded-xl sm:rounded-2xl bg-slate-900/80 backdrop-blur-md border border-slate-800 shadow-xl shadow-yellow-500/5 transition-all duration-200 ${coinsAnim.flash ? 'ring-2 ring-red-500/70 ring-offset-2 ring-offset-slate-900' : ''}`}>
               <Coins className="w-4 h-4 sm:w-6 sm:h-6 text-yellow-400" />
               {coinsLoading ? (
                 <Loader2 className="w-4 h-4 sm:w-6 sm:h-6 text-yellow-400 animate-spin" />
               ) : (
-                <span className="text-lg sm:text-2xl font-black text-yellow-400 tracking-tight">{userCoins.toLocaleString()}</span>
+                <span className={`text-lg sm:text-2xl font-black tracking-tight transition-colors duration-200 ${coinsAnim.flash ? 'text-red-500 animate-spend' : 'text-yellow-400'}`}>{userCoins.toLocaleString()}</span>
+              )}
+              {coinsAnim.delta !== null && (
+                <span className="absolute -top-5 left-1/2 text-red-400 font-black text-xs animate-float-minus whitespace-nowrap pointer-events-none">
+                  -{coinsAnim.delta.toLocaleString()}
+                </span>
               )}
             </div>
 
-            <div data-tutorial="dust" className="flex items-center gap-2 px-3 py-2 sm:px-5 sm:py-2.5 rounded-xl sm:rounded-2xl bg-slate-900/80 backdrop-blur-md border border-slate-800 shadow-xl shadow-amber-500/5">
+            <div data-tutorial="dust" className={`relative flex items-center gap-2 px-3 py-2 sm:px-5 sm:py-2.5 rounded-xl sm:rounded-2xl bg-slate-900/80 backdrop-blur-md border border-slate-800 shadow-xl shadow-amber-500/5 transition-all duration-200 ${dustAnim.flash ? 'ring-2 ring-red-500/70 ring-offset-2 ring-offset-slate-900' : ''}`}>
               <Sparkles className="w-4 h-4 sm:w-6 sm:h-6 text-amber-400" />
               {dustLoading ? (
                 <Loader2 className="w-4 h-4 sm:w-6 sm:h-6 text-amber-400 animate-spin" />
               ) : (
-                <span className="text-lg sm:text-2xl font-black text-amber-400 tracking-tight">{dust.toLocaleString()}</span>
+                <span className={`text-lg sm:text-2xl font-black tracking-tight transition-colors duration-200 ${dustAnim.flash ? 'text-red-500 animate-spend' : 'text-amber-400'}`}>{dust.toLocaleString()}</span>
+              )}
+              {dustAnim.delta !== null && (
+                <span className="absolute -top-5 left-1/2 text-red-400 font-black text-xs animate-float-minus whitespace-nowrap pointer-events-none">
+                  -{dustAnim.delta.toLocaleString()}
+                </span>
               )}
             </div>
 
@@ -1379,7 +1415,7 @@ export default function GachaPage() {
                     if (revealedCard.isMainCharacter) {
                       setShowArtWarning(true);
                     } else {
-                      setShowCard(false);
+                      discardRevealedCard();
                     }
                   }}
                   className="flex-1 px-4 sm:px-6 py-4 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold uppercase tracking-wider rounded-xl sm:rounded-2xl transition-all text-sm sm:text-base border border-slate-600 shadow-lg"

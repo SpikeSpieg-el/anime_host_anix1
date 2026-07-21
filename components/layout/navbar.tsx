@@ -57,6 +57,7 @@ export function Navbar() {
   const [searchValue, setSearchValue] = useState("")
   const [scrolled, setScrolled] = useState(false)
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
+  const [authModalOpen, setAuthModalOpen] = useState(false)
   
   // Mobile specific states
   const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false)
@@ -86,6 +87,13 @@ export function Navbar() {
     }
     window.addEventListener("scroll", handleScroll)
     return () => window.removeEventListener("scroll", handleScroll)
+  }, [])
+
+  // Слушаем запросы на открытие модалки авторизации из других компонентов
+  useEffect(() => {
+    const handleOpenAuth = () => setAuthModalOpen(true)
+    window.addEventListener("open-auth-modal", handleOpenAuth)
+    return () => window.removeEventListener("open-auth-modal", handleOpenAuth)
   }, [])
 
   const handleSearchSelect = (query: string) => {
@@ -322,7 +330,7 @@ export function Navbar() {
                 </DropdownMenuContent>
               </DropdownMenu>
             ) : (
-              <AuthModal />
+              <AuthModal isOpen={authModalOpen} onClose={setAuthModalOpen} />
             )}
           </div>
         </div>

@@ -40,7 +40,7 @@ function userFacingAuthError(err: unknown): string {
 
 interface AuthModalProps {
   isOpen?: boolean
-  onClose?: () => void
+  onClose?: (open: boolean) => void
   children?: React.ReactNode
 }
 

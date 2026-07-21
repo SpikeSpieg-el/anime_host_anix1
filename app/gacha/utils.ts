@@ -9,6 +9,51 @@ export function generateCardUniqueId(characterId: number, packId?: string): stri
   return `${packPrefix}-${characterId}-${uuid}`
 }
 
+// Salt for card integrity verification (not meant to be truly secret, just to deter casual tampering)
+const CARD_SIGN_SALT = 'wx9k2m7vq4z1'
+
+function computeCardHash(card: Card): string {
+  const criticalFields = {
+    id: card.id,
+    uniqueId: card.uniqueId,
+    serialId: card.serialId,
+    name: card.name,
+    anime: card.anime,
+    rarity: card.rarity,
+    imageUrl: card.imageUrl,
+    originalUrl: card.originalUrl,
+    score: card.score,
+    shikiId: card.shikiId,
+    characterId: card.characterId,
+    stats: card.stats,
+    isMainCharacter: card.isMainCharacter,
+    packId: card.packId,
+    packName: card.packName,
+    frameModifier: card.frameModifier,
+    coatingModifier: card.coatingModifier,
+  }
+  const str = JSON.stringify(criticalFields) + CARD_SIGN_SALT
+  let hash = 0
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i)
+    hash = (hash << 5) - hash + char
+    hash |= 0
+  }
+  return hash.toString(36)
+}
+
+export function signCard(card: Card): string {
+  return computeCardHash(card)
+}
+
+export function verifyCard(card: Card, signature: string): boolean {
+  try {
+    return computeCardHash(card) === signature
+  } catch {
+    return false
+  }
+}
+
 export function calculateCollectionRating(cards: Card[]): CollectionRating {
   if (cards.length === 0) {
     return {

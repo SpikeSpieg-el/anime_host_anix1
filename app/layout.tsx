@@ -1,7 +1,7 @@
 import type React from "react"
 import type { Metadata, Viewport } from "next"
 import { Geist, Geist_Mono, Unbounded } from "next/font/google"
-import { Analytics } from "@vercel/analytics/next"
+import { AnalyticsWrapper } from "@/components/layout/analytics-wrapper"
 import { Suspense } from "react"
 import { GlobalLoading } from "@/components/layout/global-loading"
 import { BookmarksProvider } from "@/components/providers/bookmarks-provider"
@@ -15,6 +15,7 @@ import { AuthProvider } from "@/components/auth/auth-provider"
 import { UserDataLoadingBar } from "@/components/shared/user-data-loading-bar"
 import { LogoutLoadingScreen } from "@/components/layout/logout-loading-screen"
 import { CookieConsent } from "@/components/layout/cookie-consent"
+import { ConsentProvider } from "@/components/providers/consent-provider"
 import { ServiceWorkerRegister } from "@/components/layout/sw-register"
 import { ThemeProvider } from "@/components/providers/theme-provider"
 import { Toaster } from "sonner"
@@ -117,21 +118,23 @@ export default function RootLayout({
             <GlobalLoading />
           </Suspense>
           {/* <WelcomeModal /> */}
-          <CookieConsent />
-          <AuthProvider>
-            <UserDataLoadingBar />
-            <LogoutLoadingScreen />
-            <CoverProvider>
-              <HistoryProvider>
-                <BookmarksProvider>
-                  <EpisodeUpdatesProvider>
-                    <ErrorBoundary name="Main App">{children}</ErrorBoundary>
-                  </EpisodeUpdatesProvider>
-                </BookmarksProvider>
-              </HistoryProvider>
-            </CoverProvider>
-          </AuthProvider>
-          <Analytics />
+          <ConsentProvider>
+            <CookieConsent />
+            <AuthProvider>
+              <UserDataLoadingBar />
+              <LogoutLoadingScreen />
+              <CoverProvider>
+                <HistoryProvider>
+                  <BookmarksProvider>
+                    <EpisodeUpdatesProvider>
+                      <ErrorBoundary name="Main App">{children}</ErrorBoundary>
+                    </EpisodeUpdatesProvider>
+                  </BookmarksProvider>
+                </HistoryProvider>
+              </CoverProvider>
+            </AuthProvider>
+            <AnalyticsWrapper />
+          </ConsentProvider>
           <Toaster />
           <ServiceWorkerRegister />
         </ThemeProvider>

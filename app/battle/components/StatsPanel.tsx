@@ -1,7 +1,29 @@
-import React from "react"
+import React, { useState, useEffect, useRef } from "react"
 import { Crown, Zap, Coins, Timer, Sparkles } from "lucide-react"
 import { BattleProgress } from "../types"
 import { glassCard } from "../config"
+
+function useSpendAnimation(value: number) {
+  const [flash, setFlash] = useState(false)
+  const [delta, setDelta] = useState<number | null>(null)
+  const prevRef = useRef<number | null>(null)
+
+  useEffect(() => {
+    if (prevRef.current !== null && value < prevRef.current) {
+      setDelta(prevRef.current - value)
+      setFlash(true)
+      const t1 = setTimeout(() => setFlash(false), 600)
+      const t2 = setTimeout(() => setDelta(null), 900)
+      return () => {
+        clearTimeout(t1)
+        clearTimeout(t2)
+      }
+    }
+    prevRef.current = value
+  }, [value])
+
+  return { flash, delta }
+}
 
 export const StatsPanelSkeleton: React.FC = () => {
   return (
@@ -27,6 +49,9 @@ interface StatsPanelProps {
 }
 
 export const StatsPanel: React.FC<StatsPanelProps> = ({ progress, userCoins, coinsLoading, dust, dustLoading, staminaTime }) => {
+  const coinsAnim = useSpendAnimation(userCoins)
+  const dustAnim = useSpendAnimation(dust)
+
   if (!progress) return <StatsPanelSkeleton />
 
   return (
@@ -64,25 +89,35 @@ export const StatsPanel: React.FC<StatsPanelProps> = ({ progress, userCoins, coi
       </div>
 
       {/* Монеты */}
-      <div className={`shrink-0 snap-center flex flex-col justify-center px-3 py-2 rounded-xl ${glassCard} min-w-[100px]`}>
+      <div className={`relative shrink-0 snap-center flex flex-col justify-center px-3 py-2 rounded-xl ${glassCard} min-w-[100px] transition-all duration-200 ${coinsAnim.flash ? 'ring-2 ring-red-500/70 ring-offset-2 ring-offset-slate-950' : ''}`}>
         <div className="flex items-center gap-1.5 mb-1 text-slate-400">
           <Coins className="w-3 h-3 text-yellow-500" />
           <span className="text-[9px] font-bold uppercase tracking-wider">Монеты</span>
         </div>
-        <span className="text-xl font-black text-white">
+        <span className={`text-xl font-black transition-colors duration-200 ${coinsAnim.flash ? 'text-red-500 animate-spend' : 'text-white'}`}>
           {coinsLoading ? <span className="inline-block w-16 h-5 bg-white/10 rounded animate-pulse align-middle" /> : userCoins.toLocaleString()}
         </span>
+        {coinsAnim.delta !== null && (
+          <span className="absolute -top-4 left-1/2 text-red-400 font-black text-[10px] animate-float-minus whitespace-nowrap pointer-events-none">
+            -{coinsAnim.delta.toLocaleString()}
+          </span>
+        )}
       </div>
 
       {/* Пыль */}
-      <div className={`shrink-0 snap-center flex flex-col justify-center px-3 py-2 rounded-xl ${glassCard} min-w-[100px]`}>
+      <div className={`relative shrink-0 snap-center flex flex-col justify-center px-3 py-2 rounded-xl ${glassCard} min-w-[100px] transition-all duration-200 ${dustAnim.flash ? 'ring-2 ring-red-500/70 ring-offset-2 ring-offset-slate-950' : ''}`}>
         <div className="flex items-center gap-1.5 mb-1 text-slate-400">
           <Sparkles className="w-3 h-3 text-amber-300" />
           <span className="text-[9px] font-bold uppercase tracking-wider">Пыль</span>
         </div>
-        <span className="text-xl font-black text-white">
+        <span className={`text-xl font-black transition-colors duration-200 ${dustAnim.flash ? 'text-red-500 animate-spend' : 'text-white'}`}>
           {dustLoading ? <span className="inline-block w-10 h-5 bg-white/10 rounded animate-pulse align-middle" /> : dust.toLocaleString()}
         </span>
+        {dustAnim.delta !== null && (
+          <span className="absolute -top-4 left-1/2 text-red-400 font-black text-[10px] animate-float-minus whitespace-nowrap pointer-events-none">
+            -{dustAnim.delta.toLocaleString()}
+          </span>
+        )}
       </div>
 
       {/* Дейлики */}

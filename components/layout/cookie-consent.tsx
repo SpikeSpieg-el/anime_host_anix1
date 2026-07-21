@@ -1,8 +1,9 @@
 "use client"
 
 import React, { useState, useEffect } from "react"
-import { Cookie, Shield, Check } from "lucide-react"
+import { Cookie, Check, ChevronDown } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { useConsent } from "@/components/providers/consent-provider"
 
 type CookiePreferences = {
   necessary: boolean
@@ -11,6 +12,7 @@ type CookiePreferences = {
 }
 
 export function CookieConsent() {
+  const { saveConsent } = useConsent()
   const [isVisible, setIsVisible] = useState(false)
   const [isExpanded, setIsExpanded] = useState(false)
   const [mounted, setMounted] = useState(false)
@@ -26,37 +28,37 @@ export function CookieConsent() {
     setMounted(true)
     const consent = localStorage.getItem("cookie-consent-v1")
     if (!consent) {
-      const timer = setTimeout(() => setIsVisible(true), 1200)
+      const timer = setTimeout(() => setIsVisible(true), 800)
       return () => clearTimeout(timer)
     }
   }, [])
 
-  const saveConsent = (prefs: CookiePreferences) => {
-    localStorage.setItem("cookie-consent-v1", JSON.stringify(prefs))
-    localStorage.setItem("cookie-consent-date", new Date().toISOString())
+  const close = () => {
     setClosing(true)
     setTimeout(() => {
       setIsVisible(false)
       setClosing(false)
     }, 400)
-    if (prefs.analytics) {
-      console.log("Analytics enabled")
-    }
   }
 
   const handleAcceptAll = () => {
     const all = { necessary: true, analytics: true, marketing: true }
     setPreferences(all)
     saveConsent(all)
+    close()
   }
 
   const handleRejectAll = () => {
     const only = { necessary: true, analytics: false, marketing: false }
     setPreferences(only)
     saveConsent(only)
+    close()
   }
 
-  const handleSavePreferences = () => saveConsent(preferences)
+  const handleSavePreferences = () => {
+    saveConsent(preferences)
+    close()
+  }
 
   const togglePreference = (key: keyof CookiePreferences) => {
     if (key === "necessary") return
@@ -83,11 +85,10 @@ export function CookieConsent() {
           </div>
           <div className="flex-1 min-w-0 space-y-1">
             <h3 className="font-semibold text-white text-sm sm:text-base leading-tight">
-              Настройки cookies
+              Файлы cookie
             </h3>
             <p className="text-xs sm:text-sm text-zinc-400 leading-relaxed">
-              Мы используем куки и локальное хранилище для работы сайта и аналитики.
-              {!isExpanded && " Вы можете настроить их или принять все."}
+              Мы используем cookie для работы сайта, аналитики и рекомендаций. Нажмите «Принять», чтобы разрешить все.
             </p>
           </div>
         </div>
@@ -96,25 +97,25 @@ export function CookieConsent() {
         <div
           className={cn(
             "overflow-hidden transition-[max-height] duration-300 ease-in-out bg-black/20",
-            isExpanded ? "max-h-80 border-y border-white/5" : "max-h-0"
+            isExpanded ? "max-h-96 border-y border-white/5" : "max-h-0"
           )}
         >
           <div className="p-3 sm:p-4 space-y-2.5">
             <CookieOption
               label="Обязательные"
-              description="Нужны для работы авторизации и плеера."
+              description="Авторизация, плеер, закладки и история просмотра."
               checked={preferences.necessary}
               disabled
             />
             <CookieOption
               label="Аналитика"
-              description="Помогает нам понять, какие аниме популярны."
+              description="Vercel Analytics — какие страницы популярны."
               checked={preferences.analytics}
               onChange={() => togglePreference("analytics")}
             />
             <CookieOption
               label="Маркетинг"
-              description="Используется для персональных рекомендаций."
+              description="Персональные рекомендации аниме."
               checked={preferences.marketing}
               onChange={() => togglePreference("marketing")}
             />
@@ -124,31 +125,35 @@ export function CookieConsent() {
         {/* Footer buttons */}
         <div className="p-3 sm:p-4 bg-white/[0.02] flex flex-col gap-2.5">
           {!isExpanded ? (
-            <div className="flex gap-2 sm:gap-2.5">
+            <>
               <button
                 onClick={handleAcceptAll}
-                className="flex-1 h-10 sm:h-11 bg-orange-500 hover:bg-orange-600 text-white text-xs sm:text-sm font-semibold rounded-xl shadow-lg shadow-orange-500/20 transition-all active:scale-[0.98]"
+                className="w-full h-11 bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold rounded-xl shadow-lg shadow-orange-500/20 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
               >
-                Принять все
+                <Check className="w-4 h-4" />
+                Принять
               </button>
-              <button
-                onClick={() => setIsExpanded(true)}
-                className="h-10 sm:h-11 px-3 sm:px-4 border border-white/10 text-zinc-300 hover:text-white hover:bg-white/5 hover:border-white/20 text-xs sm:text-sm font-medium rounded-xl transition-all active:scale-[0.98]"
-              >
-                Настроить
-              </button>
-            </div>
+              <div className="flex items-center justify-between">
+                <button
+                  onClick={handleRejectAll}
+                  className="text-[11px] text-zinc-500 hover:text-zinc-300 transition-colors"
+                >
+                  Только обязательные
+                </button>
+                <button
+                  onClick={() => setIsExpanded(true)}
+                  className="text-[11px] text-zinc-500 hover:text-zinc-300 transition-colors flex items-center gap-1"
+                >
+                  Настроить
+                  <ChevronDown className="w-3 h-3" />
+                </button>
+              </div>
+            </>
           ) : (
             <div className="flex gap-2 sm:gap-2.5">
               <button
-                onClick={handleRejectAll}
-                className="flex-1 h-10 sm:h-11 border border-white/10 text-zinc-400 hover:text-white hover:bg-white/5 text-xs sm:text-sm font-medium rounded-xl transition-all active:scale-[0.98]"
-              >
-                Только нужные
-              </button>
-              <button
                 onClick={handleSavePreferences}
-                className="flex-1 h-10 sm:h-11 border border-white/10 text-zinc-300 hover:text-white hover:bg-white/5 text-xs sm:text-sm font-medium rounded-xl transition-all active:scale-[0.98]"
+                className="flex-1 h-10 sm:h-11 bg-orange-500 hover:bg-orange-600 text-white text-xs sm:text-sm font-semibold rounded-xl transition-all active:scale-[0.98]"
               >
                 Сохранить
               </button>
