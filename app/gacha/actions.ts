@@ -546,7 +546,10 @@ export async function rollFromBanner(
       return { ...result, packId: 'banner:' + banner.id, packName: banner.name }
     }
 
-    return null
+    // Fallback: no cards, no featured anime — use general gacha pool
+    const fallbackResult = await rollAnimeCharacter(usedCharacterIds, ignoredUrls, [], badLuckStreak)
+    if (!fallbackResult) return null
+    return { ...fallbackResult, packId: 'banner:' + banner.id, packName: banner.name }
   } catch (e) {
     console.error(`[rollFromBanner] Error:`, e)
     return null
