@@ -106,6 +106,7 @@ interface SelectedTeamPanelProps {
   onCardClick?: (card: Card) => void
   onOpenLocationSelector?: () => void
   onAutoBuild?: () => void
+  isPvPOnly?: boolean
 }
 
 // Helper function to convert difficulty to vague threat description
@@ -148,6 +149,7 @@ export const SelectedTeamPanel: React.FC<SelectedTeamPanelProps> = ({
   onCardClick,
   onOpenLocationSelector,
   onAutoBuild,
+  isPvPOnly = false,
 }) => {
   const [viewedSynergy, setViewedSynergy] = useState<DeckSynergy | null>(null)
   const [showPowerBreakdown, setShowPowerBreakdown] = useState(false)
@@ -457,7 +459,7 @@ export const SelectedTeamPanel: React.FC<SelectedTeamPanelProps> = ({
             </div>
 
             {/* Главная кнопка боя */}
-            {!selectedDungeon ? (
+            {!selectedDungeon && !isPvPOnly ? (
               <button
                 data-tutorial="battle-location"
                 onClick={onOpenLocationSelector}
@@ -466,12 +468,26 @@ export const SelectedTeamPanel: React.FC<SelectedTeamPanelProps> = ({
               >
                 Выбрать локацию
               </button>
+            ) : isPvPOnly ? (
+              <button
+                data-tutorial="battle-start"
+                onClick={startBattle}
+                disabled={selectedCards.length < DECK_SIZE || totalProvisionUsed > PROVISION_LIMIT}
+                className="w-full py-4 lg:py-5 rounded-2xl font-black uppercase tracking-widest text-xs lg:text-base transition-all duration-300 active:scale-95 disabled:pointer-events-none disabled:opacity-40
+                  bg-gradient-to-r from-purple-400 via-pink-500 to-purple-500 text-white shadow-[0_4px_20px_rgba(168,85,247,0.4)] border-b-4 border-purple-700 hover:brightness-110"
+              >
+                {selectedCards.length < DECK_SIZE
+                  ? `Собери колоду (${selectedCards.length}/${DECK_SIZE})`
+                  : totalProvisionUsed > PROVISION_LIMIT
+                  ? 'Превышен вес колоды'
+                  : 'В PvP Арену'}
+              </button>
             ) : (
               <div className="flex gap-3">
                 <button
                   data-tutorial="battle-start"
                   onClick={startBattle}
-                  disabled={!isDeckValid || (progress ? progress.current_stamina < selectedDungeon.energy_cost : false)}
+                  disabled={!isDeckValid || (progress ? progress.current_stamina < selectedDungeon!.energy_cost : false)}
                   className="flex-1 py-4 lg:py-5 rounded-2xl font-black uppercase tracking-widest text-xs lg:text-base transition-all duration-300 active:scale-95 disabled:pointer-events-none disabled:opacity-40
                     bg-gradient-to-r from-amber-400 via-orange-500 to-amber-500 text-black shadow-[0_4px_20px_rgba(245,158,11,0.4)] border-b-4 border-amber-700 hover:brightness-110"
                 >
@@ -479,8 +495,8 @@ export const SelectedTeamPanel: React.FC<SelectedTeamPanelProps> = ({
                     ? `Собери колоду (${selectedCards.length}/${DECK_SIZE})`
                     : totalProvisionUsed > PROVISION_LIMIT
                     ? 'Превышен вес колоды'
-                    : progress && progress.current_stamina < selectedDungeon.energy_cost
-                    ? `Мало энергии (${progress.current_stamina}/${selectedDungeon.energy_cost})`
+                    : progress && progress.current_stamina < selectedDungeon!.energy_cost
+                    ? `Мало энергии (${progress.current_stamina}/${selectedDungeon!.energy_cost})`
                     : 'Вступить в дуэль'}
                 </button>
                 <button
