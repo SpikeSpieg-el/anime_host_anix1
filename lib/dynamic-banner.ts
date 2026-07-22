@@ -83,6 +83,7 @@ export async function resolveDynamicBanner(): Promise<DynamicBannerContent | nul
     const safeAnimes = ongoingData.filter(a => {
       if (a.rating === 'rx' || a.rating === 'x' || a.rating === 'r_plus') return false
       if (a.kind === 'Special' || a.kind === 'OVA' || a.kind === 'ONA') return false
+      if (!a.image?.original || a.image.original.includes('missing')) return false
       // Filter for current year as a backup to the season parameter
       const airedYear = a.aired_on ? parseInt(a.aired_on.split('-')[0]) : 0
       if (airedYear && airedYear !== currentYear) return false
@@ -99,6 +100,7 @@ export async function resolveDynamicBanner(): Promise<DynamicBannerContent | nul
       const fallbackSafe = fallbackData.filter(a => {
         if (a.rating === 'rx' || a.rating === 'x' || a.rating === 'r_plus') return false
         if (a.kind === 'Special' || a.kind === 'OVA' || a.kind === 'ONA') return false
+        if (!a.image?.original || a.image.original.includes('missing')) return false
         return true
       })
       if (fallbackSafe.length === 0) return null

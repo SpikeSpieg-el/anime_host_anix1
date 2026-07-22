@@ -181,7 +181,7 @@ export const BannerCard = ({ banner, onSelect, userCoins, onInfoOpenChange, rema
         )}
         {isDynamic && dynContent && (
           <p className="text-sm text-cyan-200/80 line-clamp-2 mb-3">
-            {banner.description || `Онгоинг: ${dynContent.featuredAnimeRussianName} · 3 ГГ с гарантом · Смена каждые 3 дня`}
+            {banner.description || `Онгоинг: ${dynContent.featuredAnimeRussianName} · ${dynContent.guaranteedCharacters.length} ГГ с гарантом · Смена каждые 3 дня`}
           </p>
         )}
 
@@ -282,8 +282,8 @@ export const BannerCard = ({ banner, onSelect, userCoins, onInfoOpenChange, rema
                 {pityClaimed
                   ? 'Гарант получен'
                   : remainingPity !== undefined
-                    ? `Гарант: 1 из 3 ГГ через ${remainingPity} круток`
-                    : `Гарант: 1 из 3 ГГ через ${banner.guaranteedCardPity || 50} круток`}
+                    ? `Гарант: 1 из ${dynContent.guaranteedCharacters.length} ГГ через ${remainingPity} круток`
+                    : `Гарант: 1 из ${dynContent.guaranteedCharacters.length} ГГ через ${banner.guaranteedCardPity || 50} круток`}
               </span>
             </div>
           </div>

@@ -271,17 +271,19 @@ export const BannerInfoModal = ({ banner, onClose, remainingPity: propRemainingP
               <span className="text-[11px] sm:text-sm font-black text-pink-200 text-center leading-tight">
                 {isDynamic
                   ? dynamicPity > 0
-                    ? `3 ГГ (${dynamicRemainingPity})`
+                    ? `${ggCards.length} ГГ (${dynamicRemainingPity})`
                     : "Нет"
-                  : banner.boostedRarity
-                    ? getRarityLabel(banner.boostedRarity)
-                    : banner.guaranteedCardPayload && banner.guaranteedCardPity > 0
-                      ? livePityClaimed
-                        ? 'Получена'
-                        : liveRemainingPity !== undefined
-                          ? `Карта (${liveRemainingPity})`
-                          : `Карта (${banner.guaranteedCardPity})`
-                      : "Нет"}
+                  : banner.guaranteedCardsPool && banner.guaranteedCardsPool.length > 0 && banner.guaranteedCardPity > 0
+                    ? `${banner.guaranteedCardsPool.length} карт (${dynamicRemainingPity})`
+                    : banner.boostedRarity
+                      ? getRarityLabel(banner.boostedRarity)
+                      : banner.guaranteedCardPayload && banner.guaranteedCardPity > 0
+                        ? livePityClaimed
+                          ? 'Получена'
+                          : liveRemainingPity !== undefined
+                            ? `Карта (${liveRemainingPity})`
+                            : `Карта (${banner.guaranteedCardPity})`
+                        : "Нет"}
               </span>
             </div>
 
@@ -373,8 +375,8 @@ export const BannerInfoModal = ({ banner, onClose, remainingPity: propRemainingP
             </div>
           )}
 
-          {/* Dynamic banner: Guaranteed GG pool */}
-          {isDynamic && ggCards.length > 0 && (
+          {/* Guaranteed GG pool (dynamic or standard with pool) */}
+          {ggCards.length > 0 && (
             <div className="bg-amber-500/10 rounded-xl p-3 sm:p-4 border border-amber-500/30">
               <h3 className="text-sm font-black text-amber-300 uppercase tracking-wider mb-3 flex items-center gap-2">
                 <Flame className="w-4 h-4" />
@@ -396,10 +398,10 @@ export const BannerInfoModal = ({ banner, onClose, remainingPity: propRemainingP
                 )}
               </div>
               <div className="grid grid-cols-3 sm:grid-cols-3 gap-2 sm:gap-3">
-                {ggCards.map(gg => {
+                {ggCards.map((gg, ggIdx) => {
                   const payload = gg.cardPayload
                   const imgUrl = payload?.imageUrl || payload?.originalUrl || ""
-                  const isCollected = collectedGGs.includes(payload?.characterId)
+                  const isCollected = collectedGGs.includes(ggIdx)
                   return (
                     <div
                       key={gg.id}
