@@ -35,6 +35,8 @@ interface ShikimoriOngoingAnime {
   rating: string
   kind: string
   status: string
+  aired_on: string
+  season: string
 }
 
 interface ShikimoriRole {
@@ -50,7 +52,7 @@ interface ShikimoriRole {
 }
 
 const ROTATION_DAYS = 3
-const CACHE_TTL = 30 * 60 * 1000 // 30 minutes
+const CACHE_TTL = 5 * 60 * 1000 // 5 minutes (reduced from 30 to ensure rotation updates)
 
 let cachedContent: DynamicBannerContent | null = null
 let cachedAt = 0
@@ -71,8 +73,9 @@ export async function resolveDynamicBanner(): Promise<DynamicBannerContent | nul
   }
 
   try {
+    const currentYear = new Date().getFullYear()
     const ongoingData = await shikimoriJson<ShikimoriOngoingAnime[]>(
-      `${BASE_URL}/animes?limit=30&status=ongoing&order=ranked&score=6`,
+      `${BASE_URL}/animes?limit=50&status=ongoing&order=ranked&score=6&season=${currentYear}`,
       { next: { revalidate: 1800 }, headers: HEADERS },
       { fallback: [] }
     )
@@ -80,56 +83,79 @@ export async function resolveDynamicBanner(): Promise<DynamicBannerContent | nul
     const safeAnimes = ongoingData.filter(a => {
       if (a.rating === 'rx' || a.rating === 'x' || a.rating === 'r_plus') return false
       if (a.kind === 'Special' || a.kind === 'OVA' || a.kind === 'ONA') return false
+      // Filter for current year as a backup to the season parameter
+      const airedYear = a.aired_on ? parseInt(a.aired_on.split('-')[0]) : 0
+      if (airedYear && airedYear !== currentYear) return false
       return true
     })
 
-    if (safeAnimes.length === 0) return null
-
-    const allOngoingIds = safeAnimes.map(a => a.id)
-
-    const { index, rotationStart, rotationEnd } = getRotationIndex(safeAnimes.length)
-    const selectedAnime = safeAnimes[index]
-
-    const rolesData = await shikimoriJson<ShikimoriRole[]>(
-      `${BASE_URL}/animes/${selectedAnime.id}/roles`,
-      { next: { revalidate: 3600 }, headers: HEADERS },
-      { fallback: [] }
-    )
-
-    const mainRoles = rolesData.filter(r => {
-      if (!r.character || !r.character.id) return false
-      if (r.character.image?.original?.includes('missing')) return false
-      return (r.roles || []).includes('Main') || (r.roles_russian || []).includes('Главный') || (r.roles_ru || []).includes('Главный')
-    })
-
-    if (mainRoles.length === 0) {
-      const nextIndex = (index + 1) % safeAnimes.length
-      const fallbackAnime = safeAnimes[nextIndex]
-      const fallbackRoles = await shikimoriJson<ShikimoriRole[]>(
-        `${BASE_URL}/animes/${fallbackAnime.id}/roles`,
-        { next: { revalidate: 3600 }, headers: HEADERS },
+    if (safeAnimes.length === 0) {
+      // Fallback: try without season filter if current year returns nothing
+      const fallbackData = await shikimoriJson<ShikimoriOngoingAnime[]>(
+        `${BASE_URL}/animes?limit=30&status=ongoing&order=ranked&score=6`,
+        { next: { revalidate: 1800 }, headers: HEADERS },
         { fallback: [] }
       )
-      const fallbackMain = fallbackRoles.filter(r => {
-        if (!r.character || !r.character.id) return false
-        if (r.character.image?.original?.includes('missing')) return false
-        return (r.roles || []).includes('Main') || (r.roles_russian || []).includes('Главный') || (r.roles_ru || []).includes('Главный')
+      const fallbackSafe = fallbackData.filter(a => {
+        if (a.rating === 'rx' || a.rating === 'x' || a.rating === 'r_plus') return false
+        if (a.kind === 'Special' || a.kind === 'OVA' || a.kind === 'ONA') return false
+        return true
       })
-      if (fallbackMain.length === 0) return null
-      const content = buildContent(fallbackAnime, fallbackMain, allOngoingIds, nextIndex, rotationStart, rotationEnd)
-      cachedContent = content
-      cachedAt = Date.now()
-      return content
+      if (fallbackSafe.length === 0) return null
+      return await buildBannerFromAnimes(fallbackSafe, fallbackSafe.map(a => a.id))
     }
 
-    const content = buildContent(selectedAnime, mainRoles, allOngoingIds, index, rotationStart, rotationEnd)
-    cachedContent = content
-    cachedAt = Date.now()
-    return content
+    return await buildBannerFromAnimes(safeAnimes, safeAnimes.map(a => a.id))
+
   } catch (error) {
     console.error('[resolveDynamicBanner] Error:', error)
     return null
   }
+}
+
+async function buildBannerFromAnimes(
+  animes: ShikimoriOngoingAnime[],
+  allOngoingIds: number[]
+): Promise<DynamicBannerContent | null> {
+  const { index, rotationStart, rotationEnd } = getRotationIndex(animes.length)
+  const selectedAnime = animes[index]
+
+  const rolesData = await shikimoriJson<ShikimoriRole[]>(
+    `${BASE_URL}/animes/${selectedAnime.id}/roles`,
+    { next: { revalidate: 3600 }, headers: HEADERS },
+    { fallback: [] }
+  )
+
+  const mainRoles = rolesData.filter(r => {
+    if (!r.character || !r.character.id) return false
+    if (r.character.image?.original?.includes('missing')) return false
+    return (r.roles || []).includes('Main') || (r.roles_russian || []).includes('Главный') || (r.roles_ru || []).includes('Главный')
+  })
+
+  if (mainRoles.length === 0) {
+    const nextIndex = (index + 1) % animes.length
+    const fallbackAnime = animes[nextIndex]
+    const fallbackRoles = await shikimoriJson<ShikimoriRole[]>(
+      `${BASE_URL}/animes/${fallbackAnime.id}/roles`,
+      { next: { revalidate: 3600 }, headers: HEADERS },
+      { fallback: [] }
+    )
+    const fallbackMain = fallbackRoles.filter(r => {
+      if (!r.character || !r.character.id) return false
+      if (r.character.image?.original?.includes('missing')) return false
+      return (r.roles || []).includes('Main') || (r.roles_russian || []).includes('Главный') || (r.roles_ru || []).includes('Главный')
+    })
+    if (fallbackMain.length === 0) return null
+    const content = buildContent(fallbackAnime, fallbackMain, allOngoingIds, nextIndex, rotationStart, rotationEnd)
+    cachedContent = content
+    cachedAt = Date.now()
+    return content
+  }
+
+  const content = buildContent(selectedAnime, mainRoles, allOngoingIds, index, rotationStart, rotationEnd)
+  cachedContent = content
+  cachedAt = Date.now()
+  return content
 }
 
 function buildContent(
