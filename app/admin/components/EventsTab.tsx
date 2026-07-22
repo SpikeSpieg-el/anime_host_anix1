@@ -21,6 +21,7 @@ interface BannerFormData {
   sort_order: number
   guaranteed_card_json: string
   guaranteed_card_pity: string
+  guaranteed_cards_pool_json: string
   banner_type: "standard" | "dynamic"
 }
 
@@ -272,13 +273,25 @@ export function EventsTab(props: EventsTabProps) {
           <label className="text-xs font-bold text-amber-500 uppercase">Гарантированная карта</label>
         </div>
         <div>
-          <label className="block text-xs font-medium text-muted-foreground mb-1 uppercase">JSON гарантированной карты</label>
+          <label className="block text-xs font-medium text-muted-foreground mb-1 uppercase">JSON гарантированной карты (одиночная)</label>
           <textarea
             value={form.guaranteed_card_json}
             onChange={(e) => onFormChange({ ...form, guaranteed_card_json: e.target.value })}
             placeholder="Вставьте объект Card в формате JSON. Можно получить в редакторе карт..."
             className="w-full px-3 py-2 bg-muted border border-border rounded text-xs font-mono h-24"
           />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-muted-foreground mb-1 uppercase">Пул гарантированных карт (массив JSON)</label>
+          <textarea
+            value={form.guaranteed_cards_pool_json}
+            onChange={(e) => onFormChange({ ...form, guaranteed_cards_pool_json: e.target.value })}
+            placeholder='Массив карт: [{ "characterId": 1, "name": "...", ... }, ...]. При достижении pity выдаётся случайная невыбитая карта из пула. Когда все выбиты — пул сбрасывается.'
+            className="w-full px-3 py-2 bg-muted border border-border rounded text-xs font-mono h-32"
+          />
+          <p className="text-[10px] text-muted-foreground mt-1">
+            Если пул заполнен, одиночная гарантированная карта игнорируется. Карты могут быть с одинаковым characterId.
+          </p>
         </div>
         <div>
           <label className="block text-xs font-medium text-muted-foreground mb-1 uppercase">Пулл до гарантии (0 = выключено)</label>
@@ -400,6 +413,15 @@ export function EventsTab(props: EventsTabProps) {
                   <Sparkles size={12} className="text-amber-500" />
                   <span className="text-amber-500 font-semibold">
                     Гарант-карта: {banner.guaranteed_card_payload?.name || "Без названия"}
+                    {banner.guaranteed_card_pity ? ` (через ${banner.guaranteed_card_pity} круток)` : ""}
+                  </span>
+                </div>
+              )}
+              {banner.guaranteed_cards_pool && banner.guaranteed_cards_pool.length > 0 && (
+                <div className="flex items-center gap-2 mt-2 text-xs">
+                  <Sparkles size={12} className="text-violet-500" />
+                  <span className="text-violet-500 font-semibold">
+                    Пул гарантов: {banner.guaranteed_cards_pool.length} карт
                     {banner.guaranteed_card_pity ? ` (через ${banner.guaranteed_card_pity} круток)` : ""}
                   </span>
                 </div>

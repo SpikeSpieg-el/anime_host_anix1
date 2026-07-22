@@ -155,6 +155,7 @@ export interface Banner {
   sort_order?: number
   guaranteed_card_payload?: any | null
   guaranteed_card_pity?: number
+  guaranteed_cards_pool?: any[] | null
   banner_type?: string
 }
 
@@ -176,6 +177,10 @@ export interface BattleBackground {
   mode: 'pvp' | 'pve' | 'both'
   is_active: boolean
   sort_order: number
+  scale: number
+  position_x: number
+  position_y: number
+  opacity: number
   created_at?: string
 }
 

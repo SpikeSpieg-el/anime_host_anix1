@@ -326,7 +326,7 @@ export async function getBattleBackgrounds() {
   return data
 }
 
-export async function createBattleBackground(bg: { name: string; image_url: string; mode: string; is_active: boolean; sort_order: number }) {
+export async function createBattleBackground(bg: { name: string; image_url: string; mode: string; is_active: boolean; sort_order: number; scale?: number; position_x?: number; position_y?: number; opacity?: number }) {
   const isAdmin = await checkAdminAuth()
   if (!isAdmin) throw new Error("Unauthorized")
 
@@ -336,7 +336,13 @@ export async function createBattleBackground(bg: { name: string; image_url: stri
 
   const { data, error } = await supabase
     .from("battle_backgrounds")
-    .insert([bg])
+    .insert([{
+      ...bg,
+      scale: bg.scale ?? 1.0,
+      position_x: bg.position_x ?? 50.0,
+      position_y: bg.position_y ?? 50.0,
+      opacity: bg.opacity ?? 0.35,
+    }])
     .select()
     .single()
 
@@ -372,6 +378,25 @@ export async function toggleBattleBackground(id: string, currentStatus: boolean)
   const { data, error } = await supabase
     .from("battle_backgrounds")
     .update({ is_active: !currentStatus })
+    .eq("id", id)
+    .select()
+    .single()
+
+  if (error) throw error
+  return data
+}
+
+export async function updateBattleBackground(id: string, updates: { name?: string; image_url?: string; mode?: string; scale?: number; position_x?: number; position_y?: number; opacity?: number }) {
+  const isAdmin = await checkAdminAuth()
+  if (!isAdmin) throw new Error("Unauthorized")
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  const supabase = createClient(supabaseUrl!, supabaseServiceKey!)
+
+  const { data, error } = await supabase
+    .from("battle_backgrounds")
+    .update(updates)
     .eq("id", id)
     .select()
     .single()
@@ -679,6 +704,7 @@ export interface BannerInput {
   sort_order?: number
   guaranteed_card_payload?: any
   guaranteed_card_pity?: number
+  guaranteed_cards_pool?: any[] | null
   banner_type?: string
 }
 
@@ -711,6 +737,7 @@ export async function createBanner(input: BannerInput) {
       sort_order: input.sort_order ?? 0,
       guaranteed_card_payload: input.guaranteed_card_payload ?? null,
       guaranteed_card_pity: input.guaranteed_card_pity ?? 0,
+      guaranteed_cards_pool: input.guaranteed_cards_pool ?? null,
       banner_type: input.banner_type ?? 'standard',
     }] as any)
     .select()

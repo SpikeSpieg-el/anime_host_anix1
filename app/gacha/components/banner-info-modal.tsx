@@ -151,7 +151,22 @@ export const BannerInfoModal = ({ banner, onClose, remainingPity: propRemainingP
         weight: 1,
         isFeatured: true,
       }))
-    : []
+    : (banner.guaranteedCardsPool && banner.guaranteedCardsPool.length > 0
+      ? banner.guaranteedCardsPool.map((c: any) => ({
+          id: `pool-${c.characterId}`,
+          cardPayload: {
+            ...c,
+            rarity: c.rarity || 'legendary',
+            name: c.name || c.characterName,
+            characterName: c.characterName || c.name,
+            animeName: c.animeName || c.anime || '',
+            anime: c.anime || c.animeName || '',
+            isMainCharacter: c.isMainCharacter ?? true,
+          },
+          weight: 1,
+          isFeatured: true,
+        }))
+      : [])
   const allCards: BannerCardItem[] = isDynamic ? [] : (banner.cards || [])
   const totalWeight = allCards.reduce((sum, c) => sum + (c.weight || 0), 0)
   const featuredCards = allCards.filter(c => c.isFeatured)

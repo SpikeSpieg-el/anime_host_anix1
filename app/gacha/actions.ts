@@ -392,22 +392,23 @@ export async function rollFromBanner(
           .single()
 
         const currentCount = pullData?.pull_count || 0
-        let collectedIds: number[] = Array.isArray(pullData?.collected_guaranteed_cards) ? pullData.collected_guaranteed_cards : []
+        let collectedIndices: number[] = Array.isArray(pullData?.collected_guaranteed_cards) ? pullData.collected_guaranteed_cards : []
         const newCount = currentCount + 1
 
-        // If all GGs have been collected, start a new cycle
+        // If all cards have been collected, start a new cycle
         let pool = banner.guaranteedCardsPool
-        if (collectedIds.length >= pool.length) {
-          collectedIds = []
+        if (collectedIndices.length >= pool.length) {
+          collectedIndices = []
         }
 
-        const uncollectedPool = pool.filter(c => !collectedIds.includes(c.characterId))
+        const uncollectedIndices = pool.map((_, i) => i).filter(i => !collectedIndices.includes(i))
         const shouldAwardGuaranteed = newCount >= banner.guaranteedCardPity
 
-        if (shouldAwardGuaranteed && uncollectedPool.length > 0) {
-          const chosenGG = uncollectedPool[Math.floor(Math.random() * uncollectedPool.length)]
-          const nextCollectedIds = [...collectedIds, chosenGG.characterId]
-          const allCollected = nextCollectedIds.length >= pool.length
+        if (shouldAwardGuaranteed && uncollectedIndices.length > 0) {
+          const chosenIndex = uncollectedIndices[Math.floor(Math.random() * uncollectedIndices.length)]
+          const chosenGG = pool[chosenIndex]
+          const nextCollectedIndices = [...collectedIndices, chosenIndex]
+          const allCollected = nextCollectedIndices.length >= pool.length
 
           await supabase
             .from('user_banner_pulls')
@@ -416,11 +417,11 @@ export async function rollFromBanner(
               banner_id: banner.id,
               pull_count: 0,
               guaranteed_claimed: false,
-              collected_guaranteed_cards: allCollected ? [] : nextCollectedIds,
+              collected_guaranteed_cards: allCollected ? [] : nextCollectedIndices,
               last_pull_at: new Date().toISOString(),
             }, { onConflict: 'user_id,banner_id' })
 
-          console.log(`[rollFromBanner] Awarding guaranteed GG: ${chosenGG.characterName || chosenGG.name} after ${newCount} pulls!`)
+          console.log(`[rollFromBanner] Awarding guaranteed card from pool index ${chosenIndex}: ${chosenGG.characterName || chosenGG.name} after ${newCount} pulls!`)
           const guaranteedResult = {
             ...normalizeBannerCardPayload(chosenGG),
             packId: 'banner:' + banner.id,
@@ -436,7 +437,7 @@ export async function rollFromBanner(
             banner_id: banner.id,
             pull_count: newCount,
             guaranteed_claimed: false,
-            collected_guaranteed_cards: collectedIds,
+            collected_guaranteed_cards: collectedIndices,
             last_pull_at: new Date().toISOString(),
           }, { onConflict: 'user_id,banner_id' })
       } catch (pityError) {

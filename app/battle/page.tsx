@@ -298,6 +298,7 @@ export default function BattlePage() {
   const [showAutoBuildConfirm, setShowAutoBuildConfirm] = useState(false)
   const [retryCount, setRetryCount] = useState(0)
   const [battleBackgroundUrl, setBattleBackgroundUrl] = useState<string | undefined>(undefined)
+  const [battleBgConfig, setBattleBgConfig] = useState<{ scale?: number; position_x?: number; position_y?: number; opacity?: number }>({})
   const prevRoundResultsRef = useRef<any>(null)
   const {
     sessionLoading: battleSessionLoading,
@@ -447,6 +448,7 @@ export default function BattlePage() {
         if (pool.length > 0) {
           const random = pool[Math.floor(Math.random() * pool.length)]
           setBattleBackgroundUrl(random.image_url)
+          setBattleBgConfig({ scale: random.scale, position_x: random.position_x, position_y: random.position_y, opacity: random.opacity })
         }
       })
       .catch(() => {})
@@ -672,6 +674,10 @@ export default function BattlePage() {
             placeCards={placeCards}
             aiThinking={aiThinking}
             backgroundUrl={battleBackgroundUrl}
+            backgroundScale={battleBgConfig.scale}
+            backgroundPositionX={battleBgConfig.position_x}
+            backgroundPositionY={battleBgConfig.position_y}
+            backgroundOpacity={battleBgConfig.opacity}
           />
         )}
 

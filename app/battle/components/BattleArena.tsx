@@ -208,6 +208,10 @@ interface BattleArenaProps {
   placeCards?: (matchId: string, placements: any[]) => void
   aiThinking?: boolean
   backgroundUrl?: string
+  backgroundScale?: number
+  backgroundPositionX?: number
+  backgroundPositionY?: number
+  backgroundOpacity?: number
 }
 
 export const BattleArena: React.FC<BattleArenaProps> = ({
@@ -239,6 +243,10 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
   placeCards,
   aiThinking,
   backgroundUrl,
+  backgroundScale,
+  backgroundPositionX,
+  backgroundPositionY,
+  backgroundOpacity,
 }) => {
   const [showRules, setShowRules] = useState(false)
   const [activeTerrain, setActiveTerrain] = useState<{ nameRu: string; description: string } | null>(null)
@@ -588,8 +596,19 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
     >
       <div className="w-full max-w-md mx-auto lg:max-w-4xl h-[100dvh] bg-[#05050a] text-white flex flex-col justify-between overflow-hidden relative select-none overscroll-none touch-none">
       {backgroundUrl && (
-        <div className="absolute inset-0 z-0 pointer-events-none">
-          <img src={backgroundUrl} alt="" className="w-full h-full object-cover" style={{ opacity: 0.35 }} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }} />
+        <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden">
+          <img
+            src={backgroundUrl}
+            alt=""
+            className="w-full h-full"
+            style={{
+              objectFit: 'cover',
+              objectPosition: `${backgroundPositionX ?? 50}% ${backgroundPositionY ?? 50}%`,
+              transform: `scale(${backgroundScale ?? 1})`,
+              opacity: backgroundOpacity ?? 0.35,
+            }}
+            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+          />
           <div className="absolute inset-0 bg-gradient-to-b from-[#05050a]/60 via-[#05050a]/70 to-[#05050a]/85" />
         </div>
       )}

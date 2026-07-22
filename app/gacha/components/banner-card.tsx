@@ -30,6 +30,7 @@ export interface Banner {
   cards: BannerCardItem[]
   guaranteedCardPayload: any | null
   guaranteedCardPity: number
+  guaranteedCardsPool?: any[] | null
   bannerType?: string
   dynamicContent?: any | null
 }
@@ -76,7 +77,14 @@ export const BannerCard = ({ banner, onSelect, userCoins, onInfoOpenChange, rema
         weight: 1,
         isFeatured: true,
       }))
-    : (banner.cards || []).filter(c => c.isFeatured).slice(0, 3)
+    : (banner.guaranteedCardsPool && banner.guaranteedCardsPool.length > 0
+      ? banner.guaranteedCardsPool.slice(0, 3).map((c: any) => ({
+          id: `pool-${c.characterId}`,
+          cardPayload: { ...c, rarity: c.rarity || 'legendary', name: c.name || c.characterName, characterName: c.characterName || c.name, animeName: c.animeName || c.anime || '', anime: c.anime || c.animeName || '' },
+          weight: 1,
+          isFeatured: true,
+        }))
+      : (banner.cards || []).filter(c => c.isFeatured).slice(0, 3))
   const colorGradient = banner.color || (isDynamic ? "from-cyan-600 to-blue-700" : "from-purple-600 to-pink-700")
   const promoArt = banner.promoImageUrl || (isDynamic && dynContent ? dynContent.featuredAnimePosterUrl : null)
   const dynamicName = isDynamic && dynContent ? (banner.name || dynContent.featuredAnimeRussianName) : null

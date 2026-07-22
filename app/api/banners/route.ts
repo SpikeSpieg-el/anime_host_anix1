@@ -25,6 +25,7 @@ export interface Banner {
   cards: BannerCard[]
   guaranteedCardPayload: any | null
   guaranteedCardPity: number
+  guaranteedCardsPool: any[] | null
   bannerType: string
   dynamicContent?: any | null
 }
@@ -86,6 +87,7 @@ async function getBannersData(): Promise<NextResponse> {
         sort_order,
         guaranteed_card_payload,
         guaranteed_card_pity,
+        guaranteed_cards_pool,
         banner_type,
         banner_cards (
           id,
@@ -145,6 +147,7 @@ async function getBannersData(): Promise<NextResponse> {
         })),
         guaranteedCardPayload: row.guaranteed_card_payload || null,
         guaranteedCardPity: row.guaranteed_card_pity || 0,
+        guaranteedCardsPool: row.guaranteed_cards_pool || null,
         bannerType,
         dynamicContent: dynamicData,
       })

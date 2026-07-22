@@ -4,7 +4,7 @@ import { useEffect, useState, useTransition } from "react"
 import { LogOut, Lock } from "lucide-react"
 import { ScrollToTop } from "@/components/layout/scroll-to-top"
 import { Footer } from "@/components/layout/footer"
-import { adminLogin, adminLogout, checkAdminAuth, getAdminUsers, getPvPRules, updatePvPRule, getPvPLocations, createPvPLocation, deletePvPLocation, getPvPLogs, getBattleAIDashboard, getAdminUsersSimple, getBanners, createBanner, updateBanner, deleteBanner, getBannerCards, addBannerCard, updateBannerCard, deleteBannerCard, adminSendMail, adminSendMailBulk, adminGiftCardToUser, adminSendPushNotification, adminSendPushNotificationBulk, getPlayerLearningProfiles, getBattleBackgrounds, createBattleBackground, deleteBattleBackground, toggleBattleBackground } from "./actions"
+import { adminLogin, adminLogout, checkAdminAuth, getAdminUsers, getPvPRules, updatePvPRule, getPvPLocations, createPvPLocation, deletePvPLocation, getPvPLogs, getBattleAIDashboard, getAdminUsersSimple, getBanners, createBanner, updateBanner, deleteBanner, getBannerCards, addBannerCard, updateBannerCard, deleteBannerCard, adminSendMail, adminSendMailBulk, adminGiftCardToUser, adminSendPushNotification, adminSendPushNotificationBulk, getPlayerLearningProfiles, getBattleBackgrounds, createBattleBackground, deleteBattleBackground, toggleBattleBackground, updateBattleBackground } from "./actions"
 import type { Rarity } from "@/types/gacha"
 import { toast } from "sonner"
 
@@ -34,6 +34,7 @@ interface BannerFormData {
   sort_order: number
   guaranteed_card_json: string
   guaranteed_card_pity: string
+  guaranteed_cards_pool_json: string
   banner_type: "standard" | "dynamic"
 }
 
@@ -41,7 +42,7 @@ const DEFAULT_BANNER_FORM: BannerFormData = {
   name: "", description: "", image_url: "", promo_image_url: "", featured_anime_ids: "",
   boosted_rarity: "", price: "", color: "from-purple-600 to-pink-700",
   start_date: "", end_date: "", is_active: true, sort_order: 0,
-  guaranteed_card_json: "", guaranteed_card_pity: "",
+  guaranteed_card_json: "", guaranteed_card_pity: "", guaranteed_cards_pool_json: "",
   banner_type: "standard",
 }
 
@@ -287,7 +288,7 @@ export default function AdminPage() {
     }
   }
 
-  const handleAddBackground = async (bg: { name: string; image_url: string; mode: string }) => {
+  const handleAddBackground = async (bg: { name: string; image_url: string; mode: string; scale: number; position_x: number; position_y: number; opacity: number }) => {
     try {
       const created = await createBattleBackground({ ...bg, is_active: true, sort_order: 0 })
       setBattleBackgrounds(prev => [...prev, created])
@@ -316,6 +317,17 @@ export default function AdminPage() {
       setBattleBackgrounds(prev => prev.map(b => b.id === id ? { ...b, is_active: !currentStatus } : b))
     } catch (err) {
       console.error("Failed to toggle background:", err)
+    }
+  }
+
+  const handleUpdateBackground = async (id: string, updates: { name?: string; image_url?: string; mode?: string; scale?: number; position_x?: number; position_y?: number; opacity?: number }) => {
+    try {
+      const updated = await updateBattleBackground(id, updates)
+      setBattleBackgrounds(prev => prev.map(b => b.id === id ? { ...b, ...updated } : b))
+      toast.success("Фон обновлён")
+    } catch (err) {
+      console.error("Failed to update background:", err)
+      toast.error("Ошибка обновления фона")
     }
   }
 
@@ -415,6 +427,9 @@ export default function AdminPage() {
       let guaranteedCardPayload: any = null
       const guaranteedJsonStr = newBanner.guaranteed_card_json?.trim()
       if (guaranteedJsonStr) { try { guaranteedCardPayload = JSON.parse(guaranteedJsonStr) } catch { toast.error("Неверный JSON гарантированной карты"); return } }
+      let guaranteedCardsPool: any[] | null = null
+      const poolJsonStr = newBanner.guaranteed_cards_pool_json?.trim()
+      if (poolJsonStr) { try { const parsed = JSON.parse(poolJsonStr); if (!Array.isArray(parsed)) { toast.error("Пул гарантированных карт должен быть массивом: [{ ... }, { ... }]"); return } guaranteedCardsPool = parsed } catch { toast.error("Неверный JSON пула гарантированных карт. Оберните карты в квадратные скобки: [{ ... }, { ... }]"); return } }
       const created = await createBanner({
         name: newBanner.name, description: newBanner.description || undefined, image_url: newBanner.image_url || undefined,
         promo_image_url: newBanner.promo_image_url || undefined, featured_anime_ids: featuredIds.length ? featuredIds : undefined,
@@ -422,7 +437,8 @@ export default function AdminPage() {
         color: newBanner.color || undefined, start_date: newBanner.start_date ? new Date(newBanner.start_date).toISOString() : undefined,
         end_date: newBanner.end_date ? new Date(newBanner.end_date).toISOString() : undefined, is_active: newBanner.is_active,
         sort_order: newBanner.sort_order, guaranteed_card_payload: guaranteedCardPayload || undefined,
-        guaranteed_card_pity: newBanner.guaranteed_card_pity ? parseInt(newBanner.guaranteed_card_pity) : 0, banner_type: newBanner.banner_type,
+        guaranteed_card_pity: newBanner.guaranteed_card_pity ? parseInt(newBanner.guaranteed_card_pity) : 0,
+        guaranteed_cards_pool: guaranteedCardsPool, banner_type: newBanner.banner_type,
       })
       if (created) setBanners(prev => [created, ...prev])
       setShowCreateBanner(false)
@@ -467,6 +483,7 @@ export default function AdminPage() {
       is_active: banner.is_active ?? true, sort_order: banner.sort_order ?? 0,
       guaranteed_card_json: banner.guaranteed_card_payload ? JSON.stringify(banner.guaranteed_card_payload, null, 2) : "",
       guaranteed_card_pity: banner.guaranteed_card_pity ? String(banner.guaranteed_card_pity) : "",
+      guaranteed_cards_pool_json: banner.guaranteed_cards_pool ? JSON.stringify(banner.guaranteed_cards_pool, null, 2) : "",
       banner_type: (banner.banner_type as "standard" | "dynamic") || "standard",
     })
     setEditingBannerId(banner.id)
@@ -479,6 +496,9 @@ export default function AdminPage() {
       let guaranteedCardPayload: any = null
       const guaranteedJsonStr = editBanner.guaranteed_card_json?.trim()
       if (guaranteedJsonStr) { try { guaranteedCardPayload = JSON.parse(guaranteedJsonStr) } catch { toast.error("Неверный JSON гарантированной карты"); return } }
+      let guaranteedCardsPool: any[] | null = null
+      const poolJsonStr = editBanner.guaranteed_cards_pool_json?.trim()
+      if (poolJsonStr) { try { const parsed = JSON.parse(poolJsonStr); if (!Array.isArray(parsed)) { toast.error("Пул гарантированных карт должен быть массивом: [{ ... }, { ... }]"); return } guaranteedCardsPool = parsed } catch { toast.error("Неверный JSON пула гарантированных карт. Оберните карты в квадратные скобки: [{ ... }, { ... }]"); return } }
       const updated = await updateBanner(editingBannerId, {
         name: editBanner.name, description: editBanner.description || null, image_url: editBanner.image_url || null,
         promo_image_url: editBanner.promo_image_url || null, featured_anime_ids: featuredIds,
@@ -486,7 +506,8 @@ export default function AdminPage() {
         color: editBanner.color || null, start_date: editBanner.start_date ? new Date(editBanner.start_date).toISOString() : null,
         end_date: editBanner.end_date ? new Date(editBanner.end_date).toISOString() : null, is_active: editBanner.is_active,
         sort_order: editBanner.sort_order, guaranteed_card_payload: guaranteedCardPayload || null,
-        guaranteed_card_pity: editBanner.guaranteed_card_pity ? parseInt(editBanner.guaranteed_card_pity) : 0, banner_type: editBanner.banner_type,
+        guaranteed_card_pity: editBanner.guaranteed_card_pity ? parseInt(editBanner.guaranteed_card_pity) : 0,
+        guaranteed_cards_pool: guaranteedCardsPool, banner_type: editBanner.banner_type,
       })
       setBanners(prev => prev.map(b => b.id === editingBannerId ? { ...b, ...updated } : b))
       setEditingBannerId(null)
@@ -685,6 +706,7 @@ export default function AdminPage() {
             onAddBackground={handleAddBackground}
             onDeleteBackground={handleDeleteBackground}
             onToggleBackground={handleToggleBackground}
+            onUpdateBackground={handleUpdateBackground}
           />
         )}
 

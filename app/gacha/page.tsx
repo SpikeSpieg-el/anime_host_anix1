@@ -306,6 +306,20 @@ export default function GachaPage() {
       setSelectedBannerCards(banner.cards || [])
       setSelectedBannerGuaranteedCard(banner.guaranteedCardPayload || null)
       setSelectedBannerGuaranteedPity(banner.guaranteedCardPity || 0)
+      // If banner has a guaranteed cards pool, pass it for multi-card pity mode
+      if (banner.guaranteedCardsPool && banner.guaranteedCardsPool.length > 0) {
+        const pool = banner.guaranteedCardsPool.map((c: any) => ({
+          ...c,
+          rarity: c.rarity || 'legendary',
+          name: c.name || c.characterName,
+          characterName: c.characterName || c.name,
+          animeName: c.animeName || c.anime || '',
+          anime: c.anime || c.animeName || '',
+          isMainCharacter: c.isMainCharacter ?? true,
+        }))
+        ;(packLike as any).guaranteedCardsPool = pool
+        ;(packLike as any).userId = session?.user?.id
+      }
     }
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
