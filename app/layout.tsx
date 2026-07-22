@@ -67,6 +67,9 @@ export const metadata: Metadata = {
   verification: {
     google: process.env.GOOGLE_SITE_VERIFICATION,
     yandex: process.env.YANDEX_SITE_VERIFICATION,
+    other: {
+      "p:domain_verify": "50d489c5f1a10b166c295b5d8cba3aef",
+    },
   },
   openGraph: {
     title: "Weebx — Смотреть аниме онлайн",
