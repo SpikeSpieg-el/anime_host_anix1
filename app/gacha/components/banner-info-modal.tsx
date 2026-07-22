@@ -46,6 +46,7 @@ interface BannerInfoModalProps {
   remainingPity?: number
   pityClaimed?: boolean
   sessionToken?: string
+  collectedGGs?: number[]
 }
 
 function formatDate(dateStr: string | null): string {
@@ -58,14 +59,14 @@ function getRarityLabel(rarity: string): string {
   return rarityConfig[rarity as Rarity]?.label || rarity
 }
 
-export const BannerInfoModal = ({ banner, onClose, remainingPity: propRemainingPity, pityClaimed: propPityClaimed, sessionToken }: BannerInfoModalProps) => {
+export const BannerInfoModal = ({ banner, onClose, remainingPity: propRemainingPity, pityClaimed: propPityClaimed, sessionToken, collectedGGs: propCollectedGGs }: BannerInfoModalProps) => {
   const [cardPage, setCardPage] = useState(0)
   const [viewedCard, setViewedCard] = useState<Card | null>(null)
   const [animePool, setAnimePool] = useState<{ id: number; name: string; russian: string | null; imageUrl: string | null }[]>([])
   const [animePoolLoading, setAnimePoolLoading] = useState(false)
   const [liveRemainingPity, setLiveRemainingPity] = useState<number | undefined>(propRemainingPity)
   const [livePityClaimed, setLivePityClaimed] = useState<boolean | undefined>(propPityClaimed)
-  const [collectedGGs, setCollectedGGs] = useState<number[]>([])
+  const [collectedGGs, setCollectedGGs] = useState<number[]>(propCollectedGGs || [])
   const cardsPerPage = 12
 
   useEffect(() => {
@@ -89,7 +90,7 @@ export const BannerInfoModal = ({ banner, onClose, remainingPity: propRemainingP
   useEffect(() => {
     setLiveRemainingPity(propRemainingPity)
     setLivePityClaimed(propPityClaimed)
-    setCollectedGGs([])
+    setCollectedGGs(propCollectedGGs || [])
     if (!banner?.id) return
     const isDyn = banner.bannerType === 'dynamic'
     const effectivePity = (isDyn && banner.guaranteedCardPity === 0) ? 50 : (banner.guaranteedCardPity || 0)
@@ -111,7 +112,7 @@ export const BannerInfoModal = ({ banner, onClose, remainingPity: propRemainingP
         }
       })
       .catch(() => {})
-  }, [banner?.id, banner?.guaranteedCardPity, banner?.bannerType, propRemainingPity, propPityClaimed, sessionToken])
+  }, [banner?.id, banner?.guaranteedCardPity, banner?.bannerType, propRemainingPity, propPityClaimed, propCollectedGGs, sessionToken])
 
   const handleEsc = useCallback((e: KeyboardEvent) => {
     if (e.key === "Escape") {
@@ -152,8 +153,8 @@ export const BannerInfoModal = ({ banner, onClose, remainingPity: propRemainingP
         isFeatured: true,
       }))
     : (banner.guaranteedCardsPool && banner.guaranteedCardsPool.length > 0
-      ? banner.guaranteedCardsPool.map((c: any) => ({
-          id: `pool-${c.characterId}`,
+      ? banner.guaranteedCardsPool.map((c: any, i: number) => ({
+          id: `pool-${i}-${c.characterId}`,
           cardPayload: {
             ...c,
             rarity: c.rarity || 'legendary',
@@ -271,7 +272,7 @@ export const BannerInfoModal = ({ banner, onClose, remainingPity: propRemainingP
               <span className="text-[11px] sm:text-sm font-black text-pink-200 text-center leading-tight">
                 {isDynamic
                   ? dynamicPity > 0
-                    ? `${ggCards.length} ГГ (${dynamicRemainingPity})`
+                    ? `${ggCards.length} карт (${dynamicRemainingPity})`
                     : "Нет"
                   : banner.guaranteedCardsPool && banner.guaranteedCardsPool.length > 0 && banner.guaranteedCardPity > 0
                     ? `${banner.guaranteedCardsPool.length} карт (${dynamicRemainingPity})`
@@ -380,14 +381,14 @@ export const BannerInfoModal = ({ banner, onClose, remainingPity: propRemainingP
             <div className="bg-amber-500/10 rounded-xl p-3 sm:p-4 border border-amber-500/30">
               <h3 className="text-sm font-black text-amber-300 uppercase tracking-wider mb-3 flex items-center gap-2">
                 <Flame className="w-4 h-4" />
-                Гарантированные ГГ ({ggCards.length})
+                Гарантированные карты ({ggCards.length})
               </h3>
               <div className="flex items-center gap-2 mb-3 flex-wrap">
                 <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/20 border border-amber-500/40">
                   <Flame className="w-3 h-3 text-amber-300" />
                   <span className="text-[11px] font-bold text-amber-200">
                     {collectedGGs.length >= ggCards.length
-                      ? 'Все ГГ собраны! Цикл сброшен'
+                      ? `Все карты собраны! Цикл сброшен`
                       : `Гарант через ${dynamicRemainingPity} круток`}
                   </span>
                 </div>

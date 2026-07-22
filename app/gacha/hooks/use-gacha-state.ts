@@ -34,6 +34,7 @@ export function useGachaState() {
   const pathname = usePathname()
   
   const [isRolling, setIsRolling] = useState(false)
+  const isRollingRef = useRef(false)
   const [devForcedRarity, setDevForcedRarity] = useState<Rarity | null>(null)
   const [isPackLoading, setIsPackLoading] = useState(true)
   const [isCustomPackLoading, setIsCustomPackLoading] = useState(false)
@@ -301,7 +302,7 @@ export function useGachaState() {
           const elapsed = Date.now() - operationStartTime.current
           if (elapsed > 15000) {
             console.warn('[Gacha] Операция затянулась в фоне. Сброс состояния.')
-            setIsRolling(false)
+            setIsRolling(false); isRollingRef.current = false
             setIsSavingCard(false)
             operationStartTime.current = null
           }
@@ -558,7 +559,7 @@ export function useGachaState() {
   useEffect(() => {
     setRevealedCard(null)
     setShowCard(false)
-    setIsRolling(false)
+    setIsRolling(false); isRollingRef.current = false
     setViewedCard(null)
     setIsSavingCard(false)
     operationStartTime.current = null
@@ -581,7 +582,7 @@ export function useGachaState() {
           console.log('[restorePendingCard] Found valid pending card:', card.name)
           setRevealedCard(card)
           setShowCard(true)
-          setIsRolling(false)
+          setIsRolling(false); isRollingRef.current = false
           prevShowCardRef.current = true
         } else {
           console.warn('[restorePendingCard] Card signature mismatch, discarding tampered card')
@@ -622,7 +623,7 @@ export function useGachaState() {
   }, [showCard, revealedCard])
 
   const handleEmptyResult = async () => {
-    setIsRolling(false)
+    setIsRolling(false); isRollingRef.current = false
     if (!selectedPack) return
     
     setErrorPopupConfig({
@@ -640,7 +641,9 @@ export function useGachaState() {
   const GUEST_ROLL_LIMIT = 10
 
   const handleRoll = async () => {
-    if (isRolling) return
+    console.log('[handleRoll] Called, isRollingRef:', isRollingRef.current)
+    if (isRollingRef.current) return
+    isRollingRef.current = true
 
     // Гости могут крутить только 10 раз
     if (!authUser) {
@@ -653,6 +656,7 @@ export function useGachaState() {
         })
         setShowErrorPopup(true)
         window.dispatchEvent(new Event('open-auth-modal'))
+        isRollingRef.current = false
         return
       }
     }
@@ -665,6 +669,7 @@ export function useGachaState() {
         type: "error"
       })
       setShowErrorPopup(true)
+      isRollingRef.current = false
       return
     }
 
@@ -685,7 +690,7 @@ export function useGachaState() {
             type: "error"
           })
           setShowErrorPopup(true)
-          setIsRolling(false)
+          setIsRolling(false); isRollingRef.current = false
           operationStartTime.current = null
           return
         }
@@ -747,7 +752,7 @@ export function useGachaState() {
             type: "info"
           })
           setShowErrorPopup(true)
-          setIsRolling(false)
+          setIsRolling(false); isRollingRef.current = false
           // Refund coins since no card was obtained
           if (authUser) {
             await addCoins(rollCost).catch(e => console.error('[handleRoll] Refund failed:', e))
@@ -763,7 +768,7 @@ export function useGachaState() {
             type: "error"
           })
           setShowErrorPopup(true)
-          setIsRolling(false)
+          setIsRolling(false); isRollingRef.current = false
           // Refund coins since no card was obtained
           if (authUser) {
             await addCoins(rollCost).catch(e => console.error('[handleRoll] Refund failed:', e))
@@ -820,7 +825,7 @@ export function useGachaState() {
 
     } catch (error: any) {
       console.error("Gacha error:", error)
-      setIsRolling(false)
+      setIsRolling(false); isRollingRef.current = false
       // Refund coins on error if we already spent them
       if (authUser) {
         await addCoins(rollCost).catch(e => console.error('[handleRoll] Refund failed:', e))
@@ -1359,11 +1364,17 @@ export function useGachaState() {
     return result
   }, [collectedCards, listedCardIds, searchQuery, selectedRarity, selectedPackFilter, selectedMainCharacterFilter, sortBy, sortOrder, prioritizeMainCharacters])
 
+  const wrappedSetIsRolling = useCallback((value: boolean | ((prev: boolean) => boolean)) => {
+    const resolved = typeof value === 'function' ? value(false) : value
+    setIsRolling(resolved)
+    isRollingRef.current = resolved
+  }, [])
+
   return {
     router,
     pathname,
     isRolling,
-    setIsRolling,
+    setIsRolling: wrappedSetIsRolling,
     isPackLoading,
     isCustomPackLoading,
     revealedCard,

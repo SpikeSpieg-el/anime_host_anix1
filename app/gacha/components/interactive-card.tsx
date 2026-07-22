@@ -431,10 +431,10 @@ export const InteractiveCard = ({ card, forceFlipped = false }: InteractiveCardP
               </div>
             )}
             
-            <h3 className="text-base sm:text-xl md:text-2xl font-black text-white uppercase leading-none drop-shadow-lg truncate mb-1">
+            <h3 className="text-sm sm:text-base md:text-lg font-black text-white uppercase leading-tight drop-shadow-lg break-words mb-1">
               {card.name}
             </h3>
-            <p className="text-[8px] sm:text-[10px] md:text-xs text-white/70 font-bold uppercase tracking-wider truncate">
+            <p className="text-[8px] sm:text-[9px] md:text-[10px] text-white/70 font-bold uppercase tracking-wider break-words leading-tight">
               {card.anime}
             </p>
             

@@ -298,15 +298,15 @@ const InteractiveCard = ({ card, forceFlipped = false }: { card: MarketListingAp
           <div className="backdrop-blur-xl bg-slate-900/40 border border-white/10 rounded-xl sm:rounded-2xl p-3 sm:p-4 shadow-2xl relative overflow-hidden">
             <div className={`absolute left-0 top-0 bottom-0 w-1.5 bg-gradient-to-b ${rarityConfig[card.rarity].color}`} />
             
-            <h3 className="text-lg sm:text-xl md:text-2xl font-black text-white uppercase leading-none drop-shadow-lg truncate mb-1">
+            <h3 className="text-sm sm:text-base md:text-lg font-black text-white uppercase leading-tight drop-shadow-lg break-words mb-1">
               {card.name}
             </h3>
-            <p className="text-[9px] sm:text-[10px] md:text-xs text-white/70 font-bold uppercase tracking-wider truncate">
+            <p className="text-[8px] sm:text-[9px] md:text-[10px] text-white/70 font-bold uppercase tracking-wider break-words leading-tight">
               {card.anime}
             </p>
             
             <div className="mt-3 flex items-center justify-between border-t border-white/10 pt-2">
-              <span className="text-[8px] sm:text-[9px] font-mono text-white/40 tracking-wider">ID: {card.uniqueId}</span>
+              <span className="text-[8px] sm:text-[9px] font-mono text-white/40 tracking-wider">ID: {card.uniqueId.length > 20 ? card.uniqueId.slice(-8) : card.uniqueId}</span>
             </div>
           </div>
         </div>

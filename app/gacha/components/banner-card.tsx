@@ -43,6 +43,7 @@ interface BannerCardProps {
   remainingPity?: number
   pityClaimed?: boolean
   sessionToken?: string
+  collectedGGs?: number[]
 }
 
 function formatCountdown(endDate: string | null): string {
@@ -59,7 +60,7 @@ function formatCountdown(endDate: string | null): string {
   return `${minutes}м`
 }
 
-export const BannerCard = ({ banner, onSelect, userCoins, onInfoOpenChange, remainingPity, pityClaimed, sessionToken }: BannerCardProps) => {
+export const BannerCard = ({ banner, onSelect, userCoins, onInfoOpenChange, remainingPity, pityClaimed, sessionToken, collectedGGs }: BannerCardProps) => {
   const [showInfo, setShowInfo] = useState(false)
   const [imgError, setImgError] = useState(false)
   const handleSetShowInfo = (v: boolean) => {
@@ -78,8 +79,8 @@ export const BannerCard = ({ banner, onSelect, userCoins, onInfoOpenChange, rema
         isFeatured: true,
       }))
     : (banner.guaranteedCardsPool && banner.guaranteedCardsPool.length > 0
-      ? banner.guaranteedCardsPool.slice(0, 3).map((c: any) => ({
-          id: `pool-${c.characterId}`,
+      ? banner.guaranteedCardsPool.slice(0, 3).map((c: any, i: number) => ({
+          id: `pool-${i}-${c.characterId}`,
           cardPayload: { ...c, rarity: c.rarity || 'legendary', name: c.name || c.characterName, characterName: c.characterName || c.name, animeName: c.animeName || c.anime || '', anime: c.anime || c.animeName || '' },
           weight: 1,
           isFeatured: true,
@@ -181,7 +182,7 @@ export const BannerCard = ({ banner, onSelect, userCoins, onInfoOpenChange, rema
         )}
         {isDynamic && dynContent && (
           <p className="text-sm text-cyan-200/80 line-clamp-2 mb-3">
-            {banner.description || `Онгоинг: ${dynContent.featuredAnimeRussianName} · ${dynContent.guaranteedCharacters.length} ГГ с гарантом · Смена каждые 3 дня`}
+            {banner.description || `Онгоинг: ${dynContent.featuredAnimeRussianName} · ${dynContent.guaranteedCharacters.length} карт с гарантом · Смена каждые 3 дня`}
           </p>
         )}
 
@@ -273,17 +274,37 @@ export const BannerCard = ({ banner, onSelect, userCoins, onInfoOpenChange, rema
           )}
         </div>
 
-        {/* Dynamic banner: 3 GG guaranteed — new line */}
+        {/* Dynamic banner: GG guaranteed — new line */}
         {isDynamic && dynContent && dynContent.guaranteedCharacters.length > 0 && (
           <div className="flex flex-wrap items-center gap-2 mt-2">
             <div className="inline-flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-amber-500/20 backdrop-blur-md border border-amber-500/30">
               <Flame className="w-3.5 h-3.5 text-amber-300" />
               <span className="text-xs font-bold text-amber-200 tracking-wide uppercase">
-                {pityClaimed
-                  ? 'Гарант получен'
-                  : remainingPity !== undefined
-                    ? `Гарант: 1 из ${dynContent.guaranteedCharacters.length} ГГ через ${remainingPity} круток`
-                    : `Гарант: 1 из ${dynContent.guaranteedCharacters.length} ГГ через ${banner.guaranteedCardPity || 50} круток`}
+                {collectedGGs && collectedGGs.length >= dynContent.guaranteedCharacters.length
+                  ? 'Все карты собраны! Цикл сброшен'
+                  : pityClaimed
+                    ? 'Гарант получен'
+                    : remainingPity !== undefined
+                      ? `Гарант: ${(collectedGGs?.length || 0) + 1} из ${dynContent.guaranteedCharacters.length} карт через ${remainingPity} круток`
+                      : `Гарант: 1 из ${dynContent.guaranteedCharacters.length} карт через ${banner.guaranteedCardPity || 50} круток`}
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* Standard banner with guaranteed cards pool — pity text */}
+        {!isDynamic && banner.guaranteedCardsPool && banner.guaranteedCardsPool.length > 0 && banner.guaranteedCardPity > 0 && (
+          <div className="flex flex-wrap items-center gap-2 mt-2">
+            <div className="inline-flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-amber-500/20 backdrop-blur-md border border-amber-500/30">
+              <Flame className="w-3.5 h-3.5 text-amber-300" />
+              <span className="text-xs font-bold text-amber-200 tracking-wide uppercase">
+                {collectedGGs && collectedGGs.length >= banner.guaranteedCardsPool.length
+                  ? 'Все карты собраны! Цикл сброшен'
+                  : pityClaimed
+                    ? 'Гарант получен'
+                    : remainingPity !== undefined
+                      ? `Гарант: ${(collectedGGs?.length || 0) + 1} из ${banner.guaranteedCardsPool.length} карт через ${remainingPity} круток`
+                      : `Гарант: 1 из ${banner.guaranteedCardsPool.length} карт через ${banner.guaranteedCardPity} круток`}
               </span>
             </div>
           </div>
@@ -296,7 +317,7 @@ export const BannerCard = ({ banner, onSelect, userCoins, onInfoOpenChange, rema
         )}
       </div>
     </div>
-    {showInfo && <BannerInfoModal banner={banner} onClose={() => handleSetShowInfo(false)} remainingPity={remainingPity} pityClaimed={pityClaimed} sessionToken={sessionToken} />}
+    {showInfo && <BannerInfoModal banner={banner} onClose={() => handleSetShowInfo(false)} remainingPity={remainingPity} pityClaimed={pityClaimed} sessionToken={sessionToken} collectedGGs={collectedGGs} />}
     </>
   )
 }

@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation"
 import { useState, useEffect, useCallback, useRef } from "react"
 import { Navbar } from "@/components/layout/navbar"
 import { Footer } from "@/components/layout/footer"
-import { Sparkles, Star, Heart, Loader2, X, ZoomIn, ExternalLink, RefreshCcw, Trash, Trash2, Crown, Package, Coins, Search, Database, Store, Share, Swords, Wrench, Move, Mail, Calendar, ChevronDown } from "lucide-react"
+import { Sparkles, Star, Heart, Loader2, X, ZoomIn, ExternalLink, RefreshCcw, Trash, Trash2, Crown, Package, Coins, Search, Database, Store, Share, Swords, Wrench, Move, Mail, Calendar, ChevronDown, Flame } from "lucide-react"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { ANIME_PACKS } from "@/lib/gacha-packs"
 import type { AnimePack } from "@/lib/gacha-packs"
@@ -63,6 +63,7 @@ function useSpendAnimation(value: number) {
   useEffect(() => {
     if (prevRef.current !== null && value < prevRef.current) {
       setDelta(prevRef.current - value)
+      prevRef.current = value
       setFlash(true)
       const t1 = setTimeout(() => setFlash(false), 600)
       const t2 = setTimeout(() => setDelta(null), 900)
@@ -239,7 +240,7 @@ export default function GachaPage() {
   const [bannersLoading, setBannersLoading] = useState(true)
   const [bannerInfoOpen, setBannerInfoOpen] = useState(false)
   const [eventsCollapsed, setEventsCollapsed] = useState(false)
-  const [bannerPulls, setBannerPulls] = useState<Record<string, { pullCount: number; guaranteedClaimed: boolean }>>({})
+  const [bannerPulls, setBannerPulls] = useState<Record<string, { pullCount: number; guaranteedClaimed: boolean; collectedGuaranteedCards?: number[] }>>({})
 
   useEffect(() => {
     fetch('/api/banners')
@@ -1213,6 +1214,17 @@ export default function GachaPage() {
         {/* Selected Pack / Banner Indicator */}
         {selectedPack && (() => {
           const isBanner = selectedPack.id.startsWith("banner:")
+          const bannerId = isBanner ? selectedPack.id.replace("banner:", "") : null
+          const pullInfo = bannerId ? bannerPulls[bannerId] : null
+          const pool = (selectedPack as any).guaranteedCardsPool
+          const hasPool = pool && pool.length > 0
+          const hasSingleGuarantee = !!selectedBannerGuaranteedCard && selectedBannerGuaranteedPity > 0
+          const effectivePity = selectedBannerGuaranteedPity || 0
+          const remainingPity = pullInfo && effectivePity > 0 && !pullInfo.guaranteedClaimed
+            ? Math.max(0, effectivePity - pullInfo.pullCount)
+            : undefined
+          const collectedCount = pullInfo?.collectedGuaranteedCards ? (pullInfo.collectedGuaranteedCards as number[]).length : 0
+          const showPity = isBanner && (hasPool || hasSingleGuarantee) && effectivePity > 0
           return (
             <div className="mb-8 sm:mb-12 text-center animate-in fade-in slide-in-from-top-4">
               <div className={`inline-flex items-center gap-3 bg-slate-900/80 backdrop-blur-md px-5 py-3 rounded-2xl border shadow-lg ${isBanner ? "border-pink-500/40 shadow-pink-500/10" : "border-indigo-500/30 shadow-indigo-500/10"}`}>
@@ -1225,6 +1237,27 @@ export default function GachaPage() {
                   {isBanner ? "Ивент: " : "Набор: "}
                   <span className={isBanner ? "text-pink-300" : "text-indigo-300"}>{selectedPack.name}</span>
                 </span>
+                {showPity && (
+                  <>
+                    <div className="w-px h-5 bg-white/10 mx-1" />
+                    <div className="inline-flex items-center gap-1.5">
+                      <Flame className="w-3.5 h-3.5 text-amber-300" />
+                      <span className="text-xs font-bold text-amber-200">
+                        {hasPool
+                          ? pullInfo?.guaranteedClaimed
+                            ? 'Гарант получен'
+                            : remainingPity !== undefined
+                              ? `Гарант: ${collectedCount}/${pool.length} карт через ${remainingPity} круток`
+                              : `Гарант: 1 из ${pool.length} карт через ${effectivePity} круток`
+                          : pullInfo?.guaranteedClaimed
+                            ? 'Гарант получен'
+                            : remainingPity !== undefined
+                              ? `Гарант-карта через ${remainingPity} круток`
+                              : `Гарант-карта через ${effectivePity} круток`}
+                      </span>
+                    </div>
+                  </>
+                )}
                 <div className="w-px h-5 bg-white/10 mx-2" />
                 <button
                   onClick={() => setSelectedPack(null)}
@@ -1476,6 +1509,7 @@ export default function GachaPage() {
                       remainingPity={remainingPity}
                       pityClaimed={pullInfo?.guaranteedClaimed}
                       sessionToken={session?.access_token}
+                      collectedGGs={pullInfo?.collectedGuaranteedCards}
                     />
                   )
                 })}
