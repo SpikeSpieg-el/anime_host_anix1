@@ -161,33 +161,35 @@ export const TeamBuilderModal: React.FC<TeamBuilderModalProps> = ({
           >
             <CheckCircle2 className="w-5 h-5" />
           </button>
-          <button
-            onClick={() => setSelectedRole("all")}
-            className={`px-3.5 py-2 rounded-xl text-xs font-black transition-all flex-1 ${
-              selectedRole === "all"
-                ? "bg-white text-black font-black"
-                : "bg-white/5 text-slate-400 hover:text-white hover:bg-white/10"
-            }`}
-          >
-            Все роли
-          </button>
-          {Object.entries(ROLE_CONFIG).map(([key, config]) => {
-            const isSelected = selectedRole === key
-            return (
-              <button
-                key={key}
-                onClick={() => setSelectedRole(key as any)}
-                className={`px-3.5 py-2 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 border flex-1 ${
-                  isSelected
-                    ? `${config.bg} ${config.color} ${config.border} font-black shadow-[0_0_15px_rgba(255,255,255,0.05)]`
-                    : "bg-white/5 text-slate-400 border-transparent hover:text-white hover:bg-white/10"
-                }`}
-              >
-                <span className={config.color}>●</span>
-                {config.name}
-              </button>
-            )
-          })}
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => setSelectedRole("all")}
+              className={`px-2.5 py-1.5 rounded-lg text-[10px] font-black transition-all whitespace-nowrap ${
+                selectedRole === "all"
+                  ? "bg-white text-black"
+                  : "bg-white/5 text-slate-400 hover:text-white hover:bg-white/10"
+              }`}
+            >
+              Все
+            </button>
+            {Object.entries(ROLE_CONFIG).map(([key, config]) => {
+              const isSelected = selectedRole === key
+              return (
+                <button
+                  key={key}
+                  onClick={() => setSelectedRole(key as any)}
+                  className={`px-2.5 py-1.5 rounded-lg text-[10px] font-black transition-all flex items-center gap-1 border whitespace-nowrap ${
+                    isSelected
+                      ? `${config.bg} ${config.color} ${config.border}`
+                      : "bg-white/5 text-slate-400 border-transparent hover:text-white hover:bg-white/10"
+                  }`}
+                >
+                  <span className={config.color}>●</span>
+                  {config.name}
+                </button>
+              )
+            })}
+          </div>
         </div>
 
         <div className={`grid gap-3 overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent flex-1 pb-4 ${

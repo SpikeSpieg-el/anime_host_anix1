@@ -226,11 +226,6 @@ export const calculateCardPowerOnZone = (
   const isVandalism = zoneModifierId === "vandalism"
   const hasIronCurtain = zoneModifierId === "iron_curtain" && isGuard
 
-  // === SYSTEM / EQUALITY ===
-  if (zoneModifierId === "equality") {
-    return { power: 150, roleMatchupBonus: 0, synergyBonus: 0 }
-  }
-
   // === RARITY OVERRIDES ===
   if (zoneModifierId === "vandalism") {
     // All cards treated as common rarity for power calculation
@@ -284,12 +279,6 @@ export const calculateCardPowerOnZone = (
       break
     case "black_market":
       if (["uncommon", "rare"].includes(card.rarity) && !isVandalism) basePower += 120
-      break
-    case "power_vacuum":
-      if (!hasIronCurtain) basePower *= 0.5
-      break
-    case "gambler_den":
-      if (card.stats.luck >= 60) basePower += Math.floor(Math.random() * 201) + 50
       break
   }
 
@@ -417,7 +406,6 @@ export const getTerritoryBuff = (
     golden_cage: ["divine", "transcendent", "omnipotent"].includes(card.rarity) ? "-40%" : "0",
     balanced_force: ["epic", "super_rare", "rare"].includes(card.rarity) ? "+100" : "0",
     black_market: ["uncommon", "rare"].includes(card.rarity) ? "+120" : "0",
-    power_vacuum: "-50%",
     god_domain: card.rarity === "omnipotent" ? "x2" : "0",
     lonely_hero: "+200 (один против двух)",
     duelist_honor: "+150 (дуэль)",
@@ -426,8 +414,6 @@ export const getTerritoryBuff = (
     unity: "+150 (одно аниме)",
     rivalry: "-50 (разные аниме врага)",
     double_bluff: wasSecret ? "+200 (двойной блеф)" : "0",
-    equality: "фиксировано 150",
-    gambler_den: card.stats.luck >= 60 ? "рандом 50-250" : "0",
   }
   
   return {

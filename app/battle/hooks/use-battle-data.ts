@@ -8,7 +8,7 @@ import { getCardRole, getCardProvision, calculateCardPowerOnZone, getCardBasePow
 import { PROVISION_LIMIT, DECK_SIZE, TERRITORY_MODIFIERS, FormationId, MAX_CARDS_PER_SIDE } from "../config"
 import { Rarity } from "@/types/gacha"
 import { getAIDeckForDungeon, getRandomMarketDeck, generateAdaptiveAIDeck } from "../ai-decks"
-import { createAI, createAIDecisionContext, AIConfig } from "../ai"
+import { createAI, createAIDecisionContext, AIConfig, AICardDecision, syncPlaystyleFromDB, recordPlayerBattle } from "../ai"
 
 // Helper function to preload card images in background
 const preloadCardImages = (cards: Card[]) => {
@@ -63,7 +63,9 @@ export function useBattleData() {
   useEffect(() => { formationRef.current = formation }, [formation])
 
   const [battleState, setBattleState] = useState<"idle" | "loading" | "battle" | "result">("idle")
-  
+  const battleStateRef = useRef(battleState)
+  useEffect(() => { battleStateRef.current = battleState }, [battleState])
+
   // CCG Match State
   const [ccgState, setCcgState] = useState<CCGBattleState | null>(null)
   const [placedThisRound, setPlacedPlacedThisRound] = useState<{ cardId: string; zoneId: string; isSecret: boolean }[]>([])
@@ -95,6 +97,7 @@ export function useBattleData() {
 
   // AI Engine instance
   const aiEngineRef = useRef<ReturnType<typeof createAI> | null>(null)
+  const [aiThinking, setAiThinking] = useState(false)
 
   const loadBattleData = useCallback(async () => {
     if (!user) return
@@ -140,7 +143,9 @@ export function useBattleData() {
     } catch (err: any) {
       if (err.name === 'AbortError') {
         console.error('[BattlePage] loadBattleData was aborted (timeout)')
-        setError("Не удалось загрузить данные боя. Проверьте соединение и обновите страницу.")
+        if (battleStateRef.current === 'idle') {
+          setError("Не удалось загрузить данные боя. Проверьте соединение и обновите страницу.")
+        }
       } else {
         console.error('[BattlePage] Error loading battle data:', err)
       }
@@ -292,6 +297,10 @@ export function useBattleData() {
     if (user && !sessionLoading) {
       loadBattleData()
       loadUserCards()
+      // Synchronize playstyle from DB to localStorage for AI adaptive learning
+      syncPlaystyleFromDB(user.id)
+        .then(() => console.log('[Battle] Synchronized playstyle from DB for AI learning'))
+        .catch(err => console.error('[Battle] Error syncing playstyle for AI learning:', err))
     }
   }, [user, sessionLoading, loadBattleData, loadUserCards])
 
@@ -762,7 +771,7 @@ export function useBattleData() {
       console.log('[Battle] No dungeon selected')
       return setError("Выберите подземелье!")
     }
-    if (progress && progress.current_stamina < selectedDungeon.energy_cost) {
+    if (process.env.NODE_ENV !== 'development' && progress && progress.current_stamina < selectedDungeon.energy_cost) {
       console.log('[Battle] Insufficient stamina')
       return setError("Недостаточно энергии!")
     }
@@ -871,15 +880,16 @@ export function useBattleData() {
         serverAIConfig.counterPickStrength
       )
 
-      // Initialize AI Engine with strategic strategy and adaptive learning
+      // Initialize AI Engine
       console.log('[Battle] Initializing AI engine')
       aiEngineRef.current = createAI({
-        strategy: "adaptive",
-        enableLogging: false, // Disable logging in production
+        strategy: "chess_like",
+        enableLogging: false,
         logLevel: "none",
         aggressiveness: 0.6,
         defensiveness: 0.4,
         bluffChance: 0.3,
+        userId: user?.id || undefined,
         ...serverAIConfig,
       })
       console.log('[Battle] AI engine initialized')
@@ -989,7 +999,7 @@ export function useBattleData() {
     // In PvP mode, we don't need AI responses
     if (isPvPMode) return
 
-    // AI responds using new AI Engine
+    // AI responds using AI Engine
     const aiCardIndex = aiPlacedThisRound.length
     if (aiCardIndex < 2 && ccgState.aiHand.length > 0 && aiEngineRef.current) {
       // Filter out already placed cards from AI hand
@@ -1016,7 +1026,7 @@ export function useBattleData() {
             return {
               card: card!,
               isSecret: p.isSecret,
-              powerAfterModifier: basePower, // Evaluation logic uses basePower internally if it needs to
+              powerAfterModifier: basePower,
             }
           })
           return {
@@ -1027,13 +1037,34 @@ export function useBattleData() {
         return zone
       })
 
-      const decision = aiEngineRef.current.decideCard(context)
-      if (decision) {
-        setAiPlacedThisRound(prev => [...prev, { 
-          cardId: decision.card.uniqueId, 
-          zoneId: decision.zoneId, 
-          isSecret: decision.isSecret 
-        }])
+      // Check if engine supports async decisions (LLM mode)
+      const engine = aiEngineRef.current as any
+      if (typeof engine.decideCardAsync === "function") {
+        // Async LLM path
+        setAiThinking(true)
+        engine.decideCardAsync(context).then((decision: AICardDecision | null) => {
+          setAiThinking(false)
+          if (decision) {
+            setAiPlacedThisRound(prev => [...prev, { 
+              cardId: decision.card.uniqueId, 
+              zoneId: decision.zoneId, 
+              isSecret: decision.isSecret 
+            }])
+          }
+        }).catch((err: any) => {
+          setAiThinking(false)
+          console.error('[Battle] LLM AI decision error:', err)
+        })
+      } else {
+        // Sync path (production)
+        const decision = aiEngineRef.current.decideCard(context)
+        if (decision) {
+          setAiPlacedThisRound(prev => [...prev, { 
+            cardId: decision.card.uniqueId, 
+            zoneId: decision.zoneId, 
+            isSecret: decision.isSecret 
+          }])
+        }
       }
     }
   }
@@ -1334,37 +1365,6 @@ export function useBattleData() {
         })
       }
 
-      // Stamina Drain: strongest card gives 100 power to weakest card on the same zone
-      if (zone.modifier.id === "stamina_drain" && (playerCards.length + aiCards.length) > 1) {
-        const allZoneCards = [...playerCards, ...aiCards]
-        allZoneCards.sort((a, b) => a.powerAfterModifier - b.powerAfterModifier)
-        const weakest = allZoneCards[0]
-        const strongest = allZoneCards[allZoneCards.length - 1]
-        if (weakest && strongest && weakest !== strongest) {
-          strongest.powerAfterModifier -= 100
-          weakest.powerAfterModifier += 100
-          triggerCardEffect(strongest.card.uniqueId, 'debuff')
-          triggerCardEffect(weakest.card.uniqueId, 'buff')
-        }
-      }
-
-      // Kamikaze Rift: strongest card on the zone is destroyed (removed)
-      if (zone.modifier.id === "kamikaze_rift" && (playerCards.length + aiCards.length) > 0) {
-        const allZoneCards = [...playerCards, ...aiCards]
-        allZoneCards.sort((a, b) => b.powerAfterModifier - a.powerAfterModifier)
-        const strongest = allZoneCards[0]
-        if (strongest) {
-          triggerCardDestruction(strongest.card.uniqueId)
-          if (playerCards.includes(strongest)) {
-            const idx = playerCards.indexOf(strongest)
-            if (idx >= 0) playerCards.splice(idx, 1)
-          } else {
-            const idx = aiCards.indexOf(strongest)
-            if (idx >= 0) aiCards.splice(idx, 1)
-          }
-        }
-      }
-
       // Royal battle rule: "battle_royale" -> Only the single strongest card survives on this zone
       let playerSurvived = [...playerCards]
       let aiSurvived = [...aiCards]
@@ -1390,12 +1390,7 @@ export function useBattleData() {
       const playerScore = playerSurvived.reduce((acc, c) => acc + c.powerAfterModifier, 0)
       const aiScore = aiSurvived.reduce((acc, c) => acc + c.powerAfterModifier, 0)
 
-      let owner: "player" | "ai" | "none"
-      if (zone.modifier.id === "reversal_gate") {
-        owner = playerScore < aiScore ? "player" : aiScore < playerScore ? "ai" : "none"
-      } else {
-        owner = playerScore > aiScore ? "player" : aiScore > playerScore ? "ai" : "none"
-      }
+      const owner: "player" | "ai" | "none" = playerScore > aiScore ? "player" : aiScore > playerScore ? "ai" : "none"
 
       console.log(`[Battle Round ${ccgState.round}] Zone ${zone.id} final result:`, {
         playerSurvived: playerSurvived.length,
@@ -1467,11 +1462,7 @@ export function useBattleData() {
             // Recalculate scores from modified card powers
             adj.playerScore = adj.playerCards.reduce((acc, c) => acc + c.powerAfterModifier, 0)
             adj.aiScore = adj.aiCards.reduce((acc, c) => acc + c.powerAfterModifier, 0)
-            if (adj.modifier.id !== "reversal_gate") {
-              adj.owner = adj.playerScore > adj.aiScore ? "player" : adj.aiScore > adj.playerScore ? "ai" : "none"
-            } else {
-              adj.owner = adj.playerScore < adj.aiScore ? "player" : adj.aiScore < adj.playerScore ? "ai" : "none"
-            }
+            adj.owner = adj.playerScore > adj.aiScore ? "player" : adj.aiScore > adj.playerScore ? "ai" : "none"
             console.log(`[Battle Round ${ccgState.round}] Overdrive after damaging zone ${adj.id}:`, {
               afterPlayerScore: adj.playerScore,
               afterAiScore: adj.aiScore,
@@ -1492,11 +1483,7 @@ export function useBattleData() {
             // Recalculate scores from modified card powers
             adj.playerScore = adj.playerCards.reduce((acc, c) => acc + c.powerAfterModifier, 0)
             adj.aiScore = adj.aiCards.reduce((acc, c) => acc + c.powerAfterModifier, 0)
-            if (adj.modifier.id !== "reversal_gate") {
-              adj.owner = adj.playerScore > adj.aiScore ? "player" : adj.aiScore > adj.playerScore ? "ai" : "none"
-            } else {
-              adj.owner = adj.playerScore < adj.aiScore ? "player" : adj.aiScore < adj.playerScore ? "ai" : "none"
-            }
+            adj.owner = adj.playerScore > adj.aiScore ? "player" : adj.aiScore > adj.playerScore ? "ai" : "none"
             console.log(`[Battle Round ${ccgState.round}] Overdrive after damaging zone ${adj.id}:`, {
               afterPlayerScore: adj.playerScore,
               afterAiScore: adj.aiScore,
@@ -1510,12 +1497,7 @@ export function useBattleData() {
     // Final zone ownership calculation after all modifiers (including cross-zone)
     console.log(`[Battle Round ${ccgState.round}] Final zone ownership calculation...`)
     nextZones.forEach(zone => {
-      if (zone.modifier.id === "reversal_gate") {
-        // In Paradox Gate, the side with LOWER score wins
-        zone.owner = zone.playerScore < zone.aiScore ? "player" : zone.aiScore < zone.playerScore ? "ai" : "none"
-      } else {
-        zone.owner = zone.playerScore > zone.aiScore ? "player" : zone.aiScore > zone.playerScore ? "ai" : "none"
-      }
+      zone.owner = zone.playerScore > zone.aiScore ? "player" : zone.aiScore > zone.playerScore ? "ai" : "none"
       console.log(`[Battle Round ${ccgState.round}] Zone ${zone.id} final ownership:`, {
         playerScore: zone.playerScore,
         aiScore: zone.aiScore,
@@ -1672,6 +1654,34 @@ export function useBattleData() {
           mvpCard
         }
       })
+
+      // Record battle results for AI adaptive learning
+      if (user?.id) {
+        const deployedPlayerCards: Card[] = []
+        const seenDeployed = new Set<string>()
+        nextZones.forEach(z => {
+          z.playerCards.forEach(zc => {
+            if (!seenDeployed.has(zc.card.uniqueId)) {
+              seenDeployed.add(zc.card.uniqueId)
+              deployedPlayerCards.push(zc.card)
+            }
+          })
+        })
+
+        // Count hidden vs total deployed cards for bluff_tendency calculation
+        let hiddenCount = 0
+        let totalDeployed = 0
+        nextZones.forEach(z => {
+          z.playerCards.forEach(zc => {
+            totalDeployed++
+            if (zc.wasSecret) hiddenCount++
+          })
+        })
+
+        recordPlayerBattle(user.id, deployedPlayerCards, victory, selectedCards, hiddenCount, totalDeployed)
+          .then(() => console.log(`[Battle] Recorded playstyle: ${hiddenCount}/${totalDeployed} hidden cards, bluff_tendency updated`))
+          .catch(err => console.error('[Battle] Error recording playstyle data for AI:', err))
+      }
 
       setBattleState("result")
 
@@ -1868,5 +1878,6 @@ export function useBattleData() {
     resolvePvPMatchEnd,
     isInitializing,
     loadBattleData,
+    aiThinking,
   }
 }

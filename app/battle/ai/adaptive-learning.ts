@@ -125,7 +125,9 @@ class AIAdaptiveLearning {
     playerCards: Card[],
     playerWon: boolean,
     playerDeck: Card[],
-    userId?: string
+    userId?: string,
+    hiddenCardCount: number = 0,
+    totalDeployedCount: number = 0
   ) {
     if (!this.config.enableAdaptiveLearning) return
 
@@ -150,12 +152,30 @@ class AIAdaptiveLearning {
     playstyle.totalBattles++
     playstyle.lastBattleDate = now
 
+    // Exponential decay factor — old data loses ~8% weight per battle
+    // After 10 battles, old data retains ~46% of its weight
+    const DECAY = 0.92
+
+    // Apply decay to all existing role/rarity counts before adding new data
+    const roleKeys = Object.keys(playstyle.preferredRoles)
+    roleKeys.forEach(r => {
+      if (playstyle.preferredRoles[r] > 0) {
+        playstyle.preferredRoles[r] = playstyle.preferredRoles[r] * DECAY
+      }
+    })
+    const rarityKeys = Object.keys(playstyle.preferredRarities)
+    rarityKeys.forEach(r => {
+      if (playstyle.preferredRarities[r] > 0) {
+        playstyle.preferredRarities[r] = playstyle.preferredRarities[r] * DECAY
+      }
+    })
+
     // Обновляем статистику для каждой карты в колоде
     playerDeck.forEach(card => {
       const existing = playstyle.favoriteCards.find(fc => fc.cardId === card.uniqueId)
       
       if (existing) {
-        existing.usageCount++
+        existing.usageCount = existing.usageCount * DECAY + 1
         existing.lastUsed = now
         existing.totalBattles++
         if (playerWon) existing.wins++
@@ -175,11 +195,11 @@ class AIAdaptiveLearning {
         })
       }
 
-      // Обновляем предпочтения по ролям
+      // Обновляем предпочтения по ролям (with decay already applied above)
       const role = card.role || 'unknown'
       playstyle.preferredRoles[role] = (playstyle.preferredRoles[role] || 0) + 1
 
-      // Обновляем предпочтения по редкости
+      // Обновляем предпочтения по редкости (with decay already applied above)
       playstyle.preferredRarities[card.rarity] = (playstyle.preferredRarities[card.rarity] || 0) + 1
     })
 
@@ -207,6 +227,15 @@ class AIAdaptiveLearning {
         trickster: guardRatio,      // player likes guard → AI needs trickster
         vanguard: tricksterRatio    // player likes trickster → AI needs vanguard
       }
+    }
+
+    // Update bluff_tendency based on actual hidden card usage
+    // bluffRatio = hidden cards / total deployed cards (0 = never bluffs, 1 = always hidden)
+    if (totalDeployedCount > 0) {
+      const battleBluffRatio = hiddenCardCount / totalDeployedCount
+      // Exponential moving average: blend old tendency with new battle data
+      playstyle.bluffTendency = playstyle.bluffTendency * DECAY + battleBluffRatio * (1 - DECAY + 0.08)
+      playstyle.bluffTendency = Math.max(0.05, Math.min(0.95, playstyle.bluffTendency))
     }
 
     // Сортируем любимые карты по частоте использования
@@ -293,6 +322,43 @@ class AIAdaptiveLearning {
     this.playerPlaystyle = null
     localStorage.removeItem(this.storageKey)
   }
+
+  // Загрузка данных о стиле игры из Supabase
+  async loadPlayerPlaystyleFromDB(userId: string): Promise<PlayerPlaystyle | null> {
+    try {
+      const { data, error } = await supabase
+        .from('ai_learning_stats')
+        .select('*')
+        .eq('user_id', userId)
+        .maybeSingle()
+
+      if (error) {
+        console.error('[AI Adaptive Learning] Error loading playstyle from DB:', error)
+        return null
+      }
+
+      if (data) {
+        const playstyle: PlayerPlaystyle = {
+          favoriteCards: data.favorite_cards || [],
+          preferredRoles: data.preferred_roles || { vanguard: 0, guard: 0, trickster: 0 },
+          preferredRarities: data.preferred_rarities || {},
+          avgProvisionCost: Number(data.avg_provision_cost) || 0,
+          rolePreference: data.role_preference || { vanguard: 0.33, guard: 0.33, trickster: 0.34 },
+          counterRolePriority: data.counter_role_priority || { vanguard: 0.33, guard: 0.33, trickster: 0.34 },
+          bluffTendency: Number(data.bluff_tendency) || 0.5,
+          totalBattles: data.total_battles || 0,
+          lastBattleDate: data.last_battle_date ? new Date(data.last_battle_date).getTime() : Date.now()
+        }
+        
+        this.playerPlaystyle = playstyle
+        this.savePlayerPlaystyle() // Синхронизируем с localStorage
+        return playstyle
+      }
+    } catch (err) {
+      console.error('[AI Adaptive Learning] Exception loading playstyle from DB:', err)
+    }
+    return null
+  }
 }
 
 // ============================================================================
@@ -312,13 +378,20 @@ export async function recordPlayerBattle(
   userId: string,
   playerCards: Card[],
   playerWon: boolean,
-  playerDeck: Card[]
+  playerDeck: Card[],
+  hiddenCardCount?: number,
+  totalDeployedCount?: number
 ) {
   const adaptive = getAdaptiveLearning(userId)
-  await adaptive.recordBattle(playerCards, playerWon, playerDeck, userId)
+  await adaptive.recordBattle(playerCards, playerWon, playerDeck, userId, hiddenCardCount ?? 0, totalDeployedCount ?? 0)
 }
 
 export function getAdaptedAIConfig(userId: string): Partial<{ aggressiveness: number; defensiveness: number; bluffChance: number; counterRolePriority: { vanguard: number; guard: number; trickster: number } }> {
   const adaptive = getAdaptiveLearning(userId)
   return adaptive.getAdaptedAIConfig()
+}
+
+export async function syncPlaystyleFromDB(userId: string): Promise<PlayerPlaystyle | null> {
+  const adaptive = getAdaptiveLearning(userId)
+  return await adaptive.loadPlayerPlaystyleFromDB(userId)
 }

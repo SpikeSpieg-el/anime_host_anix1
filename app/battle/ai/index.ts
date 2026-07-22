@@ -1,7 +1,16 @@
-import { Card, BattleZone, CardRole } from "../types"
+import { Card, BattleZone, CardRole, ZoneCard } from "../types"
 import { getCardRole, getCardBasePower, calculateCardPowerOnZone } from "../utils"
 import { MAX_CARDS_PER_SIDE } from "../config"
 import { getAdaptedAIConfig } from "./adaptive-learning"
+import {
+  evaluateBoard,
+  evaluateMove,
+  simulatePlacement,
+  buildOpponentProfile,
+  getStrategicHints,
+  OpponentProfile,
+  StrategicHint,
+} from "./board-evaluation"
 
 // ============================================================================
 // КОНФИГУРАЦИЯ AI
@@ -10,7 +19,7 @@ import { getAdaptedAIConfig } from "./adaptive-learning"
 export interface AIConfig {
   enableLogging?: boolean
   logLevel?: "none" | "basic" | "detailed" | "verbose"
-  strategy?: "random" | "power" | "strategic" | "adaptive"
+  strategy?: "random" | "power" | "strategic" | "adaptive" | "chess_like"
   aggressiveness?: number // 0-1, выше = более агрессивный
   defensiveness?: number // 0-1, выше = более защитный
   bluffChance?: number // 0-1, шанс сыграть слабую карту секретно
@@ -80,15 +89,7 @@ function evaluateZoneCardCombo(
   }
 
   // 1. УЧЕТ МОДИФИКАТОРОВ ЗОН
-  
-  // --- Reversal Gate (Врата парадокса: наименьшая сила побеждает) ---
-  if (modId === "reversal_gate") {
-    const invertedPower = Math.max(0, 350 - basePower)
-    score = invertedPower
-    reasons.push(`Врата парадокса (цель — минимум силы, оценка: +${invertedPower})`)
-  } else {
-    reasons.push(`Базовая сила (+${basePower})`)
-  }
+  reasons.push(`Базовая сила (+${basePower})`)
 
   // --- Классовые ринги и баффы ---
   if (modId === "vanguard_ring" && role === "vanguard") {
@@ -385,7 +386,222 @@ class StrategicStrategy extends AIStrategy {
   }
 }
 
-class AdaptiveStrategy extends AIStrategy {
+// ============================================================================
+// ШАХМАТНО-ПОДОБНАЯ СТРАТЕГИЯ (CHESS-LIKE)
+// ============================================================================
+// Аналог шахматного бота: 1-ply lookahead с board-level эвристикой.
+// Оценивает всю позицию до и после хода, учитывает темп, контроль зон,
+// информационное преимущество и модель оппонента.
+// ============================================================================
+
+export class ChessLikeStrategy extends AIStrategy {
+  private opponentProfile: OpponentProfile | undefined
+  private moveHistory: Array<{ round: number; cardName: string; zoneId: string; isSecret: boolean }> = []
+  private roundHistory: Array<{
+    round: number
+    playerActions: { zoneId: string; cardName: string; isSecret: boolean }[]
+  }> = []
+
+  decideCard(context: AIDecisionContext): AICardDecision | null {
+    this.log("Использование шахматно-подобной стратегии", "basic")
+
+    if (context.hand.length === 0) return null
+
+    const availableZones = context.zones.filter(z => z.aiCards.length < MAX_CARDS_PER_SIDE)
+    if (availableZones.length === 0) return null
+
+    const isSecret = context.cardsPlacedThisRound === 1
+    const maxRounds = 3
+
+    // 1. Обновляем модель оппонента на основе видимых карт и истории
+    const playerVisibleCards: ZoneCard[] = []
+    context.zones.forEach(z => z.playerCards.forEach(zc => playerVisibleCards.push(zc)))
+
+    if (context.opponentPlacements.length > 0) {
+      this.roundHistory = [
+        ...this.roundHistory,
+        {
+          round: context.round,
+          playerActions: context.opponentPlacements.map(p => ({
+            zoneId: p.zoneId,
+            cardName: "?",
+            isSecret: p.isSecret,
+          })),
+        },
+      ]
+    }
+
+    this.opponentProfile = buildOpponentProfile(
+      context.zones,
+      this.roundHistory,
+      playerVisibleCards
+    )
+
+    this.log(
+      `Модель оппонента: блеф=${(this.opponentProfile.bluffFrequency * 100).toFixed(0)}%, ` +
+      `ср.сила=${this.opponentProfile.avgCardPower.toFixed(0)}, ` +
+      `наблюдений=${this.opponentProfile.totalObservations}`,
+      "detailed"
+    )
+
+    // 2. Получаем стратегические подсказки
+    const hints = getStrategicHints(
+      context.zones,
+      context.round,
+      maxRounds,
+      context.hand,
+      this.opponentProfile
+    )
+
+    if (hints.length > 0) {
+      this.log(`Стратегические подсказки: ${hints.slice(0, 3).map(h => h.description).join("; ")}`, "detailed")
+    }
+
+    // 3. Оцениваем каждый возможный ход через 1-ply simulation
+    const candidates: Array<{
+      card: Card
+      zoneId: string
+      isSecret: boolean
+      score: number
+      reasoning: string
+      hintBonus: number
+    }> = []
+
+    for (const card of context.hand) {
+      for (const zone of availableZones) {
+        const moveEval = evaluateMove(card, zone.id, isSecret, {
+          zones: context.zones,
+          hand: context.hand,
+          deck: context.deck,
+          round: context.round,
+          maxRounds,
+          opponentProfile: this.opponentProfile,
+          config: this.config,
+        })
+
+        if (moveEval.score <= -9999) continue
+
+        // 4. Применяем стратегические подсказки как бонус
+        let hintBonus = 0
+        hints.forEach(hint => {
+          if (hint.zoneId === zone.id || hint.zoneId === "any") {
+            switch (hint.type) {
+              case "contest_zone":
+                hintBonus += hint.priority
+                break
+              case "all_in":
+                hintBonus += hint.priority * 1.2
+                break
+              case "secure_zone":
+                hintBonus += hint.priority * 0.5
+                break
+              case "bluff_zone":
+                if (isSecret) hintBonus += hint.priority
+                break
+              case "save_card":
+                // Штраф за использование сильной карты
+                if (getCardBasePower(card) > 150) hintBonus -= hint.priority
+                break
+            }
+          }
+        })
+
+        // 5. Дополнительные эвристики
+
+        // RPS контр-пик против видимых карт
+        const cardRole = getCardRole(card)
+        let rpsBonus = 0
+        const visibleInZone = zone.playerCards.filter(zc => !zc.isSecret)
+        visibleInZone.forEach(zc => {
+          const playerRole = getCardRole(zc.card)
+          if (
+            (cardRole === "guard" && playerRole === "vanguard") ||
+            (cardRole === "trickster" && playerRole === "guard") ||
+            (cardRole === "vanguard" && playerRole === "trickster")
+          ) {
+            rpsBonus += 40
+          }
+        })
+
+        // Адаптивный контр-пик из конфига
+        const counterPriority = this.config.counterRolePriority
+        if (counterPriority) {
+          const priority = counterPriority[cardRole] ?? 0
+          if (priority > 0.4) {
+            rpsBonus += Math.round((priority - 0.33) * 50)
+          }
+        }
+
+        const finalScore = moveEval.score + hintBonus + rpsBonus
+        const allReasons = [...moveEval.reasoning]
+        if (rpsBonus > 0) allReasons.push(`КНБ контр-пик +${rpsBonus}`)
+        if (hintBonus > 0) allReasons.push(`Стратегический бонус +${hintBonus.toFixed(0)}`)
+
+        candidates.push({
+          card,
+          zoneId: zone.id,
+          isSecret,
+          score: finalScore,
+          reasoning: allReasons.join(", "),
+          hintBonus,
+        })
+      }
+    }
+
+    // 6. Сортируем и выбираем лучший ход
+    candidates.sort((a, b) => b.score - a.score)
+
+    if (candidates.length === 0) {
+      this.log("Нет валидных ходов, fallback на стратегическую стратегию", "basic")
+      return new StrategicStrategy(this.config).decideCard(context)
+    }
+
+    // Логируем топ-3 кандидатов
+    this.log(
+      `Топ-3 ходов: ${candidates.slice(0, 3).map(c =>
+        `${c.card.name}→${c.zoneId}(${c.score.toFixed(0)})`
+      ).join(" | ")}`,
+      "detailed"
+    )
+
+    const best = selectScoredCandidate(candidates, this.config)
+    if (!best) {
+      return new StrategicStrategy(this.config).decideCard(context)
+    }
+
+    const targetZoneName = context.zones.find(z => z.id === best.zoneId)?.nameRu || "Локация"
+    this.log(
+      `Шахматный выбор: ${best.card.name} → "${targetZoneName}" ` +
+      `(оценка: ${best.score.toFixed(0)}, секретно: ${best.isSecret})`,
+      "detailed"
+    )
+
+    // Сохраняем ход в историю
+    this.moveHistory.push({
+      round: context.round,
+      cardName: best.card.name,
+      zoneId: best.zoneId,
+      isSecret: best.isSecret,
+    })
+
+    return {
+      card: best.card,
+      zoneId: best.zoneId,
+      isSecret: best.isSecret,
+      reasoning: `Шахматный анализ: ${best.reasoning}`,
+      confidence: Math.min(0.95, Math.max(0.3, best.score / 800)),
+    }
+  }
+
+  // Сброс истории между битвами
+  resetHistory() {
+    this.moveHistory = []
+    this.roundHistory = []
+    this.opponentProfile = undefined
+  }
+}
+
+export class AdaptiveStrategy extends AIStrategy {
   decideCard(context: AIDecisionContext): AICardDecision | null {
     this.log("Использование адаптивной стратегии", "basic")
     
@@ -553,8 +769,10 @@ export class AIEngine {
         return new StrategicStrategy(this.config)
       case "adaptive":
         return new AdaptiveStrategy(this.config)
+      case "chess_like":
+        return new ChessLikeStrategy(this.config)
       default:
-        return new AdaptiveStrategy(this.config)
+        return new ChessLikeStrategy(this.config)
     }
   }
   
@@ -667,3 +885,16 @@ export function createAIDecisionContext(
     config
   }
 }
+
+export { recordPlayerBattle, syncPlaystyleFromDB, getAdaptedAIConfig } from "./adaptive-learning"
+export {
+  evaluateBoard,
+  evaluateMove,
+  simulatePlacement,
+  buildOpponentProfile,
+  getStrategicHints,
+  type BoardEvaluation,
+  type ZoneScore,
+  type OpponentProfile,
+  type StrategicHint,
+} from "./board-evaluation"

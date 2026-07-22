@@ -297,6 +297,7 @@ export default function BattlePage() {
   const [showBattleTutorial, setShowBattleTutorial] = useState(false)
   const [showAutoBuildConfirm, setShowAutoBuildConfirm] = useState(false)
   const [retryCount, setRetryCount] = useState(0)
+  const [battleBackgroundUrl, setBattleBackgroundUrl] = useState<string | undefined>(undefined)
   const prevRoundResultsRef = useRef<any>(null)
   const {
     sessionLoading: battleSessionLoading,
@@ -363,6 +364,7 @@ export default function BattlePage() {
     resolvePvPMatchEnd,
     isInitializing,
     loadBattleData,
+    aiThinking,
   } = useBattleData()
 
   const isPlayer1Ref = useRef<boolean>(false)
@@ -432,6 +434,25 @@ export default function BattlePage() {
     }
   }, [battleState, isPvPMode, resetPvP])
 
+  // Fetch battle backgrounds and pick random one when battle starts
+  useEffect(() => {
+    if (battleState !== 'battle') return
+    let cancelled = false
+    fetch('/api/battle-backgrounds')
+      .then(res => res.json())
+      .then(data => {
+        if (cancelled || !data.backgrounds?.length) return
+        const mode = isPvPMode ? 'pvp' : 'pve'
+        const pool = data.backgrounds.filter((bg: any) => bg.mode === mode || bg.mode === 'both')
+        if (pool.length > 0) {
+          const random = pool[Math.floor(Math.random() * pool.length)]
+          setBattleBackgroundUrl(random.image_url)
+        }
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [battleState, isPvPMode])
+
   // Handle PvP match ended - manual transition via button only
   // Removed automatic transition to require user to press "Финиш" button
 
@@ -483,7 +504,7 @@ export default function BattlePage() {
   const activeSynergies = computeDeckSynergies(selectedCards).active
 
   return (
-    <div className={`min-h-screen bg-[#05050A] relative text-slate-100 font-sans selection:bg-indigo-500/30 ${battleState !== "idle" ? "overflow-hidden" : "overflow-x-hidden"}`}>
+    <div className={`bg-[#05050A] relative text-slate-100 font-sans selection:bg-indigo-500/30 ${battleState !== "idle" ? "h-screen overflow-hidden overscroll-none touch-none" : "min-h-screen overflow-x-hidden"}`}>
       
       {/* Soft space/glass background glow */}
       <div className="fixed inset-0 z-0 pointer-events-none">
@@ -642,9 +663,15 @@ export default function BattlePage() {
             onCardDestroy={triggerCardDestruction}
             onModifierActivate={triggerModifierActivation}
             onFloatingText={addFloatingText}
+            cardEffects={cardEffects}
+            destroyingCards={destroyingCards}
+            modifierActivations={modifierActivations}
+            floatingTexts={floatingTexts}
             isPvPMode={isPvPMode}
             pvpMatchId={pvpState.matchData?.matchId}
             placeCards={placeCards}
+            aiThinking={aiThinking}
+            backgroundUrl={battleBackgroundUrl}
           />
         )}
 

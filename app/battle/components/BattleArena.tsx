@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react"
-import { Swords, ArrowRight, BookOpen, Clock, Zap, X, TrendingUp, Crown } from "lucide-react"
+import { Swords, ArrowRight, BookOpen, Clock, Zap, X, TrendingUp, Crown, Bot, Users, Trophy, Flame } from "lucide-react"
 import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, DragMoveEvent, useDraggable, useDroppable, pointerWithin, PointerSensor, useSensor, useSensors } from "@dnd-kit/core"
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable"
 import { BattleZone, CCGBattleState, CardRole, Card, DeckContext } from "../types"
@@ -199,9 +199,15 @@ interface BattleArenaProps {
   onCardDestroy?: (cardId: string) => void
   onModifierActivate?: (zoneId: string) => void
   onFloatingText?: (text: string, x: number, y: number, isPositive: boolean) => void
+  cardEffects?: Map<string, { type: 'buff' | 'debuff' | 'synergy' | 'knb-win' | 'knb-loss' }>
+  destroyingCards?: Set<string>
+  modifierActivations?: Set<string>
+  floatingTexts?: Array<{ id: string; text: string; x: number; y: number; color: string; isPositive: boolean }>
   isPvPMode?: boolean
   pvpMatchId?: string
   placeCards?: (matchId: string, placements: any[]) => void
+  aiThinking?: boolean
+  backgroundUrl?: string
 }
 
 export const BattleArena: React.FC<BattleArenaProps> = ({
@@ -224,9 +230,15 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
   onCardDestroy,
   onModifierActivate,
   onFloatingText,
+  cardEffects: propCardEffects,
+  destroyingCards: propDestroyingCards,
+  modifierActivations: propModifierActivations,
+  floatingTexts: propFloatingTexts,
   isPvPMode,
   pvpMatchId,
   placeCards,
+  aiThinking,
+  backgroundUrl,
 }) => {
   const [showRules, setShowRules] = useState(false)
   const [activeTerrain, setActiveTerrain] = useState<{ nameRu: string; description: string } | null>(null)
@@ -243,12 +255,27 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
   const [zoneAnimations, setZoneAnimations] = useState<Set<string>>(new Set())
   const [phaseTransition, setPhaseTransition] = useState(false)
   const [recallingCards, setRecallingCards] = useState<Set<string>>(new Set())
-  const [destroyingCards, setDestroyingCards] = useState<Set<string>>(new Set())
-  const [floatingTexts, setFloatingTexts] = useState<Array<{ id: string; text: string; x: number; y: number; color: string; isPositive: boolean }>>([])
-  const [modifierActivations, setModifierActivations] = useState<Set<string>>(new Set())
-  const [cardEffects, setCardEffects] = useState<Map<string, { type: 'buff' | 'debuff' | 'synergy' | 'knb-win' | 'knb-loss' }>>(new Map())
+  const [phaseBanner, setPhaseBanner] = useState<{ text: string; subtext?: string; color: 'amber' | 'indigo' | 'emerald' | 'rose' } | null>(null)
+  const [showSurrenderConfirm, setShowSurrenderConfirm] = useState(false)
   const animationTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const revealTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const phaseBannerTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const revealProcessedRef = useRef<string>('')
+  const scoreProcessedRef = useRef<string>('')
   const floatingTextIdRef = useRef(0)
+
+  const showPhaseBanner = (text: string, subtext: string, color: 'amber' | 'indigo' | 'emerald' | 'rose', duration = 1500) => {
+    if (phaseBannerTimeoutRef.current) clearTimeout(phaseBannerTimeoutRef.current)
+    setPhaseBanner({ text, subtext, color })
+    phaseBannerTimeoutRef.current = setTimeout(() => setPhaseBanner(null), duration)
+  }
+
+  // Use props from parent (use-battle-data.ts) for animation states
+  const cardEffects = propCardEffects || new Map<string, { type: 'buff' | 'debuff' | 'synergy' | 'knb-win' | 'knb-loss' }>()
+  const destroyingCards = propDestroyingCards || new Set<string>()
+  const modifierActivations = propModifierActivations || new Set<string>()
+  const floatingTexts = propFloatingTexts || []
+  const prevRoundRef = useRef(ccgState?.round || 1)
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 1024)
@@ -288,59 +315,111 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
 
   useEffect(() => {
     if (isReveal) {
+      const revealKey = `flip-${ccgState.round}`
+      if (revealProcessedRef.current === revealKey) return
+      revealProcessedRef.current = revealKey
       setPhaseTransition(true)
       setRevealingCards(new Set())
+      showPhaseBanner('Вскрытие карт', 'Секретные карты открываются...', 'indigo', 1800)
       
-      const secretCards = ccgState.zones.flatMap(zone => 
+      // Stagger reveal: zone 1 → zone 2 → zone 3
+      const allSecretCards = ccgState.zones.flatMap((zone, zoneIdx) => 
         [...zone.playerCards, ...zone.aiCards]
           .filter(zc => zc.wasSecret)
-          .map(zc => zc.card.uniqueId)
+          .map(zc => ({ id: zc.card.uniqueId, zoneIdx }))
       )
       
-      setRevealingCards(new Set(secretCards))
+      // Reveal zone by zone with 350ms delay between zones
+      const STAGGER_MS = 350
+      allSecretCards.forEach(({ id, zoneIdx }) => {
+        setTimeout(() => {
+          setRevealingCards(prev => new Set([...prev, id]))
+        }, zoneIdx * STAGGER_MS)
+      })
       
-      if (animationTimeoutRef.current) clearTimeout(animationTimeoutRef.current)
-      animationTimeoutRef.current = setTimeout(() => {
+      const maxDelay = ccgState.zones.length * STAGGER_MS
+      if (revealTimeoutRef.current) clearTimeout(revealTimeoutRef.current)
+      revealTimeoutRef.current = setTimeout(() => {
         setRevealingCards(new Set())
         setPhaseTransition(false)
-      }, 800)
+      }, maxDelay + 700)
     }
   }, [ccgState.phase, ccgState.round])
 
   useEffect(() => {
     if (isReveal) {
-      const ownedZones = ccgState.zones.filter(z => z.owner !== "none").map(z => z.id)
-      setZoneAnimations(new Set(ownedZones))
+      const scoreKey = `score-${ccgState.round}`
+      if (scoreProcessedRef.current === scoreKey) return
+      scoreProcessedRef.current = scoreKey
+      // Wait for card flip animations to finish before showing zone results
+      const FLIP_TOTAL = ccgState.zones.length * 350 + 700 // matches reveal timing
       
       if (animationTimeoutRef.current) clearTimeout(animationTimeoutRef.current)
       animationTimeoutRef.current = setTimeout(() => {
-        setZoneAnimations(new Set())
+        // Stagger zone winner declarations
+        const ownedZones = ccgState.zones.filter(z => z.owner !== "none")
+        showPhaseBanner('Подсчёт сил', 'Определяем победителя линий...', 'amber', 1200)
+        ownedZones.forEach((zone, idx) => {
+          setTimeout(() => {
+            setZoneAnimations(prev => new Set([...prev, zone.id]))
+          }, idx * 200)
+        })
         
-        // In PvP mode, round transitions and score calculation are driven by the server.
-        // Client must NOT recalculate powers here — it would overwrite correct server values.
-        if (isPvPMode) return
+        // Clear zone animations after all have shown
+        setTimeout(() => {
+          setZoneAnimations(new Set())
+          
+          // In PvP mode, round transitions and score calculation are driven by the server.
+          // Client must NOT recalculate powers here — it would overwrite correct server values.
+          if (isPvPMode) return
 
-        // Автоматический подсчёт после завершения анимации открытия
-        if (ccgState.round < 3) {
-          // Раунды 1-2: автоматический переход к следующему
-          setTimeout(() => {
-            nextRound()
-          }, 300)
-        } else {
-          // Раунд 3: только подсчёт очков, без перехода
-          setTimeout(() => {
-            updateScores()
-          }, 300)
-        }
-      }, 1200)
+          // Автоматический подсчёт после завершения анимации открытия
+          if (ccgState.round < 3) {
+            // Раунды 1-2: автоматический переход к следующему
+            setTimeout(() => {
+              nextRound()
+            }, 400)
+          } else {
+            // Раунд 3: только подсчёт очков, без перехода
+            setTimeout(() => {
+              updateScores()
+            }, 400)
+          }
+        }, ownedZones.length * 200 + 600)
+      }, FLIP_TOTAL)
     }
   }, [ccgState.zones, isReveal, ccgState.round, nextRound, updateScores])
 
   useEffect(() => {
     return () => {
       if (animationTimeoutRef.current) clearTimeout(animationTimeoutRef.current)
+      if (revealTimeoutRef.current) clearTimeout(revealTimeoutRef.current)
+      if (phaseBannerTimeoutRef.current) clearTimeout(phaseBannerTimeoutRef.current)
     }
   }, [])
+
+  useEffect(() => {
+    if (!ccgState) return
+    const prevRound = prevRoundRef.current
+    if (ccgState.round !== prevRound && ccgState.phase === 'placement') {
+      prevRoundRef.current = ccgState.round
+      revealProcessedRef.current = ''
+      scoreProcessedRef.current = ''
+      const bannerText = ccgState.round === 1
+        ? 'Раунд 1 — Расстановка'
+        : ccgState.round === 2
+        ? 'Раунд 2 — Расстановка'
+        : 'Финальный раунд!'
+      const subtext = ccgState.round === 3
+        ? 'Последний шанс победить!'
+        : isPvPMode
+        ? 'Соперник тоже готовится...'
+        : 'ИИ выбирает карты...'
+      const color = ccgState.round === 3 ? 'amber' : 'indigo'
+      showPhaseBanner(bannerText, subtext, color, 1800)
+    }
+    prevRoundRef.current = ccgState.round
+  }, [ccgState?.round, ccgState?.phase])
 
   const handleDragStart = (event: DragStartEvent) => {
     if (!isPlacement || isRoundConfirmed) return
@@ -508,60 +587,112 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
       onDragEnd={handleDragEnd}
     >
       <div className="w-full max-w-md mx-auto lg:max-w-4xl h-[100dvh] bg-[#05050a] text-white flex flex-col justify-between overflow-hidden relative select-none overscroll-none touch-none">
+      {backgroundUrl && (
+        <div className="absolute inset-0 z-0 pointer-events-none">
+          <img src={backgroundUrl} alt="" className="w-full h-full object-cover" style={{ opacity: 0.35 }} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }} />
+          <div className="absolute inset-0 bg-gradient-to-b from-[#05050a]/60 via-[#05050a]/70 to-[#05050a]/85" />
+        </div>
+      )}
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_30%,rgba(99,102,241,0.08),transparent_70%)] pointer-events-none" />
 
-      {/* ШАПКА */}
-      <header className="px-2 sm:px-4 py-2 sm:py-3 bg-slate-950/60 border-b border-white/5 backdrop-blur-md flex items-center justify-between z-30 shrink-0">
-        <div className="flex items-center gap-1.5 sm:gap-3">
-          <div className="px-1.5 sm:px-3 py-1 sm:py-1.5 rounded-lg sm:rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center gap-0.5 sm:gap-1">
-            <span className="text-[8px] sm:text-[9px] font-black uppercase text-indigo-400 tracking-wider">Раунд</span>
-            <span className="text-[10px] sm:text-xs font-black text-white">{ccgState.round}</span>
-            <span className="text-[9px] sm:text-[10px] text-slate-500">/3</span>
-          </div>
-          
-          {(isReveal || ccgState.round > 1) && (
-            <div className={`px-1.5 sm:px-3 py-1 sm:py-1.5 rounded-lg sm:rounded-2xl border flex items-center gap-1 sm:gap-2 transition-all duration-300 ${
-              isPlayerLeading 
-                ? 'bg-emerald-500/10 border-emerald-500/30' 
-                : isAiLeading 
-                ? 'bg-rose-500/10 border-rose-500/30' 
-                : 'bg-slate-500/10 border-slate-500/30'
-            }`}>
-              {isPlayerLeading && <Crown className="w-2 h-2 sm:w-3 sm:h-3 text-emerald-400 animate-pulse" />}
-              <span className="text-[8px] sm:text-[9px] font-black uppercase text-slate-400 tracking-wider">Счёт</span>
-              <span className={`text-[10px] sm:text-xs font-black ${isPlayerLeading ? 'text-emerald-400' : isAiLeading ? 'text-rose-400' : 'text-slate-300'}`}>
-                {matchScore.playerZones}:{matchScore.aiZones}
-              </span>
-              {isAiLeading && <Crown className="w-2 h-2 sm:w-3 sm:h-3 text-rose-400 animate-pulse" />}
-            </div>
-          )}
-          
-          <div className="text-[8px] sm:text-[9px] font-black uppercase tracking-widest flex items-center gap-1 sm:gap-1.5">
-            <span className="relative flex h-1.5 w-1.5 sm:h-2 sm:w-2">
-              <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${isPlacement ? 'bg-amber-400' : 'bg-indigo-400'}`}></span>
-              <span className={`relative inline-flex rounded-full h-1.5 w-1.5 sm:h-2 sm:w-2 ${isPlacement ? 'bg-amber-500' : 'bg-indigo-500'}`}></span>
-            </span>
-            <span className={`${isPlacement ? 'text-amber-400' : 'text-indigo-400'}`}>
-              {isPlacement ? 'План' : 'Вскр'}
-            </span>
-          </div>
+      {/* LLM AI THINKING INDICATOR (dev mode) */}
+      {aiThinking && (
+        <div className="absolute top-14 left-1/2 -translate-x-1/2 z-40 px-4 py-2 rounded-full bg-violet-500/20 backdrop-blur-md border border-violet-500/30 shadow-lg shadow-violet-500/10 flex items-center gap-2 animate-in fade-in slide-in-from-top-4 duration-300">
+          <div className="w-4 h-4 border-2 border-violet-400 border-t-transparent rounded-full animate-spin" />
+          <span className="text-xs font-bold text-violet-200 uppercase tracking-wider">LLM думает...</span>
         </div>
+      )}
 
-        <div className="flex items-center gap-1 sm:gap-1.5">
-          <button
-            onClick={() => setShowRules(!showRules)}
-            className="p-1.5 sm:p-2 bg-white/5 active:scale-90 border border-white/5 rounded-lg sm:rounded-xl transition-all"
-          >
-            <BookOpen className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-300" />
-          </button>
-          <button
-            onClick={() => setBattleState("idle")}
-            className="px-1.5 sm:px-3 py-1 sm:py-1.5 bg-rose-500/10 active:scale-90 text-rose-400 border border-rose-500/20 rounded-lg sm:rounded-xl transition-all text-[9px] sm:text-[10px] font-black uppercase"
-          >
-            Сдаться
-          </button>
+      {/* ШАПКА */}
+      <header className="px-2 sm:px-4 py-1.5 sm:py-2.5 bg-slate-950/60 border-b border-white/5 backdrop-blur-md z-30 shrink-0">
+        <div className="flex items-center justify-between gap-1 sm:gap-2.5">
+          <div className="flex items-center gap-1 sm:gap-2.5 min-w-0">
+            {/* Режим игры */}
+            <div className={`px-1.5 sm:px-2.5 py-1 sm:py-1.5 rounded-lg border flex items-center gap-1 shrink-0 ${
+              isPvPMode
+                ? 'bg-violet-500/10 border-violet-500/30'
+                : 'bg-cyan-500/10 border-cyan-500/30'
+            }`}>
+              {isPvPMode ? <Users className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 text-violet-400" /> : <Bot className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 text-cyan-400" />}
+              <span className={`text-[7px] sm:text-[9px] font-black uppercase tracking-wider ${isPvPMode ? 'text-violet-400' : 'text-cyan-400'}`}>
+                {isPvPMode ? 'PvP' : 'PvE'}
+              </span>
+            </div>
+
+            {/* Раунд */}
+            <div className="px-1.5 sm:px-3 py-1 sm:py-1.5 rounded-lg sm:rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center gap-0.5 sm:gap-1 shrink-0">
+              <span className="text-[8px] sm:text-[9px] font-black uppercase text-indigo-400 tracking-wider">Раунд</span>
+              <span className="text-[10px] sm:text-xs font-black text-white">{ccgState.round}</span>
+              <span className="text-[9px] sm:text-[10px] text-slate-500">/3</span>
+            </div>
+
+            {/* Счёт по зонам */}
+            {(isReveal || ccgState.round > 1) && (
+              <div className={`px-1.5 sm:px-3 py-1 sm:py-1.5 rounded-lg sm:rounded-2xl border flex items-center gap-1 sm:gap-2 transition-all duration-300 shrink-0 ${
+                isPlayerLeading
+                  ? 'bg-emerald-500/10 border-emerald-500/30'
+                  : isAiLeading
+                  ? 'bg-rose-500/10 border-rose-500/30'
+                  : 'bg-slate-500/10 border-slate-500/30'
+              }`}>
+                {isPlayerLeading && <Crown className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 text-emerald-400 animate-pulse" />}
+                <div className="flex items-center gap-1 sm:gap-1.5">
+                  <span className="text-[8px] sm:text-[9px] font-black uppercase text-emerald-400 tracking-wider">Вы</span>
+                  <span className={`text-[10px] sm:text-xs font-black ${isPlayerLeading ? 'text-emerald-400' : isAiLeading ? 'text-rose-400' : 'text-slate-300'}`}>
+                    {matchScore.playerZones}
+                  </span>
+                  <span className="text-slate-600 text-[9px] sm:text-[10px]">:</span>
+                  <span className={`text-[10px] sm:text-xs font-black ${isAiLeading ? 'text-rose-400' : isPlayerLeading ? 'text-emerald-400' : 'text-slate-300'}`}>
+                    {matchScore.aiZones}
+                  </span>
+                  <span className="text-[8px] sm:text-[9px] font-black uppercase text-rose-400 tracking-wider">{isPvPMode ? 'Враг' : 'ИИ'}</span>
+                </div>
+                {isAiLeading && <Crown className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 text-rose-400 animate-pulse" />}
+              </div>
+            )}
+          </div>
+
+          <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
+            {/* Фаза — скрыта на мобилке, т.к. есть placement hint */}
+            <div className="hidden sm:flex text-[9px] font-black uppercase tracking-widest items-center gap-1.5">
+              <span className="relative flex h-2 w-2">
+                <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${isPlacement ? 'bg-amber-400' : 'bg-indigo-400'}`}></span>
+                <span className={`relative inline-flex rounded-full h-2 w-2 ${isPlacement ? 'bg-amber-500' : 'bg-indigo-500'}`}></span>
+              </span>
+              <span className={`${isPlacement ? 'text-amber-400' : 'text-indigo-400'}`}>
+                {isPlacement ? 'Расстановка' : 'Вскрытие'}
+              </span>
+            </div>
+            <button
+              onClick={() => setShowRules(!showRules)}
+              className="p-1.5 sm:p-2 bg-white/5 active:scale-90 border border-white/5 rounded-lg sm:rounded-xl transition-all"
+            >
+              <BookOpen className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-300" />
+            </button>
+            <button
+              onClick={() => setShowSurrenderConfirm(true)}
+              className="px-1.5 sm:px-3 py-1 sm:py-1.5 bg-rose-500/10 active:scale-90 text-rose-400 border border-rose-500/20 rounded-lg sm:rounded-xl transition-all text-[9px] sm:text-[10px] font-black uppercase"
+            >
+              {isPvPMode ? 'Выйти' : 'Сдаться'}
+            </button>
+          </div>
         </div>
       </header>
+
+      {/* ПОДСКАЗКА ПО РАСКЛАДКЕ */}
+      {isPlacement && !isRoundConfirmed && (
+        <div className="px-3 py-1.5 bg-amber-500/5 border-b border-amber-500/10 flex items-center justify-center gap-2 z-20 shrink-0">
+          <div className="flex items-center gap-1.5">
+            <div className={`w-1.5 h-1.5 rounded-full ${placedThisRound.length >= 2 ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'}`} />
+            <span className="text-[9px] sm:text-[10px] font-bold text-amber-300/80 uppercase tracking-wide">
+              {placedThisRound.length < 2
+                ? `Поставьте ещё ${2 - placedThisRound.length} ${placedThisRound.length === 0 ? 'карты' : 'карту'} на линии`
+                : 'Готово к вскрытию! Нажмите кнопку'
+              }
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* КРАТКИЙ СПРАВОЧНИК КНБ */}
       {showRules && (
@@ -592,6 +723,28 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
         </div>
       )}
 
+      {/* СТАТУС МАТЧА ВО ВРЕМЯ ВСКРЫТИЯ */}
+      {isReveal && (matchScore.playerZones > 0 || matchScore.aiZones > 0) && (
+        <div className={`px-3 py-1 flex items-center justify-center gap-2 z-20 shrink-0 border-b ${
+          isPlayerLeading
+            ? 'bg-emerald-500/5 border-emerald-500/10'
+            : isAiLeading
+            ? 'bg-rose-500/5 border-rose-500/10'
+            : 'bg-slate-500/5 border-slate-500/10'
+        }`}>
+          <span className={`text-[9px] sm:text-[10px] font-black uppercase tracking-wide ${
+            isPlayerLeading ? 'text-emerald-400' : isAiLeading ? 'text-rose-400' : 'text-slate-400'
+          }`}>
+            {isPlayerLeading
+              ? `Вы ведёте ${matchScore.playerZones}:${matchScore.aiZones} — нужно выиграть 2 линии!`
+              : isAiLeading
+              ? `${isPvPMode ? 'Соперник' : 'ИИ'} ведёт ${matchScore.aiZones}:${matchScore.playerZones} — отыгрывайтесь!`
+              : `Ничья ${matchScore.playerZones}:${matchScore.aiZones} — всё решится в финале!`
+            }
+          </span>
+        </div>
+      )}
+
       {/* ИГРОВОЕ ПОЛЕ ИЗ 3 ЛОКАЦИЙ */}
       <main className="flex-1 p-1.5 sm:p-2 flex flex-col justify-center gap-1.5 sm:gap-2 z-10">
         <div className="grid grid-cols-3 gap-1 sm:gap-1.5 lg:gap-3 h-full items-stretch max-h-[55vh] sm:max-h-[600px] lg:max-h-[850px]">
@@ -617,9 +770,9 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
 
             const statusGlow = 
               hasWon && isReveal
-                ? `border-emerald-500/50 bg-emerald-950/30 ${isAnimating ? 'animate-pulse' : ''}`
+                ? `border-emerald-500/50 bg-emerald-950/30 ${isAnimating ? 'animate-zoneWinGlow' : ''}`
                 : hasLost && isReveal
-                ? `border-rose-500/50 bg-rose-950/30 ${isAnimating ? 'animate-pulse' : ''}`
+                ? `border-rose-500/50 bg-rose-950/30 ${isAnimating ? 'animate-zoneLoseDim' : ''}`
                 : playerPower > aiPower
                 ? 'border-emerald-500/30 bg-emerald-950/10'
                 : aiPower > playerPower
@@ -641,7 +794,7 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
                   }`}>
                     <span className="flex items-center gap-1 sm:gap-1">
                       {aiPower > playerPower && <TrendingUp className="w-2.5 h-2.5 sm:w-3 sm:h-3" />}
-                      Враг
+                      {isPvPMode ? 'Соперник' : 'ИИ'}
                     </span>
                     <span className="text-[11px] sm:text-xs font-black text-rose-400">
                       {aiPower}
@@ -678,7 +831,6 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
                             synergyBonus={zc.synergyBonus}
                             isInteractive={true}
                             onClick={() => handleCardView(zc.card, false, zc.powerAfterModifier, zc.roleMatchupBonus, zc.isSecret && (!isReveal || ccgState.round < 3), zc.synergyBonus, zc.wasSecret, zone.modifier, [...zone.playerCards, ...zone.aiCards])}
-                            forceHidden={zone.modifier.id === "dark_zone"}
                           />
                         </div>
                       )
@@ -694,7 +846,6 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
                             isPlayerCard={false}
                             isPending={true}
                             isInteractive={false}
-                            forceHidden={zone.modifier.id === "dark_zone"}
                           />
                         </div>
                       )
@@ -704,6 +855,20 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
 
                 {/* ПОРТАЛ СИЛЫ */}
                 <div className="my-1.5 sm:my-1.5 flex flex-col items-center">
+                  {isReveal && zone.owner !== "none" && (
+                    <div className={`mb-1 px-2 py-0.5 rounded-full text-[8px] sm:text-[9px] font-black uppercase tracking-wider flex items-center gap-1 animate-in fade-in zoom-in duration-300 ${
+                      hasWon
+                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                        : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                    }`}>
+                      {hasWon ? <><Trophy className="w-2.5 h-2.5" /> Победа</> : <><X className="w-2.5 h-2.5" /> Поражение</>}
+                    </div>
+                  )}
+                  {isReveal && zone.owner === "none" && (
+                    <div className="mb-1 px-2 py-0.5 rounded-full text-[8px] sm:text-[9px] font-black uppercase tracking-wider bg-slate-500/20 text-slate-300 border border-slate-500/30 animate-in fade-in duration-300">
+                      Ничья
+                    </div>
+                  )}
                   <button
                     onClick={(e) => {
                       e.stopPropagation()
@@ -753,7 +918,6 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
                             synergyBonus={zc.synergyBonus}
                             isInteractive={true}
                             onClick={() => handleCardView(zc.card, true, zc.powerAfterModifier, zc.roleMatchupBonus, zc.isSecret && (!isReveal || ccgState.round < 3), zc.synergyBonus, zc.wasSecret, zone.modifier, [...zone.playerCards, ...zone.aiCards])}
-                            forceHidden={zone.modifier.id === "dark_zone"}
                           />
                         </div>
                       )
@@ -793,7 +957,7 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
                     })}
                   </div>
                   <div className={`flex justify-between items-center px-1.5 sm:px-1.5 text-[9px] sm:text-[9px] font-bold uppercase transition-all duration-300 ${
-                    playerPower > aiPower ? 'text-emerald-400 scale-105' : 'text-emerald-400/70'
+                    playerPower > aiPower ? 'text-emerald-400 scale-105' : playerPower < aiPower ? 'text-emerald-400/50' : 'text-emerald-400/70'
                   }`}>
                     <span className="flex items-center gap-1 sm:gap-1">
                       {playerPower > aiPower && <TrendingUp className="w-2.5 h-2.5 sm:w-3 sm:h-3" />}
@@ -810,44 +974,80 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
         </div>
       </main>
 
+      {/* ЛЁГКИЙ БАННЕР ФАЗЫ — посередине без затемнения */}
+      {phaseBanner && (
+        <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 z-40 flex items-center justify-center pointer-events-none">
+          <div className="flex flex-col items-center gap-1 animate-in fade-in zoom-in-95 duration-300">
+            <div className={`px-4 py-2 rounded-2xl backdrop-blur-md border flex flex-col items-center gap-0.5 ${
+              phaseBanner.color === 'amber' ? 'bg-amber-500/10 border-amber-500/20'
+              : phaseBanner.color === 'indigo' ? 'bg-indigo-500/10 border-indigo-500/20'
+              : phaseBanner.color === 'emerald' ? 'bg-emerald-500/10 border-emerald-500/20'
+              : 'bg-rose-500/10 border-rose-500/20'
+            }`}>
+              <div className="flex items-center gap-1.5">
+                {phaseBanner.color === 'amber' && <Flame className="w-3.5 h-3.5 text-amber-400 animate-pulse" />}
+                {phaseBanner.color === 'indigo' && <Zap className="w-3.5 h-3.5 text-indigo-400 animate-pulse" />}
+                {phaseBanner.color === 'emerald' && <Trophy className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />}
+                {phaseBanner.color === 'rose' && <X className="w-3.5 h-3.5 text-rose-400 animate-pulse" />}
+                <span className={`text-sm sm:text-base font-black uppercase tracking-wider ${
+                  phaseBanner.color === 'amber' ? 'text-amber-300'
+                  : phaseBanner.color === 'indigo' ? 'text-indigo-300'
+                  : phaseBanner.color === 'emerald' ? 'text-emerald-300'
+                  : 'text-rose-300'
+                }`}>
+                  {phaseBanner.text}
+                </span>
+              </div>
+              {phaseBanner.subtext && (
+                <span className="text-[9px] sm:text-[10px] text-slate-400 font-bold uppercase tracking-widest">
+                  {phaseBanner.subtext}
+                </span>
+              )}
+            </div>
+          </div>
+          {/* Auto fade-out animation */}
+          <div className="absolute inset-0 animate-in fade-out duration-500 delay-1000" />
+        </div>
+      )}
+
       {/* ФИКСИРОВАННАЯ КНОПКА ЗАВЕРШЕНИЯ */}
       <div className="fixed right-4 bottom-28 sm:right-4 sm:bottom-30 z-50 lg:absolute lg:right-6 lg:bottom-40">
         {isFinalizing ? (
           <button
             onClick={() => finishBattle(isPvPMode || false)}
-            className="w-14 h-14 sm:w-14 sm:h-14 rounded-full bg-amber-500 text-white font-black text-sm sm:text-sm transition-all active:scale-100 flex flex-col items-center justify-center animate-pulse"
+            className="w-16 h-16 sm:w-16 sm:h-16 rounded-full bg-amber-500 text-white font-black text-sm sm:text-sm transition-all active:scale-100 flex flex-col items-center justify-center animate-pulse shadow-lg shadow-amber-500/30"
           >
             <Crown className="w-5 h-5 sm:w-5 sm:h-5" />
-            <span className="text-[9px] sm:text-[9px] leading-none">Финиш</span>
+            <span className="text-[8px] sm:text-[8px] leading-none">Итоги</span>
           </button>
         ) : isPlacement ? (
           isRoundConfirmed && isPvPMode ? (
             <button
               disabled={true}
-              className="w-14 h-14 sm:w-14 sm:h-14 rounded-full bg-slate-800 text-slate-400 font-black text-sm sm:text-sm flex flex-col items-center justify-center animate-pulse"
+              className="w-16 h-16 sm:w-16 sm:h-16 rounded-full bg-slate-800 text-slate-400 font-black text-sm sm:text-sm flex flex-col items-center justify-center animate-pulse"
             >
               <div className="w-5 h-5 border-2 border-slate-400 border-t-transparent rounded-full animate-spin mb-0.5" />
-              <span className="text-[8px] sm:text-[8px] leading-none">Ожидание</span>
+              <span className="text-[7px] sm:text-[7px] leading-none">Ждём врага</span>
             </button>
           ) : (
             <button
               onClick={() => confirmRoundPlacement(isPvPMode, pvpMatchId, placeCards)}
-              disabled={placedThisRound.length < 2 || (!isPvPMode && aiPlacedThisRound.length < 2)}
-              className="w-14 h-14 sm:w-14 sm:h-14 rounded-full bg-emerald-500 disabled:bg-slate-700 text-white disabled:text-slate-500 font-black text-sm sm:text-sm transition-all active:scale-100 flex flex-col items-center justify-center"
+              disabled={placedThisRound.length < 2 || (!isPvPMode && (aiPlacedThisRound.length < 2 || aiThinking))}
+              className="w-16 h-16 sm:w-16 sm:h-16 rounded-full bg-emerald-500 disabled:bg-slate-700 text-white disabled:text-slate-500 font-black text-sm sm:text-sm transition-all active:scale-100 flex flex-col items-center justify-center shadow-lg shadow-emerald-500/20 disabled:shadow-none"
             >
               <Swords className="w-5 h-5 sm:w-5 sm:h-5" />
-              <span className="text-[9px] sm:text-[9px] leading-none">
-                {isPvPMode ? "Готово" : `${placedThisRound.length}/${aiPlacedThisRound.length}`}
+              <span className="text-[8px] sm:text-[8px] leading-none">
+                {placedThisRound.length < 2 ? `${placedThisRound.length}/2` : isPvPMode ? 'Готово' : 'Вскрыть!'}
               </span>
             </button>
           )
         ) : isReveal && ccgState.round === 3 ? (
           <button
             onClick={nextRound}
-            className="w-14 h-14 sm:w-14 sm:h-14 rounded-full bg-indigo-500 text-white font-black text-sm sm:text-sm transition-all active:scale-100 flex flex-col items-center justify-center"
+            className="w-16 h-16 sm:w-16 sm:h-16 rounded-full bg-indigo-500 text-white font-black text-sm sm:text-sm transition-all active:scale-100 flex flex-col items-center justify-center shadow-lg shadow-indigo-500/20"
           >
-            <ArrowRight className="w-5 h-5 sm:w-5 sm:h-5" />
-            <span className="text-[9px] sm:text-[9px] leading-none">Финиш</span>
+            <Crown className="w-5 h-5 sm:w-5 sm:h-5" />
+            <span className="text-[8px] sm:text-[8px] leading-none">Итоги</span>
           </button>
         ) : null}
       </div>
@@ -859,6 +1059,11 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
             <span className="text-[9px] sm:text-[8px] text-slate-400 font-extrabold uppercase tracking-wider">
               Карт в руке ({ccgState.hand.length})
             </span>
+            {isPlacement && !isRoundConfirmed && (
+              <span className="text-[8px] sm:text-[9px] font-bold uppercase tracking-wider text-amber-400/60">
+                Перетащите карты на линии
+              </span>
+            )}
           </div>
           
           <SortableContext items={ccgState.hand.map(c => c.uniqueId)} strategy={verticalListSortingStrategy}>
@@ -934,6 +1139,50 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
           {ft.text}
         </div>
       ))}
+
+      {/* ПОДТВЕРЖДЕНИЕ СДАЧИ */}
+      {showSurrenderConfirm && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200"
+          onClick={() => setShowSurrenderConfirm(false)}
+        >
+          <div
+            className="bg-[#0b0b14]/95 border border-rose-500/20 rounded-2xl sm:rounded-3xl p-4 sm:p-6 max-w-xs w-full shadow-2xl relative animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex flex-col items-center text-center gap-3">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-rose-500/10 border border-rose-500/20 flex items-center justify-center">
+                <X className="w-5 h-5 sm:w-6 sm:h-6 text-rose-400" />
+              </div>
+              <h3 className="text-base sm:text-lg font-black text-white uppercase tracking-wide">
+                {isPvPMode ? 'Покинуть бой?' : 'Сдаться?'}
+              </h3>
+              <p className="text-xs sm:text-sm text-slate-400">
+                {isPvPMode
+                  ? 'Вы покинете матч. Это будет засчитано как поражение.'
+                  : 'Бой будет завершён. Это будет засчитано как поражение.'}
+              </p>
+              <div className="flex gap-2 w-full mt-1">
+                <button
+                  onClick={() => setShowSurrenderConfirm(false)}
+                  className="flex-1 py-2 sm:py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-white border border-white/10 font-bold text-xs sm:text-sm transition-all active:scale-95"
+                >
+                  Отмена
+                </button>
+                <button
+                  onClick={() => {
+                    setShowSurrenderConfirm(false)
+                    setBattleState("idle")
+                  }}
+                  className="flex-1 py-2 sm:py-2.5 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/30 font-bold text-xs sm:text-sm transition-all active:scale-95"
+                >
+                  {isPvPMode ? 'Выйти' : 'Сдаться'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ПОДРОБНОЕ МОДАЛЬНОЕ ОКНО ЛОКАЦИИ */}
       {activeTerrain && (
@@ -1012,7 +1261,7 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
                     {viewedCard.isPlayer ? (
                       <span className="text-emerald-400">Ваша карта</span>
                     ) : (
-                      <span className="text-rose-400">Карта врага</span>
+                      <span className="text-rose-400">{isPvPMode ? 'Карта соперника' : 'Карта ИИ'}</span>
                     )}
                   </div>
                   <BattleCard

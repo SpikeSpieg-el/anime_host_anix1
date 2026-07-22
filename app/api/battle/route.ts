@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const mode = searchParams.get('mode') || 'all'
 
-    if (mode === 'progress' || mode === 'all') {
+    if (mode === 'progress') {
       // Get or create user progress
       let { data: progress, error } = await supabaseAdmin
         .from('user_battle_progress')
@@ -106,7 +106,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    if (mode === 'dungeons' || mode === 'all') {
+    if (mode === 'dungeons') {
       const { data: dungeons } = await supabaseAdmin
         .from('battle_dungeons')
         .select('*')
@@ -129,7 +129,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    if (mode === 'logs' || mode === 'all') {
+    if (mode === 'logs') {
       const limit = parseInt(searchParams.get('limit') || '20')
       const { data: logs } = await supabaseAdmin
         .from('battle_logs')
@@ -884,16 +884,17 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // Check stamina
-      if (progress.current_stamina < dungeon.energy_cost) {
+      // Check stamina (skip in dev mode for AI training)
+      const isDevMode = process.env.NODE_ENV === 'development'
+      if (!isDevMode && progress.current_stamina < dungeon.energy_cost) {
         return NextResponse.json({
           success: false,
           message: `Недостаточно выносливости! Нужно: ${dungeon.energy_cost}, есть: ${progress.current_stamina}`
         }, { status: 400 })
       }
 
-      // Check daily battle limit
-      if (dungeonId.startsWith('daily-')) {
+      // Check daily battle limit (skip in dev mode for AI training)
+      if (!isDevMode && dungeonId.startsWith('daily-')) {
         const today = new Date().toISOString().split('T')[0]
         
         if (progress.last_daily_reset !== today) {
@@ -910,7 +911,7 @@ export async function POST(request: NextRequest) {
         }
 
         // Allow 2 daily battles per day (regular + market)
-        if (progress.daily_battles_today >= 2) {
+        if (!isDevMode && progress.daily_battles_today >= 2) {
           return NextResponse.json({
             success: false,
             message: "Все ежедневные бои уже пройдены! Следующие будут доступны завтра."
@@ -918,14 +919,23 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // Deduct stamina
-      await supabaseAdmin
-        .from('user_battle_progress')
-        .update({
-          current_stamina: progress.current_stamina - dungeon.energy_cost,
-          total_battles: progress.total_battles + 1,
-        })
-        .eq('user_id', user.id)
+      // Deduct stamina (skip in dev mode)
+      if (!isDevMode) {
+        await supabaseAdmin
+          .from('user_battle_progress')
+          .update({
+            current_stamina: progress.current_stamina - dungeon.energy_cost,
+            total_battles: progress.total_battles + 1,
+          })
+          .eq('user_id', user.id)
+      } else {
+        await supabaseAdmin
+          .from('user_battle_progress')
+          .update({
+            total_battles: progress.total_battles + 1,
+          })
+          .eq('user_id', user.id)
+      }
 
       // Generate battle session token for anti-replay protection
       let battleToken: string | null = null
@@ -961,18 +971,22 @@ export async function POST(request: NextRequest) {
         console.error('[Battle API] Failed to load AI learning profile:', playerLearningError || globalLearningError)
       }
 
-      const aiConfig = getAdaptiveAIProfile({
+      // Fallback heuristic config
+      const fallbackConfig = getAdaptiveAIProfile({
         playerLevel: progress.level,
         dungeonDifficulty: dungeon.difficulty,
         player: playerLearning,
         global: globalLearning,
       })
 
+      const aiConfig = fallbackConfig
+
       return NextResponse.json({
         success: true,
-        staminaUsed: dungeon.energy_cost,
+        staminaUsed: isDevMode ? 0 : dungeon.energy_cost,
         battleToken,
         aiConfig,
+        devMode: isDevMode,
       })
     }
 

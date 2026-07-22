@@ -306,6 +306,81 @@ export async function deletePvPLocation(id: string) {
 }
 
 // ============================================================
+// Battle Backgrounds CRUD
+// ============================================================
+
+export async function getBattleBackgrounds() {
+  const isAdmin = await checkAdminAuth()
+  if (!isAdmin) throw new Error("Unauthorized")
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  const supabase = createClient(supabaseUrl!, supabaseServiceKey!)
+
+  const { data, error } = await supabase
+    .from("battle_backgrounds")
+    .select("*")
+    .order("sort_order", { ascending: true })
+
+  if (error) throw error
+  return data
+}
+
+export async function createBattleBackground(bg: { name: string; image_url: string; mode: string; is_active: boolean; sort_order: number }) {
+  const isAdmin = await checkAdminAuth()
+  if (!isAdmin) throw new Error("Unauthorized")
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  const supabase = createClient(supabaseUrl!, supabaseServiceKey!)
+
+  const { data, error } = await supabase
+    .from("battle_backgrounds")
+    .insert([bg])
+    .select()
+    .single()
+
+  if (error) throw error
+  return data
+}
+
+export async function deleteBattleBackground(id: string) {
+  const isAdmin = await checkAdminAuth()
+  if (!isAdmin) throw new Error("Unauthorized")
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  const supabase = createClient(supabaseUrl!, supabaseServiceKey!)
+
+  const { error } = await supabase
+    .from("battle_backgrounds")
+    .delete()
+    .eq("id", id)
+
+  if (error) throw error
+  return { success: true }
+}
+
+export async function toggleBattleBackground(id: string, currentStatus: boolean) {
+  const isAdmin = await checkAdminAuth()
+  if (!isAdmin) throw new Error("Unauthorized")
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  const supabase = createClient(supabaseUrl!, supabaseServiceKey!)
+
+  const { data, error } = await supabase
+    .from("battle_backgrounds")
+    .update({ is_active: !currentStatus })
+    .eq("id", id)
+    .select()
+    .single()
+
+  if (error) throw error
+  return data
+}
+
+// ============================================================
 // Admin helper: create a Supabase admin client
 // ============================================================
 async function getAdminSupabase() {
@@ -972,4 +1047,34 @@ export async function adminSendPushNotificationBulk(userIds: string[], title: st
   }
 
   return { sent: sentCount, total: subs.length }
+}
+
+// ============================================================
+// Learning profiles
+// ============================================================
+
+export async function getPlayerLearningProfiles() {
+  const supabase = await getAdminSupabase()
+  const { data: stats, error } = await supabase
+    .from("ai_learning_stats")
+    .select("*")
+    .order("total_battles", { ascending: false })
+
+  if (error) throw error
+
+  const userIds = (stats || []).map((s: any) => s.user_id).filter(Boolean)
+  let userMap: Record<string, any> = {}
+  if (userIds.length > 0) {
+    const { data: users } = await supabase
+      .from("profiles")
+      .select("id, username, avatar_url")
+      .in("id", userIds)
+    userMap = Object.fromEntries((users || []).map((u: any) => [u.id, u]))
+  }
+
+  return (stats || []).map((s: any) => ({
+    ...s,
+    username: userMap[s.user_id]?.username || null,
+    avatar_url: userMap[s.user_id]?.avatar_url || null,
+  }))
 }

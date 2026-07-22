@@ -71,6 +71,9 @@ export const StatsPanel: React.FC<StatsPanelProps> = ({ progress, userCoins, coi
             style={{ width: `${Math.min(100, (progress.xp / progress.xp_to_next) * 100)}%` }} 
           />
         </div>
+        <span className="text-[8px] text-slate-500 font-mono mt-1">
+          {progress.xp.toLocaleString()} / {progress.xp_to_next.toLocaleString()} XP
+        </span>
       </div>
 
       {/* Энергия */}
@@ -78,14 +81,19 @@ export const StatsPanel: React.FC<StatsPanelProps> = ({ progress, userCoins, coi
         <div className="flex items-center gap-1.5 mb-1 text-slate-400">
           <Zap className="w-3 h-3 text-yellow-400" />
           <span className="text-[9px] font-bold uppercase tracking-wider">Энергия</span>
+          {process.env.NODE_ENV === 'development' && (
+            <span className="ml-auto text-[8px] font-bold text-emerald-400 bg-emerald-400/10 px-1 rounded">DEV</span>
+          )}
         </div>
         <div className="flex items-end gap-1.5">
           <span className="text-xl font-black text-yellow-400">{progress.current_stamina}</span>
           <span className="text-xs font-bold text-slate-500 mb-0.5">/ {progress.max_stamina}</span>
         </div>
-        {progress.current_stamina < progress.max_stamina && (
+        {process.env.NODE_ENV === 'development' ? (
+          <span className="text-[9px] text-emerald-400 font-mono mt-0.5">∞ Безлимит</span>
+        ) : progress.current_stamina < progress.max_stamina ? (
           <span className="text-[9px] text-yellow-500/70 font-mono mt-0.5">{staminaTime}</span>
-        )}
+        ) : null}
       </div>
 
       {/* Монеты */}
