@@ -13,8 +13,14 @@ export async function POST(request: Request) {
     const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
     if (!supabaseUrl || !supabaseServiceKey) {
-      console.error("[forgot-password] Missing Supabase env vars:", { hasUrl: !!supabaseUrl, hasKey: !!supabaseServiceKey })
-      return NextResponse.json({ error: `Server misconfigured: supabaseUrl=${!!supabaseUrl}, serviceKey=${!!supabaseServiceKey}` }, { status: 500 })
+      console.error("[forgot-password] Missing Supabase env vars:", {
+        hasUrl: !!supabaseUrl,
+        hasKey: !!supabaseServiceKey,
+      })
+      return NextResponse.json(
+        { error: `Server misconfigured: supabaseUrl=${!!supabaseUrl}, serviceKey=${!!supabaseServiceKey}` },
+        { status: 500 }
+      )
     }
 
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
@@ -42,16 +48,10 @@ export async function POST(request: Request) {
     }
 
     const resetLink = data.properties.action_link
-
     console.log(`[forgot-password] Reset link generated for ${email}: ${resetLink}`)
 
-    // Try to use external mail service with timeout to prevent hanging
-    const imageServiceUrl = process.env.IMAGE_SERVICE_URL || "http://localhost:3100"
-    const mailToken = process.env.MAIL_API_TOKEN
-
-    if (mailToken) {
-      try {
-        const html = `<!DOCTYPE html>
+    // HTML email template
+    const html = `<!DOCTYPE html>
 <html lang="ru">
 <head>
 <meta charset="utf-8">
@@ -187,11 +187,53 @@ export async function POST(request: Request) {
 </body>
 </html>`
 
-        const text = `Weeb-X — Восстановление пароля\n\nВы запросили сброс пароля для аккаунта ${email}.\nПерейдите по ссылке для установки нового пароля:\n${resetLink}\n\nЕсли вы не запрашивали сброс, проигнорируйте это письмо.\n\n— Weeb-X,weeb-x.com`
+    const text = `Weeb-X — Восстановление пароля\n\nВы запросили сброс пароля для аккаунта ${email}.\nПерейдите по ссылке для установки нового пароля:\n${resetLink}\n\nЕсли вы не запрашивали сброс, проигнорируйте это письмо.\n\n— Weeb-X, weeb-x.com`
 
-        // Add timeout to prevent hanging
+    // =========================================================================
+    // ВАРИАНТ 1: Прямая отправка через Resend REST API (Самый быстрый и надежный)
+    // =========================================================================
+    const resendApiKey = process.env.RESEND_API_KEY
+    if (resendApiKey) {
+      try {
+        const fromEmail = process.env.RESEND_FROM_EMAIL || "Weeb-X <noreply@weeb-x.com>"
+        
+        const resendResponse = await fetch("https://api.resend.com/emails", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${resendApiKey}`,
+          },
+          body: JSON.stringify({
+            from: fromEmail,
+            to: [email],
+            subject: "Восстановление пароля — Weeb-X",
+            html,
+            text,
+          }),
+        })
+
+        if (resendResponse.ok) {
+          console.log(`[forgot-password] Reset email sent directly via Resend to ${email}`)
+          return NextResponse.json({ success: true })
+        } else {
+          const resendErr = await resendResponse.text()
+          console.error("[forgot-password] Resend API error:", resendResponse.status, resendErr)
+        }
+      } catch (resendError: any) {
+        console.error("[forgot-password] Resend fetch failed:", resendError?.message || resendError)
+      }
+    }
+
+    // =========================================================================
+    // ВАРИАНТ 2: Фоллбек на внешний микросервис (если RESEND_API_KEY не задан)
+    // =========================================================================
+    const imageServiceUrl = process.env.IMAGE_SERVICE_URL
+    const mailToken = process.env.MAIL_API_TOKEN
+
+    if (imageServiceUrl && mailToken) {
+      try {
         const controller = new AbortController()
-        const timeoutId = setTimeout(() => controller.abort(), 10000) // 10 second timeout
+        const timeoutId = setTimeout(() => controller.abort(), 10000)
 
         const mailResponse = await fetch(`${imageServiceUrl}/send-email`, {
           method: "POST",
@@ -211,26 +253,22 @@ export async function POST(request: Request) {
         clearTimeout(timeoutId)
 
         if (mailResponse.ok) {
-          console.log(`[forgot-password] Reset email sent to ${email}`)
+          console.log(`[forgot-password] Reset email sent via Microservice to ${email}`)
           return NextResponse.json({ success: true })
         } else {
           const mailErr = await mailResponse.text()
-          console.error("[forgot-password] Mail service error:", mailResponse.status, mailErr)
-          // Don't fail the request - security best practice
-          return NextResponse.json({ success: true })
+          console.error("[forgot-password] Microservice mail error:", mailResponse.status, mailErr)
         }
       } catch (mailError: any) {
-        console.error("[forgot-password] Mail service failed:", mailError?.message || mailError)
-        // Don't fail the request - security best practice
-        return NextResponse.json({ success: true })
+        console.error("[forgot-password] Microservice mail failed:", mailError?.message || mailError)
       }
     }
 
-    // If no mail token configured, still return success for security
-    console.log("[forgot-password] No mail token configured, link generated but not sent")
+    // Если нет настроенных ключей или оба варианта упали — отдаем success (для безопасности)
+    console.warn("[forgot-password] Link generated, but email could not be sent (check env vars RESEND_API_KEY or IMAGE_SERVICE_URL)")
     return NextResponse.json({ success: true })
   } catch (err: any) {
-    console.error("[forgot-password] Error:", err?.message || err)
+    console.error("[forgot-password] Internal error:", err?.message || err)
     return NextResponse.json({ error: `Internal error: ${err?.message || String(err)}` }, { status: 500 })
   }
 }
