@@ -48,7 +48,7 @@ const nextConfig = {
               "style-src 'self' 'unsafe-inline'",
               "img-src 'self' data: blob: https: http:",
               "font-src 'self' data:",
-              "connect-src 'self' https://*.supabase.co https://*.vercel.app https://*.analytics.vercel.com wss://*.vercel.app",
+              "connect-src 'self' https://*.supabase.co https://*.vercel.app https://*.analytics.vercel.com wss://*.vercel.app https://nhost.weebx.duckdns.org:8443 wss://nhost.weebx.duckdns.org:8443",
               "frame-src 'self' https: http:",
               "media-src 'self' https: http: blob:",
               "object-src 'none'",

@@ -17,7 +17,6 @@ const CSRF_EXEMPT_PATHS = [
 // Paths that are API routes (for header checks)
 const API_PATH_PREFIX = "/api/"
 
-// Security headers applied to ALL responses (including GET)
 const SECURITY_HEADERS: Record<string, string> = {
   "X-Content-Type-Options": "nosniff",
   "X-Frame-Options": "DENY",
@@ -30,7 +29,7 @@ const SECURITY_HEADERS: Record<string, string> = {
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob: https: http:",
     "font-src 'self' data:",
-    "connect-src 'self' https://*.supabase.co https://*.vercel.app https://*.analytics.vercel.com wss://*.vercel.app",
+    "connect-src 'self' https://*.supabase.co https://*.vercel.app https://*.analytics.vercel.com wss://*.vercel.app https://nhost.weebx.duckdns.org:8443 wss://nhost.weebx.duckdns.org:8443",
     "frame-src 'self' https: http:",
     "media-src 'self' https: http: blob:",
     "object-src 'none'",
