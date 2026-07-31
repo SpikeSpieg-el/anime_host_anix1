@@ -1,9 +1,10 @@
 import { getForumNewsPaginated, getNewsById } from "@/lib/shikimori";
 import { getJikanNews, getJikanNewsById } from "@/lib/jikan/api";
+import { createClient } from "@supabase/supabase-js";
 import type { NewsItem } from "@/lib/shikimori/types";
 import type { AnimeNewsItem } from "@/lib/jikan/api";
 
-export type NewsSource = 'shikimori' | 'jikan';
+export type NewsSource = 'shikimori' | 'jikan' | 'custom';
 
 export interface AggregatedNewsItem {
   id: string;
@@ -70,24 +71,63 @@ function fromJikan(item: AnimeNewsItem): AggregatedNewsItem {
   };
 }
 
+async function getCustomNews(limit: number): Promise<AggregatedNewsItem[]> {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!supabaseUrl || !supabaseAnonKey) return [];
+
+  const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+  const { data, error } = await supabase
+    .from("custom_news")
+    .select("*")
+    .eq("is_published", true)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    console.error("[getCustomNews] Error:", error);
+    return [];
+  }
+
+  return (data || []).map((item: any) => ({
+    id: `custom-${item.id}`,
+    title: item.title,
+    excerpt: item.excerpt,
+    imageUrl: item.image_url || undefined,
+    date: new Date(item.created_at).toLocaleDateString("ru-RU"),
+    dateTimestamp: new Date(item.created_at).getTime(),
+    author: item.author || "Администрация",
+    comments: 0,
+    url: `/news/custom-${item.id}`,
+    source: 'custom' as NewsSource,
+    htmlBody: item.body || undefined,
+  }));
+}
+
 export async function getAggregatedNews(page = 1, limit = 12): Promise<{ items: AggregatedNewsItem[]; hasNextPage: boolean }> {
-  const jikanCount = 6;
-  const shikimoriLimit = limit - Math.min(jikanCount, limit - 2);
-  const shikimoriPromise = getForumNewsPaginated(page, Math.max(1, shikimoriLimit)).catch(() => [] as NewsItem[]);
+  const customLimit = Math.min(3, limit); // Показываем до 3 кастомных новостей
+  const externalLimit = limit - customLimit;
+  
+  const jikanCount = Math.min(4, externalLimit);
+  const shikimoriLimit = Math.max(1, externalLimit - jikanCount);
+
+  const customPromise = getCustomNews(customLimit);
+  const shikimoriPromise = getForumNewsPaginated(page, shikimoriLimit).catch(() => [] as NewsItem[]);
   const jikanPromise = getJikanNews(jikanCount, page).catch(() => [] as AnimeNewsItem[]);
 
-  const [shikimoriNews, jikanNews] = await Promise.all([shikimoriPromise, jikanPromise]);
+  const [customNews, shikimoriNews, jikanNews] = await Promise.all([customPromise, shikimoriPromise, jikanPromise]);
 
-  console.log(`[getAggregatedNews] Page ${page} — Shikimori: ${shikimoriNews.length} items, Jikan: ${jikanNews.length} items`);
+  console.log(`[getAggregatedNews] Page ${page} — Custom: ${customNews.length}, Shikimori: ${shikimoriNews.length}, Jikan: ${jikanNews.length}`);
 
-  const hasNextShikimori = shikimoriNews.length >= shikimoriLimit;
-  const shikimoriItems = shikimoriNews.slice(0, Math.max(1, shikimoriLimit)).map(fromShikimori);
+  const shikimoriItems = shikimoriNews.slice(0, shikimoriLimit).map(fromShikimori);
   const jikanItems = jikanNews.map(fromJikan);
 
-  const merged = [...shikimoriItems, ...jikanItems];
+  const merged = [...customNews, ...shikimoriItems, ...jikanItems];
   merged.sort((a, b) => b.dateTimestamp - a.dateTimestamp);
 
-  const hasNextPage = hasNextShikimori || jikanItems.length > 0;
+  const hasNextPage = shikimoriNews.length >= shikimoriLimit || jikanItems.length > 0;
   const items = merged.slice(0, limit);
 
   console.log(`[getAggregatedNews] Returning ${items.length} items, hasNextPage: ${hasNextPage}`);
@@ -95,6 +135,39 @@ export async function getAggregatedNews(page = 1, limit = 12): Promise<{ items: 
 }
 
 export async function getAggregatedNewsById(id: string): Promise<AggregatedNewsItem | null> {
+  // Handle custom news
+  if (id.startsWith('custom-')) {
+    const customId = id.replace('custom-', '');
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+    if (supabaseUrl && supabaseAnonKey) {
+      const supabase = createClient(supabaseUrl, supabaseAnonKey);
+      const { data, error } = await supabase
+        .from("custom_news")
+        .select("*")
+        .eq("id", customId)
+        .single();
+
+      if (error || !data) return null;
+
+      return {
+        id: `custom-${data.id}`,
+        title: data.title,
+        excerpt: data.excerpt,
+        imageUrl: data.image_url || undefined,
+        date: new Date(data.created_at).toLocaleDateString("ru-RU"),
+        dateTimestamp: new Date(data.created_at).getTime(),
+        author: data.author || "Администрация",
+        comments: 0,
+        url: `/news/custom-${data.id}`,
+        source: 'custom' as NewsSource,
+        htmlBody: data.body || undefined,
+      };
+    }
+    return null;
+  }
+
   if (id.startsWith('jikan-')) {
     const jikanNews = await getJikanNewsById(id);
     if (!jikanNews) return null;

@@ -90,9 +90,7 @@ function parseAnimeDataAttrs(html: string): AnimeLinkInfo[] {
 function sanitizeShikimoriHtml(html: string, animePosters: Map<number, string>): string {
   let result = html
 
-  // 1. Replace anime links that have data-attrs with rich cards.
-  // Also consume any quote characters («», "", '', etc.) directly wrapping the link,
-  // since the result is rendered as a standalone card, not inline quoted text.
+  // 1. Замена ссылок аниме/персонажей с data-attrs на карточки и бейджи
   result = result.replace(
     /[«»"“”'‘’]?<a([^>]*?)data-attrs="([^"]+)"([^>]*?)>([\s\S]*?)<\/a>[«»"“”'‘’]?/g,
     (fullMatch, _before, attrsRaw, _after, inner) => {
@@ -121,23 +119,17 @@ function sanitizeShikimoriHtml(html: string, animePosters: Map<number, string>):
     }
   )
 
-  // 2. Convert remaining Shikimori anime links (without data-attrs) to internal routes
+  // 2. Превращение остальных ссылок аниме во внутренние маршруты /watch/ID
   result = result.replace(
     /href="https?:\/\/shikimori\.(one|me|org|io)\/animes\/([\w-]+)"/g,
-    (_m, _domain, slug) => {
-      const id = slug.split('-')[0]
-      return `href="/watch/${id}"`
-    }
+    (_m, _domain, slug) => `href="/watch/${slug.split('-')[0]}"`
   )
   result = result.replace(
     /href="\/animes\/([\w-]+)"/g,
-    (_m, slug) => {
-      const id = slug.split('-')[0]
-      return `href="/watch/${id}"`
-    }
+    (_m, slug) => `href="/watch/${slug.split('-')[0]}"`
   )
 
-  // 3. Style studio links as badges
+  // 3. Ссылки на студии как бейджи
   result = result.replace(
     /<a([^>]*?)href="(?:https?:\/\/shikimori\.(?:one|me|org|io))?\/animes\/studio\/([^"]+)"([^>]*?)>([\s\S]*?)<\/a>/g,
     (_full, _before, studio, _after, inner) => {
@@ -146,23 +138,17 @@ function sanitizeShikimoriHtml(html: string, animePosters: Map<number, string>):
     }
   )
 
-  // 4. Convert Shikimori manga links to internal /manga/ID routes
+  // 4. Манга ссылки во внутренний маршрут /manga/ID
   result = result.replace(
     /href="https?:\/\/shikimori\.(one|me|org|io)\/mangas\/([\w-]+)"/g,
-    (_m, _domain, slug) => {
-      const id = slug.split('-')[0]
-      return `href="/manga/${id}"`
-    }
+    (_m, _domain, slug) => `href="/manga/${slug.split('-')[0]}"`
   )
   result = result.replace(
     /href="\/mangas\/([\w-]+)"/g,
-    (_m, slug) => {
-      const id = slug.split('-')[0]
-      return `href="/manga/${id}"`
-    }
+    (_m, slug) => `href="/manga/${slug.split('-')[0]}"`
   )
 
-  // 5. Convert other relative Shikimori links to absolute external
+  // 5. Относительные ссылки Shikimori во внешние абсолютные
   result = result.replace(
     /href="\/((?!animes\/)(?!mangas\/)(?!news\/)[^"]+)"/g,
     'href="https://shikimori.one/$1" target="_blank" rel="noopener noreferrer"'
@@ -172,13 +158,13 @@ function sanitizeShikimoriHtml(html: string, animePosters: Map<number, string>):
     'href="https://shikimori.one$1" target="_blank" rel="noopener noreferrer"'
   )
 
-  // 6. Fix remaining absolute shikimori links
+  // 6. Исправление абсолютных ссылок Shikimori
   result = result.replace(
     /href="https?:\/\/shikimori\.(one|me|org|io)\/((?!animes\/)(?!mangas\/)[^"]+)"/g,
     'href="https://shikimori.one/$2" target="_blank" rel="noopener noreferrer"'
   )
 
-  // 7. Convert relative image src to absolute shikimori URLs
+  // 7. Конвертация относительных src картинок в абсолютные URLs Shikimori
   result = result.replace(/src="\/\//g, 'src="https://')
   result = result.replace(/src="([^"]*img\.youtube\.com[^"]*)"/g, (_m, url) => {
     return `src="${url.replace('img.youtube.com', 'i.ytimg.com')}"`
@@ -186,10 +172,7 @@ function sanitizeShikimoriHtml(html: string, animePosters: Map<number, string>):
   result = result.replace(/src="\/([^"]+)"/g, 'src="https://shikimori.one/$1"')
   result = result.replace(/src="((?!https?:\/\/)[^"]+)"/g, 'src="https://shikimori.one$1"')
 
-  // 8. YouTube/Vimeo links stay as plain links (no embedded player)
-  // Already handled by general link styling above
-
-  // 9. Embed direct video file links as <video> tags
+  // 8. Прямые видео-файлы в <video> теги
   result = result.replace(
     /<a[^>]*href="([^"]*\.(?:mp4|webm|ogg|mov)(?:\?[^"]*)?)"[^>]*>([^<]*)<\/a>/gi,
     (_fullMatch, url) => {
@@ -197,13 +180,13 @@ function sanitizeShikimoriHtml(html: string, animePosters: Map<number, string>):
     }
   )
 
-  // 10. Make all remaining external links open in new tab
+  // 9. Открытие всех оставшихся внешних ссылок в новой вкладке
   result = result.replace(
     /<a(?![^>]*target=)([^>]*href="https?:\/\/[^"]+")/g,
     '<a$1 target="_blank" rel="noopener noreferrer"'
   )
 
-  // 11. Remove BBCode remnants
+  // 10. Удаление остатков BBCode
   result = result.replace(/\[.*?\]/g, "")
 
   return result
@@ -212,7 +195,6 @@ function sanitizeShikimoriHtml(html: string, animePosters: Map<number, string>):
 function sanitizeShikimoriFooter(html: string): string {
   let result = html
 
-  // Fix protocol-relative URLs and replace img.youtube.com with i.ytimg.com (more reliable CDN)
   result = result.replace(/src="\/\//g, 'src="https://')
   result = result.replace(/src="([^"]*img\.youtube\.com[^"]*)"/g, (_m, url) => {
     return `src="${url.replace('img.youtube.com', 'i.ytimg.com')}"`
@@ -220,10 +202,9 @@ function sanitizeShikimoriFooter(html: string): string {
   result = result.replace(/src="\/([^"]+)"/g, 'src="https://shikimori.one/$1"')
   result = result.replace(/href="\/([^"]+)"/g, 'href="https://shikimori.one/$1"')
 
-  // Remove standalone YouTube thumbnail imgs
   result = result.replace(/<img[^>]*src="[^"]*(?:img\.youtube\.com|i\.ytimg\.com)[^"]*"[^>]*>/gi, '')
 
-  // Convert .b-video blocks to plain video links (YouTube label only if actually YouTube)
+  // Преобразование блоков .b-video в ссылки
   const isYoutubeUrl = (url: string) => /(?:youtube\.com|youtu\.be)/i.test(url)
   result = result.replace(
     /<div[^>]*class="[^"]*b-video[^"]*"[^>]*>([\s\S]*?)<\/div>/gi,
@@ -242,15 +223,11 @@ function sanitizeShikimoriFooter(html: string): string {
           ? `<a href="${url}" target="_blank" rel="noopener noreferrer" class="news-youtube-link">▶ Смотреть на YouTube</a>`
           : `<a href="${url}" target="_blank" rel="noopener noreferrer" class="news-video-link">▶ Смотреть видео</a>`
       }
-      const rawYt = inner.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([\w-]{11})/)
-      if (rawYt) {
-        return `<a href="https://www.youtube.com/watch?v=${rawYt[1]}" target="_blank" rel="noopener noreferrer" class="news-youtube-link">▶ Смотреть на YouTube</a>`
-      }
       return ''
     }
   )
 
-  // Convert .b-image links to simple image displays
+  // Преобразование блоков .b-image
   result = result.replace(
     /<a[^>]*class="[^"]*b-image[^"]*"[^>]*>([\s\S]*?)<\/a>/gi,
     (_full, inner) => {
@@ -262,14 +239,9 @@ function sanitizeShikimoriFooter(html: string): string {
     }
   )
 
-  // Remove wrapper divs
   result = result.replace(/<div[^>]*class="[^"]*b-shiki_wall[^"]*"[^>]*>([\s\S]*?)<\/div>/gi, '$1')
   result = result.replace(/<div[^>]*class="[^"]*to-process[^"]*"[^>]*>([\s\S]*?)<\/div>/gi, '$1')
-
-  // Remove .marker spans
   result = result.replace(/<span[^>]*class="[^"]*marker[^"]*"[^>]*>[\s\S]*?<\/span>/gi, '')
-
-  // Clean up empty divs
   result = result.replace(/<div[^>]*>\s*<\/div>/gi, '')
 
   return result.trim()
@@ -312,31 +284,25 @@ export default async function NewsItemPage({ params }: Props) {
   if (!news) notFound()
 
   const isJikan = news.source === 'jikan'
+  const isCustom = news.source === 'custom'
 
-  // Parse anime IDs from data-attrs in htmlBody to fetch posters (Shikimori only)
   const animeLinks = !isJikan && news.htmlBody ? parseAnimeDataAttrs(news.htmlBody) : []
   const animePosters = new Map<number, string>()
 
-  // Also include linked anime if present
   if (news.linkedAnime) {
     const linkedPoster = getLinkedAnimePoster(news.linkedAnime)
-    if (linkedPoster) {
-      animePosters.set(news.linkedAnime.id, linkedPoster)
-    }
+    if (linkedPoster) animePosters.set(news.linkedAnime.id, linkedPoster)
     if (!animeLinks.find(a => a.id === news.linkedAnime!.id)) {
       animeLinks.push({ id: news.linkedAnime.id, name: news.linkedAnime.name, russian: news.linkedAnime.russian })
     }
   }
 
-  // Fetch posters for anime mentioned in the news body
   await Promise.all(
     animeLinks.map(async (link) => {
       if (animePosters.has(link.id)) return
       try {
         const anime = await getAnimeById(String(link.id))
-        if (anime?.poster) {
-          animePosters.set(link.id, anime.poster)
-        }
+        if (anime?.poster) animePosters.set(link.id, anime.poster)
       } catch {}
     })
   )
@@ -347,8 +313,8 @@ export default async function NewsItemPage({ params }: Props) {
 
   const linked = news.linkedAnime
   const linkedPoster = linked ? getLinkedAnimePoster(linked) : undefined
-  const kindLabel = linked ? getKindLabel(linked.kind) : ''
-  const statusLabel = linked ? getStatusLabel(linked.status) : ''
+  const kindLabel = linked ? getKindLabel(linked?.kind) : ''
+  const statusLabel = linked ? getStatusLabel(linked?.status) : ''
 
   const sourceLabel = isJikan ? 'MAL' : 'Shikimori'
   const sourceUrl = news.url
@@ -364,7 +330,7 @@ export default async function NewsItemPage({ params }: Props) {
       />
       <Navbar />
 
-      {/* Hero header */}
+      {/* Hero Header */}
       <div className="relative w-full h-[38vh] min-h-[260px] max-h-[460px] overflow-hidden bg-zinc-950">
         {news.imageUrl ? (
           <img
@@ -389,28 +355,40 @@ export default async function NewsItemPage({ params }: Props) {
                 <Newspaper className="w-3.5 h-3.5" />
                 Новость
               </span>
-              <span className={`news-pill ${isJikan ? 'text-orange-400' : 'text-blue-400'}`}>
-                <Globe className="w-3.5 h-3.5" />
-                {sourceLabel}
-              </span>
+              {!isCustom && (
+                <span className={`news-pill ${isJikan ? 'text-orange-400' : 'text-blue-400'}`}>
+                  <Globe className="w-3.5 h-3.5" />
+                  {sourceLabel}
+                </span>
+              )}
+              {isCustom && (
+                <span className="news-pill text-green-400">
+                  <Globe className="w-3.5 h-3.5" />
+                  Weebx
+                </span>
+              )}
               <span className="news-pill">
                 <Calendar className="w-3.5 h-3.5" />
                 {news.date}
               </span>
-              <span className="news-pill">
-                <User className="w-3.5 h-3.5" />
-                {news.author}
-              </span>
-              <span className="news-pill">
-                <MessageSquare className="w-3.5 h-3.5" />
-                {news.comments}
-              </span>
+              {news.author && (
+                <span className="news-pill">
+                  <User className="w-3.5 h-3.5" />
+                  {news.author}
+                </span>
+              )}
+              {!isCustom && (
+                <span className="news-pill">
+                  <MessageSquare className="w-3.5 h-3.5" />
+                  {news.comments}
+                </span>
+              )}
             </div>
 
             <h1 data-news-title className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-white leading-tight drop-shadow-[0_2px_12px_rgba(0,0,0,0.6)]">
               {news.title}
             </h1>
-            {isJikan && (
+            {!isCustom && isJikan && (
               <div className="mt-3">
                 <TranslateButton title={news.title} excerpt={textBody} htmlBody={bodyHtml || undefined} />
               </div>
@@ -419,91 +397,70 @@ export default async function NewsItemPage({ params }: Props) {
         </div>
       </div>
 
+      {/* Article Container */}
       <div className="container mx-auto px-4 pt-6 sm:pt-8 pb-16 sm:pb-20 relative z-10 max-w-4xl">
         <article className="news-article-card">
-          {bodyHtml ? (
-            <>
-              <div
-                className="shikimori-news-body prose prose-invert max-w-none"
-                dangerouslySetInnerHTML={{ __html: bodyHtml }}
+          {/* Обложка аниме для новостей Jikan (MyAnimeList) */}
+          {isJikan && !bodyHtml && news.animeImage && (
+            <div className="mb-6 flex justify-center">
+              <img
+                src={getProxiedSrc(news.animeImage)}
+                alt={news.animeTitle || news.title}
+                className="max-h-80 rounded-xl object-contain shadow-md"
+                loading="lazy"
               />
-              {footerHtml && (
-                <div
-                  className="shikimori-news-footer mt-6"
-                  dangerouslySetInnerHTML={{ __html: footerHtml }}
-                />
-              )}
+            </div>
+          )}
 
-              {/* Linked anime card */}
-              {linked && (
-                <div className="mt-8">
-                  <LinkedAnimeCard
-                    id={linked.id}
-                    name={linked.name}
-                    russian={linked.russian}
-                    poster={linkedPoster}
-                    kindLabel={kindLabel}
-                    statusLabel={statusLabel}
-                    episodes={linked.episodes}
-                    score={linked.score}
-                  />
-                </div>
-              )}
-
-              <div className="mt-8 pt-6 border-t border-border/50 dark:border-zinc-800">
-                <a
-                  href={sourceUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="news-source-link"
-                >
-                  <ExternalLink className="w-4 h-4" />
-                  Открыть на {sourceLabel}
-                </a>
-              </div>
-            </>
+          {/* Основной HTML или анонс (excerpt) */}
+          {bodyHtml ? (
+            <div
+              className="shikimori-news-body prose prose-invert max-w-none text-foreground/90 leading-relaxed"
+              dangerouslySetInnerHTML={{ __html: bodyHtml }}
+            />
           ) : (
-            <>
-              {/* Jikan news: show anime image + excerpt */}
-              {isJikan && news.animeImage && (
-                <div className="mb-6 flex justify-center">
-                  <img
-                    src={getProxiedSrc(news.animeImage)}
-                    alt={news.animeTitle || news.title}
-                    className="max-h-80 rounded-xl object-contain"
-                    loading="lazy"
-                  />
-                </div>
-              )}
-              <p className="news-excerpt-text text-muted-foreground leading-relaxed dark:text-zinc-300">
-                {textBody}
-              </p>
-              {linked && (
-                <div className="mt-8">
-                  <LinkedAnimeCard
-                    id={linked.id}
-                    name={linked.name}
-                    russian={linked.russian}
-                    poster={linkedPoster}
-                    kindLabel={kindLabel}
-                    statusLabel={statusLabel}
-                    episodes={linked.episodes}
-                    score={linked.score}
-                  />
-                </div>
-              )}
-              <div className="mt-8 pt-6 border-t border-border/50 dark:border-zinc-800">
-                <a
-                  href={sourceUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="news-source-link"
-                >
-                  <ExternalLink className="w-4 h-4" />
-                  Открыть на {sourceLabel}
-                </a>
-              </div>
-            </>
+            <p className="news-excerpt-text text-muted-foreground leading-relaxed dark:text-zinc-300 text-lg">
+              {textBody}
+            </p>
+          )}
+
+          {/* Подвал Shikimori */}
+          {footerHtml && (
+            <div
+              className="shikimori-news-footer mt-6"
+              dangerouslySetInnerHTML={{ __html: footerHtml }}
+            />
+          )}
+
+          {/* Связанная карточка аниме */}
+          {linked && (
+            <div className="mt-8">
+              <LinkedAnimeCard
+                id={linked.id}
+                name={linked.name}
+                russian={linked.russian}
+                poster={linkedPoster}
+                kindLabel={kindLabel}
+                statusLabel={statusLabel}
+                episodes={linked.episodes}
+                score={linked.score}
+              />
+            </div>
+          )}
+
+          {/* Ссылка на внешние источники (только для сторонних новостей) */}
+          {!isCustom && sourceUrl && (
+            <div className="mt-8 pt-6 border-t border-border/50 dark:border-zinc-800">
+              <a
+                href={sourceUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="news-source-link"
+              >
+                <ExternalLink className="w-4 h-4" />
+                Открыть на {sourceLabel}
+              </a>
+            </div>
           )}
         </article>
       </div>

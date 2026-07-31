@@ -1080,6 +1080,95 @@ export async function adminSendPushNotificationBulk(userIds: string[], title: st
 // Learning profiles
 // ============================================================
 
+// ============================================================
+// CUSTOM NEWS CRUD
+// ============================================================
+
+export async function getCustomNews(page = 1, limit = 50) {
+  const isAdmin = await checkAdminAuth()
+  if (!isAdmin) throw new Error("Unauthorized")
+
+  const supabase = await getAdminSupabase()
+  const offset = (page - 1) * limit
+
+  const { data, error, count } = await supabase
+    .from("custom_news")
+    .select("*", { count: "exact" })
+    .order("created_at", { ascending: false })
+    .range(offset, offset + limit - 1)
+
+  if (error) throw error
+  return { data: data || [], count: count || 0 }
+}
+
+export async function createCustomNews(news: { title: string; excerpt: string; body?: string | null; image_url?: string | null; author?: string | null; is_published?: boolean }) {
+  const isAdmin = await checkAdminAuth()
+  if (!isAdmin) throw new Error("Unauthorized")
+
+  const supabase = await getAdminSupabase()
+  const { data, error } = await supabase
+    .from("custom_news")
+    .insert([{
+      title: news.title,
+      excerpt: news.excerpt,
+      body: news.body ?? null,
+      image_url: news.image_url ?? null,
+      author: news.author ?? null,
+      is_published: news.is_published ?? false,
+    }])
+    .select()
+    .single()
+
+  if (error) throw error
+  return data
+}
+
+export async function updateCustomNews(id: string, updates: { title?: string; excerpt?: string; body?: string | null; image_url?: string | null; author?: string | null; is_published?: boolean }) {
+  const isAdmin = await checkAdminAuth()
+  if (!isAdmin) throw new Error("Unauthorized")
+
+  const supabase = await getAdminSupabase()
+  const { data, error } = await supabase
+    .from("custom_news")
+    .update({ ...updates, updated_at: new Date().toISOString() })
+    .eq("id", id)
+    .select()
+    .single()
+
+  if (error) throw error
+  return data
+}
+
+export async function deleteCustomNews(id: string) {
+  const isAdmin = await checkAdminAuth()
+  if (!isAdmin) throw new Error("Unauthorized")
+
+  const supabase = await getAdminSupabase()
+  const { error } = await supabase
+    .from("custom_news")
+    .delete()
+    .eq("id", id)
+
+  if (error) throw error
+  return { success: true }
+}
+
+export async function toggleCustomNewsPublished(id: string, currentStatus: boolean) {
+  const isAdmin = await checkAdminAuth()
+  if (!isAdmin) throw new Error("Unauthorized")
+
+  const supabase = await getAdminSupabase()
+  const { data, error } = await supabase
+    .from("custom_news")
+    .update({ is_published: !currentStatus, updated_at: new Date().toISOString() })
+    .eq("id", id)
+    .select()
+    .single()
+
+  if (error) throw error
+  return data
+}
+
 export async function getPlayerLearningProfiles() {
   const supabase = await getAdminSupabase()
   const { data: stats, error } = await supabase

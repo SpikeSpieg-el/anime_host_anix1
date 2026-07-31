@@ -184,7 +184,19 @@ export interface BattleBackground {
   created_at?: string
 }
 
-export type AdminTab = 'users' | 'pvp' | 'ai_battle' | 'battle_logs' | 'cards' | 'mail' | 'events' | 'tutorial'
+export interface CustomNews {
+  id: string
+  title: string
+  excerpt: string
+  body?: string | null
+  image_url?: string | null
+  author?: string | null
+  is_published: boolean
+  created_at: string
+  updated_at: string
+}
+
+export type AdminTab = 'users' | 'pvp' | 'ai_battle' | 'battle_logs' | 'cards' | 'mail' | 'events' | 'tutorial' | 'news'
 
 export interface TutorialSection {
   id: string

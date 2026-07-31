@@ -4,11 +4,11 @@ import { useEffect, useState, useTransition } from "react"
 import { LogOut, Lock } from "lucide-react"
 import { ScrollToTop } from "@/components/layout/scroll-to-top"
 import { Footer } from "@/components/layout/footer"
-import { adminLogin, adminLogout, checkAdminAuth, getAdminUsers, getPvPRules, updatePvPRule, getPvPLocations, createPvPLocation, deletePvPLocation, getPvPLogs, getBattleAIDashboard, getAdminUsersSimple, getBanners, createBanner, updateBanner, deleteBanner, getBannerCards, addBannerCard, updateBannerCard, deleteBannerCard, adminSendMail, adminSendMailBulk, adminGiftCardToUser, adminSendPushNotification, adminSendPushNotificationBulk, getPlayerLearningProfiles, getBattleBackgrounds, createBattleBackground, deleteBattleBackground, toggleBattleBackground, updateBattleBackground } from "./actions"
+import { adminLogin, adminLogout, checkAdminAuth, getAdminUsers, getPvPRules, updatePvPRule, getPvPLocations, createPvPLocation, deletePvPLocation, getPvPLogs, getBattleAIDashboard, getAdminUsersSimple, getBanners, createBanner, updateBanner, deleteBanner, getBannerCards, addBannerCard, updateBannerCard, deleteBannerCard, adminSendMail, adminSendMailBulk, adminGiftCardToUser, adminSendPushNotification, adminSendPushNotificationBulk, getPlayerLearningProfiles, getBattleBackgrounds, createBattleBackground, deleteBattleBackground, toggleBattleBackground, updateBattleBackground, getCustomNews, createCustomNews, updateCustomNews, deleteCustomNews, toggleCustomNewsPublished } from "./actions"
 import type { Rarity } from "@/types/gacha"
 import { toast } from "sonner"
 
-import type { AdminTab, UserWithStats, PvPRule, PvPLocation, PvPLog, SimpleUser, Banner, BannerCard, BattleAIDashboard, MailType, BattleBackground } from "./components/types"
+import type { AdminTab, UserWithStats, PvPRule, PvPLocation, PvPLog, SimpleUser, Banner, BannerCard, BattleAIDashboard, MailType, BattleBackground, CustomNews } from "./components/types"
 import { AdminTabs } from "./components/AdminTabs"
 import { UsersTab } from "./components/UsersTab"
 import { PvPTab } from "./components/PvPTab"
@@ -18,6 +18,7 @@ import { CardsTab } from "./components/CardsTab"
 import { MailTab } from "./components/MailTab"
 import { EventsTab } from "./components/EventsTab"
 import { TutorialTab } from "./components/TutorialTab"
+import { NewsTab } from "./components/NewsTab"
 
 interface BannerFormData {
   name: string
@@ -109,6 +110,11 @@ export default function AdminPage() {
   const [newBannerCardJson, setNewBannerCardJson] = useState<Record<string, string>>({})
   const [newBannerCardWeight, setNewBannerCardWeight] = useState<Record<string, number>>({})
   const [newBannerCardFeatured, setNewBannerCardFeatured] = useState<Record<string, boolean>>({})
+
+  // Custom News state
+  const [customNews, setCustomNews] = useState<CustomNews[]>([])
+  const [isNewsLoading, setIsNewsLoading] = useState(false)
+  const [newsLoaded, setNewsLoaded] = useState(false)
 
   useEffect(() => {
     checkAdminAuth().then((authenticated) => {
@@ -252,13 +258,28 @@ export default function AdminPage() {
     }
   }
 
+  const fetchCustomNews = async () => {
+    try {
+      setIsNewsLoading(true)
+      const { data } = await getCustomNews(1, 100)
+      setCustomNews(data)
+      setNewsLoaded(true)
+    } catch (err) {
+      console.error("Failed to fetch custom news:", err)
+      toast.error("Не удалось загрузить новости")
+    } finally {
+      setIsNewsLoading(false)
+    }
+  }
+
   useEffect(() => {
     if (activeTab === 'mail' && !mailLoaded && isAuthenticated) fetchSimpleUsers()
     if (activeTab === 'events' && !bannersLoaded && isAuthenticated) fetchBanners()
     if (activeTab === 'battle_logs' && !logsLoaded && isAuthenticated) fetchPvPLogs()
     if (activeTab === 'ai_battle' && !battleAIDashboard && isAuthenticated) fetchBattleAIDashboard()
     if (activeTab === 'ai_battle' && isAuthenticated) fetchMLData()
-  }, [activeTab, isAuthenticated, mailLoaded, bannersLoaded, logsLoaded, battleAIDashboard])
+    if (activeTab === 'news' && !newsLoaded && isAuthenticated) fetchCustomNews()
+  }, [activeTab, isAuthenticated, mailLoaded, bannersLoaded, logsLoaded, battleAIDashboard, newsLoaded])
 
   const handleToggleRule = async (id: string, currentStatus: boolean) => {
     try {
@@ -565,6 +586,51 @@ export default function AdminPage() {
     if (!bannerCards[bannerId]) fetchBannerCards(bannerId)
   }
 
+  // News handlers
+  const handleCreateNews = async (news: { title: string; excerpt: string; body?: string | null; image_url?: string | null; author?: string | null; is_published?: boolean }) => {
+    try {
+      const created = await createCustomNews(news)
+      setCustomNews(prev => [created, ...prev])
+      toast.success("Новость создана!")
+    } catch (err) {
+      console.error("Failed to create news:", err)
+      toast.error("Ошибка при создании новости")
+    }
+  }
+
+  const handleUpdateNews = async (id: string, updates: { title?: string; excerpt?: string; body?: string | null; image_url?: string | null; author?: string | null; is_published?: boolean }) => {
+    try {
+      const updated = await updateCustomNews(id, updates)
+      setCustomNews(prev => prev.map(n => n.id === id ? { ...n, ...updated } : n))
+      toast.success("Новость обновлена!")
+    } catch (err) {
+      console.error("Failed to update news:", err)
+      toast.error("Ошибка при обновлении новости")
+    }
+  }
+
+  const handleDeleteNews = async (id: string) => {
+    if (!confirm("Удалить эту новость?")) return
+    try {
+      await deleteCustomNews(id)
+      setCustomNews(prev => prev.filter(n => n.id !== id))
+      toast.success("Новость удалена")
+    } catch (err) {
+      console.error("Failed to delete news:", err)
+      toast.error("Ошибка при удалении новости")
+    }
+  }
+
+  const handleToggleNewsPublished = async (id: string, currentStatus: boolean) => {
+    try {
+      await toggleCustomNewsPublished(id, currentStatus)
+      setCustomNews(prev => prev.map(n => n.id === id ? { ...n, is_published: !currentStatus } : n))
+    } catch (err) {
+      console.error("Failed to toggle news:", err)
+      toast.error("Ошибка при изменении статуса")
+    }
+  }
+
   const formatDate = (dateString: string | null) => {
     if (!dateString) return 'Never'
     return new Date(dateString).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
@@ -798,6 +864,17 @@ export default function AdminPage() {
             onDeleteBannerCard={handleDeleteBannerCard}
             onBannerCardsChange={(bannerId, cards) => setBannerCards(prev => ({ ...prev, [bannerId]: cards }))}
             formatDate={formatDate}
+          />
+        )}
+
+        {activeTab === 'news' && (
+          <NewsTab
+            news={customNews}
+            isLoading={isNewsLoading}
+            onCreateNews={handleCreateNews}
+            onUpdateNews={handleUpdateNews}
+            onDeleteNews={handleDeleteNews}
+            onTogglePublished={handleToggleNewsPublished}
           />
         )}
 
