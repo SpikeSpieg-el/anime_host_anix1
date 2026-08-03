@@ -6,7 +6,7 @@ import { WatchPageHeaderSkeleton, PlayerSkeleton, EpisodeSelectorSkeleton, TextS
 import type { Metadata } from "next"
 import { BreadcrumbStructuredData } from "@/components/seo/structured-data"
 
-// Расширяем тип Anime опциональными полями для полной совместимости с TypeScript
+// Расширяем тип Anime опциональными полями
 type ExtendedAnime = Anime & {
   russian?: string
   english?: string
@@ -15,21 +15,24 @@ type ExtendedAnime = Anime & {
   score?: string | number
 }
 
-const WatchPageLayoutWrapper = dynamic(() => import("@/components/watch/watch-page-layout-wrapper").then(mod => ({ default: mod.WatchPageLayoutWrapper })), {
-  loading: () => (
-    <div className="min-h-screen bg-background text-foreground">
-      <Navbar />
-      <div className="container mx-auto px-4 py-8 space-y-6">
-        <WatchPageHeaderSkeleton />
-        <PlayerSkeleton />
-        <EpisodeSelectorSkeleton />
-        <div className="space-y-3">
-          <TextSkeleton lines={8} />
+const WatchPageLayoutWrapper = dynamic(
+  () => import("@/components/watch/watch-page-layout-wrapper").then(mod => ({ default: mod.WatchPageLayoutWrapper })),
+  {
+    loading: () => (
+      <div className="min-h-screen bg-background text-foreground">
+        <Navbar />
+        <div className="container mx-auto px-4 py-8 space-y-6">
+          <WatchPageHeaderSkeleton />
+          <PlayerSkeleton />
+          <EpisodeSelectorSkeleton />
+          <div className="space-y-3">
+            <TextSkeleton lines={8} />
+          </div>
         </div>
       </div>
-    </div>
-  )
-})
+    )
+  }
+)
 
 export async function generateMetadata({
   params,
@@ -53,17 +56,14 @@ export async function generateMetadata({
 
   const anime = rawAnime as ExtendedAnime
 
-  // Основные переменные для формирования релевантных заголовков
   const mainTitle = anime.russian || anime.title
   const altTitle = anime.english && anime.english !== mainTitle ? anime.english : 
                    anime.japanese && anime.japanese !== mainTitle ? anime.japanese : ""
   const yearText = anime.year ? ` (${anime.year})` : ""
   const epText = episode && episode > 0 ? ` — ${episode} серия` : " — смотреть онлайн все серии"
 
-  // 1. Адаптивный Title с поисковым интентом
   const title = `Смотреть ${mainTitle}${epText} бесплатно в HD${yearText} — Weebx`
 
-  // 2. Адаптивное SEO Description
   const cleanDescription = anime.description 
     ? anime.description.replace(/\[.*?\]/g, "").slice(0, 150)
     : `Смотрите аниме «${mainTitle}» онлайн бесплатно в хорошем качестве HD с русской озвучкой на Weebx.`
@@ -73,7 +73,6 @@ export async function generateMetadata({
   const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://weeb-x.com"
   const canonicalUrl = `${baseUrl}/watch/${id}${episode ? `?episode=${episode}` : ""}`
 
-  // 3. Динамические ключи поисковой выдачи (убираем дубликаты)
   const rawKeywords = [
     `смотреть ${mainTitle} онлайн`,
     `${mainTitle} смотреть бесплатно`,
@@ -124,7 +123,6 @@ export async function generateMetadata({
     other: {
       "og:video:type": "video.tv_show",
       ...(anime.airedOn ? { "og:video:release_date": anime.airedOn } : {}),
-      // Open Graph теги для жанров (каждый жанр как отдельный тег)
       ...Object.fromEntries(
         (anime.genres || []).slice(0, 5).map((genre, i) => [`og:video:tag:${i}`, genre])
       ),
@@ -156,12 +154,11 @@ export default async function WatchPage({
   const contentUrl = `${baseUrl}/watch/${id}`
   const animeRating = anime.score || anime.rating
 
-  // Убираем дубликаты из alternateName
   const alternateNames = [anime.english, anime.japanese, anime.title]
     .filter((name): name is string => Boolean(name))
     .filter((name, index, arr) => arr.indexOf(name) === index)
 
-  // Microdata / Structured Data для Google и Yandex
+  // JSON-LD Микроразметка для поисковых ботов (Google/Yandex)
   const jsonLd: Record<string, any> = {
     "@context": "https://schema.org",
     "@type": anime.kind === "movie" ? "Movie" : "TVSeries",
@@ -189,7 +186,6 @@ export default async function WatchPage({
     }
   }
 
-  // Добавляем VideoObject для лучшей индексации видео-контента
   const videoObject: Record<string, any> = {
     "@context": "https://schema.org",
     "@type": "VideoObject",
@@ -199,7 +195,7 @@ export default async function WatchPage({
     "contentUrl": contentUrl,
     "embedUrl": `${baseUrl}/embed/${id}${episode ? `?episode=${episode}` : ""}`,
     "uploadDate": anime.airedOn || new Date().toISOString().split("T")[0],
-    "duration": "PT24M", // Стандартная длительность эпизода
+    "duration": "PT24M",
     "inLanguage": "ru",
     "genre": anime.genres,
   }
@@ -217,12 +213,11 @@ export default async function WatchPage({
 
   return (
     <>
-      {/* Schema.org Микроразметка - TVSeries/Movie */}
+      {/* Скрытая микроразметка JSON-LD для поисковиков */}
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
-      {/* Schema.org Микроразметка - VideoObject */}
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(videoObject) }}
@@ -234,6 +229,8 @@ export default async function WatchPage({
           { name: animeTitle, url: contentUrl },
         ]}
       />
+
+      {/* Основной визуальный компонент страницы */}
       <WatchPageLayoutWrapper
         anime={rawAnime}
         initialEpisode={Number.isFinite(episode) && (episode as number) > 0 ? (episode as number) : undefined}

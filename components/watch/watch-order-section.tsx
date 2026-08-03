@@ -73,7 +73,7 @@ export function WatchOrderSection({ watchOrder }: WatchOrderSectionProps) {
                 <div className="text-[11px] text-zinc-500">
                   {item.year ? item.year : ''}{item.kind ? (item.year ? ` • ${item.kind}` : item.kind) : ''}
                 </div>
-                <div className="text-sm font-semibold text-orange-500 line-clamp-2">
+                <div className="text-sm font-semibold text-orange-500">
                   {item.title}
                 </div>
               </div>
@@ -95,7 +95,7 @@ export function WatchOrderSection({ watchOrder }: WatchOrderSectionProps) {
                 <div className="text-[11px] text-zinc-500">
                   {item.year ? item.year : ''}{item.kind ? (item.year ? ` • ${item.kind}` : item.kind) : ''}
                 </div>
-                <div className="text-sm font-semibold text-white line-clamp-2 group-hover:text-orange-500 transition-colors">
+                <div className="text-sm font-semibold text-white group-hover:text-orange-500 transition-colors">
                   {item.title}
                 </div>
               </div>

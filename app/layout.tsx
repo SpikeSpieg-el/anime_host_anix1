@@ -31,7 +31,7 @@ export const metadata: Metadata = {
   title: "Weebx — Смотреть аниме онлайн",
   description: "Стриминг аниме в HD с русской озвучкой. Гача-крутки, PvP-арена, каталог манги и новости аниме. Бесплатно на Weebx.",
   keywords: ["weebx", "weeb x", "WeebX", "Weeb-X", "weeb-x", "weebx аниме", "weeb x аниме", "weeb x смотреть", "weebx онлайн"],
-  generator: "Weebx_stream",
+  generator: "Weeb-x",
   robots: {
     index: true,
     follow: true,

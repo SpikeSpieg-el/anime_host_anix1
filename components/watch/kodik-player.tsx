@@ -102,23 +102,37 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCo
       const list: KodikTranslation[] = data.translations || []
       setTranslations(list)
 
-      // Восстанавливаем сохранённую озвучку или берём первую (самую полную)
       const savedId = getSavedTranslationId(shikimoriId)
       const saved = savedId ? list.find((t) => t.translationId === savedId) : null
-      setSelectedTranslation(saved || list[0] || null)
+
+      const validSaved = (saved && saved.episodesCount >= episode) ? saved : null
+      const availableForEpisode = list.find((t) => t.episodesCount >= episode) || list[0] || null
+
+      setSelectedTranslation(validSaved || availableForEpisode)
     } catch (e) {
       console.error("Error loading translations:", e)
     } finally {
       setTranslationsLoading(false)
     }
-  }, [shikimoriId, title, translations.length])
+  }, [shikimoriId, title, translations.length, episode])
 
-  // Предзагрузка озвучек при монтировании
   useEffect(() => {
     loadTranslations()
   }, [loadTranslations])
 
-  // Отслеживание мобильного режима и монтирования (для портала)
+  // Автопереключение озвучки, если в текущей нет нужной серии
+  useEffect(() => {
+    if (!selectedTranslation || translations.length === 0) return
+
+    if (selectedTranslation.episodesCount < episode) {
+      const validTranslation = translations.find((t) => t.episodesCount >= episode)
+      if (validTranslation && validTranslation.translationId !== selectedTranslation.translationId) {
+        setSelectedTranslation(validTranslation)
+      }
+    }
+  }, [episode, selectedTranslation, translations])
+
+  // Отслеживание мобильного режима и монтирования
   useEffect(() => {
     setMounted(true)
     const check = () => {
@@ -136,7 +150,7 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCo
     }
   }, [])
 
-  // Отслеживание fullscreen режима — портал меню рендерим внутрь контейнера
+  // Отслеживание fullscreen режима
   useEffect(() => {
     const handleChange = () => {
       const fs = !!(document.fullscreenElement ||
@@ -157,7 +171,6 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCo
     }
   }, [])
 
-  // Открытие меню с измерением позиции кнопки (для десктоп-позиционирования)
   const openMenu = useCallback(() => {
     if (triggerButtonRef.current) {
       const rect = triggerButtonRef.current.getBoundingClientRect()
@@ -172,11 +185,9 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCo
     setShowTranslationsMenu(true)
   }, [])
 
-  // Закрытие меню озвучек по клику вне
   useEffect(() => {
     if (!showTranslationsMenu) return
     const handleClickOutside = (e: MouseEvent | TouchEvent) => {
-      // Не закрываем если клик по триггер-кнопке (она сама toggles)
       if (triggerButtonRef.current && triggerButtonRef.current.contains(e.target as Node)) {
         return
       }
@@ -184,7 +195,6 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCo
         setShowTranslationsMenu(false)
       }
     }
-    // Используем mousedown для десктопа и touchstart для мобайла
     document.addEventListener("mousedown", handleClickOutside)
     document.addEventListener("touchstart", handleClickOutside)
     return () => {
@@ -193,7 +203,6 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCo
     }
   }, [showTranslationsMenu])
 
-  // Блокировка прокрутки body когда открыт bottom-sheet на мобильных/fullscreen
   useEffect(() => {
     if (!showTranslationsMenu || (!isMobile && !isFullscreen)) return
     const original = document.body.style.overflow
@@ -204,29 +213,40 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCo
   }, [showTranslationsMenu, isMobile, isFullscreen])
 
   const handleSelectTranslation = (tr: KodikTranslation) => {
+    setShowTranslationsMenu(false)
+
+    if (selectedTranslation?.translationId === tr.translationId) {
+      return
+    }
+
     setSelectedTranslation(tr)
     saveTranslationId(shikimoriId, tr.translationId)
-    setShowTranslationsMenu(false)
     setUseProxy(false)
-    if (isStarted) setIsLoading(true)
+
+    if (isStarted) {
+      setIsLoading(true)
+
+      if (loadTimeout) clearTimeout(loadTimeout)
+      const timeout = setTimeout(() => {
+        setIsLoading(false)
+      }, 8000)
+      setLoadTimeout(timeout)
+    }
   }
 
-  // Portal-меню озвучек: bottom-sheet на мобильных, dropdown на десктопе
+  // Portal-меню озвучек
   const renderTranslationsPortal = () => {
     if (!showTranslationsMenu || !mounted || translations.length === 0) return null
 
-    // В fullscreen рендерим портал внутрь контейнера плеера,
-    // т.к. document.body не виден в fullscreen режиме
     const portalTarget = (isFullscreen && playerContainerRef.current)
       ? playerContainerRef.current
       : document.body
-    // В fullscreen всегда используем bottom-sheet для лучшего UX на любом устройстве
     const useBottomSheet = isMobile || isFullscreen
 
     const listContent = (
       <>
         <div className="sticky top-0 bg-zinc-900/95 backdrop-blur-md px-3 py-2 border-b border-white/10 flex items-center justify-between z-10">
-          <span className="text-xs font-semibold text-zinc-300 uppercase tracking-wider">Озвучка</span>
+          <span className="text-xs font-semibold text-zinc-300 uppercase tracking-wider">Выбор озвучки</span>
           <button
             onClick={() => setShowTranslationsMenu(false)}
             className="text-zinc-400 hover:text-white p-1 -mr-1 min-h-[36px] min-w-[36px] flex items-center justify-center"
@@ -234,51 +254,59 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCo
             <X className="w-4 h-4" />
           </button>
         </div>
-        {translations.map((tr) => (
-          <button
-            key={tr.translationId}
-            onClick={() => handleSelectTranslation(tr)}
-            className="w-full flex items-start gap-2.5 sm:gap-3 px-3 py-3 sm:py-2.5 active:bg-white/10 hover:bg-white/5 transition-colors text-left border-b border-white/5 last:border-0 min-h-[52px]"
-          >
-            <div className="flex-shrink-0 mt-0.5">
-              {tr.type === "subtitles" ? (
-                <Subtitles className="w-4 h-4 text-blue-400" />
-              ) : (
-                <Mic className="w-4 h-4 text-orange-400" />
-              )}
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="text-sm text-white truncate">{tr.title}</div>
-              <div className="text-xs text-zinc-500 flex items-center gap-1.5 sm:gap-2 mt-0.5 flex-wrap">
-                <span>{tr.episodesCount} серий</span>
-                {tr.quality && <span className="text-zinc-600">·</span>}
-                {tr.quality && <span className="truncate">{tr.quality}</span>}
+        {translations.map((tr) => {
+          const isAvailable = tr.episodesCount >= episode
+          const isSelected = selectedTranslation?.translationId === tr.translationId
+
+          return (
+            <button
+              key={tr.translationId}
+              onClick={() => handleSelectTranslation(tr)}
+              className={`w-full flex items-start gap-2.5 sm:gap-3 px-3 py-3 sm:py-2.5 active:bg-white/10 hover:bg-white/5 transition-colors text-left border-b border-white/5 last:border-0 min-h-[52px] ${
+                !isAvailable ? 'opacity-60' : ''
+              }`}
+            >
+              <div className="flex-shrink-0 mt-0.5">
+                {tr.type === "subtitles" ? (
+                  <Subtitles className="w-4 h-4 text-blue-400" />
+                ) : (
+                  <Mic className="w-4 h-4 text-orange-400" />
+                )}
               </div>
-            </div>
-            {selectedTranslation?.translationId === tr.translationId && (
-              <Check className="w-4 h-4 text-orange-500 flex-shrink-0 mt-0.5" />
-            )}
-          </button>
-        ))}
+              <div className="flex-1 min-w-0">
+                <div className="text-sm text-white truncate flex items-center gap-1.5">
+                  <span className="truncate">{tr.title}</span>
+                </div>
+                <div className="text-xs text-zinc-400 flex items-center gap-1.5 sm:gap-2 mt-0.5 flex-wrap">
+                  <span>{tr.episodesCount} серий</span>
+                  {!isAvailable && (
+                    <span className="text-red-400 font-medium">(нет {episode} серии)</span>
+                  )}
+                  {tr.quality && isAvailable && <span className="text-zinc-600">·</span>}
+                  {tr.quality && isAvailable && <span className="truncate text-zinc-500">{tr.quality}</span>}
+                </div>
+              </div>
+              {isSelected && (
+                <Check className="w-4 h-4 text-orange-500 flex-shrink-0 mt-0.5" />
+              )}
+            </button>
+          )
+        })}
       </>
     )
 
     if (useBottomSheet) {
-      // Bottom-sheet на мобильных/fullscreen: лист снизу экрана, не обрезается контейнером
       return createPortal(
         <div className="fixed inset-0 z-[9999] flex items-end">
-          {/* Затемнение */}
           <div
             className="absolute inset-0 bg-black/60 backdrop-blur-sm"
             onClick={() => setShowTranslationsMenu(false)}
           />
-          {/* Лист */}
           <div
             ref={translationsMenuRef}
             className="relative w-full bg-zinc-900/95 backdrop-blur-md border-t border-white/10 rounded-t-2xl shadow-2xl max-h-[min(80vh,calc(100vh-2rem))] flex flex-col animate-in slide-in-from-bottom duration-300"
             style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
           >
-            {/* Хэндл для свайпа */}
             <div className="flex justify-center pt-2 pb-1 flex-shrink-0">
               <div className="w-10 h-1 rounded-full bg-zinc-600" />
             </div>
@@ -291,7 +319,6 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCo
       )
     }
 
-    // Десктоп: позиционированный dropdown через портал
     const vw = window.innerWidth
     const vh = window.innerHeight
     const dropdownWidth = Math.min(288, vw - 16)
@@ -307,7 +334,6 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCo
         }
       : { position: "fixed", top: "50%", left: "50%", zIndex: 9999, maxWidth: `${dropdownWidth}px` }
 
-    // Если dropdown не помещается снизу — показываем сверху кнопки
     if (menuPos) {
       if (menuPos.top + dropdownMaxHeight > vh) {
         style.top = `${Math.max(8, menuPos.top - 8 - dropdownMaxHeight - 40)}px`
@@ -326,18 +352,17 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCo
     )
   }
 
-  // URL плеера формируется из прямой ссылки выбранной озвучки
+  // Ссылка для плеера
   const playerSrc = useMemo(() => {
     if (!selectedTranslation?.playerLink) return ""
 
-    // playerLink имеет вид "//kodikplayer.com/serial/<id>/<hash>/720p"
     let url = selectedTranslation.playerLink
     if (url.startsWith("//")) url = `https:${url}`
 
     const params = new URLSearchParams({
-      no_ads: "true", // Отключаем рекламу в плеере
-      no_provider_ads: "true", // Дополнительно отключаем рекламу провайдера
-      hide_selectors: "true", // Скрываем встроенные селекторы Kodik (озвучка/сезон/серия)
+      no_ads: "true",
+      no_provider_ads: "true",
+      hide_selectors: "true",
       autoplay: "0",
       quality: "720",
     })
@@ -353,7 +378,6 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCo
     const separator = url.includes("?") ? "&" : "?"
     const directUrl = `${url}${separator}${params.toString()}`
 
-    // Через proxy для внедрения ad-block CSS/JS, или прямой URL как fallback
     if (useProxy) {
       return `/api/kodik/player-proxy?url=${encodeURIComponent(directUrl)}`
     }
@@ -409,9 +433,7 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCo
 
   const handleStartPlayer = () => {
     if (!selectedTranslation) {
-      // Если озвучки ещё не загружены — ждём
       if (translationsLoading) return
-      // Если список пуст — показываем ошибку
       if (translations.length === 0) {
         setHasError(true)
         setErrorMessage("Не удалось получить список озвучек. Попробуйте позже.")
@@ -430,10 +452,9 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCo
 
     const timeout = setTimeout(() => {
       if (isLoading) {
-        console.log(`⏱️ Player load timeout`)
         setIsLoading(false)
       }
-    }, 15000)
+    }, 12000)
 
     setLoadTimeout(timeout)
   }
@@ -462,37 +483,8 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCo
     }
   }, [loadTimeout])
 
-  // Мониторинг состояния плеера
   useEffect(() => {
     if (!isStarted || hasError) return
-
-    let checkCount = 0
-    const maxChecks = 5
-
-    const checkInterval = setInterval(() => {
-      checkCount++
-
-      if (isLoading && checkCount >= maxChecks) {
-        console.log(`🔍 Player still loading after ${checkCount * 3}s`)
-        clearInterval(checkInterval)
-        return
-      }
-
-      if (checkCount >= maxChecks) {
-        clearInterval(checkInterval)
-        console.log(`✅ Player monitoring completed`)
-      }
-    }, 3000)
-
-    return () => {
-      clearInterval(checkInterval)
-    }
-  }, [isStarted, isLoading, hasError])
-
-  // Автоскрытие кастомного UI плеера: скрываем через UI_HIDE_DELAY мс
-  // после окончания взаимодействия, показываем при mouseenter/click/touchstart.
-  useEffect(() => {
-    if (!isStarted || isLoading || hasError) return
 
     const container = playerContainerRef.current
     if (!container) return
@@ -509,7 +501,6 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCo
     }
   }, [isStarted, isLoading, hasError, showUiAndResetTimer, clearUiTimer])
 
-  // Когда открыто меню озвучек — UI не скрываем
   useEffect(() => {
     if (!isStarted) return
     if (showTranslationsMenu) {
@@ -520,91 +511,73 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCo
     }
   }, [showTranslationsMenu, isStarted, clearUiTimer, showUiAndResetTimer])
 
-  // Обработчик postMessage сообщений от плеера Kodik
+  // УНИВЕРСАЛЬНЫЙ СЛУШАТЕЛЬ ТАЙМКОДОВ И ПРОГРЕССА С К О D I K
   useEffect(() => {
     if (!isStarted) return
 
+    let lastSavedTimeStr = ""
+
     const handleMessage = (event: MessageEvent) => {
-      // Kodik шлёт сообщения с разных доменов — проверяем по ключу в данных
-      console.log('Kodik message received:', event.data)
-
-      if (typeof event.data === 'string') {
-        if (event.data.includes('разорвал соединение') ||
-            event.data.includes('не отправил данные') ||
-            event.data.includes('connection lost') ||
-            event.data.includes('error')) {
-          console.log(`❌ Connection lost`)
-          return
-        }
-      }
-
       try {
+        let data = event.data
+
+        if (typeof data === 'string') {
+          try {
+            data = JSON.parse(data)
+          } catch {
+            // Игнорируем обычные строки
+          }
+        }
+
+        if (!data || typeof data !== 'object') return
+
+        const key = data.key || data.type || data.event
+        const value = data.value || data.data || data
+
         let newEpisode: number | undefined
-        let progressInfo: {
-          season?: number
-          episode?: number
-          time?: string
-          translation?: string
-          currentTime?: number
-          duration?: number
-        } = {}
+        let seconds: number | undefined
+        let timeStr: string | undefined
 
-        if (typeof event.data === 'object' && event.data.key === 'kodik_player_current_episode') {
-          if (event.data.value?.episode && typeof event.data.value.episode === 'number') {
-            newEpisode = event.data.value.episode
-            progressInfo.episode = event.data.value.episode
-            progressInfo.season = event.data.value.season
-            progressInfo.translation = event.data.value.translation?.title || selectedTranslation?.title
-            progressInfo.currentTime = event.data.value.seconds
-            progressInfo.duration = event.data.value.duration
+        // 1. Извлекаем номер серии
+        if (key === 'kodik_player_current_episode' || key === 'episode') {
+          if (typeof value?.episode === 'number') newEpisode = value.episode
+          else if (typeof value === 'number') newEpisode = value
+          
+          if (typeof value?.seconds === 'number') seconds = value.seconds
+          if (typeof value?.time === 'string') timeStr = value.time
+        } else if (typeof data.episode === 'number') {
+          newEpisode = data.episode
+        }
 
-            if (event.data.value.time) {
-              progressInfo.time = event.data.value.time
-            } else if (event.data.value.seconds) {
-              const mins = Math.floor(event.data.value.seconds / 60)
-              const secs = Math.floor(event.data.value.seconds % 60)
-              progressInfo.time = `${mins}:${secs.toString().padStart(2, '0')}`
-            }
+        // 2. Извлекаем секунды при воспроизведении (time_update)
+        if (key === 'kodik_player_time_update' || key === 'time_update' || key === 'time') {
+          if (typeof value?.seconds === 'number') seconds = value.seconds
+          else if (typeof value === 'number') seconds = value
+          else if (typeof value?.time === 'string') timeStr = value.time
+          else if (typeof data.seconds === 'number') seconds = data.seconds
+        }
 
-            if (progressInfo.episode) {
-              onProgressUpdate?.({
-                episode: progressInfo.episode,
-                season: progressInfo.season,
-                time: progressInfo.time,
-                translation: progressInfo.translation,
-                currentTime: progressInfo.currentTime,
-                duration: progressInfo.duration
-              })
-            }
-          }
+        // Переводим секунды в читаемый таймкод "12:45"
+        if (typeof seconds === 'number' && seconds > 0) {
+          const mins = Math.floor(seconds / 60)
+          const secs = Math.floor(seconds % 60)
+          timeStr = `${mins}:${secs.toString().padStart(2, '0')}`
         }
-        else if (typeof event.data === 'object') {
-          if (event.data.type === 'episode' && event.data.data?.episode) {
-            newEpisode = event.data.data.episode
-          }
-          else if (event.data.episode && typeof event.data.episode === 'number') {
-            newEpisode = event.data.episode
-          }
-          else if (event.data.data?.episode && typeof event.data.data.episode === 'number') {
-            newEpisode = event.data.data.episode
-          }
-          else if (event.data.time && typeof event.data.time === 'number' &&
-                   event.data.episode && typeof event.data.episode === 'number') {
-            newEpisode = event.data.episode
-          }
-        }
-        else if (typeof event.data === 'number' && event.data > 0) {
-          newEpisode = event.data
-        }
-        else if (typeof event.data === 'string') {
-          const match = event.data.match(/episode[:\s]+(\d+)/i)
-          if (match && match[1]) {
-            newEpisode = parseInt(match[1], 10)
-          }
+
+        // Обновляем прогресс, если таймкод изменился
+        if (timeStr && timeStr !== lastSavedTimeStr) {
+          lastSavedTimeStr = timeStr
+          onProgressUpdate?.({
+            episode: newEpisode || episode,
+            season: value?.season,
+            time: timeStr,
+            translation: value?.translation?.title || selectedTranslation?.title,
+            currentTime: seconds,
+            duration: value?.duration
+          })
         }
 
         if (newEpisode && newEpisode !== episode && newEpisode > 0) {
-          console.log('Kodik: Episode changed to', newEpisode)
           onEpisodeChange?.(newEpisode)
         }
       } catch (error) {
@@ -613,7 +586,6 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCo
     }
 
     window.addEventListener('message', handleMessage)
-
     return () => {
       window.removeEventListener('message', handleMessage)
     }
@@ -627,12 +599,10 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCo
     >
       {!isStarted ? (
         <div className="absolute inset-0 flex flex-col items-center justify-center">
-          {/* Детектор региона в углу */}
           <div className="z-20 absolute top-2 right-2 sm:top-4 sm:right-4">
             <RegionDetector onCountryChange={handleCountryChange} onRegionDetected={onRegionDetected} />
           </div>
 
-          {/* Кастомное меню выбора озвучки (до старта плеера) */}
           {translations.length > 0 && (
             <div className="absolute top-2 left-2 sm:top-4 sm:left-4 z-20 max-w-[calc(100vw-1rem)]">
               <button
@@ -662,7 +632,6 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCo
           <div className="flex-1 flex items-center justify-center group cursor-pointer w-full"
                onClick={handleStartPlayer}
           >
-            {/* Фон-постер */}
             <img
               src={poster ? getProxiedSrc(poster) : undefined}
               className="absolute inset-0 w-full h-full object-cover opacity-30 blur-sm transition-opacity group-hover:opacity-40"
@@ -670,7 +639,6 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCo
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
 
-            {/* Кнопка Play */}
             <button
               className="relative z-10 flex items-center gap-2 sm:gap-3 px-4 py-2.5 sm:px-8 sm:py-4 bg-orange-600 hover:bg-orange-500 active:bg-orange-700 text-white rounded-xl sm:rounded-2xl font-bold transition-all transform group-hover:scale-105 group-active:scale-95 shadow-[0_0_30px_rgba(234,88,12,0.4)] min-h-[48px]"
             >
@@ -683,7 +651,6 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCo
         </div>
       ) : (
         <>
-          {/* Прозрачный оверлей для пробуждения UI при клике/касании */}
           <div
             className={`absolute inset-0 z-20 bg-transparent transition-opacity duration-300 ${
               showUi ? 'pointer-events-none opacity-0' : 'pointer-events-auto opacity-0'
@@ -691,7 +658,6 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCo
             onClick={showUiAndResetTimer}
           />
 
-          {/* Боковые зоны для двойного тапа (fullscreen) — шире на мобильных */}
           <div
             className={`absolute left-0 top-0 w-[48px] sm:w-[40px] h-full z-30 cursor-pointer pointer-events-auto touch-none transition-opacity duration-300 ${
               showUi ? 'opacity-100' : 'opacity-0 pointer-events-none'
@@ -727,7 +693,6 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCo
             )}
           </div>
 
-          {/* Кастомное меню выбора озвучки (поверх плеера) */}
           {showUi && translations.length > 0 && (
             <div className={`absolute top-2 left-2 sm:top-3 sm:left-3 z-30 max-w-[calc(100vw-1rem)] transition-opacity duration-300 ${
               showUi ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
@@ -747,32 +712,6 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCo
                 </span>
                 <ChevronDown className={`w-3.5 h-3.5 flex-shrink-0 transition-transform ${showTranslationsMenu ? "rotate-180" : ""}`} />
               </button>
-            </div>
-          )}
-
-          {/* Центральная подсказка при одиночном тапе по бокам */}
-          {showUi && showFullscreenHint && (
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 pointer-events-none px-4 w-full max-w-xs transition-opacity duration-300">
-              <style>{`
-                @keyframes ripple-wave {
-                  0% { transform: scale(0.8); opacity: 0; }
-                  20% { transform: scale(1); opacity: 1; }
-                  100% { transform: scale(2.5); opacity: 0; }
-                }
-              `}</style>
-              <div className="bg-black/80 backdrop-blur-md border border-white/10 px-3 py-2 sm:px-4 rounded-full flex items-center gap-2 sm:gap-4 shadow-2xl mx-auto w-fit">
-                <div className="relative w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center flex-shrink-0">
-                  <div
-                    className="absolute w-full h-full rounded-full bg-orange-500/40"
-                    style={{ animation: 'ripple-wave 1.5s cubic-bezier(0, 0.2, 0.8, 1) infinite' }}
-                  />
-                  <div
-                    className="absolute w-full h-full rounded-full bg-orange-500/20"
-                    style={{ animation: 'ripple-wave 1.5s cubic-bezier(0, 0.2, 0.8, 1) infinite 0.2s' }}
-                  />
-                </div>
-                <span className="text-white text-[11px] sm:text-xs font-medium">Полноэкранный режим</span>
-              </div>
             </div>
           )}
 
@@ -819,24 +758,21 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCo
              </div>
           ) : (
             <iframe
-              key={`${selectedTranslation?.translationId || "default"}-${useProxy ? "proxy" : "direct"}`}
+              key={`${selectedTranslation?.translationId || "default"}-${episode}-${useProxy ? "proxy" : "direct"}`}
               src={playerSrc || undefined}
               className={`h-full w-full transition-opacity duration-700 ${isLoading ? 'opacity-0' : 'opacity-100'}`}
               allow="autoplay; encrypted-media; fullscreen; picture-in-picture; screen-wake-lock"
               allowFullScreen
               sandbox="allow-scripts allow-same-origin allow-presentation allow-popups allow-forms allow-modals allow-downloads"
               onLoad={() => {
-                console.log(`✅ Kodik player loaded (${useProxy ? 'proxy' : 'direct'})`)
                 setIsLoading(false)
                 if (loadTimeout) {
                   clearTimeout(loadTimeout)
                   setLoadTimeout(null)
                 }
               }}
-              onError={(e) => {
-                console.error(`❌ iframe error (${useProxy ? 'proxy' : 'direct'}):`, e)
+              onError={() => {
                 if (useProxy) {
-                  console.log('🔄 Falling back to direct Kodik URL')
                   setUseProxy(false)
                   setIsLoading(true)
                 } else {
@@ -848,8 +784,6 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCo
         </>
       )}
 
-      {/* Portal-меню озвучек — рендерится на document.body,
-          не обрезается overflow-hidden контейнера плеера */}
       {renderTranslationsPortal()}
     </div>
   )

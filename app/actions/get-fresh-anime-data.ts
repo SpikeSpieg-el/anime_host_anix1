@@ -33,7 +33,7 @@ export async function getFreshAnimeData(ids: string[]): Promise<AnimeUpdateData[
 
       const response = await fetch(`https://shikimori.one/api/animes?ids=${idsParam}&limit=50`, {
         headers: {
-          "User-Agent": "AnixStream/1.0",
+          "User-Agent": "Weebx/1.0",
         },
         next: { revalidate: 600 }, // Кешируем на 10 минут, чтобы не спамить API
       })

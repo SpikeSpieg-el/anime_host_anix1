@@ -16,7 +16,7 @@ interface PosterResponse {
 async function getShikimoriAnimeData(id: string): Promise<{ posterUrl: string; romajiName: string }> {
   try {
     const response = await fetch(`https://shikimori.one/api/animes/${encodeURIComponent(id)}`, {
-      headers: { "User-Agent": "AnixStream/1.0" },
+      headers: { "User-Agent": "Weebx/1.0" },
       next: { revalidate: 86400 },
     });
 

@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useRef } from "react"
+import { useEffect, useState, useRef, useCallback, useMemo } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import Image from "next/image"
 import Link from "next/link"
@@ -11,11 +11,7 @@ import {
   ExternalLink, 
   HardDrive, 
   FileVideo, 
-  PlayCircle,
-  Camera,
-  Users,
-  Play,
-  ArrowUp,
+  PlayCircle
 } from "lucide-react"
 import type { Anime } from "@/lib/shikimori"
 import { KodikPlayer } from "@/components/watch/kodik-player"
@@ -44,7 +40,6 @@ interface WatchPageClientProps {
   initialEpisode?: number
 }
 
-// Хелпер для ссылок
 const getTrackerLink = (tracker: 'rutracker' | 'rutor', query: string) => {
   const term = encodeURIComponent(query)
   if (tracker === 'rutracker') return `https://rutracker.org/forum/tracker.php?nm=${term}`
@@ -52,7 +47,6 @@ const getTrackerLink = (tracker: 'rutracker' | 'rutor', query: string) => {
   return '#'
 }
 
-// Helper function for dynamic episode/series text
 const getEpisodeText = (count: number): string => {
   if (count === 1) return "Серия"
   const lastDigit = count % 10
@@ -64,17 +58,30 @@ const getEpisodeText = (count: number): string => {
   return "Серий"
 }
 
-export function WatchPageClient({
-  anime,
-  initialEpisode
-}: WatchPageClientProps) {
-  const availableEpisodes = Math.max(anime.episodesCurrent || 0, anime.episodesTotal || 0, 1)
-  const hasEpisodes = true
+export function WatchPageClient({ anime, initialEpisode }: WatchPageClientProps) {
+  // ВЫЧИСЛЕНИЕ РЕАЛЬНО ВЫШЕДШИХ СЕРИЙ:
+  // Если у онгоинга вышло 5 серий из 13, то доступно ТОЛЬКО 5 серий.
+  const availableEpisodes = useMemo(() => {
+    if (anime.episodesCurrent && anime.episodesCurrent > 0) {
+      return anime.episodesCurrent
+    }
+    if (anime.episodesTotal && anime.episodesTotal > 0) {
+      return anime.episodesTotal
+    }
+    return 1
+  }, [anime.episodesCurrent, anime.episodesTotal])
+
+  const totalPlannedEpisodes = anime.episodesTotal || availableEpisodes
 
   const { isSaved, toggle } = useBookmarks()
   const saved = isSaved(anime.id)
 
-  const [selectedEpisode, setSelectedEpisode] = useState<number>(initialEpisode || 1)
+  // Ограничиваем начальную серию в пределах реально вышедших серий
+  const [selectedEpisode, setSelectedEpisode] = useState<number>(() => {
+    const requested = initialEpisode || 1
+    return Math.min(Math.max(1, requested), availableEpisodes)
+  })
+
   const [isStarted, setIsStarted] = useState(false)
   const [selectedCountry, setSelectedCountry] = useState<string>('RU')
   const [isRegionDetected, setIsRegionDetected] = useState(false)
@@ -88,52 +95,41 @@ export function WatchPageClient({
     translation?: string
   } | null>(null)
 
-  // Реф для скролла к плееру
   const playerRef = useRef<HTMLDivElement>(null)
-
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
 
-  // Восстанавливаем данные о последней остановке из localStorage при загрузке
+  // Загрузка сохранённого прогресса из localStorage
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const storageKey = `last-watched-${anime.id}`
       const stored = localStorage.getItem(storageKey)
-      
-      console.log('Loading watch data from localStorage:', { storageKey, stored })
-      
       if (stored) {
         try {
           const data = JSON.parse(stored)
-          console.log('Parsed watch data:', data)
-          setLastWatchedInfo(data)
-        } catch (error) {
-          console.warn('Failed to parse stored watch data:', error)
+          if (data && typeof data.episode === 'number') {
+            setLastWatchedInfo(data)
+          }
+        } catch {
+          // ignore
         }
-      } else {
-        console.log('No stored watch data found for:', storageKey)
       }
     }
   }, [anime.id])
 
+  // Инициализация выбранной серии (с защитой от выходящих серий)
   useEffect(() => {
-    if (
-      !isStarted &&
-      initialEpisode &&
-      initialEpisode > 0 &&
-      initialEpisode !== selectedEpisode
-    ) {
-      setSelectedEpisode(initialEpisode)
+    if (!isStarted) {
+      if (initialEpisode && initialEpisode > 0) {
+        setSelectedEpisode(Math.min(initialEpisode, availableEpisodes))
+      } else if (lastWatchedInfo?.episode) {
+        setSelectedEpisode(Math.min(lastWatchedInfo.episode, availableEpisodes))
+      }
     }
-  }, [initialEpisode, isStarted, selectedEpisode])
+  }, [initialEpisode, lastWatchedInfo, isStarted, availableEpisodes])
 
-  useEffect(() => {
-    if (!isStarted && !initialEpisode && lastWatchedInfo?.episode && lastWatchedInfo.episode !== selectedEpisode) {
-      setSelectedEpisode(lastWatchedInfo.episode)
-    }
-  }, [initialEpisode, isStarted, lastWatchedInfo, selectedEpisode])
-
+  // Синхронизация истории и URL при изменении серии
   useEffect(() => {
     if (!isStarted || isUpdatingFromPlayer) return
 
@@ -150,26 +146,27 @@ export function WatchPageClient({
       { id: anime.id, title: anime.title, poster: anime.poster },
       { episode: selectedEpisode, episodesTotal: availableEpisodes }
     )
-  }, [selectedEpisode, isStarted, pathname, router, searchParams, anime, isUpdatingFromPlayer])
+  }, [selectedEpisode, isStarted, pathname, router, searchParams, anime, isUpdatingFromPlayer, availableEpisodes])
+
+  const scrollToPlayer = useCallback(() => {
+    if (playerRef.current) {
+      const yOffset = -80
+      const y = playerRef.current.getBoundingClientRect().top + window.pageYOffset + yOffset
+      window.scrollTo({ top: y, behavior: 'smooth' })
+    }
+  }, [])
 
   const handleSelectEpisode = (episode: number) => {
-    setSelectedEpisode(episode)
+    const safeEpisode = Math.min(Math.max(1, episode), availableEpisodes)
+    setSelectedEpisode(safeEpisode)
     setIsStarted(true)
-    
-    // Плавный скролл к плееру, а не в самый верх (лучше UX)
-    if (playerRef.current) {
-      const yOffset = -80 // Отступ сверху для хедера
-      const y = playerRef.current.getBoundingClientRect().top + window.pageYOffset + yOffset;
-      window.scrollTo({ top: y, behavior: 'smooth' });
-    }
+    scrollToPlayer()
   }
 
   const handleGoBack = () => {
-    // Проверяем, есть ли история для возврата
     if (typeof window !== 'undefined' && window.history.length > 1) {
       router.back()
     } else {
-      // Если истории нет, переходим в каталог
       router.push('/catalog')
     }
   }
@@ -181,23 +178,21 @@ export function WatchPageClient({
 
   const handleRegionDetected = (isRussia: boolean) => {
     setIsRegionDetected(true)
-    // Если Россия и страна еще не установлена, устанавливаем RU
     if (isRussia && selectedCountry === 'RU') {
       setSelectedCountry('RU')
     }
   }
 
   const handleEpisodeChangeFromPlayer = (newEpisode: number) => {
-    if (newEpisode !== selectedEpisode) {
-      console.log('Episode changed from Kodik player:', newEpisode)
+    const safeEpisode = Math.min(Math.max(1, newEpisode), availableEpisodes)
+    if (safeEpisode !== selectedEpisode) {
       setIsUpdatingFromPlayer(true)
-      setSelectedEpisode(newEpisode)
+      setSelectedEpisode(safeEpisode)
       setIsStarted(true)
       
-      // Сбрасываем флаг после небольшого delay чтобы дать время на обновление URL
       setTimeout(() => {
         setIsUpdatingFromPlayer(false)
-      }, 100)
+      }, 150)
     }
   }
 
@@ -207,66 +202,56 @@ export function WatchPageClient({
     time?: string
     translation?: string
   }) => {
-    console.log('Progress update received:', info)
     setLastWatchedInfo(info)
-    
-    // Сохраняем данные в localStorage для восстановления при перезагрузке
     if (typeof window !== 'undefined') {
-      const storageKey = `last-watched-${anime.id}`
-      localStorage.setItem(storageKey, JSON.stringify(info))
-      console.log('Saved to localStorage:', { storageKey, data: info })
+      localStorage.setItem(`last-watched-${anime.id}`, JSON.stringify(info))
     }
   }
 
   return (
     <div className="flex flex-col gap-6 pt-4 mx-auto">
-      
-      {/* --- Navigation & Actions Toolbar --- */}
+      {/* Navigation & Actions Toolbar */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <Button
           onClick={handleGoBack}
           size="sm"
           variant="ghost"
-          className="gap-2 bg-card border border-border text-muted-foreground hover:text-foreground hover:bg-card/80 hover:border-border transition-all"
+          className="gap-2 bg-card border border-border text-muted-foreground hover:text-foreground hover:bg-card/80 transition-all"
         >
           <ArrowLeft className="w-4 h-4" />
           <span>Назад</span>
         </Button>
 
         <div className="flex items-center gap-2">
-          {/* Переключатель плееров */}
-          {hasEpisodes && (
-            <div className="flex items-center gap-1 bg-card border border-border rounded-lg p-1">
-              <Button
-                size="sm"
-                variant={activePlayer === 'main' ? "default" : "ghost"}
-                onClick={() => setActivePlayer('main')}
-                className={cn(
-                  "gap-2 text-xs transition-all",
-                  activePlayer === 'main' 
-                    ? "bg-primary text-primary-foreground hover:bg-primary/90" 
-                    : "text-muted-foreground hover:text-foreground hover:bg-card/80"
-                )}
-              >
-                Основной
-              </Button>
-              <Button
-                size="sm"
-                variant={activePlayer === 'backup' ? "default" : "ghost"}
-                onClick={() => setActivePlayer('backup')}
-                className={cn(
-                  "gap-2 text-xs transition-all",
-                  activePlayer === 'backup' 
-                    ? "bg-primary text-primary-foreground hover:bg-primary/90" 
-                    : "text-muted-foreground hover:text-foreground hover:bg-card/80"
-                )}
-              >
-                Запасной
-              </Button>
-            </div>
-          )}
+          <div className="flex items-center gap-1 bg-card border border-border rounded-lg p-1">
+            <Button
+              size="sm"
+              variant={activePlayer === 'main' ? "default" : "ghost"}
+              onClick={() => setActivePlayer('main')}
+              className={cn(
+                "gap-2 text-xs transition-all",
+                activePlayer === 'main' 
+                  ? "bg-primary text-primary-foreground hover:bg-primary/90" 
+                  : "text-muted-foreground hover:text-foreground hover:bg-card/80"
+              )}
+            >
+              Основной
+            </Button>
+            <Button
+              size="sm"
+              variant={activePlayer === 'backup' ? "default" : "ghost"}
+              onClick={() => setActivePlayer('backup')}
+              className={cn(
+                "gap-2 text-xs transition-all",
+                activePlayer === 'backup' 
+                  ? "bg-primary text-primary-foreground hover:bg-primary/90" 
+                  : "text-muted-foreground hover:text-foreground hover:bg-card/80"
+              )}
+            >
+              Запасной
+            </Button>
+          </div>
 
-          {/* Кнопка "В закладки" */}
           <Button
             size="sm"
             variant="ghost"
@@ -274,21 +259,20 @@ export function WatchPageClient({
             className={cn(
               "gap-2 transition-all border",
               saved 
-                ? "bg-primary/10 border-primary/50 text-primary hover:bg-primary/20 hover:text-primary" 
-                : "bg-card border-border text-muted-foreground hover:text-foreground hover:bg-card/80 hover:border-border"
+                ? "bg-primary/10 border-primary/50 text-primary hover:bg-primary/20" 
+                : "bg-card border-border text-muted-foreground hover:text-foreground hover:bg-card/80"
             )}
           >
             <Bookmark className={cn("w-4 h-4", saved && "fill-current")} />
             <span>{saved ? "Сохранено" : "В закладки"}</span>
           </Button>
 
-          {/* Кнопка "Скачать" */}
           <Dialog>
             <DialogTrigger asChild>
               <Button
                 size="sm"
                 variant="ghost"
-                className="gap-2 bg-card border border-border text-muted-foreground hover:text-foreground hover:bg-card/80 hover:border-border transition-all"
+                className="gap-2 bg-card border border-border text-muted-foreground hover:text-foreground hover:bg-card/80 transition-all"
               >
                 <Download className="w-4 h-4" />
                 <span className="hidden sm:inline">Скачать</span>
@@ -303,7 +287,6 @@ export function WatchPageClient({
               </DialogHeader>
 
               <div className="flex flex-col gap-5 py-2">
-                {/* Весь сезон */}
                 <div className="space-y-3">
                   <h3 className="text-xs uppercase tracking-wider font-bold text-muted-foreground flex items-center gap-2">
                     <HardDrive className="w-3 h-3" />
@@ -331,33 +314,29 @@ export function WatchPageClient({
                   </div>
                 </div>
 
-                {/* Текущая серия */}
-                {hasEpisodes && (
-                   <div className="space-y-3">
-                    <h3 className="text-xs uppercase tracking-wider font-bold text-muted-foreground flex items-center gap-2">
-                      <FileVideo className="w-3 h-3" />
-                      Текущая серия ({selectedEpisode})
-                    </h3>
-                    <a
-                      href={getTrackerLink('rutor', `${anime.title} ${selectedEpisode} серия`)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center justify-center gap-2 w-full p-3 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground font-medium transition-colors shadow-lg shadow-primary/20"
-                    >
-                      <Download className="w-4 h-4" />
-                      Найти серию на Rutor
-                    </a>
-                   </div>
-                )}
+                <div className="space-y-3">
+                  <h3 className="text-xs uppercase tracking-wider font-bold text-muted-foreground flex items-center gap-2">
+                    <FileVideo className="w-3 h-3" />
+                    Текущая серия ({selectedEpisode})
+                  </h3>
+                  <a
+                    href={getTrackerLink('rutor', `${anime.title} ${selectedEpisode} серия`)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-center gap-2 w-full p-3 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground font-medium transition-colors shadow-lg shadow-primary/20"
+                  >
+                    <Download className="w-4 h-4" />
+                    Найти серию на Rutor
+                  </a>
+                </div>
               </div>
             </DialogContent>
           </Dialog>
         </div>
       </div>
 
-      {/* --- Anime Header Info: градиент от обложки + немного заходит на плеер --- */}
+      {/* Header Info */}
       <div className="relative overflow-hidden rounded-3xl bg-card/30 border border-border p-4 md:p-8">
-        {/* Фон от обложки: размытый постер даёт цвет и градиент */}
         <div className="absolute inset-0 z-0" aria-hidden="true">
           <Image
             src={anime.poster}
@@ -371,7 +350,6 @@ export function WatchPageClient({
         </div>
 
         <div className="flex flex-row items-center gap-4 md:gap-8 relative z-10">
-          {/* Poster */}
           <div className="relative w-24 aspect-[2/3] md:w-44 shrink-0 rounded-lg md:rounded-xl overflow-hidden shadow-2xl bg-muted ring-1 ring-border">
             <Image
               src={anime.poster}
@@ -391,7 +369,6 @@ export function WatchPageClient({
             )}
           </div>
 
-          {/* Info Text */}
           <div className="flex flex-col gap-2 md:gap-4 flex-1 min-w-0 pt-1">
             <h1 className="text-xl md:text-3xl lg:text-4xl font-black text-foreground leading-tight">
               {anime.title}
@@ -403,7 +380,7 @@ export function WatchPageClient({
               </span>
               <span className="w-1 h-1 rounded-full bg-border" />
               <span>
-                {anime.episodesCurrent || "?"} / {anime.episodesTotal || "?"} {getEpisodeText(parseInt(anime.episodesTotal?.toString() || "0"))}
+                {availableEpisodes} / {totalPlannedEpisodes} {getEpisodeText(totalPlannedEpisodes)}
               </span>
               
               {anime.genres && anime.genres.length > 0 && (
@@ -416,29 +393,11 @@ export function WatchPageClient({
               )}
             </div>
 
-            {hasEpisodes ? (
-                <div className="mt-1 md:mt-2 inline-flex items-center gap-2 text-primary text-sm md:text-base font-semibold">
-                    <PlayCircle className="w-4 h-4 md:w-5 md:h-5 fill-orange-500/20" />
-                    Сейчас смотрю: <span className="text-foreground">{selectedEpisode} серию</span>
-                </div>
-            ) : (
-                <div className="mt-2 space-y-2">
-                    <div className="inline-block px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary text-xs md:text-sm font-medium">
-                        Анонс
-                    </div>
-                    {anime.airedOn && (
-                        <div className="inline-block px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary text-xs md:text-sm font-medium">
-                            Выход: {new Date(anime.airedOn).toLocaleDateString('ru-RU', {
-                                day: 'numeric',
-                                month: 'long',
-                                year: 'numeric'
-                            })}
-                        </div>
-                    )}
-                </div>
-            )}
+            <div className="mt-1 md:mt-2 inline-flex items-center gap-2 text-primary text-sm md:text-base font-semibold">
+              <PlayCircle className="w-4 h-4 md:w-5 md:h-5 fill-orange-500/20" />
+              Сейчас смотрю: <span className="text-foreground">{selectedEpisode} серию</span>
+            </div>
 
-            {/* Genre Buttons */}
             {anime.genres && anime.genres.length > 0 && (
               <div className="mt-3 md:mt-4">
                 <div className="flex flex-wrap gap-2">
@@ -458,79 +417,64 @@ export function WatchPageClient({
         </div>
       </div>
 
-      {/* --- Player Section --- */}
-      <div 
-        id='player'
-        ref={playerRef} 
-        className="w-full scroll-mt-24" // scroll-mt нужен для отступа при скролле
-      >
-        {/* Предупреждение о регионе */}
+      {/* Player Section */}
+      <div id="player" ref={playerRef} className="w-full scroll-mt-24">
         <RegionWarning selectedCountry={selectedCountry} isRegionDetected={isRegionDetected} />
         
-        {hasEpisodes ? (
-          <div className="rounded-2xl overflow-hidden border border-border bg-background shadow-2xl relative aspect-video">
-            {isHentaiContent(anime) ? (
-              <HentaiPlayer
-                title={anime.title}
-                originalTitle={anime.originalTitle}
-                episode={selectedEpisode}
-                isActive={true}
-              />
-            ) : activePlayer === 'main' ? (
-              <KodikPlayer
-                shikimoriId={anime.shikimoriId}
-                title={anime.title}
-                poster={anime.poster}
-                episode={selectedEpisode}
-                onStart={() => setIsStarted(true)}
-                onCountryChange={handleCountryChange}
-                onRegionDetected={handleRegionDetected}
-                onEpisodeChange={handleEpisodeChangeFromPlayer}
-                onProgressUpdate={handleProgressUpdate}
-              />
-            ) : (
-              <BackupPlayer
-                title={anime.title}
-                episode={selectedEpisode}
-                isActive={true}
-              />
-            )}
-          </div>
-        ) : (
-          <div className="aspect-video w-full rounded-2xl bg-card/50 border border-border flex flex-col items-center justify-center p-6 text-center">
-            <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
-               <PlayCircle className="w-8 h-8 text-muted-foreground" />
-            </div>
-            <h3 className="text-lg font-bold text-foreground mb-2">Серии недоступны</h3>
-            <p className="text-muted-foreground text-sm max-w-md">
-              К сожалению, для этого аниме пока нет доступных серий или плеер временно недоступен.
-            </p>
-          </div>
-        )}
+        <div className="rounded-2xl overflow-hidden border border-border bg-background shadow-2xl relative aspect-video">
+          {isHentaiContent(anime) ? (
+            <HentaiPlayer
+              title={anime.title}
+              originalTitle={anime.originalTitle}
+              episode={selectedEpisode}
+              isActive={true}
+            />
+          ) : activePlayer === 'main' ? (
+            <KodikPlayer
+              shikimoriId={anime.shikimoriId}
+              title={anime.title}
+              poster={anime.poster}
+              episode={selectedEpisode}
+              onStart={() => setIsStarted(true)}
+              onCountryChange={handleCountryChange}
+              onRegionDetected={handleRegionDetected}
+              onEpisodeChange={handleEpisodeChangeFromPlayer}
+              onProgressUpdate={handleProgressUpdate}
+            />
+          ) : (
+            <BackupPlayer
+              title={anime.title}
+              episode={selectedEpisode}
+              isActive={true}
+            />
+          )}
+        </div>
       </div>
 
-      {/* --- Episode Selector --- */}
-      {hasEpisodes && (
-        <div id='episodes' className="bg-card/20 border border-border rounded-2xl p-4 md:p-6 backdrop-blur-sm">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-            <h2 className="text-lg md:text-xl font-bold text-foreground">
-              Список серий
-            </h2>
-            <div className="text-xs font-medium px-3 py-1.5 rounded-full bg-muted text-muted-foreground self-start sm:self-auto">
-                Всего: <span className="text-foreground">{availableEpisodes}</span>
-            </div>
+      {/* Episode Selector */}
+      <div id="episodes" className="bg-card/20 border border-border rounded-2xl p-4 md:p-6 backdrop-blur-sm">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+          <h2 className="text-lg md:text-xl font-bold text-foreground">
+            Список серий
+          </h2>
+          <div className="text-xs font-medium px-3 py-1.5 rounded-full bg-muted text-muted-foreground self-start sm:self-auto">
+            {totalPlannedEpisodes > availableEpisodes ? (
+              <>Вышло: <span className="text-foreground">{availableEpisodes}</span> из <span className="text-foreground">{totalPlannedEpisodes}</span></>
+            ) : (
+              <>Всего: <span className="text-foreground">{availableEpisodes}</span></>
+            )}
           </div>
-
-          <EpisodeSelector
-            totalEpisodes={availableEpisodes}
-            currentEpisode={selectedEpisode}
-            onSelectEpisode={handleSelectEpisode}
-            lastWatchedInfo={lastWatchedInfo}
-          />
         </div>
-      )}
 
-      {/* --- Gallery Section (New Component) --- */}
+        <EpisodeSelector
+          totalEpisodes={availableEpisodes}
+          currentEpisode={selectedEpisode}
+          onSelectEpisode={handleSelectEpisode}
+          lastWatchedInfo={lastWatchedInfo}
+        />
+      </div>
+
+      {/* Gallery */}
       <WatchPageGallery anime={anime} />
 
       <FloatingNav variant="watch-page" />

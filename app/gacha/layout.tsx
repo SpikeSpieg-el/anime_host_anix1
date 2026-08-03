@@ -2,22 +2,16 @@ import type { Metadata } from "next"
 import { WebApplicationStructuredData } from "@/components/seo/structured-data"
 
 export const metadata: Metadata = {
-  title: "Weebx — Гача-крутки аниме персонажей. Собирай легендарку",
-  description: "Крути гачу и собирай легендарных аниме-персонажей! Высокий шанс SSR, ежедневные бонусы, PvP-арена. Получи первый дроп бесплатно на Weebx!",
+  title: "Гача Weebx — Крути и собирай коллекцию аниме карт",
+  description: "Система гачи на Weebx: призывай аниме персонажей, собирай уникальную коллекцию карт с разными редкостями, распыляй дубликаты в пыль и продавай на маркете. PvP-арена, баннеры с гарантами и кастомные наборы.",
   keywords: [
     "гача",
     "гача игры",
     "аниме гача",
-    "гача лайф",
-    "гача клуб",
-    "лучшие гача игры",
-    "топ гача игр",
-    "аниме лутбоксы",
     "гача крутки",
-    "выбить легендарного персонажа",
-    "гача система",
-    "шанс SSR",
-    "бесплатные крутки",
+    "аниме карты",
+    "коллекция карт",
+    "аниме персонажи",
     "weebx",
     "weeb x",
     "WeebX",
@@ -29,18 +23,18 @@ export const metadata: Metadata = {
     canonical: "https://weeb-x.com/gacha",
   },
   openGraph: {
-    title: "Weebx — Гача-крутки аниме персонажей",
-    description: "Крути гачу и собирай легендарных аниме-персонажей! Высокий шанс SSR, ежедневные бонусы.",
+    title: "Гача Weebx — Коллекция аниме карт",
+    description: "Призывай аниме персонажей, собирай коллекцию карт с разными редкостями. PvP-арена, баннеры с гарантами.",
     type: "website",
     url: "https://weeb-x.com/gacha",
     siteName: "Weebx",
     locale: "ru_RU",
-    images: [{ url: "https://weeb-x.com/og-image.png", width: 1200, height: 630, alt: "Weebx — гача аниме персонажей" }],
+    images: [{ url: "https://weeb-x.com/og-image.png", width: 1200, height: 630, alt: "Гача Weebx — коллекция аниме карт" }],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Weebx — Гача-крутки аниме персонажей",
-    description: "Крути гачу и собирай легендарных аниме-персонажей! Высокий шанс SSR.",
+    title: "Гача Weebx — Коллекция аниме карт",
+    description: "Призывай аниме персонажей, собирай коллекцию карт с разными редкостями.",
   },
   robots: {
     index: true,
@@ -58,7 +52,7 @@ export default function GachaLayout({
       <WebApplicationStructuredData
         name="Weebx Gacha"
         url="https://weeb-x.com/gacha"
-        description="Крути гачу и собирай легендарных аниме-персонажей! Высокий шанс SSR, ежедневные бонусы, PvP-арена."
+        description="Система гачи на Weebx: призывай аниме персонажей, собирай коллекцию карт, распыляй дубликаты, продавай на маркете."
         applicationCategory="Game"
       />
       {children}
