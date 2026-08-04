@@ -529,7 +529,7 @@ export default function HistoryPage() {
                 )
               }
 
-              // 2 & 3. ВИД: СЕТКА (Comfortable & Compact)
+              // 2 & 3. ВИД: СЕТКА (Comfortable & Compact) - Исправлен aspect-[2/3] для телефонов!
               return (
                 <div key={item.id} className={cn("relative group", isSelected && "ring-2 ring-orange-500 rounded-2xl")}>
                   {isSelectionMode && (
@@ -553,7 +553,8 @@ export default function HistoryPage() {
                       }
                     }}
                   >
-                    <div className="relative aspect-[16/9] md:aspect-[2/3] overflow-hidden rounded-2xl bg-secondary border border-border dark:bg-zinc-900 dark:border-zinc-800">
+                    {/* aspect-[2/3] делает обложку красивой и нормальной на смартфонах */}
+                    <div className="relative aspect-[2/3] overflow-hidden rounded-2xl bg-secondary border border-border dark:bg-zinc-900 dark:border-zinc-800">
                       <Image
                         src={item.poster}
                         alt={item.title}
