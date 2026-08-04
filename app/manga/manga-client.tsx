@@ -181,6 +181,15 @@ export default function MangaClient() {
             <BookOpen className="w-3.5 h-3.5" /> Weebx Reader
           </div>
           <h1 className="text-4xl md:text-5xl font-black tracking-tight text-foreground">Каталог Манги</h1>
+         <div className="flex items-center mt-2 mb-4">
+            <span className="inline-flex items-center bg-yellow-100 text-yellow-800 text-xs font-medium mr-2 px-2.5 py-0.5 rounded-full border border-yellow-200">
+              <span className="w-2 h-2 mr-1.5 bg-yellow-500 rounded-full animate-pulse"></span>
+              В разработке
+            </span>
+            <span className="text-xs text-muted-foreground">
+              (могут быть неточности)
+            </span>
+          </div>
           <p className="text-sm text-muted-foreground max-w-md">Читайте популярную мангу на русском онлайн со стабильной скоростью</p>
         </div>
 
