@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useTransition } from 'react'
 import { AnimeCard } from '@/components/shared/anime-card'
-import { GridSkeleton, CatalogFiltersSkeleton, NavbarSkeleton, FooterSkeleton, MobileNavSkeleton } from '@/components/shared/skeleton'
+import { GridSkeleton } from '@/components/shared/skeleton'
 import type { Anime, CatalogFilters } from '@/lib/shikimori'
 import { GENRES_MAP } from '@/lib/shikimori'
 import { fetchAnimeData } from '@/app/catalog/actions'
@@ -15,7 +15,6 @@ import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/components/auth/auth-provider'
 
-// ... (Ваши константы OPTIONS остаются без изменений)
 const ORDER_OPTIONS = [
   { value: 'popularity', label: 'Популярные' },
   { value: 'aired_on', label: 'Новинки' },
@@ -65,6 +64,9 @@ export function CatalogClient({ initialFilters }: { initialFilters: CatalogFilte
   const router = useRouter()
   const { profile } = useAuth()
   
+  // React Transition для плавного обновления URL без замораживания UI
+  const [isPending, startTransition] = useTransition()
+  
   const [animes, setAnimes] = useState<Anime[]>([])
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
@@ -93,7 +95,6 @@ export function CatalogClient({ initialFilters }: { initialFilters: CatalogFilte
   const [isFilterPanelVisible, setIsFilterPanelVisible] = useState(true)
   const [lastScrollY, setLastScrollY] = useState(0)
   
-  // Ref для debounced применения фильтров
   const debounceRef = useRef<NodeJS.Timeout | null>(null)
   const isInitialMount = useRef(true)
   const prevFiltersRef = useRef<CatalogFilters | null>(null)
@@ -135,10 +136,8 @@ export function CatalogClient({ initialFilters }: { initialFilters: CatalogFilte
 
   // Авто-применение фильтров при изменении пользователем (с debounced для поиска)
   useEffect(() => {
-    // Пропускаем первый рендер и если фильтры не изменились
     if (isInitialMount.current || !prevFiltersRef.current) return
     
-    // Проверяем, действительно ли фильтры изменились (глубокое сравнение для массивов)
     const prev = prevFiltersRef.current
     const hasChanges = 
       prev.order !== filters.order ||
@@ -153,7 +152,6 @@ export function CatalogClient({ initialFilters }: { initialFilters: CatalogFilte
     
     if (debounceRef.current) clearTimeout(debounceRef.current)
     
-    // Для поиска используем debounced 500мс, для остальных фильтров - сразу
     const delay = filters.search && filters.search !== prev.search ? 500 : 300
     
     debounceRef.current = setTimeout(() => {
@@ -181,9 +179,11 @@ export function CatalogClient({ initialFilters }: { initialFilters: CatalogFilte
       const newUrl = `/catalog?${params.toString()}`
       const currentUrl = window.location.pathname + window.location.search
       
-      // Не делаем push если URL не изменился
       if (newUrl !== currentUrl) {
-        router.push(newUrl)
+        // Использование startTransition для навигации без зависаний
+        startTransition(() => {
+          router.push(newUrl, { scroll: false })
+        })
       }
       
       prevFiltersRef.current = filters
@@ -228,7 +228,9 @@ export function CatalogClient({ initialFilters }: { initialFilters: CatalogFilte
 
   const clearSearch = () => {
     setFilters(prev => ({ ...prev, search: '', page: 1 }))
-    router.push('/catalog')
+    startTransition(() => {
+      router.push('/catalog', { scroll: false })
+    })
   }
 
   const resetFilters = () => {
@@ -239,15 +241,19 @@ export function CatalogClient({ initialFilters }: { initialFilters: CatalogFilte
       search: ''
     }
     setFilters(defaultFilters)
-    router.push('/catalog')
+    startTransition(() => {
+      router.push('/catalog', { scroll: false })
+    })
   }
 
   const handleGoBack = () => {
-    if (typeof window !== 'undefined' && window.history.length > 1) {
-      router.back()
-    } else {
-      router.push('/')
-    }
+    startTransition(() => {
+      if (typeof window !== 'undefined' && window.history.length > 1) {
+        router.back()
+      } else {
+        router.push('/')
+      }
+    })
   }
 
   const gridClass = viewMode === 'compact' 
@@ -257,7 +263,7 @@ export function CatalogClient({ initialFilters }: { initialFilters: CatalogFilte
     : "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-x-4 gap-y-6 sm:gap-y-8"
 
   return (
-    <div className="min-h-screen pb-16 sm:pb-20">
+    <div className={cn("min-h-screen pb-16 sm:pb-20 transition-opacity duration-200", isPending && "opacity-70 pointer-events-none")}>
       <div className={cn(
         "sticky top-16 md:top-20 bg-background/95 backdrop-blur-md border-b z-25 px-3 py-3 sm:px-4 sm:py-4 transition-transform duration-300 ease-in-out shadow-sm border-border dark:bg-zinc-950/95 dark:border-zinc-800",
         isFilterPanelVisible ? "translate-y-0" : "-translate-y-full"
@@ -303,15 +309,15 @@ export function CatalogClient({ initialFilters }: { initialFilters: CatalogFilte
                   variant="outline"
                   onClick={resetFilters}
                   className="border-border bg-transparent h-10 sm:h-11 w-10 sm:w-11 px-0 hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors dark:border-zinc-800 dark:hover:bg-zinc-800 dark:text-zinc-400 dark:hover:text-white"
-                  disabled={loading && !loadingMore}
+                  disabled={(loading || isPending) && !loadingMore}
                   title="Сбросить все"
                 >
                   <RotateCcw className="w-4 h-4" />
                 </Button>
               </div>
 
-              {/* Индикатор загрузки */}
-              {loading && !loadingMore && (
+              {/* Индикатор загрузки / перехода */}
+              {(loading || isPending) && !loadingMore && (
                 <div className="flex items-center gap-2 px-4 h-10 sm:h-11 bg-secondary/50 border border-border rounded-xl text-muted-foreground dark:bg-zinc-900/50 dark:border-zinc-800">
                   <Loader2 className="w-4 h-4 animate-spin" />
                   <span className="text-sm font-medium">Загрузка...</span>
@@ -320,11 +326,9 @@ export function CatalogClient({ initialFilters }: { initialFilters: CatalogFilte
             </div>
           </div>
 
-          {/* ИСПРАВЛЕННАЯ СЕТКА ФИЛЬТРОВ */}
           {showFilters && (
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mt-3 sm:mt-4 p-3 sm:p-4 bg-secondary/80 rounded-xl border animate-in fade-in slide-in-from-top-2 border-border dark:bg-zinc-900/80 dark:border-zinc-800">
               
-              {/* Первая строка: Одиночные селекты (Сортировка, Статус, Тип, Рейтинг) */}
               <div className="col-span-1">
                 <Select value={filters.order || 'popularity'} onValueChange={(v: string) => updateFilter('order', v)}>
                   <SelectTrigger className="h-9 sm:h-10 text-sm sm:text-base bg-background border-border dark:bg-zinc-900 dark:border-zinc-800 dark:text-white">
@@ -377,7 +381,6 @@ export function CatalogClient({ initialFilters }: { initialFilters: CatalogFilte
                 </Select>
               </div>
 
-              {/* Вторая строка: Жанры и Годы (мульти-селекты) */}
               <div className="col-span-2 lg:col-span-2">
                  <MultiSelect
                   options={[
@@ -469,7 +472,7 @@ export function CatalogClient({ initialFilters }: { initialFilters: CatalogFilte
           )}
         </div>
 
-        {loading && !loadingMore ? (
+        {(loading || isPending) && !loadingMore ? (
           <GridSkeleton items={24} />
         ) : animes.length > 0 ? (
           <>
@@ -487,7 +490,7 @@ export function CatalogClient({ initialFilters }: { initialFilters: CatalogFilte
               <div className="mt-12 flex justify-center">
                 <Button
                   onClick={loadMore}
-                  disabled={loadingMore}
+                  disabled={loadingMore || isPending}
                   variant="outline"
                   className="px-6 py-4 sm:px-8 sm:py-6 h-auto text-sm sm:text-base rounded-full bg-secondary border-border text-muted-foreground hover:bg-accent hover:text-foreground hover:border-primary/50 transition-all w-full sm:w-auto dark:bg-zinc-900 dark:border-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-white dark:hover:border-orange-500/50"
                 >
