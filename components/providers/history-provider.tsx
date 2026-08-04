@@ -46,20 +46,23 @@ export function HistoryProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth()
 
   const add = useCallback(async (anime: WatchHistoryItem) => {
-    // 1. Оптимистичное обновление UI (мгновенно обновляем стейт)
+    // Вычисляем архивный статус: берем из объекта, либо из текущего стейта, либо false
+    let currentIsArchived = false
+
+    // 1. Оптимистичное обновление UI (мгновенно обновляем стейт без потери is_archived)
     setItems((prev) => {
+      const existingItem = prev.find((item) => item.id === anime.id)
+      currentIsArchived = anime.is_archived ?? existingItem?.is_archived ?? false
+      
       const filtered = prev.filter((item) => item.id !== anime.id)
-      return [anime, ...filtered].slice(0, 20)
+      const updatedItem = { ...anime, is_archived: currentIsArchived }
+      return [updatedItem, ...filtered].slice(0, 20)
     })
 
     // 2. Если пользователь авторизован, сохраняем в БД
     if (user) {
       try {
-        // Проверяем, завершено ли аниме (досмотрен до последней серии)
-        const isCompleted = anime.episodesTotal && anime.episode && anime.episode >= anime.episodesTotal
-        
-        // ИСПОЛЬЗУЕМ UPSERT ВМЕСТО DELETE + INSERT
-        // Это гарантирует обновление записи, если она есть, или создание новой
+        // ИСПОЛЬЗУЕМ UPSERT C ЯВНЫМ УКАЗАНИЕМ is_archived: false (или сохраняем текущий)
         const { error } = await supabase.from('watch_history').upsert({
           user_id: user.id,
           anime_id: anime.id,
@@ -68,7 +71,7 @@ export function HistoryProvider({ children }: { children: React.ReactNode }) {
           timestamp: anime.timestamp,
           episode: anime.episode,
           episodes_total: anime.episodesTotal,
-          is_archived: isCompleted // Автоматически перемещаем в архив если завершено
+          is_archived: currentIsArchived, // <--- ЯВНО УКАЗЫВАЕМ СТАТУС АРХИВА!
         }, { 
           onConflict: 'user_id, anime_id' 
         })
@@ -76,7 +79,6 @@ export function HistoryProvider({ children }: { children: React.ReactNode }) {
         if (error) {
           console.error("Failed to save history to DB:", error)
         } else {
-           // Запускаем проверку обновлений эпизодов только после успешного сохранения
            setTimeout(() => {
              window.dispatchEvent(new CustomEvent('episode-updates-check-needed'))
            }, 1000)
@@ -102,42 +104,26 @@ export function HistoryProvider({ children }: { children: React.ReactNode }) {
     let isMounted = true
     
     async function fetchHistory() {
-      if (!isMounted) {
-        console.log('[HistoryProvider] Component unmounted, skipping fetch')
-        return
-      }
+      if (!isMounted) return
       
-      console.log('[HistoryProvider] Starting fetchHistory, user:', user?.id)
-      
-      // Отменяем предыдущий запрос если он завис
       if (abortControllerRef.current) {
-        console.log('[HistoryProvider] Aborting previous request')
         abortControllerRef.current.abort()
       }
       
       setIsLoading(true)
       
-      // Создаём новый AbortController
       abortControllerRef.current = new AbortController()
       const signal = abortControllerRef.current.signal
       
       const timeoutId = setTimeout(() => {
-        console.log('[HistoryProvider] Request timeout, aborting')
         if (abortControllerRef.current) {
           abortControllerRef.current.abort()
         }
-      }, 5000) // 5 секунд
+      }, 5000)
       
       try {
         if (user) {
-          // Если залогинен - берем из Supabase
-          console.log('[HistoryProvider] Fetching from Supabase for user:', user.id)
-          
-          // Проверяем не отменён ли запрос
-          if (signal.aborted) {
-            console.log('[HistoryProvider] Request already aborted before fetch')
-            return
-          }
+          if (signal.aborted) return
           
           const { data, error } = await supabase
             .from('watch_history')
@@ -147,20 +133,12 @@ export function HistoryProvider({ children }: { children: React.ReactNode }) {
           
           clearTimeout(timeoutId)
           
-          // Проверяем не отменён ли запрос после fetch
-          if (signal.aborted) {
-            console.log('[HistoryProvider] Request aborted after fetch')
-            return
-          }
+          if (signal.aborted) return
           
           if (error) {
             console.error('[HistoryProvider] Error fetching history:', error)
-            // При ошибке используем localStorage как fallback
             const fallback = safeParseHistory(window.localStorage.getItem(STORAGE_KEY))
-            console.log('[HistoryProvider] Using localStorage fallback, items:', fallback.length)
-            if (isMounted) {
-              setItems(fallback)
-            }
+            if (isMounted) setItems(fallback)
           } else if (data && isMounted) {
             const remoteItems = data.map((row: any) => ({
               id: String(row.anime_id),
@@ -169,51 +147,31 @@ export function HistoryProvider({ children }: { children: React.ReactNode }) {
               timestamp: row.timestamp,
               episode: row.episode,
               episodesTotal: row.episodes_total,
-              is_archived: row.is_archived || false
+              is_archived: row.is_archived === true // Явная проверка на boolean true
             }))
-            console.log('[HistoryProvider] Loaded from Supabase, items:', remoteItems.length)
             setItems(remoteItems)
           }
         } else {
-          // Если нет - из LocalStorage
           const localItems = safeParseHistory(window.localStorage.getItem(STORAGE_KEY))
-          console.log('[HistoryProvider] No user, loading from localStorage, items:', localItems.length)
-          if (isMounted) {
-            setItems(localItems)
-          }
+          if (isMounted) setItems(localItems)
         }
       } catch (err) {
         console.error('[HistoryProvider] Exception in fetchHistory:', err)
         clearTimeout(timeoutId)
-        // При исключении используем localStorage
         const fallback = safeParseHistory(window.localStorage.getItem(STORAGE_KEY))
-        console.log('[HistoryProvider] Exception fallback, items:', fallback.length)
-        if (isMounted) {
-          setItems(fallback)
-        }
+        if (isMounted) setItems(fallback)
       } finally {
         clearTimeout(timeoutId)
-        if (isMounted) {
-          console.log('[HistoryProvider] Fetch completed, setting isLoading to false')
-          setIsLoading(false)
-        }
+        if (isMounted) setIsLoading(false)
       }
     }
 
     fetchHistory()
     
-    // Слушаем событие переподключения Supabase (вызывается из lib/supabase.ts)
-    const handleSupabaseReconnect = () => {
-      console.log('[HistoryProvider] Supabase reconnected, reloading history...')
-      fetchHistory()
-    }
-
+    const handleSupabaseReconnect = () => fetchHistory()
     window.addEventListener("supabase-reconnected", handleSupabaseReconnect)
-    
-    // Слушаем событие синхронизации после входа
     window.addEventListener("auth-synced", fetchHistory)
     
-    // Слушаем события добавления в историю (от HistoryTracker)
     const handleAddToHistory = (event: CustomEvent) => {
       add(event.detail)
     }
@@ -221,7 +179,6 @@ export function HistoryProvider({ children }: { children: React.ReactNode }) {
     
     return () => {
       isMounted = false
-      // Отменяем все pending запросы
       if (abortControllerRef.current) {
         abortControllerRef.current.abort()
         abortControllerRef.current = null
@@ -238,7 +195,6 @@ export function HistoryProvider({ children }: { children: React.ReactNode }) {
     }
   }, [items, user?.id])
 
-  // Синхронизация ID истории в cookie для сервера (исключение из «Для вас» на главной)
   useEffect(() => {
     if (typeof document === "undefined") return
     const ids = items.map((i) => i.id)
@@ -249,10 +205,12 @@ export function HistoryProvider({ children }: { children: React.ReactNode }) {
     const currentItem = items.find(item => item.id === id)
     if (!currentItem) return
 
+    const newArchivedStatus = !currentItem.is_archived
+
     setItems((prev) => 
       prev.map((item) => 
         item.id === id 
-          ? { ...item, is_archived: !item.is_archived }
+          ? { ...item, is_archived: newArchivedStatus }
           : item
       )
     )
@@ -261,11 +219,10 @@ export function HistoryProvider({ children }: { children: React.ReactNode }) {
       try {
         await supabase
           .from('watch_history')
-          .update({ is_archived: !currentItem.is_archived })
+          .update({ is_archived: newArchivedStatus })
           .match({ user_id: user.id, anime_id: id })
       } catch (error) {
         console.error('Failed to toggle archive status:', error)
-        // Revert on error
         setItems((prev) => 
           prev.map((item) => 
             item.id === id 
@@ -299,64 +256,25 @@ export function HistoryProvider({ children }: { children: React.ReactNode }) {
   }, [user?.id])
 
   const remove = useCallback(async (ids: string[]) => {
-    console.log('[remove] Starting removal of ids:', ids)
-    console.log('[remove] User:', user?.id)
     setItems((prev) => prev.filter(item => !ids.includes(item.id)))
 
     if (user) {
       try {
-        // Delete each item individually using match like toggleArchived
         for (const id of ids) {
-          console.log(`[remove] Deleting anime_id: ${id}, user_id: ${user.id}`)
-          const { error } = await supabase
+          await supabase
             .from('watch_history')
             .delete()
             .match({ user_id: user.id, anime_id: id })
-          
-          if (error) {
-            console.error(`[remove] Failed to remove item ${id}:`, error)
-          } else {
-            console.log(`[remove] Successfully removed item ${id}`)
-          }
-        }
-        
-        // Force reload from database to ensure sync
-        console.log('[remove] Reloading data from database...')
-        const { data, error } = await supabase
-          .from('watch_history')
-          .select('*')
-          .eq('user_id', user.id)
-          .order('timestamp', { ascending: false })
-        
-        if (data) {
-          const remoteItems = data.map((row: any) => ({
-            id: String(row.anime_id),
-            title: row.title,
-            poster: row.poster,
-            timestamp: row.timestamp,
-            episode: row.episode,
-            episodesTotal: row.episodes_total,
-            is_archived: row.is_archived || false
-          }))
-          console.log('[remove] Reloaded items count:', remoteItems.length)
-          setItems(remoteItems)
-        }
-        if (error) {
-          console.error('[remove] Error reloading:', error)
         }
       } catch (error) {
         console.error('[remove] Exception:', error)
       }
     } else {
-      console.log('[remove] Guest mode - updating localStorage')
-      // Handle localStorage for guests
       const existing = safeParseHistory(window.localStorage.getItem(STORAGE_KEY))
       const filtered = existing.filter(item => !ids.includes(item.id))
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(filtered))
-      console.log('[remove] localStorage updated')
     }
 
-    // Trigger episode updates recheck after removal
     setTimeout(() => {
       window.dispatchEvent(new CustomEvent('episode-updates-check-needed'))
     }, 500)
