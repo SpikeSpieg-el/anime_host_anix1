@@ -1,9 +1,11 @@
 import { Metadata } from "next"
 import Link from "next/link"
-import { ArrowLeft, HelpCircle } from "lucide-react"
+import { ArrowLeft, HelpCircle, Sparkles, PlayCircle, ArrowRight } from "lucide-react"
 import { Footer } from "@/components/layout/footer"
 import { FAQStructuredData, BreadcrumbStructuredData } from "@/components/seo/structured-data"
 import { TranslateButton } from "@/components/shared/translate-button"
+import { Button } from "@/components/ui/button" 
+
 
 export const metadata: Metadata = {
   title: "FAQ — Weebx: ответы на вопросы о стриминге аниме, гаче и PvP-арене",
@@ -348,6 +350,30 @@ export default function FAQPage() {
             <li className="text-foreground font-medium">FAQ</li>
           </ol>
         </nav>
+
+
+         {/* Баннер для конвертации трафика из поиска */}
+        <div className="mb-8 p-6 rounded-2xl bg-gradient-to-r from-orange-500/15 via-orange-500/5 to-transparent border border-orange-500/20 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-lg backdrop-blur-sm">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2 text-primary font-bold text-xs uppercase tracking-wider">
+              <Sparkles className="w-4 h-4" />
+              <span>Ищете, что посмотреть?</span>
+            </div>
+            <h2 className="text-lg sm:text-xl font-bold text-foreground">
+              Тысячи аниме онлайн бесплатно в HD
+            </h2>
+            <p className="text-xs sm:text-sm text-muted-foreground">
+              Все серии с русской озвучкой и субтитрами доступны без регистрации.
+            </p>
+          </div>
+          <Button asChild className="shrink-0 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold rounded-xl shadow-lg shadow-primary/25 transition-all">
+            <Link href="/catalog" className="flex items-center gap-2">
+              <PlayCircle className="w-4 h-4" />
+              В Каталог
+              <ArrowRight className="w-4 h-4 ml-0.5" />
+            </Link>
+          </Button>
+        </div>
 
         <div className="space-y-8">
           {faqCategories.map((category, categoryIndex) => (
