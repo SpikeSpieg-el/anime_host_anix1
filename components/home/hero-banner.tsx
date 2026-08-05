@@ -68,14 +68,18 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime, recommendationRea
   const [isTransitioning, setIsTransitioning] = useState(false)
   const [isRefreshing, setIsRefreshing] = useState(false)
 
+  // Плавное переключение режимов
   const switchMode = (newMode: 'top' | 'recommended') => {
-    if (newMode === mode) return
+    if (newMode === mode || isTransitioning) return
     setIsTransitioning(true)
     setTimeout(() => {
       setMode(newMode)
-      setIsTransitioning(false)
-    }, 200)
+      requestAnimationFrame(() => {
+        setIsTransitioning(false)
+      })
+    }, 180)
   }
+
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [bgImageError, setBgImageError] = useState(false)
   const [posterImageError, setPosterImageError] = useState(false)
@@ -84,11 +88,19 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime, recommendationRea
   const { isSaved, toggle } = useBookmarks()
   const router = useRouter()
 
-  // Load full description when dialog opens
+  const anime = mode === 'top' ? topOfWeekAnime : recommendedAnime
+  const saved = !!anime?.id && isSaved(String(anime.id))
+
+  // Сброс ошибок картинок при смене аниме
+  useEffect(() => {
+    setBgImageError(false)
+    setPosterImageError(false)
+  }, [anime?.id])
+
+  // Загрузка полного описания в модалке
   useEffect(() => {
     if (isDialogOpen && anime?.id) {
       const loadDescription = async () => {
-        // Only load if current description is placeholder
         if (!anime.description || anime.description === "Описание отсутствует...") {
           setLoadingDescription(true)
           try {
@@ -108,7 +120,7 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime, recommendationRea
       }
       loadDescription()
     }
-  }, [isDialogOpen])
+  }, [isDialogOpen, anime?.id, anime?.description])
 
   // 3D tilt effect refs and state
   const containerRef = useRef<HTMLDivElement>(null)
@@ -119,13 +131,11 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime, recommendationRea
   const [dvdOpen, setDvdOpen] = useState(false)
 
   useEffect(() => {
-    // Trigger entrance animation after mount
     const timer = setTimeout(() => setIsLoaded(true), 100)
     return () => clearTimeout(timer)
   }, [])
 
   useEffect(() => {
-    // Check if mobile device
     const checkMobile = () => {
       setIsMobile(window.innerWidth < 1024)
     }
@@ -143,7 +153,7 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime, recommendationRea
 
     const animate = () => {
       const elapsed = Date.now() - startTime
-      const slowRotation = Math.sin(elapsed / 2000) * 3 // Slow gentle rotation
+      const slowRotation = Math.sin(elapsed / 2000) * 3
       const slowTilt = Math.cos(elapsed / 3000) * 2
 
       setRotation({ x: slowTilt, y: slowRotation })
@@ -154,21 +164,6 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime, recommendationRea
     return () => cancelAnimationFrame(animationFrame)
   }, [isMobile, isLoaded])
 
-  const anime = mode === 'top' ? topOfWeekAnime : recommendedAnime
-  const saved = !!anime?.id && isSaved(String(anime.id))
-
-  // Debug description
-  useEffect(() => {
-    if (anime) {
-      console.log('[HeroBanner] Anime description:', {
-        title: anime.title,
-        description: anime.description,
-        descriptionLength: anime.description?.length,
-        hasDescription: !!(anime.description && anime.description.trim() !== "" && anime.description !== "Описание отсутствует...")
-      })
-    }
-  }, [anime])
-
   // Auto-switch to top mode only when loading is done and there's still no recommendation
   useEffect(() => {
     if (mode === 'recommended' && !isRecommendationLoading && !recommendedAnime && topOfWeekAnime) {
@@ -176,22 +171,13 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime, recommendationRea
     }
   }, [mode, isRecommendationLoading, recommendedAnime, topOfWeekAnime])
 
-  // Auto-switch to recommended when it arrives while user is waiting in recommended mode
-  useEffect(() => {
-    // nothing to do — we stay in recommended mode and show content once it arrives
-  }, [recommendedAnime])
-
-  const hasHighQualityBackdrop = !!anime?.backdrop && !bgImageError;
-  const bgImage = bgImageError ? generateFallbackPoster(anime?.title || 'Anime') : (anime?.backdrop || anime?.poster);
   const posterImage = posterImageError ? generateFallbackPoster(anime?.title || 'Anime') : anime?.poster;
 
-  // Show skeleton only during initial load, not when recommendation is unavailable
+  // Show skeleton only during initial load
   if (!anime) {
-    // If we have no anime at all (neither top nor recommended), show skeleton
     if (!topOfWeekAnime && !recommendedAnime) {
       return <HeroBannerSkeleton />
     }
-    // If we're in recommended mode but have no recommendation yet
     if (mode === 'recommended' && !recommendedAnime) {
       if (isRecommendationLoading) {
         return (
@@ -230,7 +216,6 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime, recommendationRea
         </div>
       )
     }
-    // Fallback skeleton for any other case
     return <HeroBannerSkeleton />
   }
 
@@ -243,18 +228,14 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime, recommendationRea
     return "text-3xl sm:text-5xl lg:text-7xl leading-none";
   };
 
-  // Handle 3D tilt effect on mouse move
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!containerRef.current) return;
-    
-    // Считываем координаты со СТАТИЧНОГО контейнера, чтобы избежать тряски
     const rect = containerRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
     const centerX = rect.width / 2;
     const centerY = rect.height / 2;
     
-    // Уменьшил делитель для более плавного и глубокого эффекта (25 вместо 15)
     const rotateX = (centerY - y) / 25;
     const rotateY = (x - centerX) / 25;
     
@@ -271,6 +252,14 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime, recommendationRea
     setRotation({ x: 0, y: 0 });
   };
 
+  // Стиль бесшовной плавной анимации для сменяемого контента
+  const transitionContentStyle = {
+    opacity: isTransitioning ? 0 : 1,
+    transform: isTransitioning ? 'translateY(10px) scale(0.98)' : 'translateY(0) scale(1)',
+    filter: isTransitioning ? 'blur(8px)' : 'blur(0px)',
+    transition: 'opacity 0.22s cubic-bezier(0.16, 1, 0.3, 1), transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), filter 0.22s cubic-bezier(0.16, 1, 0.3, 1)',
+  };
+
   return (
     <div className="relative w-full min-h-[550px] lg:h-[750px] mb-8 lg:mb-12 overflow-hidden bg-background border-b border-border group animate-fade-in">
       
@@ -280,7 +269,6 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime, recommendationRea
       </div>
 
       <div className="absolute inset-0 z-0">
-        {/* Градиенты без картинки фона */}
         <div className="absolute inset-0 bg-gradient-to-br from-background to-secondary dark:from-zinc-950 dark:to-zinc-900" />
         <div className="absolute inset-0 bg-gradient-to-t from-background via-background/90 to-background/30 lg:via-background/60 lg:to-transparent dark:from-zinc-950 dark:via-zinc-950/90 dark:to-zinc-950/30 lg:dark:via-zinc-950/60 lg:dark:to-transparent" />
         <div className="absolute inset-0 bg-gradient-to-r from-background/90 via-background/70 to-transparent dark:from-zinc-950/90 dark:via-zinc-950/70" />
@@ -288,14 +276,7 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime, recommendationRea
 
       {/* --- КОНТЕЙНЕР КОНТЕНТА --- */}
       <div className="relative h-full container mx-auto px-4 sm:px-6 z-10 flex flex-col justify-center py-6 lg:py-0">
-        <div
-          className="flex flex-col lg:flex-row h-full items-center"
-          style={{
-            opacity: isTransitioning ? 0 : 1,
-            transform: isTransitioning ? 'translateY(6px)' : 'translateY(0)',
-            transition: 'opacity 0.2s ease, transform 0.2s ease',
-          }}
-        >
+        <div className="flex flex-col lg:flex-row h-full items-center">
           
           {/* --- ПРАВАЯ ЧАСТЬ: DVD-КЕЙС --- */}
           <div 
@@ -314,7 +295,6 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime, recommendationRea
                  transform: isLoaded
                    ? `rotateX(${rotation.x}deg) rotateY(${rotation.y}deg)` 
                    : 'rotateX(10deg) rotateY(-15deg) translateY(30px)',
-                 // Важно: очень быстрая анимация при движении мыши (убирает лаг) и плавная при возврате
                  transition: isMobile 
                    ? 'none' 
                    : (isHovering ? 'transform 0.05s linear' : 'transform 0.6s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.6s ease-out 0.2s'),
@@ -334,7 +314,7 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime, recommendationRea
                <div
                  className="absolute inset-0 rounded-xl lg:rounded-2xl overflow-hidden shadow-2xl border border-border bg-secondary dark:border-white/10 dark:bg-zinc-900"
                  style={{
-                   transform: 'translateZ(-24px)', // Увеличил отступ для надежности
+                   transform: 'translateZ(-24px)',
                    transformStyle: 'preserve-3d',
                    backfaceVisibility: 'hidden',
                  }}
@@ -364,9 +344,8 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime, recommendationRea
                  className="absolute inset-0 flex items-center justify-center pointer-events-none"
                  style={{
                    transform: dvdOpen 
-                     // ИСПРАВЛЕНО: 360deg вместо 180deg (полный оборот, диск не перевернут)
                      ? 'translateX(45%) rotateY(20deg) rotateZ(360deg) translateZ(0px)' 
-                     : 'translateX(0%) rotateY(0deg) rotateZ(0deg) translateZ(-28px)', // Спрятан еще глубже
+                     : 'translateX(0%) rotateY(0deg) rotateZ(0deg) translateZ(-28px)',
                    transition: 'transform 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) 0.1s',
                    transformStyle: 'preserve-3d',
                  }}
@@ -383,7 +362,10 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime, recommendationRea
                    </div>
                    <div className="absolute inset-0 rounded-full bg-gradient-to-tr from-white/10 via-transparent to-transparent"></div>
                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-3 h-3 sm:w-4 sm:h-4 lg:w-5 lg:h-5 rounded-full bg-black"></div>
-                   <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-white text-[8px] sm:text-[10px] lg:text-[12px] font-mono opacity-70 text-center w-full px-4">
+                   <div 
+                     className="absolute bottom-4 left-1/2 -translate-x-1/2 text-white text-[8px] sm:text-[10px] lg:text-[12px] font-mono opacity-70 text-center w-full px-4"
+                     style={transitionContentStyle}
+                   >
                      <div className="truncate">{anime.title || 'ANIME'}</div>
                      <div className="text-orange-500 font-bold">DVD</div>
                    </div>
@@ -397,20 +379,19 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime, recommendationRea
                  className="absolute inset-0 w-full h-full rounded-xl lg:rounded-2xl shadow-2xl border-2 border-border bg-secondary dark:border-white/10 dark:bg-zinc-900 origin-left"
                  style={{
                    transformStyle: 'preserve-3d',
-                   backfaceVisibility: 'hidden', // Предотвращаем прохождение сквозь заднюю часть
+                   backfaceVisibility: 'hidden',
                    transform: dvdOpen ? 'rotateY(-45deg)' : 'rotateY(0deg)',
                    transition: 'transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1)',
                  }}
                  aria-label="Подробнее об аниме"
                >
-                  <div className="relative w-full h-full rounded-xl lg:rounded-2xl overflow-hidden">
+                  <div className="relative w-full h-full rounded-xl lg:rounded-2xl overflow-hidden" style={transitionContentStyle}>
                       <Image
                          src={posterImage}
                          alt={anime.title}
                          fill
                          className="object-cover"
                          sizes="(max-width: 768px) 160px, 350px"
-                         quality={80}
                          onError={() => setPosterImageError(true)}
                          unoptimized={posterImageError || posterImage.startsWith('data:image')}
                       />
@@ -451,37 +432,11 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime, recommendationRea
             }}
           >
 
-            {/* 1. ЗАГОЛОВОК (ДОБАВЛЕН font-unbounded) */}
-            <h2
-              className={`
-                ${getTitleClass(anime.title)}
-                font-black font-unbounded text-foreground mb-3 lg:mb-4 dark:text-white
-                uppercase tracking-tight
-                drop-shadow-[0_5px_15px_rgba(0,0,0,0.8)]
-                max-w-full lg:max-w-[90%]
-              `}
-              style={{ 
-                textWrap: "balance",
-                opacity: isLoaded ? 1 : 0,
-                transform: isLoaded ? 'translateY(0)' : 'translateY(10px)',
-                transition: 'opacity 0.6s ease-out 0.4s, transform 0.6s ease-out 0.4s',
-              }}
-            >
-              {anime.title}
-            </h2>
-
-            {/* 2. ТАБЫ */}
-            <div 
-              className="flex items-center gap-1.5 mb-5 lg:mb-6 bg-secondary/60 backdrop-blur-md p-1.5 rounded-xl border border-border shadow-lg justify-center lg:justify-start dark:bg-zinc-900/60 dark:border-white/10"
-              style={{
-                opacity: isLoaded ? 1 : 0,
-                transform: isLoaded ? 'translateY(0)' : 'translateY(10px)',
-                transition: 'opacity 0.6s ease-out 0.5s, transform 0.6s ease-out 0.5s',
-              }}
-            >
+            {/* 1. ТАБЫ (НЕ ЗАВИСЯТ ОТ Transition, откликаются МГНОВЕННО) */}
+            <div className="flex items-center gap-1.5 mb-4 lg:mb-5 bg-secondary/60 backdrop-blur-md p-1.5 rounded-xl border border-border shadow-lg justify-center lg:justify-start dark:bg-zinc-900/60 dark:border-white/10">
               <button
                 onClick={() => switchMode('top')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg text-[10px] sm:text-xs lg:text-sm font-black uppercase tracking-wider transition-all duration-300 ${
+                className={`flex items-center gap-1.5 px-3.5 py-1.5 sm:px-4 sm:py-2 rounded-lg text-[10px] sm:text-xs lg:text-sm font-black uppercase tracking-wider transition-all duration-300 ${
                   mode === 'top' 
                     ? 'bg-background text-foreground shadow-md scale-100 dark:bg-white dark:text-black' 
                     : 'text-muted-foreground hover:text-foreground hover:bg-accent scale-95 dark:text-zinc-400 dark:hover:text-white dark:hover:bg-white/5'
@@ -493,7 +448,7 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime, recommendationRea
               <div className="w-px h-4 bg-border mx-0.5 dark:bg-white/10"></div>
               <button
                 onClick={() => switchMode('recommended')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg text-[10px] sm:text-xs lg:text-sm font-black uppercase tracking-wider transition-all duration-300 ${
+                className={`flex items-center gap-1.5 px-3.5 py-1.5 sm:px-4 sm:py-2 rounded-lg text-[10px] sm:text-xs lg:text-sm font-black uppercase tracking-wider transition-all duration-300 ${
                   mode === 'recommended'
                     ? 'bg-background text-foreground shadow-md scale-100 dark:bg-white dark:text-black'
                     : 'text-muted-foreground hover:text-foreground hover:bg-accent scale-95 dark:text-zinc-400 dark:hover:text-white dark:hover:bg-white/5'
@@ -525,228 +480,263 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime, recommendationRea
               )}
             </div>
 
-            {/* 3. МЕТА-ТЕГИ */}
-            <div 
-              className="flex flex-wrap items-center justify-center lg:justify-start gap-2 sm:gap-3 mb-4 lg:mb-5 w-full"
-              style={{
-                opacity: isLoaded ? 1 : 0,
-                transform: isLoaded ? 'translateY(0)' : 'translateY(10px)',
-                transition: 'opacity 0.6s ease-out 0.6s, transform 0.6s ease-out 0.6s',
-              }}
-            >
-              <div className="flex items-center gap-1 bg-orange-600 text-white px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-md text-xs sm:text-sm font-black shadow-lg shadow-orange-900/40">
-                <Star className="w-3.5 h-3.5 fill-white" />
-                <span>{anime.rating}</span>
-              </div>
+            {/* БЛОК СМЕНЯЕМОГО КОНТЕНТА */}
+            <div className="w-full flex flex-col items-center lg:items-start" style={transitionContentStyle}>
               
-              <div className="flex items-center gap-2 text-muted-foreground font-mono text-[10px] sm:text-sm uppercase tracking-wider font-bold dark:text-zinc-300">
-                <span className="bg-secondary/5 border border-border px-2 py-1 sm:px-3 sm:py-1.5 rounded-md backdrop-blur-sm dark:bg-white/5 dark:border-white/10">
-                    {anime.year}
-                </span>
-                <span className="bg-white/5 border border-white/10 px-2 py-1 sm:px-3 sm:py-1.5 rounded-md backdrop-blur-sm hidden sm:inline-block">
-                    {anime.quality}
-                </span>
-                <span className="flex items-center gap-1 text-primary bg-primary/5 border border-primary/20 px-2 py-1 sm:px-3 sm:py-1.5 rounded-md dark:text-orange-400 dark:bg-orange-500/5 dark:border-orange-500/20">
-                  <Zap size={12} fill="currentColor" />
-                  {anime.episodesTotal > 0 ? `${anime.episodesTotal} ${getEpisodeText(anime.episodesTotal)}` : 'ONGOING'}
-                </span>
-              </div>
-            </div>
-
-            {/* 3.1 Жанры — ссылки в каталог с фильтром (Топ и Для вас) */}
-            {anime.genres && anime.genres.length > 0 && (
-              <div 
-                className="flex flex-wrap items-center justify-center lg:justify-start gap-2 mb-5 lg:mb-6"
-                style={{
-                  opacity: isLoaded ? 1 : 0,
-                  transform: isLoaded ? 'translateY(0)' : 'translateY(10px)',
-                  transition: 'opacity 0.6s ease-out 0.7s, transform 0.6s ease-out 0.7s',
-                }}
+              {/* 2. ЗАГОЛОВОК */}
+              <h2
+                className={`
+                  ${getTitleClass(anime.title)}
+                  font-black font-unbounded text-foreground mb-3 lg:mb-4 dark:text-white
+                  uppercase tracking-tight
+                  drop-shadow-[0_5px_15px_rgba(0,0,0,0.8)]
+                  max-w-full lg:max-w-[90%]
+                `}
+                style={{ textWrap: "balance" }}
               >
-                {anime.genres.slice(0, 6).map((g: string) => (
-                  <Link
-                    key={g}
-                    href={`/catalog?genre=${encodeURIComponent(g)}`}
-                    className="inline-flex items-center px-3 py-1.5 rounded-full bg-muted/50 border border-border hover:border-primary/40 hover:bg-primary/10 text-muted-foreground hover:text-primary text-[10px] sm:text-xs font-medium transition-all duration-200 dark:bg-white/5 dark:hover:bg-white/10 dark:border-white/10 dark:hover:border-orange-500/40"
-                  >
-                    {g}
-                  </Link>
-                ))}
-              </div>
-            )}
+                {anime.title}
+              </h2>
 
-            {/* 4. ОСНОВНЫЕ КНОПКИ */}
-            <div 
-              className="w-full sm:w-auto flex flex-row items-stretch justify-center gap-3"
-              style={{
-                opacity: isLoaded ? 1 : 0,
-                transform: isLoaded ? 'translateY(0)' : 'translateY(10px)',
-                transition: 'opacity 0.6s ease-out 0.8s, transform 0.6s ease-out 0.8s',
-              }}
-            >
-              <Link 
-                href={`/watch/${anime.id}`} 
-                className="flex-1 sm:flex-none flex justify-center items-center gap-2 lg:gap-3 bg-background text-foreground hover:bg-accent px-6 py-3.5 lg:px-8 lg:py-4 rounded-xl lg:rounded-2xl font-black text-xs lg:text-sm uppercase tracking-wider shadow-[0_0_20px_-5px_rgba(0,0,0,0.1)] transition-transform active:scale-95 dark:bg-white dark:text-black dark:hover:bg-zinc-200"
-              >
-                <Play fill="currentColor" className="w-4 h-4 lg:w-5 lg:h-5 text-orange-600" />
-                <span>СМОТРЕТЬ</span>
-              </Link>
-
-              <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                <DialogTrigger asChild>
-                  <button className="flex-1 sm:flex-none flex justify-center items-center gap-2 bg-secondary/5 hover:bg-secondary/10 backdrop-blur-md border border-border text-foreground px-6 py-3.5 lg:px-8 lg:py-4 rounded-xl lg:rounded-2xl font-bold text-xs lg:text-sm uppercase tracking-wider transition-transform active:scale-95 dark:bg-white/5 dark:hover:bg-white/10 dark:border-white/10 dark:text-white">
-                    <Info className="w-4 h-4 lg:w-5 lg:h-5" />
-                    <span>ИНФО</span>
-                  </button>
-                </DialogTrigger>
+              {/* 3. МЕТА-ТЕГИ */}
+              <div className="flex flex-wrap items-center justify-center lg:justify-start gap-2 sm:gap-3 mb-4 lg:mb-5 w-full">
+                <div className="flex items-center gap-1 bg-orange-600 text-white px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-md text-xs sm:text-sm font-black shadow-lg shadow-orange-900/40">
+                  <Star className="w-3.5 h-3.5 fill-white" />
+                  <span>{anime.rating}</span>
+                </div>
                 
-                {/* --- МОДАЛЬНОЕ ОКНО --- */}
-                <DialogContent className="bg-background/95 backdrop-blur-2xl border text-foreground w-[95vw] sm:max-w-4xl p-0 overflow-hidden shadow-2xl rounded-3xl flex flex-col h-full max-h-[85dvh] sm:h-auto sm:max-h-[90vh]">
-                  <DialogDescription className="sr-only">
-                    Подробная информация об аниме {anime.title}
-                  </DialogDescription>
+                <div className="flex items-center gap-2 text-muted-foreground font-mono text-[10px] sm:text-sm uppercase tracking-wider font-bold dark:text-zinc-300">
+                  <span className="bg-secondary/5 border border-border px-2 py-1 sm:px-3 sm:py-1.5 rounded-md backdrop-blur-sm dark:bg-white/5 dark:border-white/10">
+                      {anime.year}
+                  </span>
+                  <span className="bg-white/5 border border-white/10 px-2 py-1 sm:px-3 sm:py-1.5 rounded-md backdrop-blur-sm hidden sm:inline-block">
+                      {anime.quality}
+                  </span>
+                  <span className="flex items-center gap-1 text-primary bg-primary/5 border border-primary/20 px-2 py-1 sm:px-3 sm:py-1.5 rounded-md dark:text-orange-400 dark:bg-orange-500/5 dark:border-orange-500/20">
+                    <Zap size={12} fill="currentColor" />
+                    {anime.episodesTotal > 0 ? `${anime.episodesTotal} ${getEpisodeText(anime.episodesTotal)}` : 'ONGOING'}
+                  </span>
+                </div>
+              </div>
+
+              {/* 3.1 ЖАНРЫ */}
+              {anime.genres && anime.genres.length > 0 && (
+                <div className="flex flex-wrap items-center justify-center lg:justify-start gap-2 mb-5 lg:mb-6">
+                  {anime.genres.slice(0, 6).map((g: string) => (
+                    <Link
+                      key={g}
+                      href={`/catalog?genre=${encodeURIComponent(g)}`}
+                      className="inline-flex items-center px-3 py-1.5 rounded-full bg-muted/50 border border-border hover:border-primary/40 hover:bg-primary/10 text-muted-foreground hover:text-primary text-[10px] sm:text-xs font-medium transition-all duration-200 dark:bg-white/5 dark:hover:bg-white/10 dark:border-white/10 dark:hover:border-orange-500/40"
+                    >
+                      {g}
+                    </Link>
+                  ))}
+                </div>
+              )}
+
+              {/* 4. ОСНОВНЫЕ КНОПКИ */}
+              <div className="w-full sm:w-auto flex flex-row items-stretch justify-center gap-3">
+                <Link 
+                  href={`/watch/${anime.id}`} 
+                  className="flex-1 sm:flex-none flex justify-center items-center gap-2 lg:gap-3 bg-background text-foreground hover:bg-accent px-6 py-3.5 lg:px-8 lg:py-4 rounded-xl lg:rounded-2xl font-black text-xs lg:text-sm uppercase tracking-wider shadow-[0_0_20px_-5px_rgba(0,0,0,0.1)] transition-transform active:scale-95 dark:bg-white dark:text-black dark:hover:bg-zinc-200"
+                >
+                  <Play fill="currentColor" className="w-4 h-4 lg:w-5 lg:h-5 text-orange-600" />
+                  <span>СМОТРЕТЬ</span>
+                </Link>
+
+                <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                  <DialogTrigger asChild>
+                    <button className="flex-1 sm:flex-none flex justify-center items-center gap-2 bg-secondary/5 hover:bg-secondary/10 backdrop-blur-md border border-border text-foreground px-6 py-3.5 lg:px-8 lg:py-4 rounded-xl lg:rounded-2xl font-bold text-xs lg:text-sm uppercase tracking-wider transition-transform active:scale-95 dark:bg-white/5 dark:hover:bg-white/10 dark:border-white/10 dark:text-white">
+                      <Info className="w-4 h-4 lg:w-5 lg:h-5" />
+                      <span>ИНФО</span>
+                    </button>
+                  </DialogTrigger>
                   
-                  <div className="flex flex-col md:grid md:grid-cols-12 h-full w-full">
-                    
-                    {/* Картинка */}
-                    <div className="shrink-0 h-32 sm:h-52 md:h-full md:col-span-5 relative">
-                      <Image
-                        src={posterImage}
-                        fill
-                        className="object-cover"
-                        alt={`Постер: ${anime.title}`}
-                        quality={60}
-                        onError={() => setPosterImageError(true)}
-                        unoptimized={posterImageError || posterImage.startsWith('data:image')}
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-t from-background via-background/20 to-transparent md:bg-gradient-to-r md:from-transparent md:to-background/95 dark:from-zinc-950 dark:via-zinc-950/20 dark:md:to-zinc-950/95" />
-                    </div>
+                  {/* --- МОДАЛЬНОЕ ОКНО (ПОЛНОЭКРАННЫЙ ШИРОКИЙ БАННЕР) --- */}
+                  <DialogContent className="bg-background border border-border text-foreground w-[94vw] sm:w-full sm:max-w-4xl p-0 overflow-hidden shadow-2xl rounded-2xl sm:rounded-3xl h-[85vh] md:h-[580px] flex flex-col dark:border-white/10 dark:bg-zinc-950">
+                    <DialogDescription className="sr-only">
+                      Подробная информация об аниме {anime.title}
+                    </DialogDescription>
 
-                    {/* Текст */}
-                    <div className="flex-1 md:col-span-7 flex flex-col min-h-0">
-                       
-                       <div className="flex-1 overflow-y-auto p-5 sm:p-8 custom-scrollbar">
-                          <DialogTitle className="text-xl sm:text-3xl font-black font-unbounded uppercase mb-3 leading-tight text-foreground dark:text-white">
-                            {anime.title}
-                          </DialogTitle>
-                          
-                          <div className="flex flex-wrap gap-2 mb-4">
-                             {anime.genres?.slice(0, 6).map((g: string) => (
-                               <Link
-                                 key={g}
-                                 href={`/catalog?genre=${encodeURIComponent(g)}`}
-                                 className="inline-flex items-center px-2 py-1 rounded-md bg-secondary/5 border border-border hover:border-primary/40 hover:bg-primary/10 text-[10px] sm:text-xs uppercase font-bold text-muted-foreground hover:text-primary transition-all dark:bg-white/5 dark:border-white/10 dark:text-zinc-300 dark:hover:border-orange-500/40"
-                               >
-                                 {g}
-                               </Link>
-                             ))}
-                          </div>
+                    <div className="flex flex-col md:grid md:grid-cols-12 h-full w-full overflow-hidden relative">
 
-                          {/* Блок с причиной рекомендации */}
-                          {mode === 'recommended' && recommendationReason && (
-                            <div className="my-4 p-4 rounded-2xl border border-blue-500/20 bg-blue-500/5 dark:border-blue-400/20 dark:bg-blue-400/5">
-                              <div className="flex items-center gap-2 mb-2">
-                                <Sparkles className="w-4 h-4 text-blue-500" />
-                                <span className="text-xs font-bold text-blue-500 dark:text-blue-400 uppercase tracking-wider">
-                                  Почему рекомендовано
+                      {/* --- ПОСТЕР / БАННЕР (НА ВСЮ ШИРИНУ НА МОБИЛКАХ) --- */}
+                      <div className="relative shrink-0 w-full h-52 sm:h-64 md:h-full md:col-span-5 overflow-hidden group bg-zinc-900">
+                        <Image
+                          src={anime.backdrop || posterImage}
+                          fill
+                          className="object-cover object-center"
+                          alt={`Баннер: ${anime.title}`}
+                          onError={() => setPosterImageError(true)}
+                          unoptimized={posterImageError || (anime.backdrop || posterImage).startsWith('data:image')}
+                        />
+
+                        {/* Плавный градиент ухода в фон снизу (моб) и справа (ПК) */}
+                        <div className="absolute inset-0 bg-gradient-to-t from-background via-background/60 to-transparent md:bg-gradient-to-r md:from-black/20 md:via-background/50 md:to-background dark:from-zinc-950 dark:via-zinc-950/70 dark:to-transparent dark:md:via-zinc-950/60 dark:md:to-zinc-950" />
+
+                        {/* Легкое затемнение сверху для крестика закрытия */}
+                        <div className="absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-black/60 to-transparent" />
+
+                        {/* Рейтинг поверх баннера */}
+                        <div className="absolute top-3 left-3 z-10 flex items-center gap-1.5 bg-orange-600/90 backdrop-blur-md text-white px-3 py-1.5 rounded-xl text-xs font-black shadow-lg shadow-orange-950/40 border border-orange-400/30">
+                          <Star className="w-3.5 h-3.5 fill-white" />
+                          <span>{anime.rating}</span>
+                        </div>
+                      </div>
+
+                      {/* --- ТЕКСТОВАЯ ЧАСТЬ --- */}
+                      <div className="flex-1 md:col-span-7 flex flex-col h-full min-h-0 min-w-0 bg-background dark:bg-zinc-950">
+
+                         {/* Скроллируемый контент */}
+                         <div className="flex-1 overflow-y-auto p-5 sm:p-7 md:p-8 custom-scrollbar space-y-4 sm:space-y-5">
+
+                            {/* Заголовок */}
+                            <div>
+                              <DialogTitle className="text-xl sm:text-2xl md:text-3xl font-black font-unbounded uppercase leading-tight text-foreground dark:text-white tracking-tight">
+                                {anime.title}
+                              </DialogTitle>
+
+                              {/* Мета-информация */}
+                              <div className="flex flex-wrap items-center gap-2 mt-3 font-mono text-xs font-bold text-muted-foreground dark:text-zinc-400">
+                                <span className="bg-secondary/40 border border-border px-2.5 py-1 rounded-lg dark:bg-white/5 dark:border-white/10">
+                                  {anime.year}
+                                </span>
+                                {anime.quality && (
+                                  <span className="bg-secondary/40 border border-border px-2.5 py-1 rounded-lg dark:bg-white/5 dark:border-white/10">
+                                    {anime.quality}
+                                  </span>
+                                )}
+                                <span className="text-orange-500 bg-orange-500/10 border border-orange-500/20 px-2.5 py-1 rounded-lg flex items-center gap-1.5">
+                                  <Zap size={13} fill="currentColor" />
+                                  {anime.episodesTotal > 0 ? `${anime.episodesTotal} ${getEpisodeText(anime.episodesTotal)}` : 'ONGOING'}
                                 </span>
                               </div>
+                            </div>
                               
-                              {recommendationReason.strategy === 'similar' && recommendationReason.sourceAnime ? (
-                                <p className="text-[11px] sm:text-xs text-muted-foreground dark:text-zinc-300 mb-2">
-                                  Нашли для вас, потому что вам понравилось <span className="text-foreground dark:text-white font-semibold">«{recommendationReason.sourceAnime}»</span>
-                                </p>
-                              ) : recommendationReason.strategy === 'similar' ? (
-                                <p className="text-[11px] sm:text-xs text-muted-foreground dark:text-zinc-300 mb-2">
-                                  Подобрано на основе вашей истории просмотров
-                                </p>
-                              ) : (
-                                <p className="text-[11px] sm:text-xs text-muted-foreground dark:text-zinc-300 mb-2">
-                                  Популярно среди зрителей со схожим вкусом
-                                </p>
-                              )}
-                              
-                              <div className="flex flex-wrap gap-1">
-                                {recommendationReason.factors.map((factor, index) => (
-                                  <span key={index} className="inline-block px-2 py-1 bg-blue-500/10 border border-blue-500/20 rounded-md text-[10px] font-medium text-blue-600 dark:text-blue-400">
-                                    {factor}
+                            {/* Жанры */}
+                            {anime.genres && anime.genres.length > 0 && (
+                              <div className="flex flex-wrap gap-1.5 pt-1">
+                                 {anime.genres.slice(0, 6).map((g: string) => (
+                                   <Link
+                                     key={g}
+                                     href={`/catalog?genre=${encodeURIComponent(g)}`}
+                                     onClick={() => setIsDialogOpen(false)}
+                                     className="inline-flex items-center px-3 py-1 rounded-lg bg-secondary/30 border border-border/70 hover:border-orange-500/50 hover:bg-orange-500/10 text-[11px] sm:text-xs font-bold text-muted-foreground hover:text-orange-500 transition-all dark:bg-white/5 dark:border-white/10 dark:text-zinc-300 dark:hover:border-orange-500/40"
+                                   >
+                                     {g}
+                                   </Link>
+                                 ))}
+                              </div>
+                            )}
+
+                            {/* Причина рекомендации */}
+                            {mode === 'recommended' && recommendationReason && (
+                              <div className="p-3.5 sm:p-4 rounded-xl sm:rounded-2xl border border-blue-500/20 bg-blue-500/5 dark:border-blue-400/20 dark:bg-blue-400/5">
+                                <div className="flex items-center gap-2 mb-1.5">
+                                  <Sparkles className="w-4 h-4 text-blue-500 shrink-0" />
+                                  <span className="text-xs font-bold text-blue-500 dark:text-blue-400 uppercase tracking-wider">
+                                    Почему рекомендовано
                                   </span>
-                                ))}
-                              </div>
-                            </div>
-                          )}
+                                </div>
 
-                          {/* Description with lazy loading */}
-                          {loadingDescription ? (
-                            <div className="my-4 p-4 rounded-2xl border border-border bg-secondary/[0.02] dark:border-white/5 dark:bg-white/[0.02]">
-                              <div className="flex items-center gap-2 text-muted-foreground">
-                                <Loader2 className="w-4 h-4 animate-spin" />
-                                <span className="text-xs">Загрузка описания...</span>
-                              </div>
-                            </div>
-                          ) : fullDescription || (anime.description && anime.description.trim() !== "" && anime.description !== "Описание отсутствует...") ? (
-                            <div className="max-h-[120px] sm:max-h-[160px] overflow-y-auto custom-scrollbar mb-4 pr-1">
-                              <p className="text-muted-foreground text-xs sm:text-sm leading-relaxed opacity-90 dark:text-zinc-300">
-                                {fullDescription || anime.description}
-                              </p>
-                            </div>
-                          ) : (
-                            <div className="my-4 p-5 rounded-2xl border border-border bg-secondary/[0.02] flex flex-col items-center text-center dark:border-white/5 dark:bg-white/[0.02]">
-                              <Info className="w-6 h-6 text-muted-foreground mb-2 dark:text-zinc-600" />
-                              <p className="text-muted-foreground text-[11px] sm:text-xs mb-4 dark:text-zinc-400">
-                                У нас пока нет описания для этого аниме, но вы можете прочитать его на популярном ресурсе:
-                              </p>
-                              <div className="flex flex-wrap items-center justify-center gap-2">
-                                <a
-                                  href={`https://shikimori.one/animes/${anime.id}`}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="inline-flex items-center gap-2 px-5 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all active:scale-95"
-                                >
-                                  <TrendingUp size={14} className="opacity-90" />
-                                  Страница на Shikimori
-                                </a>
-                                <a
-                                  href={`https://shikimori.one/animes?search=${encodeURIComponent(anime.title)}`}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="inline-flex items-center gap-2 px-5 py-2 bg-secondary hover:bg-accent text-foreground rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all active:scale-95 dark:bg-zinc-800 dark:hover:bg-zinc-700 dark:text-white"
-                                >
-                                  Поиск на Shikimori
-                                </a>
-                              </div>
-                            </div>
-                          )}
-                       </div>
+                                {recommendationReason.strategy === 'similar' && recommendationReason.sourceAnime ? (
+                                  <p className="text-xs text-muted-foreground dark:text-zinc-300 mb-2">
+                                    Нашли для вас, потому что вам понравилось <span className="text-foreground dark:text-white font-semibold">«{recommendationReason.sourceAnime}»</span>
+                                  </p>
+                                ) : recommendationReason.strategy === 'similar' ? (
+                                  <p className="text-xs text-muted-foreground dark:text-zinc-300 mb-2">
+                                    Подобрано на основе вашей истории просмотров
+                                  </p>
+                                ) : (
+                                  <p className="text-xs text-muted-foreground dark:text-zinc-300 mb-2">
+                                    Популярно среди зрителей со схожим вкусом
+                                  </p>
+                                )}
 
-                       {/* ФУТЕР */}
-                       <div className="shrink-0 p-4 sm:p-8 sm:pt-4 bg-gradient-to-t from-background to-transparent z-10 dark:from-zinc-950">
-                        <div className="flex flex-row gap-3">
-                          <button 
-                            type="button"
-                            onClick={() => { setIsDialogOpen(false); router.push(`/watch/${anime.id}`) }}
-                            className="flex-1 flex items-center justify-center gap-2 sm:gap-3 bg-gradient-to-r from-orange-600 to-orange-500 hover:from-orange-500 hover:to-orange-400 text-white font-black py-3 sm:py-4 rounded-xl uppercase tracking-wider shadow-lg hover:shadow-orange-500/20 transition-all active:scale-95 group/btn"
-                          >
-                            <Eye className="w-5 h-5 group-hover/btn:scale-110 transition-transform" />
-                            <span>Смотреть</span>
-                            <ChevronRight size={18} className="opacity-70 group-hover/btn:translate-x-1 transition-transform" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => toggle(anime)}
-                            className="w-12 h-12 flex items-center justify-center bg-secondary/5 hover:bg-secondary/10 backdrop-blur-md border border-border text-foreground font-bold rounded-xl uppercase tracking-wider transition-all active:scale-95 dark:bg-white/5 dark:hover:bg-white/10 dark:border-white/10 dark:text-white"
-                            aria-label={saved ? "Убрать из закладок" : "Добавить в закладки"}
-                          >
-                            <Bookmark className={cn(saved ? "fill-primary text-primary dark:fill-orange-500 dark:text-orange-500" : "text-foreground dark:text-white", "w-5 h-5")} />
-                          </button>
-                        </div>
-                       </div>
+                                <div className="flex flex-wrap gap-1">
+                                  {recommendationReason.factors.map((factor, index) => (
+                                    <span key={index} className="inline-block px-2 py-0.5 bg-blue-500/10 border border-blue-500/20 rounded-md text-[10px] font-medium text-blue-600 dark:text-blue-400">
+                                      {factor}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Описание */}
+                            {loadingDescription ? (
+                              <div className="p-4 rounded-xl border border-border bg-secondary/10 dark:border-white/5 dark:bg-white/[0.02]">
+                                <div className="flex items-center gap-2 text-muted-foreground">
+                                  <Loader2 className="w-4 h-4 animate-spin" />
+                                  <span className="text-xs">Загрузка описания...</span>
+                                </div>
+                              </div>
+                            ) : fullDescription || (anime.description && anime.description.trim() !== "" && anime.description !== "Описание отсутствует...") ? (
+                              <div className="space-y-2 pt-1">
+                                <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground dark:text-zinc-400">
+                                  Сюжет
+                                </h4>
+                                <p className="text-muted-foreground text-xs sm:text-sm leading-relaxed opacity-95 dark:text-zinc-300 whitespace-pre-line font-normal">
+                                  {fullDescription || anime.description}
+                                </p>
+                              </div>
+                            ) : (
+                              <div className="p-4 rounded-xl border border-border bg-secondary/10 flex flex-col items-center text-center dark:border-white/5 dark:bg-white/[0.02]">
+                                <Info className="w-5 h-5 text-muted-foreground mb-1.5 dark:text-zinc-500" />
+                                <p className="text-muted-foreground text-xs mb-3 dark:text-zinc-400">
+                                  У нас пока нет описания для этого аниме, но вы можете прочитать его на Shikimori:
+                                </p>
+                                <div className="flex flex-wrap items-center justify-center gap-2">
+                                  <a
+                                    href={`https://shikimori.one/animes/${anime.id}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg text-xs font-bold uppercase tracking-wider transition-all"
+                                  >
+                                    <TrendingUp size={13} />
+                                    Shikimori
+                                  </a>
+                                  <a
+                                    href={`https://shikimori.one/animes?search=${encodeURIComponent(anime.title)}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-secondary hover:bg-accent text-foreground rounded-lg text-xs font-bold uppercase tracking-wider transition-all dark:bg-zinc-800 dark:hover:bg-zinc-700 dark:text-white"
+                                  >
+                                    Поиск
+                                  </a>
+                                </div>
+                              </div>
+                            )}
+                         </div>
+                          
+                         {/* ФУТЕР */}
+                         <div className="shrink-0 p-4 sm:p-5 border-t border-border/50 bg-background dark:border-white/10 dark:bg-zinc-950">
+                          <div className="flex flex-row gap-3">
+                            <button 
+                              type="button"
+                              onClick={() => { setIsDialogOpen(false); router.push(`/watch/${anime.id}`) }}
+                              className="flex-1 flex items-center justify-center gap-2 bg-gradient-to-r from-orange-600 to-orange-500 hover:from-orange-500 hover:to-orange-400 text-white font-black py-3 sm:py-3.5 rounded-xl uppercase tracking-wider shadow-lg shadow-orange-600/25 transition-all active:scale-[0.98] group/btn text-xs sm:text-sm"
+                            >
+                              <Eye className="w-4 h-4 sm:w-5 sm:h-5 group-hover/btn:scale-110 transition-transform" />
+                              <span>Смотреть аниме</span>
+                              <ChevronRight size={18} className="opacity-70 group-hover/btn:translate-x-1 transition-transform" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => toggle(anime)}
+                              className="w-11 h-11 sm:w-12 sm:h-12 flex items-center justify-center shrink-0 bg-secondary/40 hover:bg-secondary/80 border border-border text-foreground font-bold rounded-xl uppercase transition-all active:scale-95 dark:bg-white/5 dark:hover:bg-white/10 dark:border-white/10 dark:text-white"
+                              aria-label={saved ? "Убрать из закладок" : "Добавить в закладки"}
+                            >
+                              <Bookmark className={cn(saved ? "fill-primary text-primary dark:fill-orange-500 dark:text-orange-500" : "text-foreground dark:text-white", "w-5 h-5")} />
+                            </button>
+                          </div>
+                         </div>
+                          
+                      </div>
                     </div>
-                  </div>
-                </DialogContent>
-              </Dialog>
+                  </DialogContent>
+                </Dialog>
+              </div>
             </div>
-
           </div>
         </div>
       </div>
