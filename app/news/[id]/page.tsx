@@ -16,25 +16,45 @@ interface Props {
   params: Promise<{ id: string }>
 }
 
+function decodeHtmlEntities(str: string): string {
+  return str
+    .replace(/&quot;/g, '"')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&#39;/g, "'")
+    .replace(/&nbsp;/g, ' ')
+}
+
+function cleanText(str: string): string {
+  if (!str) return ""
+  const noTags = str.replace(/\[.*?\]/g, "").replace(/<[^>]+>/g, "")
+  return decodeHtmlEntities(noTags).trim()
+}
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params
   const news = await getAggregatedNewsById(id)
+
   if (!news) {
     return {
       title: "Новость не найдена — Weebx",
       robots: { index: false, follow: false },
     }
   }
-  const cleanDescription = news.excerpt.replace(/\[.*?\]/g, "").replace(/<[^>]+>/g, "").slice(0, 160)
+
+  const cleanTitle = cleanText(news.title)
+  const cleanDescription = cleanText(news.excerpt).slice(0, 160)
   const publishedTime = news.dateTimestamp > 0 ? new Date(news.dateTimestamp).toISOString() : undefined
+
   return {
-    title: `${news.title} — Weebx`,
+    title: `${cleanTitle} — Weebx`,
     description: cleanDescription,
     alternates: {
       canonical: `https://weeb-x.com/news/${id}`,
     },
     openGraph: {
-      title: news.title,
+      title: cleanTitle,
       description: cleanDescription,
       url: `https://weeb-x.com/news/${id}`,
       type: "article",
@@ -43,11 +63,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       authors: news.author ? [news.author] : undefined,
       publishedTime,
       section: "Новости аниме",
-      images: news.imageUrl ? [{ url: news.imageUrl, alt: news.title }] : [{ url: "https://weeb-x.com/og-image.png", width: 1200, height: 630, alt: "Weebx — новости аниме" }],
+      images: news.imageUrl 
+        ? [{ url: news.imageUrl, alt: cleanTitle }] 
+        : [{ url: "https://weeb-x.com/og-image.png", width: 1200, height: 630, alt: "Weebx — новости аниме" }],
     },
     twitter: {
       card: "summary_large_image",
-      title: news.title,
+      title: cleanTitle,
       description: cleanDescription,
       images: news.imageUrl ? [news.imageUrl] : ["https://weeb-x.com/og-image.png"],
     },
@@ -58,15 +80,6 @@ interface AnimeLinkInfo {
   id: number
   name: string
   russian: string
-}
-
-function decodeHtmlEntities(str: string): string {
-  return str
-    .replace(/&quot;/g, '"')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&#39;/g, "'")
 }
 
 function parseAnimeDataAttrs(html: string): AnimeLinkInfo[] {
@@ -93,7 +106,7 @@ function sanitizeShikimoriHtml(html: string, animePosters: Map<number, string>):
   // 1. Замена ссылок аниме/персонажей с data-attrs на карточки и бейджи
   result = result.replace(
     /[«»"“”'‘’]?<a([^>]*?)data-attrs="([^"]+)"([^>]*?)>([\s\S]*?)<\/a>[«»"“”'‘’]?/g,
-    (fullMatch, _before, attrsRaw, _after, inner) => {
+    (fullMatch, _before, attrsRaw, _after, _inner) => {
       try {
         const attrs = JSON.parse(decodeHtmlEntities(attrsRaw))
         if (attrs.type === 'anime' && attrs.id) {
@@ -309,7 +322,8 @@ export default async function NewsItemPage({ params }: Props) {
 
   const bodyHtml = news.htmlBody ? (isJikan ? news.htmlBody : sanitizeShikimoriHtml(news.htmlBody, animePosters)) : null
   const footerHtml = news.htmlFooter ? sanitizeShikimoriFooter(news.htmlFooter) : null
-  const textBody = news.excerpt.replace(/\[.*?\]/g, "").replace(/<[^>]+>/g, "")
+  const textBody = cleanText(news.excerpt)
+  const cleanTitle = cleanText(news.title)
 
   const linked = news.linkedAnime
   const linkedPoster = linked ? getLinkedAnimePoster(linked) : undefined
@@ -325,7 +339,7 @@ export default async function NewsItemPage({ params }: Props) {
         items={[
           { name: "Главная", url: "https://weeb-x.com" },
           { name: "Новости", url: "https://weeb-x.com/news" },
-          { name: news.title, url: `https://weeb-x.com/news/${id}` },
+          { name: cleanTitle, url: `https://weeb-x.com/news/${id}` },
         ]}
       />
       <Navbar />
@@ -335,7 +349,7 @@ export default async function NewsItemPage({ params }: Props) {
         {news.imageUrl ? (
           <img
             src={getProxiedSrc(news.imageUrl)}
-            alt={news.title}
+            alt={cleanTitle}
             className="absolute inset-0 w-full h-full object-cover scale-105 blur-[1px]"
           />
         ) : (
@@ -386,11 +400,11 @@ export default async function NewsItemPage({ params }: Props) {
             </div>
 
             <h1 data-news-title className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-white leading-tight drop-shadow-[0_2px_12px_rgba(0,0,0,0.6)]">
-              {news.title}
+              {cleanTitle}
             </h1>
             {!isCustom && isJikan && (
               <div className="mt-3">
-                <TranslateButton title={news.title} excerpt={textBody} htmlBody={bodyHtml || undefined} />
+                <TranslateButton title={cleanTitle} excerpt={textBody} htmlBody={bodyHtml || undefined} />
               </div>
             )}
           </div>
@@ -405,7 +419,7 @@ export default async function NewsItemPage({ params }: Props) {
             <div className="mb-6 flex justify-center">
               <img
                 src={getProxiedSrc(news.animeImage)}
-                alt={news.animeTitle || news.title}
+                alt={news.animeTitle || cleanTitle}
                 className="max-h-80 rounded-xl object-contain shadow-md"
                 loading="lazy"
               />

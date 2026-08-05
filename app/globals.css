@@ -727,6 +727,7 @@
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 9999px;
     backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
   }
 
   .news-pill-accent {
@@ -1456,6 +1457,87 @@
   .animate-flash {
     animation: flash 0.3s ease-in-out;
   }
+
+  /* ==========================================================================
+     ФОЛБЭКИ И АДАПТИВНАЯ ОПТИМИЗАЦИЯ СЛАБЫХ И УСТАРЕВШИХ УСТРОЙСТВ
+     ========================================================================== */
+
+  /* 1. Фолбэк для устройств без поддержки backdrop-filter (размытия фона) */
+  @supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+    .news-pill {
+      background: #27272a !important; /* Плотный zinc-800 */
+      border-color: #3f3f46 !important;
+    }
+
+    .news-pill-accent {
+      background: #1e3a8a !important; /* Плотный blue-900 */
+      border-color: #3b82f6 !important;
+    }
+
+    .news-article-card {
+      background: hsl(var(--secondary)) !important;
+    }
+
+    .dark .news-article-card {
+      background: #18181b !important; /* Плотный zinc-900 */
+    }
+
+    /* Фоллбэки для стандартных классов размытия в Tailwind */
+    [class*="backdrop-blur"] {
+      background-color: hsl(var(--background) / 0.95) !important;
+    }
+
+    .dark [class*="backdrop-blur"] {
+      background-color: rgba(18, 18, 20, 0.96) !important;
+    }
+  }
+
+  /* 2. Фолбэк для старых браузеров без поддержки CSS градиентов */
+  @supports not (background: linear-gradient(135deg, red, blue)) {
+    .news-linked-anime-card {
+      background: #182232 !important;
+    }
+
+    .news-linked-anime-card .news-linked-poster-placeholder {
+      background: #1e293b !important;
+    }
+
+    .skeleton {
+      background: hsl(var(--muted)) !important;
+      animation: none !important;
+    }
+
+    .dark .skeleton {
+      background: #18181b !important;
+      animation: none !important;
+    }
+  }
+
+  /* 3. Оптимизация производительности для режимов экономии энергии / слабой графики */
+  @media (prefers-reduced-motion: reduce) {
+    .animate-slide,
+    .animate-cardPlace,
+    .animate-flipIn,
+    .animate-powerPulse,
+    .animate-zoneGlow,
+    .animate-zoneGlowRed,
+    .animate-cardDestroy,
+    .animate-cardDraw {
+      animation: none !important;
+      transition: none !important;
+      transform: none !important;
+    }
+
+    .skeleton,
+    .dark .skeleton {
+      animation: opacityPulse 2s ease-in-out infinite !important;
+    }
+  }
+
+  @keyframes opacityPulse {
+    0%, 100% { opacity: 0.6; }
+    50% { opacity: 1; }
+  }
 }
 
 /* Google Translate widget — hide default UI */
@@ -1490,4 +1572,30 @@ body {
 
 .goog-te-gadget .goog-te-combo {
   margin: 0 !important;
+}
+/* Простой режим (Экономия ресурсов / Высокая производительность) */
+.lite-mode {
+  /* 1. Отключаем только тяжелоe размытие, сохраняя родные цвета и дизайн элементов */
+  [class*="backdrop-blur"] {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  /* 2. Отключаем сложную 3D графику и тяжелые анимации */
+  .animate-slide,
+  .animate-cardPlace,
+  .animate-flipIn,
+  .animate-powerPulse,
+  .animate-zoneGlow,
+  .animate-zoneGlowRed,
+  .animate-cardDestroy,
+  .animate-cardDraw {
+    animation: none !important;
+    transform: none !important;
+  }
+
+  /* 3. Убираем тяжелые 3D тени */
+  .news-article-card {
+    box-shadow: none !important;
+  }
 }

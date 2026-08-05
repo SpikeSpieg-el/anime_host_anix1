@@ -64,7 +64,6 @@ export function CatalogClient({ initialFilters }: { initialFilters: CatalogFilte
   const router = useRouter()
   const { profile } = useAuth()
   
-  // React Transition для плавного обновления URL без замораживания UI
   const [isPending, startTransition] = useTransition()
   
   const [animes, setAnimes] = useState<Anime[]>([])
@@ -132,9 +131,8 @@ export function CatalogClient({ initialFilters }: { initialFilters: CatalogFilte
     fetchAnimes(updatedFilters, false)
     isInitialMount.current = false
     prevFiltersRef.current = updatedFilters
-  }, [initialFilters, profile, fetchAnimes])
+  }, [initialFilters, profile?.allow_nsfw_search, fetchAnimes])
 
-  // Авто-применение фильтров при изменении пользователем (с debounced для поиска)
   useEffect(() => {
     if (isInitialMount.current || !prevFiltersRef.current) return
     
@@ -152,7 +150,7 @@ export function CatalogClient({ initialFilters }: { initialFilters: CatalogFilte
     
     if (debounceRef.current) clearTimeout(debounceRef.current)
     
-    const delay = filters.search && filters.search !== prev.search ? 500 : 300
+    const delay = filters.search !== prev.search ? 400 : 200
     
     debounceRef.current = setTimeout(() => {
       const params = new URLSearchParams()
@@ -180,7 +178,6 @@ export function CatalogClient({ initialFilters }: { initialFilters: CatalogFilte
       const currentUrl = window.location.pathname + window.location.search
       
       if (newUrl !== currentUrl) {
-        // Использование startTransition для навигации без зависаний
         startTransition(() => {
           router.push(newUrl, { scroll: false })
         })
@@ -197,7 +194,7 @@ export function CatalogClient({ initialFilters }: { initialFilters: CatalogFilte
   useEffect(() => {
     const handleScroll = () => {
       const currentScrollY = window.scrollY
-      if (currentScrollY > lastScrollY && currentScrollY > 100) {
+      if (currentScrollY > lastScrollY && currentScrollY > 120) {
         setIsFilterPanelVisible(false)
       } else {
         setIsFilterPanelVisible(true)
@@ -263,7 +260,7 @@ export function CatalogClient({ initialFilters }: { initialFilters: CatalogFilte
     : "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-x-4 gap-y-6 sm:gap-y-8"
 
   return (
-    <div className={cn("min-h-screen pb-16 sm:pb-20 transition-opacity duration-200", isPending && "opacity-70 pointer-events-none")}>
+    <div className={cn("min-h-screen pb-16 sm:pb-20 transition-opacity duration-200", isPending && "opacity-75 pointer-events-none")}>
       <div className={cn(
         "sticky top-16 md:top-20 bg-background/95 backdrop-blur-md border-b z-25 px-3 py-3 sm:px-4 sm:py-4 transition-transform duration-300 ease-in-out shadow-sm border-border dark:bg-zinc-950/95 dark:border-zinc-800",
         isFilterPanelVisible ? "translate-y-0" : "-translate-y-full"
@@ -271,18 +268,20 @@ export function CatalogClient({ initialFilters }: { initialFilters: CatalogFilte
         <div className="container mx-auto px-0 max-w-7xl">
           <div className="flex flex-col md:flex-row gap-3 md:gap-4">
 
+            {/* Чистый инпут фильтрации по каталогу без выпадающего окна */}
             <div className="relative flex-1 w-full">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4 pointer-events-none" />
               <Input
                 placeholder="Поиск по названию..."
                 value={filters.search || ''}
                 onChange={(e) => updateFilter('search', e.target.value)}
-                className="h-10 sm:h-11 w-full text-sm sm:text-base pl-10 bg-secondary border-border text-foreground placeholder-muted-foreground focus:ring-1 focus:ring-primary focus:border-primary transition-all dark:bg-zinc-900 dark:border-zinc-800 dark:text-white dark:placeholder-zinc-500 dark:focus:ring-orange-500 dark:focus:border-orange-500"
+                className="h-10 sm:h-11 w-full text-sm sm:text-base pl-10 pr-10 bg-secondary border-border text-foreground placeholder-muted-foreground focus:ring-1 focus:ring-primary focus:border-primary transition-all dark:bg-zinc-900 dark:border-zinc-800 dark:text-white dark:placeholder-zinc-500 dark:focus:ring-orange-500 dark:focus:border-orange-500"
               />
               {filters.search && (
                 <button
                   onClick={clearSearch}
                   className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground p-1 dark:text-zinc-500 dark:hover:text-white"
+                  type="button"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -316,11 +315,10 @@ export function CatalogClient({ initialFilters }: { initialFilters: CatalogFilte
                 </Button>
               </div>
 
-              {/* Индикатор загрузки / перехода */}
               {(loading || isPending) && !loadingMore && (
-                <div className="flex items-center gap-2 px-4 h-10 sm:h-11 bg-secondary/50 border border-border rounded-xl text-muted-foreground dark:bg-zinc-900/50 dark:border-zinc-800">
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span className="text-sm font-medium">Загрузка...</span>
+                <div className="flex items-center gap-2 px-3 sm:px-4 h-10 sm:h-11 bg-secondary/50 border border-border rounded-xl text-muted-foreground dark:bg-zinc-900/50 dark:border-zinc-800">
+                  <Loader2 className="w-4 h-4 animate-spin text-primary dark:text-orange-500" />
+                  <span className="text-xs sm:text-sm font-medium hidden sm:inline">Загрузка...</span>
                 </div>
               )}
             </div>
@@ -328,10 +326,9 @@ export function CatalogClient({ initialFilters }: { initialFilters: CatalogFilte
 
           {showFilters && (
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mt-3 sm:mt-4 p-3 sm:p-4 bg-secondary/80 rounded-xl border animate-in fade-in slide-in-from-top-2 border-border dark:bg-zinc-900/80 dark:border-zinc-800">
-              
               <div className="col-span-1">
                 <Select value={filters.order || 'popularity'} onValueChange={(v: string) => updateFilter('order', v)}>
-                  <SelectTrigger className="h-9 sm:h-10 text-sm sm:text-base bg-background border-border dark:bg-zinc-900 dark:border-zinc-800 dark:text-white">
+                  <SelectTrigger className="h-9 sm:h-10 text-xs sm:text-sm bg-background border-border dark:bg-zinc-900 dark:border-zinc-800 dark:text-white">
                     <SelectValue placeholder="Сортировка" />
                   </SelectTrigger>
                   <SelectContent className="bg-background border-border dark:bg-zinc-900 dark:border-zinc-800">
@@ -344,7 +341,7 @@ export function CatalogClient({ initialFilters }: { initialFilters: CatalogFilte
 
               <div className="col-span-1">
                 <Select value={filters.status || 'all'} onValueChange={(v: string) => updateFilter('status', v)}>
-                  <SelectTrigger className="h-9 sm:h-10 text-sm sm:text-base bg-background border-border dark:bg-zinc-900 dark:border-zinc-800 dark:text-white">
+                  <SelectTrigger className="h-9 sm:h-10 text-xs sm:text-sm bg-background border-border dark:bg-zinc-900 dark:border-zinc-800 dark:text-white">
                     <SelectValue placeholder="Статус" />
                   </SelectTrigger>
                   <SelectContent className="bg-background border-border dark:bg-zinc-900 dark:border-zinc-800">
@@ -357,7 +354,7 @@ export function CatalogClient({ initialFilters }: { initialFilters: CatalogFilte
 
               <div className="col-span-1">
                 <Select value={filters.kind || 'all'} onValueChange={(v: string) => updateFilter('kind', v)}>
-                  <SelectTrigger className="h-9 sm:h-10 text-sm sm:text-base bg-background border-border dark:bg-zinc-900 dark:border-zinc-800 dark:text-white">
+                  <SelectTrigger className="h-9 sm:h-10 text-xs sm:text-sm bg-background border-border dark:bg-zinc-900 dark:border-zinc-800 dark:text-white">
                     <SelectValue placeholder="Тип" />
                   </SelectTrigger>
                   <SelectContent className="bg-background border-border dark:bg-zinc-900 dark:border-zinc-800">
@@ -370,7 +367,7 @@ export function CatalogClient({ initialFilters }: { initialFilters: CatalogFilte
 
               <div className="col-span-1">
                 <Select value={filters.score || 'all'} onValueChange={(v: string) => updateFilter('score', v)}>
-                  <SelectTrigger className="h-9 sm:h-10 text-sm sm:text-base bg-background border-border dark:bg-zinc-900 dark:border-zinc-800 dark:text-white">
+                  <SelectTrigger className="h-9 sm:h-10 text-xs sm:text-sm bg-background border-border dark:bg-zinc-900 dark:border-zinc-800 dark:text-white">
                     <SelectValue placeholder="Рейтинг" />
                   </SelectTrigger>
                   <SelectContent className="bg-background border-border dark:bg-zinc-900 dark:border-zinc-800">
@@ -386,7 +383,7 @@ export function CatalogClient({ initialFilters }: { initialFilters: CatalogFilte
                   options={[
                     { value: 'all', label: 'Все жанры' },
                     ...Object.entries(GENRES_MAP)
-                      .filter(([name, id]) => profile?.allow_nsfw_search || id !== '12')
+                      .filter(([_, id]) => profile?.allow_nsfw_search || id !== '12')
                       .map(([name, id]) => ({ value: id, label: name }))
                   ]}
                   selected={Array.isArray(filters.genre) ? filters.genre : (filters.genre && filters.genre !== 'all' ? [filters.genre] : [])}
@@ -437,6 +434,7 @@ export function CatalogClient({ initialFilters }: { initialFilters: CatalogFilte
                        ? "bg-background text-foreground shadow-sm dark:bg-zinc-800 dark:text-white" 
                        : "text-muted-foreground hover:text-foreground dark:text-zinc-500 dark:hover:text-zinc-300"
                    )}
+                   title="Сетка"
                 >
                    <LayoutGrid className="w-4 h-4 sm:w-5 sm:h-5" />
                 </button>
@@ -448,6 +446,7 @@ export function CatalogClient({ initialFilters }: { initialFilters: CatalogFilte
                        ? "bg-background text-foreground shadow-sm dark:bg-zinc-800 dark:text-white" 
                        : "text-muted-foreground hover:text-foreground dark:text-zinc-500 dark:hover:text-zinc-300"
                    )}
+                   title="Компактно"
                 >
                    <Grid3x3 className="w-4 h-4 sm:w-5 sm:h-5" />
                 </button>
@@ -459,6 +458,7 @@ export function CatalogClient({ initialFilters }: { initialFilters: CatalogFilte
                        ? "bg-background text-foreground shadow-sm dark:bg-zinc-800 dark:text-white" 
                        : "text-muted-foreground hover:text-foreground dark:text-zinc-500 dark:hover:text-zinc-300"
                    )}
+                   title="Список"
                 >
                    <Table className="w-4 h-4 sm:w-5 sm:h-5" />
                 </button>

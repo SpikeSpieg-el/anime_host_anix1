@@ -18,6 +18,7 @@ import { AuthModal } from "@/components/auth/auth-modal"
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 import { ThemeToggle } from "@/components/shared/theme-toggle"
 import { TVModeToggle } from "@/components/tv/tv-mode-toggle"
+import { PerformanceToggle } from "@/components/shared/performance-toggle"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -167,7 +168,6 @@ export function Navbar() {
 
           {/* === 3. НАВИГАЦИЯ (DESKTOP ONLY) === */}
           <nav className="hidden lg:flex items-center gap-1 bg-secondary/50 p-1 rounded-full border backdrop-blur-md border-border">
-            {/* ... Старый код десктопной навигации без изменений ... */}
             <Link 
               href="/" 
               onClick={handleLogoClick}
@@ -241,6 +241,7 @@ export function Navbar() {
                   <span className="text-sm">TV режим</span>
                   <TVModeToggle />
                 </div>
+                <PerformanceToggle />
               </DropdownMenuContent>
             </DropdownMenu>
           </nav>
@@ -324,6 +325,7 @@ export function Navbar() {
                      <span className="text-sm">TV режим</span>
                      <TVModeToggle />
                   </div>
+                  <PerformanceToggle />
                   <DropdownMenuSeparator />
                   <DropdownMenuItem asChild><Link href="/settings">Настройки</Link></DropdownMenuItem>
                   <DropdownMenuItem onClick={signOut} className="text-destructive"><LogOut className="mr-2 h-4 w-4" /> Выйти</DropdownMenuItem>

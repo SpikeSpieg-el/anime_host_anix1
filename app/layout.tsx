@@ -20,6 +20,7 @@ import { ServiceWorkerRegister } from "@/components/layout/sw-register"
 import { ThemeProvider } from "@/components/providers/theme-provider"
 import { Toaster } from "sonner"
 import { OrganizationStructuredData, WebSiteStructuredData } from "@/components/seo/structured-data"
+import NextTopLoader from "nextjs-toploader"
 
 const _geist = Geist({ subsets: ["latin"] })
 const _geistMono = Geist_Mono({ subsets: ["latin"] })
@@ -106,10 +107,16 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ru" suppressHydrationWarning>
-<head>
-    <OrganizationStructuredData />
-    <WebSiteStructuredData />
-  </head>
+      <head>
+      <OrganizationStructuredData />
+      <WebSiteStructuredData />
+      <script
+        dangerouslySetInnerHTML={{
+          __html: `if(localStorage.getItem('lite-mode')==='true')document.documentElement.classList.add('lite-mode');`,
+        }}
+      />
+      </head>
+      
       <body className={`font-sans antialiased min-h-screen`}>
         <ThemeProvider
           attribute="class"
@@ -117,6 +124,19 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
+          {/* Индикатор загрузки в самом верху экрана при кликах по любой ссылке */}
+          <NextTopLoader
+            color="#3b82f6"
+            initialPosition={0.08}
+            crawlSpeed={200}
+            height={3}
+            crawl={true}
+            showSpinner={false}
+            easing="ease"
+            speed={200}
+            shadow="0 0 10px #3b82f6,0 0 5px #3b82f6"
+          />
+
           <Suspense fallback={null}>
             <GlobalLoading />
           </Suspense>
