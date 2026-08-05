@@ -3,26 +3,25 @@
 import { useState, useEffect } from "react"
 import Image from "next/image"
 import Link from "next/link"
-import { Sparkles, Film, Timer, Hourglass, Loader2, AlertCircle, RefreshCcw, Bookmark, Star } from "lucide-react"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { 
+  Sparkles, 
+  RefreshCcw, 
+  Bookmark, 
+  Star, 
+  X, 
+  Play, 
+  Calendar, 
+  Tv, 
+  ThumbsUp,
+  SlidersHorizontal,
+  Search
+} from "lucide-react"
+import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
-import { searchAnime, type Anime } from "@/lib/shikimori"
 import { useBookmarks } from "@/components/providers/bookmarks-provider"
 import { useAuth } from "@/components/auth/auth-provider"
 import { PreferenceSurvey } from "@/components/shared/preference-survey"
-
-// --- ТИПЫ ДАННЫХ ---
-interface AiResponseItem {
-  title: string
-  reason: string
-}
-
-interface AiResponse {
-  title: string
-  reason: string
-  year: number
-  episodes: number
-}
+import type { Anime } from "@/lib/shikimori"
 
 interface EnrichedRecommendation extends Anime {
   reason: string
@@ -32,23 +31,23 @@ interface EnrichedRecommendation extends Anime {
 export function AiAdvisor() {
   const [isOpen, setIsOpen] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [loadingText, setLoadingText] = useState("Анализирую ваши предпочтения...")
   const [step, setStep] = useState<'survey' | 'analyzing' | 'searching' | 'done'>('survey')
   const [error, setError] = useState<string | null>(null)
   const [recommendations, setRecommendations] = useState<EnrichedRecommendation[]>([])
   const [preferenceData, setPreferenceData] = useState<any>(null)
 
-  // Хуки
   const { isSaved, toggle } = useBookmarks()
   const { session } = useAuth()
 
-  // Загрузка последнего состояния при монтировании
   useEffect(() => {
     const savedState = localStorage.getItem('ai-advisor-last-state')
     if (savedState) {
       try {
-        const { recommendations: savedRecs, step: savedStep } = JSON.parse(savedState)
+        const { recommendations: savedRecs, preferenceData: savedPref } = JSON.parse(savedState)
         if (savedRecs && savedRecs.length > 0) {
           setRecommendations(savedRecs)
+          if (savedPref) setPreferenceData(savedPref) 
           setStep('done')
         }
       } catch (e) {
@@ -57,6 +56,25 @@ export function AiAdvisor() {
     }
   }, [])
 
+  useEffect(() => {
+    if (!loading) return
+
+    const texts = [
+      "Изучаем вашу историю просмотров и закладки...",
+      "Сопоставляем ваши предпочтения с базой аниме...",
+      "Ищем редкие бриллианты 2023-2025 годов...",
+      "Формулируем персональный отзыв для вас..."
+    ]
+
+    let index = 0
+    const interval = setInterval(() => {
+      index = (index + 1) % texts.length
+      setLoadingText(texts[index])
+    }, 2200)
+
+    return () => clearInterval(interval)
+  }, [loading])
+
   const handleGenerate = async (surveyData?: any) => {
     setLoading(true)
     setError(null)
@@ -64,7 +82,6 @@ export function AiAdvisor() {
     setRecommendations([])
 
     try {
-      // 1. Получаем расширенные данные пользователя из API
       const headers: Record<string, string> = { 'Content-Type': 'application/json' }
       if (session?.access_token) {
         headers['Authorization'] = `Bearer ${session.access_token}`
@@ -76,47 +93,8 @@ export function AiAdvisor() {
       }
 
       const userData = await userDataResponse.json()
-      
-      // Если данных нет, используем fallback на localStorage
-      let historyTitles: string[] = []
-      let bookmarkTitles: string[] = []
-      let userPreferences = userData.data?.preferences
+      const userPreferences = userData.data?.preferences
 
-      if (userData.data?.history?.length > 0) {
-        historyTitles = userData.data.history.map((h: any) => h.title)
-      } else {
-        // Fallback на localStorage
-        try {
-          const rawHistory = localStorage.getItem("watch-history")
-          historyTitles = rawHistory 
-            ? JSON.parse(rawHistory)
-                .filter((h: any) => h?.title)
-                .map((h: any) => h.title.trim())
-                .slice(0, 30)
-            : []
-        } catch {
-          historyTitles = []
-        }
-      }
-
-      if (userData.data?.bookmarks?.length > 0) {
-        bookmarkTitles = userData.data.bookmarks.map((b: any) => b.title)
-      } else {
-        // Fallback на localStorage
-        try {
-          const rawBookmarks = localStorage.getItem("bookmarks_v1")
-          bookmarkTitles = rawBookmarks 
-            ? JSON.parse(rawBookmarks)
-                .filter((b: any) => b?.title)
-                .map((b: any) => b.title.trim())
-                .slice(0, 30)
-            : []
-        } catch {
-          bookmarkTitles = []
-        }
-      }
-
-      // 2. Формируем контекст для нейросети с данными анкеты
       const context = {
         history: userData.data?.history || [],
         bookmarks: userData.data?.bookmarks || [],
@@ -129,225 +107,76 @@ export function AiAdvisor() {
           totalBookmarks: 0,
           completedCount: 0
         },
-        survey: surveyData || null // Добавляем данные анкеты
+        survey: surveyData || null
       }
 
-      // 3. Создаем детальный prompt с учетом предпочтений пользователя и анкеты
+      // 📝 ФОРМИРОВАНИЕ ПОДРОБНОГО ПРОМПТА ИЗ АНКЕТЫ
       const buildPrompt = () => {
-        const prefs = context.preferences
         const survey = context.survey
-        const isNewUser = prefs.totalWatched === 0 && prefs.totalBookmarks === 0
 
-        // Если есть данные анкеты, используем их для персонализации
         if (survey) {
           const genreMap: Record<string, string> = {
-            "Экшен": "action",
-            "Фэнтези": "fantasy",
-            "Комедия": "comedy",
-            "Драма": "drama",
-            "Романтика": "romance",
-            "Хоррор": "horror",
-            "Научная фантастика": "sci_fi",
-            "Повседневность": "slice_of_life",
-            "Спорт": "sports",
-            "Приключения": "adventure",
-            "Мистика": "mystery",
-            "Психологическое": "psychological"
+            "Экшен": "Action",
+            "Фэнтези": "Fantasy",
+            "Комедия": "Comedy",
+            "Драма": "Drama",
+            "Романтика": "Romance",
+            "Хоррор": "Horror",
+            "Научная фантастика": "Sci-Fi",
+            "Повседневность": "Slice of Life",
+            "Спорт": "Sports",
+            "Приключения": "Adventure",
+            "Мистика": "Mystery",
+            "Психологическое": "Psychological"
           }
 
           const moodMap: Record<string, string> = {
-            "exciting": "адреналиновый и драйвовый",
-            "relaxing": "расслабляющий и уютный",
-            "emotional": "эмоциональный и драматичный",
-            "intellectual": "интеллектуальный и загадочный",
-            "romantic": "романтичный",
-            "dark": "мрачный"
+            "exciting": "Адреналиновый, экшен, динамичный",
+            "relaxing": "Расслабляющий, уютный, милый, ламповый",
+            "emotional": "Глубокая драма, слезовыжимательное, трогательное",
+            "intellectual": "Загадочный, детектив, запутанный сюжет",
+            "romantic": "Романтика, любовь, отношения",
+            "dark": "Мрачный, хоррор, мистика, психологическое давление"
           }
 
           const pacingMap: Record<string, string> = {
-            "fast": "быстрый темп, экшен с первой минуты",
-            "medium": "сбалансированный темп",
-            "slow": "медленный, вдумчивый темп"
+            "fast": "Быстрый темп, бои или события с 1-й минуты",
+            "medium": "Сбалансированный темп",
+            "slow": "Медленный, размеренный, вдумчивый темп"
           }
 
           const artStyleMap: Record<string, string> = {
-            "modern": "современная анимация (2020+)",
-            "classic": "классический стиль (2000-2019)",
-            "retro": "ретро стиль (90-е)",
-            "any": "любой стиль"
+            "modern": "Современная рисовка (2020+)",
+            "classic": "Классика (2000-2019)",
+            "retro": "Ретро стилистика (90-е)",
+            "any": "Любой стиль"
           }
 
-          const selectedGenres = survey.favoriteGenres?.map((g: string) => genreMap[g] || g).join(', ') || ''
-          const selectedMood = moodMap[survey.mood] || survey.mood || ''
-          const selectedPacing = pacingMap[survey.pacing] || survey.pacing || ''
-          const selectedArtStyle = artStyleMap[survey.artStyle] || survey.artStyle || ''
-          const selectedThemes = survey.themes?.join(', ') || ''
+          const selectedGenres = survey.favoriteGenres?.map((g: string) => genreMap[g] || g).join(', ') || 'Любой'
+          const selectedMood = moodMap[survey.mood] || survey.mood || 'Любое'
+          const selectedPacing = pacingMap[survey.pacing] || survey.pacing || 'Любой'
+          const selectedArtStyle = artStyleMap[survey.artStyle] || survey.artStyle || 'Любой'
+          const selectedThemes = survey.themes?.join(', ') || 'Любые'
 
-          return `Ты - эксперт по аниме с доступом к инструментам поиска. Твоя задача - подобрать ОДНО идеально подходящее аниме на основе детальной анкеты пользователя.
-
-## Данные анкеты:
-- Любимые жанры: ${selectedGenres}
-- Желаемое настроение: ${selectedMood}
-- Темп повествования: ${selectedPacing}
-- Стиль анимации: ${selectedArtStyle}
-- Интересующие темы: ${selectedThemes}
-
-${context.history.length > 0 ? `
-## История просмотров (${prefs.totalWatched} аниме):
-${context.history.slice(0, 10).map((h: any) => `- ${h.title}`).join('\n')}
-` : ''}
-
-${context.bookmarks.length > 0 ? `
-## Закладки (${prefs.totalBookmarks} аниме):
-${context.bookmarks.slice(0, 10).map((b: any) => `- ${b.title}`).join('\n')}
-` : ''}
-
-## Инструменты поиска:
-У тебя есть два инструмента:
-1. search_anime - поиск в базе Shikimori по жанрам, году, рейтингу
-2. web_search - поиск в интернете для проверки актуальных данных
-
-## Процесс рекомендации:
-1. Сначала используй search_anime с критериями из анкеты (жанры, год, рейтинг)
-2. При необходимости используй web_search для проверки актуальных данных о рекомендованных аниме
-3. Выбери ОДНО лучшее аниме из результатов поиска
-4. Сформируй персонализированную рекомендацию
-
-Ответ должен быть строго в формате JSON:
-{
-  "title": "название аниме",
-  "reason": "детальное объяснение почему это идеально подходит под анкету",
-  "year": 2023,
-  "episodes": количество серий
-}
-
-КРИТИЧЕСКИЕ ПРАВИЛА (НАРУШЕНИЕ НЕДОПУСТИМО):
-1. ТОЛЬКО ОДНО аниме в ответе
-2. ТОЛЬКО аниме 2023, 2024 или 2025 года выпуска, которые УЖЕ ВЫШЛИ. Аниме-анонсы ЗАПРЕЩЕНЫ.
-3. Рейтинг 7.5+ по Shikimori
-4. Рекомендация должна быть МАКСИМАЛЬНО ПЕРСОНАЛИЗИРОВАНА - объясни, почему именно это аниме идеально подходит под выбранные жанры, настроение, темп и темы
-5. Используй только ОСНОВНОЕ название аниме (не сезоны, не части, не арки)
-6. Укажи точное количество серий
-7. Если история/закладки есть - НЕ рекомендуй аниме, которые там уже есть
-8. Учитывай предпочтение по формату (из анкеты) - если пользователь хочет быстрый темп, выбери короткое аниме или фильм
-9. ОБЯЗАТЕЛЬНО используй инструменты поиска перед рекомендацией
-
-Рекомендуй ТОЛЬКО ОДНО аниме, которое максимально соответствует всем критериям анкеты. Причина должна быть очень детальной и персонализированной.`
+          return `ЗАПРОС НА ПОДБОР АНИМЕ ПО АНКЕТЕ:
+          - Любимые жанры: ${selectedGenres}
+          - Желаемое настроение: ${selectedMood}
+          - Темп повествования: ${selectedPacing}
+          - Стиль анимации: ${selectedArtStyle}
+          - Интересующие темы: ${selectedThemes}
+                  
+          КРИТИЧЕСКОЕ ПРАВИЛО: Подобери ОДНО аниме, которое ИДЕАЛЬНО соответствует указанным жанрам (${selectedGenres}) и настроению (${selectedMood}). Объясни в поле "reason", почему оно подходит.`
         }
 
-        // Упрощенный prompt для новых пользователей без анкеты
-        if (isNewUser) {
-          return `Ты - эксперт по аниме с доступом к инструментам поиска. Пользователь только начинает смотреть аниме и у него нет истории просмотров. Твоя задача - предложить ОДНО лучшее аниме для старта.
-
-## Инструменты поиска:
-У тебя есть два инструмента:
-1. search_anime - поиск в базе Shikimori по жанрам, году, рейтингу
-2. web_search - поиск в интернете для проверки актуальных данных
-
-## Процесс рекомендации:
-1. Сначала используй search_anime для поиска популярных аниме 2023-2025 с высоким рейтингом
-2. При необходимости используй web_search для проверки актуальных данных
-3. Выбери ОДНО лучшее аниме для начинающего
-4. Сформируй рекомендацию
-
-Ответ должен быть строго в формате JSON:
-{
-  "title": "название аниме",
-  "reason": "почему это хорошее начало для новичка",
-  "year": 2023,
-  "episodes": количество серий
-}
-
-КРИТИЧЕСКИЕ ПРАВИЛА (НАРУШЕНИЕ НЕДОПУСТИМО):
-1. ТОЛЬКО ОДНО аниме в ответе
-2. ТОЛЬКО аниме 2023, 2024 или 2025 года выпуска, которые УЖЕ ВЫШЛИ. Аниме-анонсы ЗАПРЕЩЕНЫ.
-3. Рейтинг 7.5+ по Shikimori
-4. Причина должна объяснять, почему это хорошее аниме для начинающего
-5. Используй только ОСНОВНОЕ название аниме (не сезоны, не части, не арки)
-6. Укажи точное количество серий
-7. Выбери аниме, которое идеально подходит для первого знакомства с жанром (доступное, интересное, с понятным сюжетом)
-8. ОБЯЗАТЕЛЬНО используй инструменты поиска перед рекомендацией
-
-Рекомендуй ТОЛЬКО ОДНО аниме для старта.`
-        }
-
-        // Полный prompt для пользователей с данными
-        let prompt = `Ты - эксперт по аниме с доступом к инструментам поиска. Твоя задача - подобрать ОДНО идеально подходящее аниме на основе детального анализа предпочтений пользователя.
-
-## Данные пользователя:
-
-### История просмотров (${prefs.totalWatched} аниме):
-${context.history.slice(0, 15).map((h: any) => 
-  `- ${h.title}${h.genres?.length ? ` [жанры: ${h.genres.join(', ')}]` : ''}${h.rating ? ` [рейтинг: ${h.rating}]` : ''}`
-).join('\n')}
-
-### Закладки (${prefs.totalBookmarks} аниме, завершено: ${prefs.completedCount}):
-${context.bookmarks.slice(0, 15).map((b: any) => 
-  `- ${b.title}${b.genres?.length ? ` [жанры: ${b.genres.join(', ')}]` : ''}${b.rating ? ` [рейтинг: ${b.rating}]` : ''}${b.isCompleted ? ' [ЗАВЕРШЕНО]' : ''}`
-).join('\n')}
-
-### Анализ предпочтений:
-- Любимые жанры: ${prefs.topGenres.length ? prefs.topGenres.join(', ') : 'не определены'}
-- Любимые студии: ${prefs.topStudios.length ? prefs.topStudios.join(', ') : 'не определены'}
-- Предпочитаемые форматы: ${prefs.preferredKinds.length ? prefs.preferredKinds.join(', ') : 'не определены'}
-- Средний рейтинг просмотренного: ${prefs.avgRating || 'нет данных'}
-- Активность: просмотрено ${prefs.totalWatched}, в закладках ${prefs.totalBookmarks}, завершено ${prefs.completedCount}
-
-## Инструменты поиска:
-У тебя есть два инструмента:
-1. search_anime - поиск в базе Shikimori по жанрам, году, рейтингу
-2. web_search - поиск в интернете для проверки актуальных данных
-
-## Процесс рекомендации:
-1. Сначала используй search_anime с любимыми жанрами и рейтингом пользователя
-2. При необходимости используй web_search для проверки актуальных данных о рекомендованных аниме
-3. Выбери ОДНО лучшее аниме из результатов поиска
-4. Сформируй персонализированную рекомендацию
-
-Ответ должен быть строго в формате JSON:
-{
-  "title": "название аниме",
-  "reason": "детальное объяснение почему понравится",
-  "year": 2023,
-  "episodes": количество серий
-}
-
-КРИТИЧЕСКИЕ ПРАВИЛА (НАРУШЕНИЕ НЕДОПУСТИМО):
-1. ТОЛЬКО ОДНО аниме в ответе
-2. ТОЛЬКО аниме 2023, 2024 или 2025 года выпуска, которые УЖЕ ВЫШЛИ. Аниме-анонсы ЗАПРЕЩЕНЫ.
-3. Рейтинг не ниже ${prefs.avgRating ? Math.max(6, parseFloat(prefs.avgRating) - 1) : 7} по Shikimori
-4. Рекомендация должна быть ПЕРСОНАЛИЗИРОВАНА - объясни, почему именно это аниме идеально подходит под историю и предпочтения
-5. Используй только ОСНОВНОЕ название аниме (не сезоны, не части, не арки)
-6. Укажи точное количество серий
-7. НЕ рекомендуй аниме, которые уже есть в истории или закладках
-8. Учитывай любимые жанры и студии пользователя
-9. Если есть культовые шедевры до 2010 с рейтингом 8.0+, которые идеально подходят, рекомендуй их с объяснением эффекта удивления
-10. ОБЯЗАТЕЛЬНО используй инструменты поиска перед рекомендацией
-
-Рекомендуй ТОЛЬКО ОДНО аниме, которое максимально соответствует всем критериям. Причина должна быть очень детальной и персонализированной.`
-
-        return prompt
+        return `Подобери ОДНО отличное популярное аниме с высоким рейтингом.`
       }
 
-      // 4. Отправляем запрос через наш API endpoint
-      // Очищаем userData от циклических ссылок перед отправкой
       const cleanUserData = userData.data ? {
-        history: userData.data.history?.map((h: any) => ({
-          id: h.id,
-          title: h.title,
-          genres: h.genres,
-          rating: h.rating
-        })) || [],
-        bookmarks: userData.data.bookmarks?.map((b: any) => ({
-          id: b.id,
-          title: b.title,
-          genres: b.genres,
-          rating: b.rating
-        })) || [],
+        history: userData.data.history?.map((h: any) => ({ id: h.id, title: h.title, genres: h.genres, rating: h.rating })) || [],
+        bookmarks: userData.data.bookmarks?.map((b: any) => ({ id: b.id, title: b.title, genres: b.genres, rating: b.rating })) || [],
         preferences: userData.data.preferences || {}
       } : null
 
-      // Очищаем surveyData от циклических ссылок
       const cleanSurveyData = surveyData ? {
         favoriteGenres: surveyData.favoriteGenres || [],
         mood: surveyData.mood || null,
@@ -355,6 +184,8 @@ ${context.bookmarks.slice(0, 15).map((b: any) =>
         artStyle: surveyData.artStyle || null,
         themes: surveyData.themes || []
       } : null
+
+      setStep('searching')
 
       const response = await fetch('/api/recommendations/ai-generate', {
         method: 'POST',
@@ -372,50 +203,25 @@ ${context.bookmarks.slice(0, 15).map((b: any) =>
       }
 
       const result = await response.json()
-      console.log('[AI Advisor] Raw API response:', result)
+      const enrichedRecommendation: EnrichedRecommendation = result.data
 
-      const data: AiResponse = result.data
-      console.log('[AI Advisor] Extracted data:', data)
-
-      // Валидация ответа AI
-      if (!data || typeof data !== 'object' || !data.title) {
-        console.error('[AI Advisor] Invalid data structure:', data)
-        throw new Error("Неверный формат ответа от нейросети. Ожидался объект с полем 'title'")
+      if (!enrichedRecommendation || !enrichedRecommendation.title) {
+        throw new Error("Неверный формат ответа от сервера")
       }
 
-      setStep('searching')
+      setRecommendations([enrichedRecommendation])
+      setStep('done')
 
-      // 4. Поиск аниме через Shikimori
-      try {
-        const results = await searchAnime(data.title.trim())
-        if (!results || results.length === 0) {
-          throw new Error(`Не удалось найти аниме "${data.title}" в базе Shikimori`)
-        }
-
-        const anime = results[0]
-        const enrichedRecommendation: EnrichedRecommendation = {
-          ...anime,
-          reason: data.reason || '',
-          category: anime.episodesCurrent <= 12 ? 'movie' : anime.episodesCurrent <= 26 ? 'short' : 'long'
-        }
-
-        setRecommendations([enrichedRecommendation])
-        setStep('done')
-
-        // Сохраняем успешное состояние
-        localStorage.setItem('ai-advisor-last-state', JSON.stringify({
-          recommendations: [enrichedRecommendation],
-          step: 'done',
-          timestamp: Date.now()
-        }))
-      } catch (error) {
-        console.error('Ошибка поиска аниме:', error)
-        throw new Error(`Не удалось найти рекомендуемое аниме: ${data.title}`)
-      }
+      localStorage.setItem('ai-advisor-last-state', JSON.stringify({
+        recommendations: [enrichedRecommendation],
+        preferenceData: surveyData || preferenceData,
+        step: 'done',
+        timestamp: Date.now()
+      }))
 
     } catch (err) {
       console.error('AI Advisor Error:', err)
-      const errorMessage = err instanceof Error ? err.message : "Произошла неизвестная ошибка при генерации рекомендаций"
+      const errorMessage = err instanceof Error ? err.message : "Произошла ошибка при генерации подборки"
       setError(errorMessage)
       setStep('survey')
     } finally {
@@ -423,107 +229,97 @@ ${context.bookmarks.slice(0, 15).map((b: any) =>
     }
   }
 
-  // --- РЕНДЕР КАРТОЧКИ (ОБНОВЛЕННЫЙ) ---
-  const renderCard = (anime: EnrichedRecommendation, accentColor: string) => {
-    const saved = isSaved(anime.id)
+  const renderHeroCard = (anime: EnrichedRecommendation) => {
+    const isRealAnime = Number(anime.id) > 0
+    const saved = isRealAnime ? isSaved(anime.id) : false
+    const watchHref = isRealAnime ? `/watch/${anime.id}` : `/catalog?search=${encodeURIComponent(anime.title)}`
 
     return (
-      <div 
-        key={anime.id} 
-        // ВАЖНО: sm:flex-row заставляет блоки встать в ряд на экранах шире мобильного.
-        // min-h-[200px] задает минимальную высоту.
-        className="group relative flex flex-col sm:flex-row bg-zinc-900/60 border border-white/10 hover:border-white/20 rounded-xl overflow-hidden transition-all duration-300 hover:bg-zinc-900"
-      >
-        {/* ЛЕВАЯ ЧАСТЬ: ПОСТЕР */}
-        {/* w-full на мобильном, фиксированная w-[140px] на ПК */}
-        <div className="relative w-full sm:w-[140px] shrink-0 aspect-[2/3] sm:aspect-auto sm:self-stretch bg-secondary">
-           <Image
-              src={anime.poster}
-              alt={anime.title}
-              fill
-              className="object-cover transition-transform duration-500 group-hover:scale-105"
-           />
-           <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-60" />
+      <div className="relative group overflow-hidden rounded-2xl bg-zinc-900/80 border border-white/10 p-4 sm:p-6 shadow-2xl backdrop-blur-xl transition-all duration-300">
+        <div className="absolute -top-20 -left-20 w-56 h-56 bg-purple-600/15 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-20 -right-20 w-56 h-56 bg-orange-600/15 rounded-full blur-3xl pointer-events-none" />
 
-           {/* Кнопка закладки */}
-           <div className="absolute top-2 left-2 z-10">
-              <Button
+        <div className="relative z-10 flex flex-col sm:flex-row gap-4 sm:gap-5 items-center sm:items-start">
+          {/* ПОСТЕР */}
+          <div className="relative w-36 sm:w-[170px] shrink-0 aspect-[2/3] rounded-xl overflow-hidden shadow-xl bg-gradient-to-br from-purple-900/60 to-zinc-900 border border-white/10 flex flex-col items-center justify-center mx-auto sm:mx-0">
+            {anime.poster && anime.poster.trim() !== '' ? (
+              <Image
+                src={anime.poster}
+                alt={anime.title}
+                fill
+                priority
+                unoptimized
+                className="object-cover transition-transform duration-500 group-hover:scale-105"
+              />
+            ) : (
+              <div className="flex flex-col items-center justify-center p-3 text-center">
+                <Sparkles className="w-8 h-8 text-purple-400 mb-2 animate-pulse shrink-0" />
+                <span className="text-xs font-bold text-white line-clamp-3">{anime.title}</span>
+              </div>
+            )}
+            
+            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent pointer-events-none" />
+
+            <div className="absolute top-2.5 left-2.5 bg-black/70 backdrop-blur-md px-2 py-1 rounded-lg border border-white/10 flex items-center gap-1">
+              <Star className="w-3.5 h-3.5 fill-yellow-400 text-yellow-400 shrink-0" />
+              <span className="text-xs font-bold text-white">{anime.rating}</span>
+            </div>
+
+            {isRealAnime && (
+              <button
                 type="button"
-                variant="secondary"
-                size="icon-sm"
-                className="h-8 w-8 bg-black/60 hover:bg-black/80 text-white border border-white/10 rounded-lg backdrop-blur-sm"
                 onClick={(e) => {
                   e.preventDefault()
-                  e.stopPropagation()
                   toggle(anime)
                 }}
+                className="absolute top-2.5 right-2.5 w-8 h-8 rounded-lg bg-black/70 backdrop-blur-md border border-white/10 flex items-center justify-center transition-transform active:scale-95 hover:bg-black"
               >
-                <Bookmark className={`w-4 h-4 ${saved ? "fill-orange-500 text-orange-500" : "text-white"}`} />
-              </Button>
-           </div>
+                <Bookmark className={`w-4 h-4 transition-colors ${saved ? "fill-orange-500 text-orange-500" : "text-white/80"}`} />
+              </button>
+            )}
+          </div>
 
-           {/* Рейтинг */}
-           <div className="absolute bottom-2 left-2 flex items-center gap-1 z-10">
-               <Star className="w-3 h-3 fill-yellow-500 text-yellow-500" />
-               <span className="text-xs font-bold text-white shadow-black drop-shadow-md">{anime.rating}</span>
-           </div>
-           <Link href={`/watch/${anime.id}`} className="absolute inset-0 z-0" />
-        </div>
+          {/* ОПИСАНИЕ И КНОПКИ */}
+          <div className="flex-1 flex flex-col justify-between min-w-0 w-full h-full text-left">
+            <div>
+              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mb-2">
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] sm:text-xs font-semibold bg-purple-500/10 text-purple-300 border border-purple-500/20">
+                  <ThumbsUp className="w-3 h-3 shrink-0" /> Персональный выбор
+                </span>
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] sm:text-xs font-medium bg-white/5 text-zinc-300 border border-white/10">
+                  <Calendar className="w-3 h-3 text-zinc-400 shrink-0" /> {anime.year}
+                </span>
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] sm:text-xs font-medium bg-white/5 text-zinc-300 border border-white/10">
+                  <Tv className="w-3 h-3 text-zinc-400 shrink-0" /> {anime.episodesCurrent > 0 ? `${anime.episodesCurrent} эп.` : 'Анонс'}
+                </span>
+              </div>
 
-        {/* ПРАВАЯ ЧАСТЬ: КОНТЕНТ */}
-        {/* min-w-0 предотвращает сплющивание текста */}
-        <div className="flex flex-col flex-1 p-3 sm:p-4 min-w-0">
-           <div className="mb-2 sm:mb-3">
-              <Link href={`/watch/${anime.id}`} className="hover:text-orange-400 transition-colors block">
-                 <h4 className="font-bold text-white text-base sm:text-lg leading-tight truncate pr-2">{anime.title}</h4>
+              <Link href={watchHref} className="inline-block group-hover:text-purple-400 transition-colors">
+                <h3 className="text-lg sm:text-2xl font-bold text-white tracking-tight leading-snug">
+                  {anime.title}
+                </h3>
               </Link>
-              <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-500 mt-1">
-                  <span className="bg-white/10 px-1.5 py-0.5 rounded text-zinc-300 capitalize font-medium">
-                      {anime.quality || 'TV'}
-                  </span>
-                  <span>{anime.year}</span>
-                  <span>•</span>
-                  <span>{anime.episodesCurrent > 0 ? `${anime.episodesCurrent} Серия.` : 'Анонс'}</span>
-              </div>
-           </div>
 
-           <div className="relative flex-1 bg-secondary/50 rounded-lg p-2.5 sm:p-3 border border-border flex flex-col min-h-[80px]">
-              <div className="flex items-center gap-2 mb-1.5 shrink-0">
-                  <Sparkles className={`w-3 h-3 ${accentColor}`} />
-                  <span className={`text-[10px] font-bold uppercase tracking-widest ${accentColor} opacity-90`}>
-                     Почему вам понравится:
-                  </span>
+              <div className="mt-3 p-3 sm:p-4 rounded-xl bg-purple-950/20 border-l-4 border-purple-500 border-y border-r border-purple-500/10">
+                <div className="flex items-center gap-1.5 text-xs font-bold text-purple-400 uppercase tracking-wider mb-1.5">
+                  <Sparkles className="w-3.5 h-3.5 shrink-0" />
+                  <span>Почему вам понравится:</span>
+                </div>
+                <p className="text-xs sm:text-sm text-zinc-200 leading-relaxed font-light">
+                  {anime.reason}
+                </p>
               </div>
-              <div className="overflow-y-auto custom-scrollbar pr-1">
-                  <p className="text-sm text-zinc-300 leading-relaxed font-light">
-                     {anime.reason}
-                  </p>
-              </div>
-           </div>
-           
-           {/* Кнопка "Смотреть" для всех устройств */}
-           <div className="mt-3 pt-3 border-t border-white/5 flex justify-end">
-              <Link href={`/watch/${anime.id}`} className="text-xs font-bold text-white bg-white/10 px-3 py-1.5 rounded-full hover:bg-white/20 transition-colors">
-                  Смотреть &rarr;
+            </div>
+
+            <div className="mt-4 sm:mt-5 flex items-center justify-end pt-3 border-t border-white/5">
+              <Link href={watchHref} className="w-full sm:w-auto">
+                <Button className="w-full sm:w-auto bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-medium px-6 shadow-lg shadow-purple-600/25">
+                  {isRealAnime ? <Play className="w-4 h-4 fill-current mr-2 shrink-0" /> : <Search className="w-4 h-4 mr-2 shrink-0" />}
+                  {isRealAnime ? "Смотреть аниме" : "Искать аниме"}
+                </Button>
               </Link>
-           </div>
-        </div>
-      </div>
-    )
-  }
-
-  const renderSection = (title: string, icon: React.ReactNode, items: EnrichedRecommendation[], accentColor: string) => {
-    if (items.length === 0) return null
-    return (
-      <div className="animate-in fade-in">
-        <div className={`flex items-center gap-3 mb-4 pb-2 border-b border-white/5 ${accentColor}`}>
-          {icon}
-          <h3 className="text-lg font-bold tracking-wide text-white">{title}</h3>
-        </div>
-        
-        {/* ОДНА РЕКОМЕНДАЦИЯ - крупная карточка */}
-        <div className="max-w-2xl mx-auto">
-          {items.map((anime) => renderCard(anime, accentColor))}
+            </div>
+          </div>
         </div>
       </div>
     )
@@ -533,106 +329,110 @@ ${context.bookmarks.slice(0, 15).map((b: any) =>
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
         <button className="w-full md:w-auto group relative overflow-hidden rounded-xl bg-gradient-to-br from-indigo-600 via-purple-600 to-orange-500 p-[1px] shadow-2xl transition-all hover:scale-[1.02] active:scale-95 outline-none">
-          <div className="relative flex items-center justify-center md:justify-start gap-3 rounded-[11px] bg-secondary/90 px-6 py-4 backdrop-blur-sm transition-all group-hover:bg-secondary/80">
-            <div className="relative flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 shadow-lg shrink-0">
-              <Sparkles className="h-5 w-5 text-white animate-pulse" />
+          <div className="relative flex items-center justify-center md:justify-start gap-3 rounded-[11px] bg-zinc-950/90 px-5 py-3.5 backdrop-blur-sm transition-all group-hover:bg-zinc-950/75">
+            <div className="relative flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 shadow-md shrink-0">
+              <Sparkles className="h-4 w-4 text-white animate-pulse" />
             </div>
             <div className="text-left">
               <div className="text-sm font-bold text-white group-hover:text-transparent group-hover:bg-clip-text group-hover:bg-gradient-to-r group-hover:from-indigo-400 group-hover:to-orange-400 transition-all">
                 AI Подборка
               </div>
               <div className="text-[10px] text-zinc-400 hidden sm:block">
-                Персонально для вас
+                Персональный подбор
               </div>
             </div>
           </div>
         </button>
       </DialogTrigger>
 
-      {/* 
-          ИСПРАВЛЕНИЕ:
-          Добавлен класс sm:max-w-7xl, который перебивает стандартный sm:max-w-lg.
-          Теперь окно будет еще шире на ПК.
-      */}
-      <DialogContent className="bg-background border text-foreground w-[95vw] sm:max-w-7xl md:max-w-7xl max-h-[85vh] p-0 gap-0 overflow-hidden flex flex-col shadow-2xl">
+      <DialogContent className="bg-zinc-950 border border-white/10 text-foreground w-[95vw] sm:max-w-3xl max-h-[90vh] p-0 gap-0 overflow-hidden flex flex-col shadow-2xl rounded-2xl [&>button:last-child]:hidden">
         
-        <div className="flex-shrink-0 px-6 py-4 border-b border-border bg-secondary/80 backdrop-blur-xl z-10">
-          <DialogHeader className="m-0 space-y-0">
-            <div className="flex items-center justify-between">
-              <DialogTitle className="flex items-center gap-2 text-xl font-bold">
-                <Sparkles className="text-purple-500 w-5 h-5" />
-                <span>AI Ассистент</span>
-              </DialogTitle>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                onClick={() => setIsOpen(false)}
-                className="h-8 w-8 text-zinc-400 hover:text-white hover:bg-white/10 rounded-lg"
-              >
-                ×
-              </Button>
+        <div className="flex-shrink-0 px-4 sm:px-6 py-3.5 sm:py-4 border-b border-white/10 bg-zinc-900/50 backdrop-blur-xl flex items-center justify-between z-10">
+          <DialogTitle className="flex items-center gap-2.5 text-base sm:text-lg font-semibold text-white">
+            <div className="p-1.5 rounded-lg bg-purple-500/10 border border-purple-500/20 text-purple-400 shrink-0">
+              <Sparkles className="w-4 h-4" />
             </div>
-          </DialogHeader>
+            <span>AI Советник по аниме</span>
+          </DialogTitle>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={() => setIsOpen(false)}
+            className="h-8 w-8 text-zinc-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors shrink-0"
+          >
+            <X className="w-4 h-4" />
+          </Button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4 md:p-6 custom-scrollbar bg-background">
-            {error && !loading && (
-               <div className="flex flex-col items-center justify-center py-10 animate-in fade-in">
-                  <Image
-                    src="/baner error.png"
-                    alt="Error"
-                    width={400}
-                    height={200}
-                    className="mb-4 rounded-lg"
-                  />
-                  <p className="text-zinc-300 text-center mb-4">{error}</p>
-                  <Button onClick={handleGenerate} variant="secondary">
-                     <RefreshCcw className="w-4 h-4 mr-2" /> Повторить
-                  </Button>
-               </div>
-            )}
-
-            {!loading && step === 'survey' && !error && (
-              <div className="p-4 md:p-6">
-                <PreferenceSurvey
-                  onComplete={(data) => {
-                    setPreferenceData(data)
-                    handleGenerate(data)
-                  }}
-                  onCancel={() => {
-                    setIsOpen(false)
-                    setStep('survey')
-                  }}
-                />
+        <div className="flex-1 overflow-y-auto p-3.5 sm:p-6 custom-scrollbar">
+          {error && !loading && (
+            <div className="flex flex-col items-center justify-center py-12 text-center animate-in fade-in px-2">
+              <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-400 mb-4 shrink-0">
+                <X className="w-7 h-7 sm:w-8 sm:h-8" />
               </div>
-            )}
+              <h4 className="text-base sm:text-lg font-semibold text-white mb-2">Упс! Что-то пошло не так</h4>
+              <p className="text-xs sm:text-sm text-zinc-400 max-w-md mb-6">{error}</p>
+              <Button onClick={() => handleGenerate(preferenceData)} variant="secondary" className="bg-white/10 hover:bg-white/20 text-white border-none">
+                <RefreshCcw className="w-4 h-4 mr-2 shrink-0" /> Попробовать снова
+              </Button>
+            </div>
+          )}
 
-            {loading && (
-              <div className="flex flex-col items-center justify-center py-20 space-y-4">
-                <Loader2 className="w-12 h-12 text-purple-500 animate-spin" />
-                <p className="text-zinc-400 animate-pulse text-sm">
-                  {step === 'analyzing' ? 'Анализирую ваши предпочтения...' : 'Ищу информацию об аниме...'}
-                </p>
+          {!loading && step === 'survey' && !error && (
+            <div className="animate-in fade-in duration-300">
+              <PreferenceSurvey
+                onComplete={(data) => {
+                  setPreferenceData(data)
+                  handleGenerate(data)
+                }}
+                onCancel={() => {
+                  setIsOpen(false)
+                }}
+              />
+            </div>
+          )}
+
+          {loading && (
+            <div className="flex flex-col items-center justify-center py-16 space-y-4 animate-in fade-in px-4">
+              <div className="relative flex items-center justify-center">
+                <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full border-4 border-purple-500/20 border-t-purple-500 animate-spin" />
+                <Sparkles className="w-5 h-5 sm:w-6 sm:h-6 text-purple-400 absolute animate-pulse" />
               </div>
-            )}
-
-            {step === 'done' && !loading && (
-              <div className="space-y-6 pb-4">
-                 {renderSection(
-                   "Ваша персональная рекомендация",
-                   <Sparkles className="w-5 h-5 text-purple-400" />,
-                   recommendations,
-                   "text-purple-400"
-                 )}
-
-                 <div className="pt-4 flex justify-center">
-                    <Button variant="ghost" size="sm" onClick={() => setStep('survey')} className="text-zinc-500 hover:text-white">
-                       <RefreshCcw className="w-3 h-3 mr-2" />
-                       Попробовать снова
-                    </Button>
-                 </div>
+              <div className="text-center space-y-1">
+                <p className="text-sm sm:text-base font-medium text-white">{loadingText}</p>
+                <p className="text-xs text-zinc-500">Это займет всего пару секунд...</p>
               </div>
-            )}
+            </div>
+          )}
+
+          {step === 'done' && !loading && recommendations.length > 0 && (
+            <div className="space-y-4 sm:space-y-6 animate-in fade-in zoom-in-95 duration-300">
+              {renderHeroCard(recommendations[0])}
+
+              {/* Адаптивный блок нижних кнопок */}
+              <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between gap-2.5 pt-2">
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={() => setStep('survey')} 
+                  className="w-full sm:w-auto text-zinc-400 hover:text-white hover:bg-white/5 transition-colors justify-center"
+                >
+                  <SlidersHorizontal className="w-3.5 h-3.5 mr-2 shrink-0" />
+                  <span>Изменить параметры анкеты</span>
+                </Button>
+
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={() => handleGenerate(preferenceData)} 
+                  className="w-full sm:w-auto text-purple-400 hover:text-purple-300 hover:bg-purple-500/10 transition-colors justify-center"
+                >
+                  <RefreshCcw className="w-3.5 h-3.5 mr-2 shrink-0" />
+                  <span>Предложить другое аниме</span>
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       </DialogContent>
     </Dialog>

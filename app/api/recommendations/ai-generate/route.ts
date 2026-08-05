@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-// Нормализуем BASE_URL, убирая слэш на конце
 const rawBaseUrl = process.env.AI_API_BASE_URL || 'http://127.0.0.1:1239/v1'
 const API_BASE_URL = rawBaseUrl.replace(/\/+$/, '')
 const API_KEY = process.env.AI_API_KEY || ''
-const DEFAULT_MODEL = process.env.AI_MODEL || 'google/gemma-4-e4b'
+const DEFAULT_MODEL = process.env.AI_MODEL || 'google/gemma-4-e2b'
 
 function getHeaders(): Record<string, string> {
   const headers: Record<string, string> = {
@@ -24,147 +23,106 @@ async function getAvailableModel(): Promise<string> {
     }
 
     const response = await fetch(`${API_BASE_URL}/models`, { headers })
-    
-    if (!response.ok) {
-      console.log(`[AI Generate] Models endpoint returned status ${response.status}, using default model: ${DEFAULT_MODEL}`)
-      return DEFAULT_MODEL
-    }
+    if (!response.ok) return DEFAULT_MODEL
     
     const data = await response.json()
     const models = data.data || data.models || []
-    
-    if (models.length === 0) {
-      return DEFAULT_MODEL
-    }
+    if (models.length === 0) return DEFAULT_MODEL
     
     const modelIds = models.map((m: any) => typeof m === 'string' ? m : m.id)
-    console.log('[AI Generate] Available models from API:', modelIds)
-
-    if (modelIds.includes(DEFAULT_MODEL)) {
-      return DEFAULT_MODEL
-    }
-    
+    if (modelIds.includes(DEFAULT_MODEL)) return DEFAULT_MODEL
     return modelIds[0] || DEFAULT_MODEL
-  } catch (error) {
-    console.log('[AI Generate] Error fetching models, using default:', error)
+  } catch {
     return DEFAULT_MODEL
   }
 }
 
-const TOOLS = [
-  {
-    type: "function",
-    function: {
-      name: "search_anime",
-      description: "Поиск аниме в базе Shikimori по критериям (жанры, год, рейтинг)",
-      parameters: {
-        type: "object",
-        properties: {
-          genres: {
-            type: "array",
-            items: { type: "string" },
-            description: "Список жанров для поиска (например: ['Экшен', 'Фэнтези'])"
-          },
-          year: {
-            type: "string",
-            description: "Год выпуска или диапазон (например: '2023' или '2023,2024')"
-          },
-          minRating: {
-            type: "number",
-            description: "Минимальный рейтинг (по умолчанию 7.5)"
-          },
-          limit: {
-            type: "number",
-            description: "Количество результатов (по умолчанию 20)"
-          }
-        },
-        required: []
-      }
-    }
-  },
-  {
-    type: "function",
-    function: {
-      name: "web_search",
-      description: "Поиск информации в интернете для проверки актуальных данных об аниме",
-      parameters: {
-        type: "object",
-        properties: {
-          query: {
-            type: "string",
-            description: "Поисковый запрос"
-          },
-          numResults: {
-            type: "number",
-            description: "Количество результатов (по умолчанию 5)"
-          }
-        },
-        required: ["query"]
-      }
-    }
+// 🌐 ПОИСК В SHIKIMORI НА СЕРВЕРЕ (БЕЗ CORS ОГРАНИЧЕНИЙ)
+async function searchShikimoriServer(title: string, originalTitle?: string): Promise<any | null> {
+  const headers = {
+    'User-Agent': 'Anix-Anime-Advisor/1.0 (Next.js Server)',
+    'Accept': 'application/json'
   }
-]
 
-async function executeToolCall(toolCall: any, origin: string) {
-  const { name, arguments: args } = toolCall.function
+  const triedQueries = new Set<string>()
 
-  console.log('[AI Generate] Executing tool:', name, 'with args:', args)
+  const tryQuery = async (query: string) => {
+    const q = query.trim()
+    if (!q || q.length < 2 || triedQueries.has(q.toLowerCase())) return null
+    triedQueries.add(q.toLowerCase())
 
-  try {
-    let parsedArgs = args
-    if (typeof args === 'string') {
-      try {
-        parsedArgs = JSON.parse(args)
-      } catch (e) {
-        console.error('[AI Generate] Failed to parse args as JSON:', e)
+    try {
+      console.log(`[Shikimori Server Search] Поиск в базе: "${q}"`)
+      const url = `https://shikimori.one/api/animes?search=${encodeURIComponent(q)}&limit=5`
+      const res = await fetch(url, { headers })
+      if (!res.ok) return null
+      const items = await res.json()
+      if (Array.isArray(items) && items.length > 0) {
+        return items[0]
       }
+    } catch (e) {
+      console.error(`[Shikimori Server Search] Ошибка поиска для "${q}":`, e)
     }
-
-    if (name === 'search_anime') {
-      const response = await fetch(`${origin}/api/recommendations/search-anime`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(parsedArgs)
-      })
-      const data = await response.json()
-      if (!response.ok) {
-        console.error('[AI Generate] search_anime error:', data.error)
-        return { error: data.error || 'Search failed' }
-      }
-      return data.data || []
-    }
-
-    if (name === 'web_search') {
-      const response = await fetch(`${origin}/api/recommendations/web-search`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(parsedArgs)
-      })
-      const data = await response.json()
-      if (!response.ok) {
-        console.error('[AI Generate] web_search error:', data.error)
-        return { error: data.error || 'Search failed' }
-      }
-      return data.data || []
-    }
-
-    throw new Error(`Unknown tool: ${name}`)
-  } catch (error) {
-    console.error('[AI Generate] Tool execution error:', error)
-    return { error: error instanceof Error ? error.message : 'Tool execution failed' }
+    return null
   }
+
+  // 1. Русский / прямой заголовок
+  let anime = await tryQuery(title)
+  if (anime) return anime
+
+  // 2. Оригинальный заголовок (Romaji / English)
+  if (originalTitle) {
+    anime = await tryQuery(originalTitle)
+    if (anime) return anime
+  }
+
+  // 3. Замена символа 'x' на '×'
+  if (title.toLowerCase().includes('x')) {
+    anime = await tryQuery(title.replace(/x/gi, '×'))
+    if (anime) return anime
+    anime = await tryQuery(title.replace(/x/gi, ' '))
+    if (anime) return anime
+  }
+
+  // 4. Очистка от знаков препинания
+  const cleanTitle = title.replace(/["'«»:-]/g, ' ').replace(/\s+/g, ' ').trim()
+  if (cleanTitle) {
+    anime = await tryQuery(cleanTitle)
+    if (anime) return anime
+  }
+
+  // 5. Поиск по ключевому слову
+  const extractWords = (str: string) => {
+    const stopWords = new Set(['the', 'and', 'for', 'you', 'not', 'this', 'with', 'nous', 'или', 'для', 'как', 'что', 'про', 'под', 'нет', 'sama', 'san', 'kun', 'chan'])
+    return str
+      .replace(/[^a-zA-Zа-яА-Я0-9\s]/g, ' ')
+      .split(/\s+/)
+      .filter(w => w.length >= 3 && !stopWords.has(w.toLowerCase()))
+      .sort((a, b) => b.length - a.length)
+  }
+
+  const words = Array.from(new Set([
+    ...extractWords(title),
+    ...(originalTitle ? extractWords(originalTitle) : [])
+  ]))
+
+  for (const word of words) {
+    anime = await tryQuery(word)
+    if (anime) return anime
+  }
+
+  return null
 }
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
     const { prompt, surveyData, userData } = body
-    const origin = request.nextUrl.origin || 'http://localhost:3000'
 
     let profileContext: string[] = []
     
     if (surveyData && Object.keys(surveyData).length > 0) {
-      profileContext.push(`ОТВЕТЫ ИЗ АНКЕТЫ ПРЕДПОЧТЕНИЙ:\n${JSON.stringify(surveyData, null, 2)}`)
+      profileContext.push(`ДАННЫЕ АНКЕТЫ ПРЕДПОЧТЕНИЙ:\n${JSON.stringify(surveyData, null, 2)}`)
     }
     
     if (userData) {
@@ -184,14 +142,10 @@ export async function POST(request: NextRequest) {
 
     const formattedContext = profileContext.length > 0 
       ? profileContext.join('\n\n')
-      : 'Данные профиля и анкеты отсутствуют. Выбери популярное топовое аниме.'
+      : 'Данные профиля отсутствуют. Выбери популярное топовое аниме.'
 
-    const fullPromptText = prompt
-      ? `${prompt}\n\n${formattedContext}`
-      : formattedContext
-
+    const fullPromptText = prompt ? `${prompt}\n\n${formattedContext}` : formattedContext
     const model = await getAvailableModel()
-    console.log('[AI Generate] Using model:', model)
 
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), 180000)
@@ -200,21 +154,24 @@ export async function POST(request: NextRequest) {
       let messages = [
         {
           role: 'system',
-          content: 'ТЫ ОБЯЗАН ОТВЕЧАТЬ ТОЛЬКО В ФОРМАТЕ JSON. Никакого текста вне JSON.\n' +
-            'ПРАВИЛО ДЛЯ НАЗВАНИЯ ("title"): Указывай РУССКОЕ НАЗВАНИЕ АНИМЕ как на Shikimori (например: "Провожающая в последний путь Фрирен" или Romaji "Sousou no Frieren", а НЕ только английский перевод).\n' +
-            'Также ОБЯЗАТЕЛЬНО укажи поле "originalTitle" с Romaji/Японским названием (например: "Sousou no Frieren").\n\n' +
-            'Пример формата:\n' +
+          content: 'Ты - профессиональный AI-советник по аниме.\n' +
+            'ТВОЯ ГЛАВНАЯ ЗАДАЧА: Подобрать ОДНО аниме, которое ТОЧНО соответствует запрошенным пользователем жанрам, настроению и темам.\n\n' +
+            'ПРАВИЛА:\n' +
+            '1. ОТВЕЧАЙ СТРОГО В ФОРМАТЕ JSON. Никакого текста вне JSON.\n' +
+            '2. СТРОГО СОПОСТАВЛЯЙ подборку с анкетой! Никогда не выдавай "Атаку титанов", если пользователь выбрал романтику, хоррор, комедию или повседневность!\n' +
+            '3. Поля "title" (русское название) и "originalTitle" (Romaji/English) ОБЯЗАТЕЛЬНЫ.\n\n' +
+            'Формат JSON ответа:\n' +
             '{\n' +
-            '  "title": "Провожающая в последний путь Фрирен",\n' +
-            '  "originalTitle": "Sousou no Frieren",\n' +
-            '  "reason": "Причина рекомендации...",\n' +
+            '  "title": "Название аниме на русском или Romaji",\n' +
+            '  "originalTitle": "Original Title (English / Romaji)",\n' +
+            '  "reason": "Детальное объяснение почему именно это аниме идеально подходит под указанные жанры и настроение...",\n' +
             '  "year": 2023,\n' +
-            '  "episodes": 28\n' +
-            '}\n\n' + fullPromptText
+            '  "episodes": 12\n' +
+            '}'
         },
         {
           role: 'user',
-          content: 'Порекомендуй одно аниме. Поля "title" (русское название или Romaji) и "originalTitle" ОБЯЗАТЕЛЬНЫ. ОТВЕТЬ ТОЛЬКО JSON.'
+          content: fullPromptText
         }
       ]
 
@@ -224,9 +181,7 @@ export async function POST(request: NextRequest) {
         body: JSON.stringify({
           model,
           messages,
-          tools: TOOLS,
-          tool_choice: 'auto',
-          temperature: 0.7,
+          temperature: 0.7, // Вариативность ответов
           max_tokens: 4096
         }),
         signal: controller.signal
@@ -234,93 +189,17 @@ export async function POST(request: NextRequest) {
 
       if (!response.ok) {
         const errorText = await response.text()
-        console.error(`[AI Generate] Error response (${response.status}):`, errorText)
         throw new Error(`Ошибка нейросети (${response.status}): ${errorText.substring(0, 150)}`)
       }
 
       let responseData = await response.json()
       let assistantMessage = responseData.choices?.[0]?.message
-
-      // Handle tool calls
-      let maxIterations = 3
-      while (assistantMessage?.tool_calls && assistantMessage.tool_calls.length > 0 && maxIterations > 0) {
-        console.log('[AI Generate] Tool calls detected:', assistantMessage.tool_calls.length)
-
-        const toolResults = await Promise.all(
-          assistantMessage.tool_calls.map(async (toolCall: any) => {
-            const result = await executeToolCall(toolCall, origin)
-            return {
-              tool_call_id: toolCall.id,
-              role: 'tool',
-              content: JSON.stringify(result)
-            }
-          })
-        )
-
-        messages.push(assistantMessage)
-        messages.push(...toolResults)
-
-        response = await fetch(`${API_BASE_URL}/chat/completions`, {
-          method: 'POST',
-          headers: getHeaders(),
-          body: JSON.stringify({
-            model,
-            messages,
-            tools: TOOLS,
-            tool_choice: 'auto',
-            temperature: 0.7,
-            max_tokens: 4096
-          }),
-          signal: controller.signal
-        })
-
-        if (!response.ok) {
-          const errorText = await response.text()
-          throw new Error(`Ошибка сервера при инструментах (${response.status}): ${errorText.substring(0, 150)}`)
-        }
-
-        responseData = await response.json()
-        assistantMessage = responseData.choices?.[0]?.message
-        maxIterations--
-      }
-
-      if (assistantMessage?.tool_calls && assistantMessage.tool_calls.length > 0) {
-        console.log('[AI Generate] Max iterations reached, forcing final JSON response')
-        messages.push({
-          role: 'user',
-          content: 'Сделай финальную рекомендацию СТРОГО в виде JSON объекта с русским названием в "title" и Romaji в "originalTitle".'
-        })
-
-        response = await fetch(`${API_BASE_URL}/chat/completions`, {
-          method: 'POST',
-          headers: getHeaders(),
-          body: JSON.stringify({
-            model,
-            messages,
-            temperature: 0.7,
-            max_tokens: 4096
-          }),
-          signal: controller.signal
-        })
-
-        if (!response.ok) {
-          const errorText = await response.text()
-          throw new Error(`Ошибка сервера при финальном ответе (${response.status}): ${errorText.substring(0, 150)}`)
-        }
-
-        responseData = await response.json()
-        assistantMessage = responseData.choices?.[0]?.message
-      }
-
       clearTimeout(timeoutId)
 
       const content = assistantMessage?.content
       if (!content) {
-        console.error('[AI Generate] Empty message content. Full message:', assistantMessage)
         throw new Error("Нейросеть вернула пустой ответ")
       }
-
-      console.log('[AI Generate] Raw response content:', content)
 
       let jsonContent = content
         .replace(/```json\s*/gi, '')
@@ -329,48 +208,79 @@ export async function POST(request: NextRequest) {
 
       let jsonMatch = jsonContent.match(/\{[\s\S]*\}/)
       if (!jsonMatch) {
-        jsonMatch = jsonContent.match(/\[\s*\{[\s\S]*\}\s*\]/)
+        throw new Error("Нейросеть не вывела валидный JSON.")
       }
 
-      if (!jsonMatch) {
-        console.error('[AI Generate] Failed to locate JSON pattern in:', content)
-        throw new Error("Нейросеть не вывела валидный JSON. Текст ответа: " + content.substring(0, 150))
-      }
+      let aiData: any = JSON.parse(jsonMatch[0])
+      if (Array.isArray(aiData)) aiData = aiData[0]
 
-      jsonContent = jsonMatch[0]
-
-      let data: any
-      try {
-        data = JSON.parse(jsonContent)
-        if (Array.isArray(data)) {
-          data = data[0]
-        }
-      } catch (parseError) {
-        console.error('[AI Generate] JSON parse error:', parseError)
-        console.error('[AI Generate] Invalid string:', jsonContent)
-        throw new Error("Ошибка синтаксиса JSON в ответе нейросети")
-      }
-
-      if (!data || typeof data !== 'object' || !data.title || typeof data.title !== 'string') {
-        console.error('[AI Generate] Invalid structure or title is null/empty:', data)
+      if (!aiData || !aiData.title) {
         throw new Error("Нейросеть не смогла сгенерировать название аниме.")
+      }
+
+      // 🔍 СЕРВЕРНЫЙ ПОИСК В SHIKIMORI
+      const shikimoriAnime = await searchShikimoriServer(aiData.title, aiData.originalTitle)
+
+      let enrichedResult: any
+
+      if (shikimoriAnime) {
+        let posterUrl = ''
+        if (shikimoriAnime.image?.original) {
+          posterUrl = shikimoriAnime.image.original.startsWith('http')
+            ? shikimoriAnime.image.original
+            : `https://shikimori.one${shikimoriAnime.image.original}`
+        }
+
+        const episodes = shikimoriAnime.episodes_aired || shikimoriAnime.episodes || aiData.episodes || 12
+
+        enrichedResult = {
+          id: shikimoriAnime.id.toString(),
+          shikimoriId: shikimoriAnime.id.toString(),
+          title: shikimoriAnime.russian || shikimoriAnime.name || aiData.title,
+          originalTitle: shikimoriAnime.name || aiData.originalTitle || aiData.title,
+          poster: posterUrl,
+          rating: shikimoriAnime.score ? shikimoriAnime.score.toString() : "8.5",
+          year: shikimoriAnime.aired_on ? parseInt(shikimoriAnime.aired_on.slice(0, 4)) : (aiData.year || 2023),
+          episodesCurrent: episodes,
+          episodesTotal: shikimoriAnime.episodes || episodes,
+          quality: shikimoriAnime.kind ? shikimoriAnime.kind.toUpperCase() : "TV",
+          status: shikimoriAnime.status || "released",
+          reason: aiData.reason || '',
+          category: episodes <= 12 ? 'movie' : episodes <= 26 ? 'short' : 'long'
+        }
+      } else {
+        const episodes = aiData.episodes || 12
+        enrichedResult = {
+          id: "0",
+          shikimoriId: "0",
+          title: aiData.title,
+          originalTitle: aiData.originalTitle || aiData.title,
+          poster: '',
+          rating: "8.5+",
+          year: aiData.year || 2023,
+          episodesCurrent: episodes,
+          episodesTotal: episodes,
+          quality: "TV",
+          status: "released",
+          reason: aiData.reason || '',
+          category: episodes <= 12 ? 'movie' : episodes <= 26 ? 'short' : 'long'
+        }
       }
 
       return NextResponse.json({
         success: true,
-        data: data
+        data: enrichedResult
       })
 
     } catch (innerErr) {
       clearTimeout(timeoutId)
       if ((innerErr as Error).name === 'AbortError') {
-        throw new Error("Превышено время ожидания ответа от нейросети (3 мин)")
+        throw new Error("Превышено время ожидания ответа от нейросети")
       }
       throw innerErr
     }
 
   } catch (error) {
-    console.error('[AI Generate] Global error:', error)
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Internal server error' },
       { status: 500 }
