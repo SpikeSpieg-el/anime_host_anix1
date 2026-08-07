@@ -14,6 +14,50 @@ type ExtendedAnime = Anime & {
   score?: string | number
 }
 
+export type EditorialReview = {
+  id: string
+  anime_id: string
+  content: string
+  author: string
+  created_at: string
+  updated_at: string
+}
+
+// Получение комментария редакции из Supabase REST API (без статического кэша)
+async function getEditorialReview(animeId: string): Promise<EditorialReview | null> {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+  if (!supabaseUrl || !supabaseKey) {
+    console.error("[EditorialReview] Отсутствуют переменные окружения Supabase!")
+    return null
+  }
+
+  try {
+    const res = await fetch(
+      `${supabaseUrl}/rest/v1/editorial_reviews?anime_id=eq.${encodeURIComponent(animeId)}&select=*`,
+      {
+        headers: {
+          apikey: supabaseKey,
+          Authorization: `Bearer ${supabaseKey}`,
+        },
+        cache: 'no-store', // НЕ КЭШИРОВАТЬ! Запрос всегда получит свежие данные
+      }
+    )
+
+    if (!res.ok) {
+      console.error("[EditorialReview] Ошибка ответа Supabase:", res.status, await res.text())
+      return null
+    }
+
+    const data = await res.json()
+    return data && data.length > 0 ? (data[0] as EditorialReview) : null
+  } catch (err) {
+    console.error("[EditorialReview] Ошибка выполнения запроса:", err)
+    return null
+  }
+}
+
 function slugify(text: string): string {
   const ru: Record<string, string> = {
     а: "a", б: "b", в: "v", г: "g", д: "d", е: "e", ё: "yo", ж: "zh",
@@ -62,7 +106,10 @@ export async function generateMetadata({
   const episode = sp?.episode ? Number.parseInt(sp.episode, 10) : undefined
 
   const cleanId = id.split("-")[0]
-  const rawAnime = await getAnimeById(cleanId, true)
+  const [rawAnime, editorialReview] = await Promise.all([
+    getAnimeById(cleanId, true),
+    getEditorialReview(cleanId),
+  ])
 
   if (!rawAnime) {
     return {
@@ -110,6 +157,8 @@ export async function generateMetadata({
     `${mainTitle} в хорошем качестве HD`,
     `${mainTitle} русская озвучка`,
     `${mainTitle} weebx`,
+    editorialReview ? `отзыв редакции ${mainTitle}` : "",
+    editorialReview ? `мнение редакции weebx ${mainTitle}` : "",
     episode ? `${mainTitle} ${episode} серия` : `${mainTitle} все серии`,
     altTitle ? `смотреть ${altTitle} онлайн` : "",
     altTitle ? `${altTitle} online english sub` : "",
@@ -178,7 +227,12 @@ export default async function WatchPage({
   const episode = sp?.episode ? Number.parseInt(sp.episode, 10) : undefined
 
   const cleanId = id.split("-")[0]
-  const rawAnime = await getAnimeById(cleanId, true)
+
+  // Запрашиваем аниме и комментарий редакции параллельно
+  const [rawAnime, editorialReview] = await Promise.all([
+    getAnimeById(cleanId, true),
+    getEditorialReview(cleanId),
+  ])
 
   if (!rawAnime) return notFound()
 
@@ -237,6 +291,20 @@ export default async function WatchPage({
     }
   }
 
+  // Добавляем микроразметку отзыва редакции для SEO Schema.org
+  if (editorialReview) {
+    jsonLd["review"] = {
+      "@type": "Review",
+      "author": {
+        "@type": "Organization",
+        "name": editorialReview.author || "Редакция Weebx",
+      },
+      "reviewBody": editorialReview.content,
+      "datePublished": editorialReview.created_at,
+      "dateModified": editorialReview.updated_at || editorialReview.created_at,
+    }
+  }
+
   const videoObject: Record<string, any> = {
     "@context": "https://schema.org",
     "@type": "VideoObject",
@@ -284,6 +352,7 @@ export default async function WatchPage({
         anime={rawAnime}
         initialEpisode={Number.isFinite(episode) && (episode as number) > 0 ? (episode as number) : undefined}
         watchOrder={watchOrder}
+        editorialReview={editorialReview}
       />
     </>
   )

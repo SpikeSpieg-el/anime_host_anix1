@@ -16,6 +16,7 @@ const TABS: { id: AdminTab; label: string }[] = [
   { id: "mail", label: "Рассылка" },
   { id: "events", label: "События" },
   { id: "news", label: "Новости" },
+  { id: 'editorial', label: 'Редакция' },
   { id: "tutorial", label: "Туториал" },
 ]
 

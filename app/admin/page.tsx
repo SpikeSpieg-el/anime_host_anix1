@@ -19,6 +19,7 @@ import { MailTab } from "./components/MailTab"
 import { EventsTab } from "./components/EventsTab"
 import { TutorialTab } from "./components/TutorialTab"
 import { NewsTab } from "./components/NewsTab"
+import { EditorialTab } from "./components/EditorialTab"
 
 interface BannerFormData {
   name: string
@@ -877,6 +878,8 @@ export default function AdminPage() {
             onTogglePublished={handleToggleNewsPublished}
           />
         )}
+
+        {activeTab === 'editorial' && <EditorialTab />}
 
         {activeTab === 'tutorial' && <TutorialTab />}
       </div>
