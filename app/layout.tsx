@@ -21,6 +21,7 @@ import { ThemeProvider } from "@/components/providers/theme-provider"
 import { Toaster } from "sonner"
 import { OrganizationStructuredData, WebSiteStructuredData } from "@/components/seo/structured-data"
 import NextTopLoader from "nextjs-toploader"
+import { Navbar } from "@/components/layout/navbar" 
 
 const _geist = Geist({ subsets: ["latin"] })
 const _geistMono = Geist_Mono({ subsets: ["latin"] })
@@ -150,6 +151,7 @@ export default function RootLayout({
                 <HistoryProvider>
                   <BookmarksProvider>
                     <EpisodeUpdatesProvider>
+                       <Navbar/>
                       <ErrorBoundary name="Main App">{children}</ErrorBoundary>
                     </EpisodeUpdatesProvider>
                   </BookmarksProvider>

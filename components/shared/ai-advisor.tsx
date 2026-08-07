@@ -22,6 +22,7 @@ import { useBookmarks } from "@/components/providers/bookmarks-provider"
 import { useAuth } from "@/components/auth/auth-provider"
 import { PreferenceSurvey } from "@/components/shared/preference-survey"
 import type { Anime } from "@/lib/shikimori"
+import { getDemoRecommendation } from "@/lib/demo-recommendations"
 
 interface EnrichedRecommendation extends Anime {
   reason: string
@@ -81,6 +82,9 @@ export function AiAdvisor() {
     setStep('analyzing')
     setRecommendations([])
 
+    const activeSurvey = surveyData || preferenceData
+    let finalRecommendation: EnrichedRecommendation | null = null
+
     try {
       const headers: Record<string, string> = { 'Content-Type': 'application/json' }
       if (session?.access_token) {
@@ -107,7 +111,7 @@ export function AiAdvisor() {
           totalBookmarks: 0,
           completedCount: 0
         },
-        survey: surveyData || null
+        survey: activeSurvey || null
       }
 
       // 📝 ФОРМИРОВАНИЕ ПОДРОБНОГО ПРОМПТА ИЗ АНКЕТЫ
@@ -159,13 +163,13 @@ export function AiAdvisor() {
           const selectedThemes = survey.themes?.join(', ') || 'Любые'
 
           return `ЗАПРОС НА ПОДБОР АНИМЕ ПО АНКЕТЕ:
-          - Любимые жанры: ${selectedGenres}
-          - Желаемое настроение: ${selectedMood}
-          - Темп повествования: ${selectedPacing}
-          - Стиль анимации: ${selectedArtStyle}
-          - Интересующие темы: ${selectedThemes}
-                  
-          КРИТИЧЕСКОЕ ПРАВИЛО: Подобери ОДНО аниме, которое ИДЕАЛЬНО соответствует указанным жанрам (${selectedGenres}) и настроению (${selectedMood}). Объясни в поле "reason", почему оно подходит.`
+- Любимые жанры: ${selectedGenres}
+- Желаемое настроение: ${selectedMood}
+- Темп повествования: ${selectedPacing}
+- Стиль анимации: ${selectedArtStyle}
+- Интересующие темы: ${selectedThemes}
+
+КРИТИЧЕСКОЕ ПРАВИЛО: Подобери ОДНО аниме, которое ИДЕАЛЬНО соответствует указанным жанрам (${selectedGenres}) и настроению (${selectedMood}). Объясни в поле "reason", почему оно подходит.`
         }
 
         return `Подобери ОДНО отличное популярное аниме с высоким рейтингом.`
@@ -177,12 +181,12 @@ export function AiAdvisor() {
         preferences: userData.data.preferences || {}
       } : null
 
-      const cleanSurveyData = surveyData ? {
-        favoriteGenres: surveyData.favoriteGenres || [],
-        mood: surveyData.mood || null,
-        pacing: surveyData.pacing || null,
-        artStyle: surveyData.artStyle || null,
-        themes: surveyData.themes || []
+      const cleanSurveyData = activeSurvey ? {
+        favoriteGenres: activeSurvey.favoriteGenres || [],
+        mood: activeSurvey.mood || null,
+        pacing: activeSurvey.pacing || null,
+        artStyle: activeSurvey.artStyle || null,
+        themes: activeSurvey.themes || []
       } : null
 
       setStep('searching')
@@ -203,28 +207,38 @@ export function AiAdvisor() {
       }
 
       const result = await response.json()
-      const enrichedRecommendation: EnrichedRecommendation = result.data
-
-      if (!enrichedRecommendation || !enrichedRecommendation.title) {
+      if (!result.data || !result.data.title) {
         throw new Error("Неверный формат ответа от сервера")
       }
 
-      setRecommendations([enrichedRecommendation])
-      setStep('done')
-
-      localStorage.setItem('ai-advisor-last-state', JSON.stringify({
-        recommendations: [enrichedRecommendation],
-        preferenceData: surveyData || preferenceData,
-        step: 'done',
-        timestamp: Date.now()
-      }))
+      finalRecommendation = result.data
 
     } catch (err) {
-      console.error('AI Advisor Error:', err)
-      const errorMessage = err instanceof Error ? err.message : "Произошла ошибка при генерации подборки"
-      setError(errorMessage)
-      setStep('survey')
+      console.warn('Используем демо-подборку (fallback mode):', err)
+      
+      // 💡 Если API вернуло ошибку или нет интернета — берём вариацию из 100 заготовок
+      const demoItem = getDemoRecommendation(activeSurvey)
+      
+      // Искусственная пауза для плавности анимации "AI думает"
+      await new Promise(res => setTimeout(res, 1000))
+      
+      finalRecommendation = demoItem
     } finally {
+      if (finalRecommendation) {
+        setRecommendations([finalRecommendation])
+        setStep('done')
+
+        localStorage.setItem('ai-advisor-last-state', JSON.stringify({
+          recommendations: [finalRecommendation],
+          preferenceData: activeSurvey,
+          step: 'done',
+          timestamp: Date.now()
+        }))
+      } else {
+        setError("Произошла ошибка при генерации подборки")
+        setStep('survey')
+      }
+      
       setLoading(false)
     }
   }

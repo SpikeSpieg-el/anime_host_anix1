@@ -62,7 +62,16 @@ export function WatchPageLayoutWrapper({ anime, initialEpisode, watchOrder }: Wa
   const episodesCurrent = anime.episodesCurrent || 0
   const episodesTotal = anime.episodesTotal || 0
   const score = typeof anime.score === 'number' ? anime.score.toFixed(2) : (anime.score?.toString() || '')
-  const animeTitle = (anime as any).russian || anime.title
+
+  // Убираем вшитый год в скобках из названия, чтобы избежать дублирования "(2026) (2026)"
+  const rawTitle = (anime as any).russian || anime.title || ''
+  const animeTitle = rawTitle.replace(/\s*\(\d{4}\)$/, "").trim()
+  const yearText = anime.year ? ` (${anime.year})` : ''
+
+  // Очистка описания от BB-кодов Shikimori
+  const cleanDescription = anime.description 
+    ? anime.description.replace(/\[.*?\]/g, "").replace(/<[^>]*>?/gm, "").trim()
+    : null
 
   if (isLoading) {
     return (
@@ -98,10 +107,11 @@ export function WatchPageLayoutWrapper({ anime, initialEpisode, watchOrder }: Wa
           itemProp="about"
         >
           <header className="mb-5 border-b border-border/50 pb-4">
-            <h2 className="text-xl sm:text-2xl font-bold text-foreground mb-3 flex items-center gap-2" itemProp="name">
-              <Info className="w-5 h-5 text-primary shrink-0" />
-              Смотреть {animeTitle} онлайн бесплатно
-            </h2>
+            {/* ГЛАВНЫЙ H1 ЗАГОЛОВОК СТРАНИЦЫ */}
+            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-foreground mb-3 flex items-center gap-2" itemProp="name">
+              <Info className="w-6 h-6 text-primary shrink-0" />
+              {animeTitle}{yearText} — смотреть онлайн бесплатно в HD
+            </h1>
             
             {/* Мета-бейджи */}
             <div className="flex flex-wrap items-center gap-2 text-xs sm:text-sm text-muted-foreground">
@@ -133,10 +143,10 @@ export function WatchPageLayoutWrapper({ anime, initialEpisode, watchOrder }: Wa
           </header>
 
           {/* Главное описание аниме */}
-          {anime.description && (
+          {cleanDescription && (
             <div className="mb-6" itemProp="description">
               <p className="text-muted-foreground leading-relaxed whitespace-pre-line text-base sm:text-lg">
-                {anime.description}
+                {cleanDescription}
               </p>
             </div>
           )}
@@ -144,10 +154,10 @@ export function WatchPageLayoutWrapper({ anime, initialEpisode, watchOrder }: Wa
           {/* Жанры */}
           {anime.genres && anime.genres.length > 0 && (
             <div className="mb-6">
-              <h3 className="text-xs uppercase tracking-wider font-bold text-foreground mb-3 flex items-center gap-1.5">
+              <h2 className="text-xs uppercase tracking-wider font-bold text-foreground mb-3 flex items-center gap-1.5">
                 <Users className="w-4 h-4 text-primary" />
                 Жанры:
-              </h3>
+              </h2>
               <ul className="flex flex-wrap gap-2">
                 {anime.genres.map((genre) => (
                   <li key={genre}>
@@ -166,10 +176,10 @@ export function WatchPageLayoutWrapper({ anime, initialEpisode, watchOrder }: Wa
           {/* SEO подвал страницы */}
           <div className="pt-4 border-t border-border/50">
             <p className="text-xs sm:text-sm text-muted-foreground/80 leading-relaxed">
-              <strong className="text-foreground">{animeTitle}</strong> — смотреть аниме онлайн бесплатно в хорошем качестве HD на сайте Weebx. 
+              <strong className="text-foreground">{animeTitle}{yearText}</strong> — смотреть аниме онлайн бесплатно в хорошем качестве HD на сайте Weebx. 
               Все серии с русской озвучкой и субтитрами доступны без регистрации.
-              {(anime as any).originalTitle && (anime as any).originalTitle !== animeTitle ? ` Оригинальное название: ${(anime as any).originalTitle}.` : ''}
-              {(anime as any).english && (anime as any).english !== animeTitle && (anime as any).english !== (anime as any).originalTitle ? ` Английское название: ${(anime as any).english}.` : ''}
+              {(anime as any).originalTitle && (anime as any).originalTitle !== animeTitle ? ` Оригинальное название: ${(anime as any).originalTitle.replace(/\s*\(\d{4}\)$/, "")}.` : ''}
+              {(anime as any).english && (anime as any).english !== animeTitle ? ` Английское название: ${(anime as any).english.replace(/\s*\(\d{4}\)$/, "")}.` : ''}
             </p>
           </div>
         </article>

@@ -1,14 +1,53 @@
-// next.config.mjs
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Увеличиваем таймаут статической генерации, чтобы тяжёлый sitemap не падал на Vercel
   staticPageGenerationTimeout: 300,
-  // Скрываем X-Powered-By: Next.js
   poweredByHeader: false,
   images: {
     remotePatterns: [
-      { protocol: 'https', hostname: '**' },
-      { protocol: 'http', hostname: '**' },
+      // 1. MyAnimeList
+      {
+        protocol: 'https',
+        hostname: 'cdn.myanimelist.net',
+        pathname: '/images/**',
+      },
+      // 2. Shikimori (Добавлены все возможные домены и поддомены)
+      {
+        protocol: 'https',
+        hostname: 'shikimori.one',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'shikimori.io',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: '*.shikimori.one',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: '*.shikimori.io',
+        pathname: '/**',
+      },
+      // 3. AniList
+      {
+        protocol: 'https',
+        hostname: 's4.anilist.co',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: '*.anilist.co',
+        pathname: '/**',
+      },
+      // 4. Kitsu
+      {
+        protocol: 'https',
+        hostname: 'media.kitsu.app',
+        pathname: '/**',
+      },
     ],
     // Custom loader delegates to Coolify image service (bypasses Vercel transformations)
     // In dev, use default Next.js image optimization instead
