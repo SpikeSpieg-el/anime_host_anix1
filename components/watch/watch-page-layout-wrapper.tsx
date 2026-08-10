@@ -8,7 +8,7 @@ import { WatchPageClient } from './watch-page-client'
 import { WatchOrderSection } from './watch-order-section'
 import { CoverProvider } from '@/components/providers/cover-provider'
 import type { Anime, FranchiseItem } from '@/lib/shikimori'
-import { PlayCircle, Tv, Film, Calendar, Star, Users, Info, Sparkles } from 'lucide-react'
+import { PlayCircle, Tv, Film, Calendar, Star, Users, Sparkles, Info } from 'lucide-react'
 
 function getEpisodeText(count: number): string {
   if (count === 1) return "Серия"
@@ -63,9 +63,11 @@ interface WatchPageLayoutWrapperProps {
   watchOrder: FranchiseItem[]
   editorialReview?: EditorialReview | null
 }
-// Парсер встроенного Markdown (жирный **, курсив *, код `)
+
+// Парсер встроенного Markdown (жирный **, курсив *, код `, ссылки [text](url))
 function parseInlineMarkdown(text: string) {
-  const parts = text.split(/(\*\*.*?\*\*|\*.*?\*|`.*?`)/g)
+  // Добавлен паттерн \[[^\]]+\]\([^)]+\) для перехвата [текст](ссылка)
+  const parts = text.split(/(\*\*.*?\*\*|\*.*?\*|`.*?`|\[[^\]]+\]\([^)]+\))/g)
   
   return parts.map((part, i) => {
     if (part.startsWith("**") && part.endsWith("**")) {
@@ -80,6 +82,24 @@ function parseInlineMarkdown(text: string) {
           {part.slice(1, -1)}
         </code>
       )
+    }
+    // Обработка ссылок [текст](url)
+    if (part.match(/^\[[^\]]+\]\([^)]+\)$/)) {
+      const match = part.match(/^\[([^\]]+)\]\(([^)]+)\)$/)
+      if (match) {
+        const [, linkText, linkUrl] = match
+        return (
+          <a 
+            key={i} 
+            href={linkUrl} 
+            target="_blank" 
+            rel="noopener noreferrer" 
+            className="text-primary hover:text-primary/80 hover:underline underline-offset-4 transition-colors font-medium"
+          >
+            {linkText}
+          </a>
+        )
+      }
     }
     return part
   })

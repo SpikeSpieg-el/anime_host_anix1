@@ -33,14 +33,15 @@ export function EpisodeSelector({
   const endEpisode = Math.min(startEpisode + episodesPerPage - 1, totalEpisodes)
   const allEpisodes = useMemo(() => Array.from({ length: totalEpisodes }, (_, i) => i + 1), [totalEpisodes])
 
+  // Синхронизация текущей страницы с выбранной серией — только по текущей серии и количеству страниц
   useEffect(() => {
     const targetPage = Math.floor((currentEpisode - 1) / episodesPerPage)
-    if (targetPage !== currentPage && targetPage >= 0 && targetPage < totalPages) {
-      setCurrentPage(targetPage)
+    if (targetPage >= 0 && targetPage < totalPages) {
+      setCurrentPage((prev) => (prev === targetPage ? prev : targetPage))
     }
-  }, [currentEpisode, totalPages, currentPage])
+  }, [currentEpisode, totalPages])
 
-  // Автоскролл до выбранной серии в галерее
+  // Автоскролл до выбранной серии в компактном режиме
   useEffect(() => {
     if (!isCollapsed || !scrollRowRef.current) return
     const timer = setTimeout(() => {
@@ -51,17 +52,45 @@ export function EpisodeSelector({
   }, [currentEpisode, isCollapsed])
 
   const handlePrevPage = () => {
-    if (currentPage > 0) setCurrentPage(currentPage - 1)
+    setCurrentPage((prev) => Math.max(0, prev - 1))
   }
 
   const handleNextPage = () => {
-    if (currentPage < totalPages - 1) setCurrentPage(currentPage + 1)
+    setCurrentPage((prev) => Math.min(totalPages - 1, prev + 1))
   }
 
   const episodes = Array.from(
     { length: Math.max(0, endEpisode - startEpisode + 1) },
     (_, i) => startEpisode + i
   )
+
+  // Оптимизация рендера в компактном режиме: показываем окно вокруг текущей серии, чтобы не рендерить тысячи кнопок
+  const collapsedWindow = useMemo(() => {
+    const maxVisible = 120 // максимум кнопок в ряду при свернутом виде
+    if (totalEpisodes <= maxVisible) return allEpisodes
+
+    const half = Math.floor(maxVisible / 2)
+    const start = Math.max(1, currentEpisode - half)
+    const end = Math.min(totalEpisodes, currentEpisode + half - 1)
+
+    // Если окно у края, сдвигаем чтобы показать maxVisible
+    let realStart = start
+    let realEnd = end
+    if (realEnd - realStart + 1 < maxVisible) {
+      if (realStart === 1) {
+        realEnd = Math.min(totalEpisodes, realStart + maxVisible - 1)
+      } else if (realEnd === totalEpisodes) {
+        realStart = Math.max(1, realEnd - maxVisible + 1)
+      } else {
+        // наполняем с левой стороны при возможности
+        realStart = Math.max(1, currentEpisode - half)
+        realEnd = Math.min(totalEpisodes, realStart + maxVisible - 1)
+      }
+    }
+
+    // Если не показываем полный ряд, добавим индикаторы начала/конца (не рендерятся здесь, просто возвращаем массив)
+    return Array.from({ length: realEnd - realStart + 1 }, (_, i) => realStart + i)
+  }, [allEpisodes, totalEpisodes, currentEpisode])
 
   return (
     <div className="w-full">
@@ -118,7 +147,15 @@ export function EpisodeSelector({
         </span>
         <button
           type="button"
-          onClick={() => setIsCollapsed(!isCollapsed)}
+          onClick={() => {
+            const willCollapse = !isCollapsed
+            setIsCollapsed(willCollapse)
+            // Если разворачиваем в сетку — выставим страницу, содержащую текущую серию
+            if (!willCollapse) {
+              const targetPage = Math.floor((currentEpisode - 1) / episodesPerPage)
+              setCurrentPage((prev) => (prev === targetPage ? prev : targetPage))
+            }
+          }}
           className="text-xs font-semibold text-orange-500 hover:text-orange-400 transition underline underline-offset-4"
         >
           {isCollapsed ? "Развернуть" : "Свернуть"}
@@ -130,7 +167,7 @@ export function EpisodeSelector({
           ref={scrollRowRef}
           className="flex items-center gap-2 overflow-x-auto pb-2 hide-scrollbar"
         >
-          {allEpisodes.map((episode) => (
+          {collapsedWindow.map((episode, idx) => (
             <button
               key={episode}
               data-episode={episode}
@@ -147,6 +184,19 @@ export function EpisodeSelector({
               {episode}
             </button>
           ))}
+
+          {collapsedWindow[0] !== 1 && (
+            <div className="flex items-center gap-2 ml-2">
+              <span className="text-xs text-zinc-400">…</span>
+              <button type="button" onClick={() => onSelectEpisode(1)} className="px-3 py-1 rounded-md text-xs text-zinc-300 hover:text-white">1</button>
+            </div>
+          )}
+          {collapsedWindow[collapsedWindow.length - 1] !== totalEpisodes && (
+            <div className="flex items-center gap-2">
+              <button type="button" onClick={() => onSelectEpisode(totalEpisodes)} className="px-3 py-1 rounded-md text-xs text-zinc-300 hover:text-white">{totalEpisodes}</button>
+              <span className="text-xs text-zinc-400">…</span>
+            </div>
+          )}
         </div>
       ) : (
         <>
