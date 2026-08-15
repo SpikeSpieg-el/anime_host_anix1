@@ -19,6 +19,7 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 import { ThemeToggle } from "@/components/shared/theme-toggle"
 import { TVModeToggle } from "@/components/tv/tv-mode-toggle"
 import { PerformanceToggle } from "@/components/shared/performance-toggle"
+import { ChibiToggle } from "@/components/shared/chibi-toggle"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -241,6 +242,9 @@ export function Navbar() {
                   <span className="text-sm">TV режим</span>
                   <TVModeToggle />
                 </div>
+                <div className="p-1">
+                  <ChibiToggle />
+                </div>
                 <PerformanceToggle />
               </DropdownMenuContent>
             </DropdownMenu>
@@ -411,6 +415,10 @@ export function Navbar() {
               <DropdownMenuItem asChild>
                 <a href="https://t.me/evangelion_chat" target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-accent transition text-sm font-medium text-blue-500 hover:text-blue-600"><MessageCircle size={14} /> Telegram чат</a>
               </DropdownMenuItem>
+              <DropdownMenuSeparator className="bg-border/50" />
+              <div className="p-1">
+                <ChibiToggle />
+              </div>
             </DropdownMenuContent>
           </DropdownMenu>
 

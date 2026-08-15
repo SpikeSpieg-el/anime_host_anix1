@@ -9,9 +9,11 @@ import {
   ChevronLeft,
   ChevronRight,
   X,
-  Maximize2
+  Maximize2,
+  Eye
 } from "lucide-react"
 import type { Anime } from "@/lib/shikimori"
+import { CoverModal } from "@/components/watch/cover-modal"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
@@ -46,6 +48,7 @@ export function WatchPageGallery({ anime }: WatchPageGalleryProps) {
   const [galleryLoading, setGalleryLoading] = useState(true)
   const [currentScreenshotIndex, setCurrentScreenshotIndex] = useState<number>(0)
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const [selectedCover, setSelectedCover] = useState<string | null>(null)
 
   useEffect(() => {
     let active = true
@@ -188,6 +191,9 @@ export function WatchPageGallery({ anime }: WatchPageGalleryProps) {
                 {galleryCovers.map((cover, index) => (
                   <div 
                     key={index} 
+                    onClick={() => setSelectedCover(cover)}
+                    role="button"
+                    tabIndex={0}
                     className="relative aspect-[2/3] rounded-lg overflow-hidden bg-muted border border-border/50 hover:border-primary/50 transition-all group cursor-pointer shadow-sm hover:shadow-md"
                   >
                     <Image
@@ -197,6 +203,9 @@ export function WatchPageGallery({ anime }: WatchPageGalleryProps) {
                       className="object-cover group-hover:scale-110 transition-transform duration-500 ease-out"
                       sizes="(max-width: 640px) 33vw, (max-width: 1024px) 25vw, 16vw"
                     />
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center backdrop-blur-[2px]">
+                      <Eye className="w-6 h-6 text-white opacity-90" />
+                    </div>
                   </div>
                 ))}
               </div>
@@ -294,6 +303,15 @@ export function WatchPageGallery({ anime }: WatchPageGalleryProps) {
           )}
         </>
       )}
+
+      {/* Cover Modal */}
+      <CoverModal
+        isOpen={Boolean(selectedCover)}
+        onClose={() => setSelectedCover(null)}
+        imageUrl={selectedCover || ""}
+        title={anime.title}
+        subtitle="Обложка аниме"
+      />
 
       {/* Fullscreen Modal */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>

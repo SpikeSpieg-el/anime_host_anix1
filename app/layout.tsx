@@ -22,6 +22,7 @@ import { Toaster } from "sonner"
 import { OrganizationStructuredData, WebSiteStructuredData } from "@/components/seo/structured-data"
 import NextTopLoader from "nextjs-toploader"
 import { Navbar } from "@/components/layout/navbar" 
+import { ChibiGuide } from "@/components/shared/chibi-guide"
 
 const _geist = Geist({ subsets: ["latin"] })
 const _geistMono = Geist_Mono({ subsets: ["latin"] })
@@ -109,13 +110,13 @@ export default function RootLayout({
   return (
     <html lang="ru" suppressHydrationWarning>
       <head>
-      <OrganizationStructuredData />
-      <WebSiteStructuredData />
-      <script
-        dangerouslySetInnerHTML={{
-          __html: `if(localStorage.getItem('lite-mode')==='true')document.documentElement.classList.add('lite-mode');`,
-        }}
-      />
+        <OrganizationStructuredData />
+        <WebSiteStructuredData />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `if(localStorage.getItem('lite-mode')==='true')document.documentElement.classList.add('lite-mode');`,
+          }}
+        />
       </head>
       
       <body className={`font-sans antialiased min-h-screen`}>
@@ -151,7 +152,7 @@ export default function RootLayout({
                 <HistoryProvider>
                   <BookmarksProvider>
                     <EpisodeUpdatesProvider>
-                       <Navbar/>
+                      <Navbar/>
                       <ErrorBoundary name="Main App">{children}</ErrorBoundary>
                     </EpisodeUpdatesProvider>
                   </BookmarksProvider>
@@ -162,6 +163,9 @@ export default function RootLayout({
           </ConsentProvider>
           <Toaster />
           <ServiceWorkerRegister />
+
+          {/* Персонаж-гид размещен корректно внутри ThemeProvider */}
+          <ChibiGuide/>
         </ThemeProvider>
       </body>
     </html>

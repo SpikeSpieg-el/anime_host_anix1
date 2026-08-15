@@ -32,8 +32,10 @@ import {
 } from "@/components/ui/dialog"
 import { isHentaiContent } from "@/lib/hentai-detector"
 import { WatchPageGallery } from "@/components/watch/watch-page-gallery"
+import { CoverModal } from "@/components/watch/cover-modal"
 import { FloatingNav } from "@/components/layout/floating-nav"
 import { cn } from "@/lib/utils"
+import { Eye } from "lucide-react"
 
 interface WatchPageClientProps {
   anime: Anime
@@ -88,6 +90,7 @@ export function WatchPageClient({ anime, initialEpisode }: WatchPageClientProps)
   const [activePlayer, setActivePlayer] = useState<'main' | 'backup'>('main')
   const [isUpdatingFromPlayer, setIsUpdatingFromPlayer] = useState(false)
   const [posterLoading, setPosterLoading] = useState(true)
+  const [isCoverModalOpen, setIsCoverModalOpen] = useState(false)
   const [lastWatchedInfo, setLastWatchedInfo] = useState<{
     season?: number
     episode: number
@@ -350,17 +353,37 @@ export function WatchPageClient({ anime, initialEpisode }: WatchPageClientProps)
         </div>
 
         <div className="flex flex-row items-center gap-4 md:gap-8 relative z-10">
-          <div className="relative w-24 aspect-[2/3] md:w-44 shrink-0 rounded-lg md:rounded-xl overflow-hidden shadow-2xl bg-muted ring-1 ring-border">
+          <div 
+            onClick={() => setIsCoverModalOpen(true)}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault()
+                setIsCoverModalOpen(true)
+              }
+            }}
+            title="Нажмите, чтобы посмотреть обложку"
+            className="group/poster relative w-24 aspect-[2/3] md:w-44 shrink-0 rounded-lg md:rounded-xl overflow-hidden shadow-2xl bg-muted ring-1 ring-border cursor-pointer hover:ring-primary/60 hover:shadow-primary/20 transition-all duration-300"
+          >
             <Image
               src={anime.poster}
               alt={anime.title}
               fill
-              className="object-cover"
+              className="object-cover group-hover/poster:scale-105 transition-transform duration-500 ease-out"
               sizes="(max-width: 768px) 100px, 180px"
               priority
               onLoad={() => setPosterLoading(false)}
               onError={() => setPosterLoading(false)}
             />
+
+            {/* Hover overlay hint */}
+            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/poster:opacity-100 transition-opacity duration-300 flex flex-col items-center justify-center gap-1 backdrop-blur-[2px]">
+              <Eye className="w-5 h-5 md:w-7 md:h-7 text-white drop-shadow-md" />
+              <span className="text-[10px] md:text-xs text-white font-medium drop-shadow-md hidden sm:inline-block">
+                Обложка
+              </span>
+            </div>
 
             {posterLoading && (
               <div className="absolute inset-0 bg-neutral-200 dark:bg-zinc-800 animate-pulse flex items-center justify-center z-10">
@@ -476,6 +499,15 @@ export function WatchPageClient({ anime, initialEpisode }: WatchPageClientProps)
 
       {/* Gallery */}
       <WatchPageGallery anime={anime} />
+
+      {/* Cover Modal */}
+      <CoverModal
+        isOpen={isCoverModalOpen}
+        onClose={() => setIsCoverModalOpen(false)}
+        imageUrl={anime.poster}
+        title={anime.title}
+        subtitle={anime.originalTitle || anime.year?.toString()}
+      />
 
       <FloatingNav variant="watch-page" />
     </div>
