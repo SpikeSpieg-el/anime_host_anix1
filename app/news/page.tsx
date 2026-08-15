@@ -129,9 +129,15 @@ export default async function NewsPage({
                       <Calendar className="w-3 h-3" />
                       {item.date}
                     </span>
-                    <span className={`inline-flex items-center gap-1 text-[10px] sm:text-xs font-medium px-2 py-1 rounded-md ${item.source === 'jikan' ? 'bg-orange-500/10 text-orange-400 dark:bg-orange-500/15 dark:text-orange-400' : 'bg-blue-500/10 text-blue-400 dark:bg-blue-500/15 dark:text-blue-400'}`}>
+                    <span className={`inline-flex items-center gap-1 text-[10px] sm:text-xs font-medium px-2 py-1 rounded-md ${
+                      item.source === 'custom'
+                        ? 'bg-purple-500/10 text-purple-400 border border-purple-500/20 dark:bg-purple-500/15 dark:text-purple-400'
+                        : item.source === 'jikan'
+                        ? 'bg-orange-500/10 text-orange-400 dark:bg-orange-500/15 dark:text-orange-400'
+                        : 'bg-blue-500/10 text-blue-400 dark:bg-blue-500/15 dark:text-blue-400'
+                    }`}>
                       <Globe className="w-3 h-3" />
-                      {item.source === 'jikan' ? 'MAL' : 'Shikimori'}
+                      {item.source === 'custom' ? 'Weebx' : item.source === 'jikan' ? 'MAL' : 'Shikimori'}
                     </span>
                   </div>
 

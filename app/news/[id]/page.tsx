@@ -330,7 +330,7 @@ export default async function NewsItemPage({ params }: Props) {
   const kindLabel = linked ? getKindLabel(linked?.kind) : ''
   const statusLabel = linked ? getStatusLabel(linked?.status) : ''
 
-  const sourceLabel = isJikan ? 'MAL' : 'Shikimori'
+  const sourceLabel = isCustom ? 'Weebx' : isJikan ? 'MAL' : 'Shikimori'
   const sourceUrl = news.url
 
   return (

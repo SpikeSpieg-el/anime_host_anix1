@@ -71,66 +71,70 @@ function fromJikan(item: AnimeNewsItem): AggregatedNewsItem {
   };
 }
 
-async function getCustomNews(limit: number): Promise<AggregatedNewsItem[]> {
+async function getCustomNews(page = 1, limit = 12): Promise<{ items: AggregatedNewsItem[]; total: number }> {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-  if (!supabaseUrl || !supabaseAnonKey) return [];
+  if (!supabaseUrl || !supabaseAnonKey) return { items: [], total: 0 };
 
   const supabase = createClient(supabaseUrl, supabaseAnonKey);
+  const from = (page - 1) * limit;
+  const to = from + limit - 1;
 
-  const { data, error } = await supabase
+  const { data, error, count } = await supabase
     .from("custom_news")
-    .select("*")
+    .select("*", { count: "exact" })
     .eq("is_published", true)
     .order("created_at", { ascending: false })
-    .limit(limit);
+    .range(from, to);
 
   if (error) {
     console.error("[getCustomNews] Error:", error);
-    return [];
+    return { items: [], total: 0 };
   }
 
-  return (data || []).map((item: any) => ({
+  const items = (data || []).map((item: any) => ({
     id: `custom-${item.id}`,
     title: item.title,
     excerpt: item.excerpt,
     imageUrl: item.image_url || undefined,
     date: new Date(item.created_at).toLocaleDateString("ru-RU"),
     dateTimestamp: new Date(item.created_at).getTime(),
-    author: item.author || "Администрация",
+    author: item.author || "Редакция Weebx",
     comments: 0,
     url: `/news/custom-${item.id}`,
     source: 'custom' as NewsSource,
     htmlBody: item.body || undefined,
   }));
+
+  return { items, total: count || 0 };
 }
 
 export async function getAggregatedNews(page = 1, limit = 12): Promise<{ items: AggregatedNewsItem[]; hasNextPage: boolean }> {
-  const customLimit = Math.min(3, limit); // Показываем до 3 кастомных новостей
+  // На первой странице выделяем место под свежие кастомные новости (до 4 штук)
+  // На последующих страницах кастомные новости пагинируются строго по страницам (page) без застревания одних и тех же новостей!
+  const customLimit = page === 1 ? Math.min(4, limit) : Math.min(2, limit);
   const externalLimit = limit - customLimit;
-  
-  const jikanCount = Math.min(4, externalLimit);
+
+  const jikanCount = Math.min(4, Math.floor(externalLimit / 2));
   const shikimoriLimit = Math.max(1, externalLimit - jikanCount);
 
-  const customPromise = getCustomNews(customLimit);
+  const customPromise = getCustomNews(page, customLimit);
   const shikimoriPromise = getForumNewsPaginated(page, shikimoriLimit).catch(() => [] as NewsItem[]);
   const jikanPromise = getJikanNews(jikanCount, page).catch(() => [] as AnimeNewsItem[]);
 
-  const [customNews, shikimoriNews, jikanNews] = await Promise.all([customPromise, shikimoriPromise, jikanPromise]);
+  const [customRes, shikimoriNews, jikanNews] = await Promise.all([customPromise, shikimoriPromise, jikanPromise]);
 
-  console.log(`[getAggregatedNews] Page ${page} — Custom: ${customNews.length}, Shikimori: ${shikimoriNews.length}, Jikan: ${jikanNews.length}`);
-
+  const customNews = customRes.items;
   const shikimoriItems = shikimoriNews.slice(0, shikimoriLimit).map(fromShikimori);
   const jikanItems = jikanNews.map(fromJikan);
 
   const merged = [...customNews, ...shikimoriItems, ...jikanItems];
   merged.sort((a, b) => b.dateTimestamp - a.dateTimestamp);
 
-  const hasNextPage = shikimoriNews.length >= shikimoriLimit || jikanItems.length > 0;
+  const hasNextPage = shikimoriNews.length >= shikimoriLimit || jikanItems.length > 0 || (page * customLimit < customRes.total);
   const items = merged.slice(0, limit);
 
-  console.log(`[getAggregatedNews] Returning ${items.length} items, hasNextPage: ${hasNextPage}`);
   return { items, hasNextPage };
 }
 

@@ -152,7 +152,7 @@ export default async function HomePage() {
     withTimeout(getTopOfWeek(30), []),
     withTimeout(getPopularAlways(12), []),
     withTimeout(getOngoingList(12), []),
-    withTimeout(getAggregatedNews(1, 5).then(r => r.items), []),
+    withTimeout(getAggregatedNews(1, 8).then(r => r.items), []),
     withTimeout(getAnnouncements(3), []),
   ])
 
