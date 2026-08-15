@@ -32,6 +32,63 @@ const MASCOT_MESSAGES = [
 export const CHIBI_STORAGE_KEY = "chibi-guide-enabled"
 export const CHIBI_TOGGLE_EVENT = "chibi-toggle-event"
 
+// Поддерживаемые типы спрайт-анимаций
+export type ChibiAnimation = 'idle' | 'wave' | 'sit' | 'jump' | 'walk' | 'run'
+
+interface AnimationConfig {
+  src: string
+  frames: number
+  rows: number
+  duration: number
+  steps: number
+}
+
+// Конфигурации доступных спрайтшитов персонажа (16x32)
+const ANIMATIONS: Record<ChibiAnimation, AnimationConfig> = {
+  idle: {
+    src: "/char/2/16x32/16x32_Idle-Sheet_elf.png",
+    frames: 4,
+    rows: 5,
+    duration: 1.2,
+    steps: 4,
+  },
+  wave: {
+    src: "/char/2/16x32/16x32 Interact-Sheet.png",
+    frames: 4,
+    rows: 5,
+    duration: 0.8,
+    steps: 4,
+  },
+  sit: {
+    src: "/char/2/16x32/16x32 Rotate-Sheet.png",
+    frames: 4,
+    rows: 5,
+    duration: 2.0,
+    steps: 4,
+  },
+  jump: {
+    src: "/char/2/16x32/16x32 Jump-Sheet.png",
+    frames: 4,
+    rows: 5,
+    duration: 0.6,
+    steps: 4,
+  },
+  walk: {
+    src: "/char/2/16x32/16x32 Walk-Sheet.png",
+    frames: 4,
+    rows: 5,
+    duration: 0.8,
+    steps: 4,
+  },
+  run: {
+    src: "/char/2/16x32/16x32 Run-Sheet.png",
+    frames: 4,
+    rows: 5,
+    duration: 0.5,
+    steps: 4,
+  },
+}
+
 export function ChibiGuide() {
   const [isEnabled, setIsEnabled] = useState<boolean>(true)
   const [isBubbleOpen, setIsBubbleOpen] = useState(false)
@@ -39,20 +96,30 @@ export function ChibiGuide() {
   const [messageIndex, setMessageIndex] = useState(0)
   const [miniReaction, setMiniReaction] = useState<string | null>(null)
 
-  // Стадии персонажа
+  // Анимация и направление взгляда
+  const [currentAnim, setCurrentAnim] = useState<ChibiAnimation>('idle')
   const [row, setRow] = useState(0)
   const [isFlipped, setIsFlipped] = useState(false)
   const [isAfk, setIsAfk] = useState(false)
-  const [isInteracting, setIsInteracting] = useState(false)
 
   const charRef = useRef<HTMLDivElement>(null)
   const bubbleTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const reactionTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const animTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const afkTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const lastScrollYRef = useRef<number>(0)
   const pathname = usePathname()
 
-  // Аккуратная мини-реакция (маленький значок/эмодзи над головой на 1.5 секунды)
+  // Включение временной анимации с авто-возвратом в idle
+  const playAnimation = useCallback((anim: ChibiAnimation, durationMs: number = 2000) => {
+    setCurrentAnim(anim)
+    if (animTimeoutRef.current) clearTimeout(animTimeoutRef.current)
+    animTimeoutRef.current = setTimeout(() => {
+      setCurrentAnim(isAfk ? 'sit' : 'idle')
+    }, durationMs)
+  }, [isAfk])
+
+  // Аккуратная мини-реакция (маленький значок/эмодзи над головой)
   const triggerMiniReaction = useCallback((symbol: string) => {
     setMiniReaction(symbol)
     if (reactionTimeoutRef.current) clearTimeout(reactionTimeoutRef.current)
@@ -61,16 +128,18 @@ export function ChibiGuide() {
     }, 1800)
   }, [])
 
-  // Сброс таймера сна (AFK)
+  // Сброс таймера сна/скуки (AFK)
   const resetAfk = useCallback(() => {
     if (isAfk) {
       setIsAfk(false)
+      setCurrentAnim('idle')
       triggerMiniReaction("👀")
     }
     if (afkTimeoutRef.current) clearTimeout(afkTimeoutRef.current)
     afkTimeoutRef.current = setTimeout(() => {
       setIsAfk(true)
-    }, 30000) // Засыпает только после 30 секунд полного бездействия
+      setCurrentAnim('sit') // Когда скучает / AFK — садится / отдыхает
+    }, 25000)
   }, [isAfk, triggerMiniReaction])
 
   // Синхронизация настройки включения/выключения
@@ -100,27 +169,31 @@ export function ChibiGuide() {
     return () => window.removeEventListener("resize", checkMobile)
   }, [])
 
-  // 1. Интерактивная реакция на смену страниц (плавный кивок + контекстная реакция)
+  // 1. Анимация приветствия (машет рукой) при первом входе / переходе на главную
   useEffect(() => {
     if (!isEnabled) return
     resetAfk()
 
-    if (pathname.includes("/watch")) {
+    if (pathname === "/") {
+      playAnimation('wave', 2200)
+      triggerMiniReaction("👋")
+    } else if (pathname.includes("/watch")) {
+      playAnimation('idle', 1000)
       triggerMiniReaction("🍿")
     } else if (pathname.includes("/catalog")) {
       triggerMiniReaction("🔍")
     } else if (pathname.includes("/gacha")) {
+      playAnimation('jump', 1500)
       triggerMiniReaction("✨")
     } else if (pathname.includes("/bookmarks")) {
       triggerMiniReaction("🔖")
     } else if (pathname.includes("/battle")) {
+      playAnimation('jump', 1500)
       triggerMiniReaction("⚔️")
-    } else if (pathname === "/") {
-      triggerMiniReaction("👋")
     }
-  }, [pathname, isEnabled, resetAfk, triggerMiniReaction])
+  }, [pathname, isEnabled, resetAfk, triggerMiniReaction, playAnimation])
 
-  // 2. Интерактивная реакция на скролл (следит за направлением движения)
+  // 2. Реакция на скролл
   useEffect(() => {
     if (!isEnabled) return
 
@@ -129,7 +202,6 @@ export function ChibiGuide() {
       const currentScroll = window.scrollY
       const delta = currentScroll - lastScrollYRef.current
 
-      // Смотрит вниз при быстром скролле вниз, смотрит вверх при скролле вверх
       if (Math.abs(delta) > 15) {
         if (delta > 0) {
           setRow(0) // Вниз
@@ -202,12 +274,12 @@ export function ChibiGuide() {
     }
   }, [isEnabled, isMobile, isAfk, resetAfk])
 
-  // Клик по персонажу
+  // Клик по персонажу: машет рукой + подсказка
   const handleCharClick = useCallback(() => {
     resetAfk()
-    setIsInteracting(true)
     setRow(0)
     setIsFlipped(false)
+    playAnimation('wave', 2000)
     triggerMiniReaction("💖")
 
     if (!isBubbleOpen) {
@@ -219,13 +291,8 @@ export function ChibiGuide() {
     if (bubbleTimeoutRef.current) clearTimeout(bubbleTimeoutRef.current)
     bubbleTimeoutRef.current = setTimeout(() => {
       setIsBubbleOpen(false)
-      setIsInteracting(false)
     }, 7000)
-
-    setTimeout(() => {
-      setIsInteracting(false)
-    }, 300)
-  }, [isBubbleOpen, resetAfk, triggerMiniReaction])
+  }, [isBubbleOpen, resetAfk, triggerMiniReaction, playAnimation])
 
   if (!isEnabled) {
     return null
@@ -237,12 +304,14 @@ export function ChibiGuide() {
     : "16px"
   const SIZE = isMobile ? 44 : 56
 
+  const activeConfig = ANIMATIONS[currentAnim] || ANIMATIONS.idle
+
   return (
     <div 
       style={{ bottom: dynamicBottom }}
       className="fixed right-3 sm:left-4 sm:right-auto z-40 flex flex-col items-end sm:items-start pointer-events-none select-none"
     >
-      {/* 💬 Лаконичное диалоговое облако (по клику) */}
+      {/* 💬 Диалоговое облако */}
       {isBubbleOpen && (
         <div 
           className="pointer-events-auto mb-2 max-w-[240px] sm:max-w-[280px] bg-background/95 backdrop-blur-md border border-border p-3 rounded-xl shadow-xl transition-all relative"
@@ -302,7 +371,7 @@ export function ChibiGuide() {
         </div>
       )}
 
-      {/* 🚶 Персонаж с деликатными микро-реакциями */}
+      {/* 🚶 Персонаж */}
       <div 
         onClick={handleCharClick}
         ref={charRef}
@@ -317,7 +386,7 @@ export function ChibiGuide() {
         className="pointer-events-auto relative cursor-pointer flex flex-col items-center opacity-90 hover:opacity-100 transition-opacity"
         title="Нажмите для подсказки"
       >
-        {/* Деликатный всплывающий эмодзи реакции (без навязчивых окон) */}
+        {/* Деликатный всплывающий эмодзи реакции */}
         {miniReaction && !isBubbleOpen && (
           <div className="absolute -top-5 left-1/2 -translate-x-1/2 text-xs select-none pointer-events-none drop-shadow-sm animate-in fade-in zoom-in-75 duration-200">
             {miniReaction}
@@ -336,19 +405,16 @@ export function ChibiGuide() {
           className={cn(
             "relative z-10 transition-transform duration-75 overflow-hidden aspect-square flex-shrink-0",
             isMobile ? "w-[44px] h-[44px]" : "w-[56px] h-[56px]",
-            isInteracting && "scale-105",
-            isAfk && "opacity-75"
+            isAfk && "opacity-80"
           )}
           style={{
-            backgroundImage: `url('/char/2/16x32/16x32_Idle-Sheet_elf.png')`,
+            backgroundImage: `url('${activeConfig.src}')`,
             backgroundRepeat: "no-repeat",
-            backgroundSize: `${SIZE * 4}px ${SIZE * 5}px`, 
+            backgroundSize: `${SIZE * activeConfig.frames}px ${SIZE * activeConfig.rows}px`, 
             backgroundPositionY: `-${row * SIZE}px`,
             transform: `scaleX(${isFlipped ? -1 : 1})`,
             imageRendering: "pixelated",
-            animation: isAfk 
-              ? "chibi-idle-simple 1.8s steps(4) infinite"
-              : "chibi-idle-simple 1.2s steps(4) infinite",
+            animation: `chibi-sprite-anim ${activeConfig.duration}s steps(${activeConfig.steps}) infinite`,
           }}
         />
 
@@ -357,12 +423,12 @@ export function ChibiGuide() {
       </div>
 
       <style jsx global>{`
-        @keyframes chibi-idle-simple {
+        @keyframes chibi-sprite-anim {
           from {
             background-position-x: 0px;
           }
           to {
-            background-position-x: -${SIZE * 4}px;
+            background-position-x: -${SIZE * activeConfig.frames}px;
           }
         }
       `}</style>
