@@ -61,29 +61,31 @@ export function CoverModal({
           </button>
         </div>
 
-        {/* Контейнер обложки на весь экран */}
+        {/* Контейнер обложки на весь экран (80% высоты/ширины экрана) */}
         <div 
-          className="relative w-full h-full flex items-center justify-center p-4 sm:p-10 cursor-pointer"
+          className="relative w-full h-full flex items-center justify-center p-2 sm:p-4 cursor-pointer"
           onClick={onClose}
         >
           <div
-            className="relative max-h-[85dvh] max-w-[92vw] sm:max-w-[70vw] md:max-w-[50vw] lg:max-w-[40vw] aspect-[2/3] w-auto h-auto flex items-center justify-center"
+            className="relative w-full h-[80dvh] max-w-[90vw] sm:max-w-[80vw] flex items-center justify-center"
             onClick={(e) => e.stopPropagation()}
           >
             {imageUrl ? (
-              <Image
-                src={imageUrl}
-                alt={title}
-                width={800}
-                height={1200}
-                className={cn(
-                  "object-contain max-h-[82dvh] w-auto h-auto rounded-xl sm:rounded-2xl shadow-2xl border border-white/15 ring-1 ring-white/10 transition-all duration-300",
-                  imageLoaded ? "opacity-100 scale-100" : "opacity-0 scale-95"
-                )}
-                priority
-                quality={85}
-                onLoad={() => setImageLoaded(true)}
-              />
+              <div className="relative w-full h-full flex items-center justify-center">
+                <Image
+                  src={imageUrl}
+                  alt={title}
+                  fill
+                  className={cn(
+                    "object-contain rounded-xl sm:rounded-2xl shadow-2xl border border-white/15 ring-1 ring-white/10 transition-all duration-300",
+                    imageLoaded ? "opacity-100 scale-100" : "opacity-0 scale-95"
+                  )}
+                  sizes="(max-width: 640px) 90vw, 80vw"
+                  priority
+                  quality={85}
+                  onLoad={() => setImageLoaded(true)}
+                />
+              </div>
             ) : null}
 
             {!imageLoaded && (

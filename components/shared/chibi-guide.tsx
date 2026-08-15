@@ -1,18 +1,19 @@
 "use client"
 
 import { useState, useEffect, useRef, useCallback } from "react"
+import { usePathname } from "next/navigation"
 import Link from "next/link"
-import { X, ChevronRight, MessageSquare } from "lucide-react"
+import { X, ChevronRight } from "lucide-react"
 import { cn } from "@/lib/utils"
 
-// Фразы маскота
+// Фразы маскота по контексту и действиям
 const MASCOT_MESSAGES = [
   {
-    text: "Привет! Давай помогу найти крутое аниме на вечер ✨",
+    text: "Привет! Помогу найти крутое аниме на вечер ✨",
     action: { label: "Каталог", href: "/catalog" }
   },
   {
-    text: "Загляни в Гачу! Вдруг сегодня твоя удача на SSS-ранге? 🎰",
+    text: "Загляни в Гачу! Вдруг сегодня твоя удача на крутую карточку? 🎰",
     action: { label: "Гача", href: "/gacha" }
   },
   {
@@ -20,10 +21,11 @@ const MASCOT_MESSAGES = [
     action: { label: "В бой", href: "/battle" }
   },
   {
-    text: "Не знаешь что глянуть? Нажми вкладку «Для вас» в баннере! 🌟",
+    text: "Не знаешь что глянуть? Взгляни на вкладку «Для вас» в баннере! 🌟",
   },
   {
     text: "Добавляй тайтлы в закладки, чтобы не потерять 🔖",
+    action: { label: "Закладки", href: "/bookmarks" }
   }
 ]
 
@@ -35,14 +37,41 @@ export function ChibiGuide() {
   const [isBubbleOpen, setIsBubbleOpen] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
   const [messageIndex, setMessageIndex] = useState(0)
+  const [miniReaction, setMiniReaction] = useState<string | null>(null)
 
-  // Стадии взгляда маскота
+  // Стадии персонажа
   const [row, setRow] = useState(0)
   const [isFlipped, setIsFlipped] = useState(false)
+  const [isAfk, setIsAfk] = useState(false)
   const [isInteracting, setIsInteracting] = useState(false)
 
   const charRef = useRef<HTMLDivElement>(null)
   const bubbleTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const reactionTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const afkTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const lastScrollYRef = useRef<number>(0)
+  const pathname = usePathname()
+
+  // Аккуратная мини-реакция (маленький значок/эмодзи над головой на 1.5 секунды)
+  const triggerMiniReaction = useCallback((symbol: string) => {
+    setMiniReaction(symbol)
+    if (reactionTimeoutRef.current) clearTimeout(reactionTimeoutRef.current)
+    reactionTimeoutRef.current = setTimeout(() => {
+      setMiniReaction(null)
+    }, 1800)
+  }, [])
+
+  // Сброс таймера сна (AFK)
+  const resetAfk = useCallback(() => {
+    if (isAfk) {
+      setIsAfk(false)
+      triggerMiniReaction("👀")
+    }
+    if (afkTimeoutRef.current) clearTimeout(afkTimeoutRef.current)
+    afkTimeoutRef.current = setTimeout(() => {
+      setIsAfk(true)
+    }, 30000) // Засыпает только после 30 секунд полного бездействия
+  }, [isAfk, triggerMiniReaction])
 
   // Синхронизация настройки включения/выключения
   useEffect(() => {
@@ -71,12 +100,57 @@ export function ChibiGuide() {
     return () => window.removeEventListener("resize", checkMobile)
   }, [])
 
-  // Слежение за курсором мыши без назойливости
+  // 1. Интерактивная реакция на смену страниц (плавный кивок + контекстная реакция)
   useEffect(() => {
-    if (isMobile || !isEnabled) return
+    if (!isEnabled) return
+    resetAfk()
+
+    if (pathname.includes("/watch")) {
+      triggerMiniReaction("🍿")
+    } else if (pathname.includes("/catalog")) {
+      triggerMiniReaction("🔍")
+    } else if (pathname.includes("/gacha")) {
+      triggerMiniReaction("✨")
+    } else if (pathname.includes("/bookmarks")) {
+      triggerMiniReaction("🔖")
+    } else if (pathname.includes("/battle")) {
+      triggerMiniReaction("⚔️")
+    } else if (pathname === "/") {
+      triggerMiniReaction("👋")
+    }
+  }, [pathname, isEnabled, resetAfk, triggerMiniReaction])
+
+  // 2. Интерактивная реакция на скролл (следит за направлением движения)
+  useEffect(() => {
+    if (!isEnabled) return
+
+    const handleScroll = () => {
+      resetAfk()
+      const currentScroll = window.scrollY
+      const delta = currentScroll - lastScrollYRef.current
+
+      // Смотрит вниз при быстром скролле вниз, смотрит вверх при скролле вверх
+      if (Math.abs(delta) > 15) {
+        if (delta > 0) {
+          setRow(0) // Вниз
+        } else {
+          setRow(4) // Вверх
+        }
+      }
+      lastScrollYRef.current = currentScroll
+    }
+
+    window.addEventListener("scroll", handleScroll, { passive: true })
+    return () => window.removeEventListener("scroll", handleScroll)
+  }, [isEnabled, resetAfk])
+
+  // 3. Слежение за курсором мыши (направление взгляда)
+  useEffect(() => {
+    if (isMobile || !isEnabled || isAfk) return
 
     const handleMouseMove = (e: MouseEvent) => {
       if (!charRef.current) return
+      resetAfk()
 
       const rect = charRef.current.getBoundingClientRect()
       const charX = rect.left + rect.width / 2
@@ -121,15 +195,20 @@ export function ChibiGuide() {
       }
     }
 
-    window.addEventListener("mousemove", handleMouseMove)
-    return () => window.removeEventListener("mousemove", handleMouseMove)
-  }, [isEnabled, isMobile])
+    window.addEventListener("mousemove", handleMouseMove, { passive: true })
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove)
+      if (afkTimeoutRef.current) clearTimeout(afkTimeoutRef.current)
+    }
+  }, [isEnabled, isMobile, isAfk, resetAfk])
 
-  // Клик по персонажу — открывает/переключает реплику спокойно без авто-всплывания
+  // Клик по персонажу
   const handleCharClick = useCallback(() => {
+    resetAfk()
     setIsInteracting(true)
     setRow(0)
     setIsFlipped(false)
+    triggerMiniReaction("💖")
 
     if (!isBubbleOpen) {
       setIsBubbleOpen(true)
@@ -141,14 +220,13 @@ export function ChibiGuide() {
     bubbleTimeoutRef.current = setTimeout(() => {
       setIsBubbleOpen(false)
       setIsInteracting(false)
-    }, 8000)
+    }, 7000)
 
     setTimeout(() => {
       setIsInteracting(false)
-    }, 400)
-  }, [isBubbleOpen])
+    }, 300)
+  }, [isBubbleOpen, resetAfk, triggerMiniReaction])
 
-  // Если отключен пользователем — не рендерится вообще
   if (!isEnabled) {
     return null
   }
@@ -164,10 +242,10 @@ export function ChibiGuide() {
       style={{ bottom: dynamicBottom }}
       className="fixed right-3 sm:left-4 sm:right-auto z-40 flex flex-col items-end sm:items-start pointer-events-none select-none"
     >
-      {/* 💬 Лаконичное диалоговое облако (только по клику пользователя) */}
+      {/* 💬 Лаконичное диалоговое облако (по клику) */}
       {isBubbleOpen && (
         <div 
-          className="pointer-events-auto mb-2 max-w-[240px] sm:max-w-[280px] bg-background/95 backdrop-blur-sm border border-border p-3 rounded-xl shadow-lg transition-all relative"
+          className="pointer-events-auto mb-2 max-w-[240px] sm:max-w-[280px] bg-background/95 backdrop-blur-md border border-border p-3 rounded-xl shadow-xl transition-all relative"
         >
           {/* Хвостик диалога */}
           <div className="absolute -bottom-1.5 right-4 sm:right-auto sm:left-6 w-2.5 h-2.5 bg-background border-r border-b border-border rotate-45" />
@@ -214,7 +292,7 @@ export function ChibiGuide() {
               onClick={() => {
                 setMessageIndex((prev) => (prev + 1) % MASCOT_MESSAGES.length)
                 if (bubbleTimeoutRef.current) clearTimeout(bubbleTimeoutRef.current)
-                bubbleTimeoutRef.current = setTimeout(() => setIsBubbleOpen(false), 8000)
+                bubbleTimeoutRef.current = setTimeout(() => setIsBubbleOpen(false), 7000)
               }}
               className="text-[10px] text-muted-foreground hover:text-primary transition-colors ml-auto"
             >
@@ -224,7 +302,7 @@ export function ChibiGuide() {
         </div>
       )}
 
-      {/* 🚶 Персонаж (без свечения и навязчивых анимаций) */}
+      {/* 🚶 Персонаж с деликатными микро-реакциями */}
       <div 
         onClick={handleCharClick}
         ref={charRef}
@@ -236,15 +314,30 @@ export function ChibiGuide() {
             handleCharClick()
           }
         }}
-        className="pointer-events-auto relative cursor-pointer flex flex-col items-center opacity-85 hover:opacity-100 transition-opacity"
+        className="pointer-events-auto relative cursor-pointer flex flex-col items-center opacity-90 hover:opacity-100 transition-opacity"
         title="Нажмите для подсказки"
       >
+        {/* Деликатный всплывающий эмодзи реакции (без навязчивых окон) */}
+        {miniReaction && !isBubbleOpen && (
+          <div className="absolute -top-5 left-1/2 -translate-x-1/2 text-xs select-none pointer-events-none drop-shadow-sm animate-in fade-in zoom-in-75 duration-200">
+            {miniReaction}
+          </div>
+        )}
+
+        {/* Сонный значок при долгом бездействии */}
+        {isAfk && !miniReaction && !isBubbleOpen && (
+          <div className="absolute -top-4 left-1/2 -translate-x-1/2 text-[9px] font-mono font-bold text-muted-foreground/70 select-none pointer-events-none">
+            zzz
+          </div>
+        )}
+
         {/* Контейнер спрайта */}
         <div
           className={cn(
             "relative z-10 transition-transform duration-75 overflow-hidden aspect-square flex-shrink-0",
             isMobile ? "w-[44px] h-[44px]" : "w-[56px] h-[56px]",
-            isInteracting && "scale-105"
+            isInteracting && "scale-105",
+            isAfk && "opacity-75"
           )}
           style={{
             backgroundImage: `url('/char/2/16x32/16x32_Idle-Sheet_elf.png')`,
@@ -253,12 +346,14 @@ export function ChibiGuide() {
             backgroundPositionY: `-${row * SIZE}px`,
             transform: `scaleX(${isFlipped ? -1 : 1})`,
             imageRendering: "pixelated",
-            animation: "chibi-idle-simple 1.2s steps(4) infinite",
+            animation: isAfk 
+              ? "chibi-idle-simple 1.8s steps(4) infinite"
+              : "chibi-idle-simple 1.2s steps(4) infinite",
           }}
         />
 
-        {/* Аккуратная тень */}
-        <div className="w-5 sm:w-6 h-1 bg-black/30 rounded-full blur-[1px] -mt-0.5" />
+        {/* Аккуратная тень под ногами */}
+        <div className="w-5 sm:w-6 h-1 bg-black/25 rounded-full blur-[1px] -mt-0.5" />
       </div>
 
       <style jsx global>{`

@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import { createClient } from "@supabase/supabase-js"
 import { toast } from "sonner"
-import { Sparkles, Edit, Trash2, Plus, Loader2, Eye, FileText } from "lucide-react"
+import { Sparkles, Edit, Trash2, Plus, Loader2, Eye, FileText, HelpCircle, ChevronDown, ChevronUp, Copy, Check } from "lucide-react"
 import { FormattedEditorialContent } from "@/components/watch/watch-page-layout-wrapper"
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
@@ -29,6 +29,20 @@ export function EditorialTab() {
   const [content, setContent] = useState("")
   const [author, setAuthor] = useState("Редакция Weebx")
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [showCheatSheet, setShowCheatSheet] = useState(false)
+  const [copiedIndex, setCopiedIndex] = useState<number | null>(null)
+
+  const copyTemplate = (text: string, index: number) => {
+    navigator.clipboard.writeText(text)
+    setCopiedIndex(index)
+    toast.success("Шаблон скопирован в буфер")
+    setTimeout(() => setCopiedIndex(null), 2000)
+  }
+
+  const insertTemplate = (template: string) => {
+    setContent((prev) => (prev ? `${prev}\n\n${template}` : template))
+    toast.success("Шаблон добавлен в текст")
+  }
 
   const fetchReviews = async () => {
     try {
@@ -141,6 +155,154 @@ export function EditorialTab() {
             {showPreview ? <FileText className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
             {showPreview ? "Редактировать текст" : "Предпросмотр"}
           </button>
+        </div>
+
+        {/* Блок-туториал по оформлению Markdown */}
+        <div className="mb-5 rounded-xl border border-primary/20 bg-primary/5 p-4 transition-all">
+          <button
+            type="button"
+            onClick={() => setShowCheatSheet(!showCheatSheet)}
+            className="flex w-full items-center justify-between text-left font-semibold text-primary hover:text-primary/80 transition-colors text-sm"
+          >
+            <div className="flex items-center gap-2">
+              <HelpCircle className="w-4 h-4 text-primary shrink-0" />
+              <span>Шпаргалка и туториал по оформлению (что поддерживается парсером)</span>
+            </div>
+            {showCheatSheet ? (
+              <ChevronUp className="w-4 h-4 text-primary shrink-0" />
+            ) : (
+              <ChevronDown className="w-4 h-4 text-primary shrink-0" />
+            )}
+          </button>
+
+          {showCheatSheet && (
+            <div className="mt-4 space-y-4 pt-3 border-t border-primary/15 text-xs text-foreground/90">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                
+                {/* 1. Блок вердикта */}
+                <div className="p-3 rounded-lg bg-background/80 border border-border space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-primary flex items-center gap-1.5">
+                      ⭐ 1. Блок «Вердикт»
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => insertTemplate("Вердикт:\nКраткий итог обзора и финальные впечатления редакции.\n8.5/10")}
+                      className="px-2 py-0.5 rounded bg-primary/15 hover:bg-primary/25 text-primary text-[11px] font-medium transition"
+                    >
+                      Вставить
+                    </button>
+                  </div>
+                  <p className="text-muted-foreground text-[11px]">
+                    Строки, начинающиеся со слова <code className="text-primary font-mono font-semibold">Вердикт:</code> или <code className="text-primary font-mono font-semibold">### Вердикт</code>, превращаются в красивый градиентный премиум-кард. Последняя строка с оценкой (напр. <code>8/10</code> или <code>8.5 из 10</code>) выделится в золотую звезду!
+                  </p>
+                  <pre className="p-2 rounded bg-muted font-mono text-[10px] text-muted-foreground whitespace-pre-wrap">
+{`Вердикт:
+Один из лучших тайтлов года с восхитительной анимацией.
+9/10`}
+                  </pre>
+                </div>
+
+                {/* 2. Заголовки */}
+                <div className="p-3 rounded-lg bg-background/80 border border-border space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-primary flex items-center gap-1.5">
+                      📌 2. Заголовки (H1, H2, H3)
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => insertTemplate("## Сюжет и атмосфера\n### Персонажи")}
+                      className="px-2 py-0.5 rounded bg-primary/15 hover:bg-primary/25 text-primary text-[11px] font-medium transition"
+                    >
+                      Вставить
+                    </button>
+                  </div>
+                  <p className="text-muted-foreground text-[11px]">
+                    <code className="text-primary font-mono font-semibold"># Заголовок</code> — большой градиентный H1<br />
+                    <code className="text-primary font-mono font-semibold">## Раздел</code> — H2 с цветным индикатором полоски<br />
+                    <code className="text-primary font-mono font-semibold">### Подраздел</code> — H3 со звездочкой ✦
+                  </p>
+                  <pre className="p-2 rounded bg-muted font-mono text-[10px] text-muted-foreground whitespace-pre-wrap">
+{`# Главная мысль
+## Почему стоит смотреть
+### Музыкальное сопровождение`}
+                  </pre>
+                </div>
+
+                {/* 3. Списки */}
+                <div className="p-3 rounded-lg bg-background/80 border border-border space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-primary flex items-center gap-1.5">
+                      📋 3. Списки (маркированные и нумерованные)
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => insertTemplate("- Плюсы:\n- Отличный визуал\n- Глубокие персонажи\n\n1. Шаг первый\n2. Шаг второй")}
+                      className="px-2 py-0.5 rounded bg-primary/15 hover:bg-primary/25 text-primary text-[11px] font-medium transition"
+                    >
+                      Вставить
+                    </button>
+                  </div>
+                  <p className="text-muted-foreground text-[11px]">
+                    <code className="text-primary font-mono font-semibold">- Пункт</code> или <code className="text-primary font-mono font-semibold">* Пункт</code> — маркированный список с акцентными точками.<br />
+                    <code className="text-primary font-mono font-semibold">1. Пункт</code> — нумерованный список со стильными бейджами.
+                  </p>
+                </div>
+
+                {/* 4. Цитаты и Вставки */}
+                <div className="p-3 rounded-lg bg-background/80 border border-border space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-primary flex items-center gap-1.5">
+                      💬 4. Цитаты и Форматирование текста
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => insertTemplate("> «Мы не выбираем, кем родиться, но выбираем, кем стать.»\n\n**Жирный текст**, *курсив*, `код/тег`, [Ссылка](https://weeb-x.com)")}
+                      className="px-2 py-0.5 rounded bg-primary/15 hover:bg-primary/25 text-primary text-[11px] font-medium transition"
+                    >
+                      Вставить
+                    </button>
+                  </div>
+                  <p className="text-muted-foreground text-[11px]">
+                    <code className="text-primary font-mono font-semibold">> Цитата</code> — стильная цитата с левой рамкой.<br />
+                    <code className="text-primary font-mono font-semibold">**жирный**</code>, <code className="text-primary font-mono font-semibold">*курсив*</code>, <code className="text-primary font-mono font-semibold">`код`</code>, <code className="text-primary font-mono font-semibold">[текст](https://url)</code>.
+                  </p>
+                </div>
+              </div>
+
+              {/* Пример готового шаблона статьи */}
+              <div className="p-3 rounded-lg bg-primary/10 border border-primary/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                <div>
+                  <span className="font-bold text-primary text-xs">✨ Готовый образец полного обзора</span>
+                  <p className="text-muted-foreground text-[11px]">Вставьте готовый каркас со всеми элементами и заполните своими мыслями.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => insertTemplate(
+`## Впечатления от просмотра
+**Аниме производит сильное впечатление** с первых же минут благодаря великолепной режиссуре и проработке мира.
+
+- Потрясающий визуальный стиль
+- Харизматичные главные герои
+- Саундтрек, пробирающий до мурашек
+
+> «Каждая сцена наполнена эмоциями и вниманием к мельчайшим деталям.»
+
+### Кому точно понравится
+1. Любителям качественной драмы
+2. Ценителям нестандартного сюжета
+
+Вердикт:
+Один из самых ярких и запоминающихся тайтлов сезона, который точно стоит посмотреть каждому.
+9.2/10`
+                  )}
+                  className="px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition flex items-center gap-1.5 shrink-0 shadow-sm"
+                >
+                  <Copy className="w-3.5 h-3.5" /> Вставить готовый каркас
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
