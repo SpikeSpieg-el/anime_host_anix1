@@ -37,7 +37,7 @@ export function OrganizationStructuredData() {
       },
     ],
     sameAs: [
-      'https://t.me/evangelion_chat',
+      'https://t.me/Weebix',
     ],
   }
 

@@ -232,7 +232,7 @@ export function Navbar() {
                   <Link href="/history" className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-accent transition text-sm font-medium text-muted-foreground hover:text-foreground"><History size={14} /> История</Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
-                  <a href="https://t.me/evangelion_chat" target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-accent transition text-sm font-medium text-blue-500 hover:text-blue-600"><MessageCircle size={14} /> Telegram чат</a>
+                  <a href="https://t.me/Weebix" target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-accent transition text-sm font-medium text-blue-500 hover:text-blue-600"><MessageCircle size={14} /> Telegram</a>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
                   <Link href="/battle" className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-accent transition text-sm font-medium text-red-500 hover:text-red-600"><Swords size={14} /> PVE Бои</Link>
@@ -413,7 +413,7 @@ export function Navbar() {
                 <Link href="/battle" className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-accent transition text-sm font-medium text-red-500 hover:text-red-600"><Swords size={14} /> PVE Бои</Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
-                <a href="https://t.me/evangelion_chat" target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-accent transition text-sm font-medium text-blue-500 hover:text-blue-600"><MessageCircle size={14} /> Telegram чат</a>
+                <a href="https://t.me/Weebix" target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-accent transition text-sm font-medium text-blue-500 hover:text-blue-600"><MessageCircle size={14} /> Telegram</a>
               </DropdownMenuItem>
               <DropdownMenuSeparator className="bg-border/50" />
               <div className="p-1">
