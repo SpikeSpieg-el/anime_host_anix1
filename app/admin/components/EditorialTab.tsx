@@ -264,7 +264,7 @@ export function EditorialTab() {
                     </button>
                   </div>
                   <p className="text-muted-foreground text-[11px]">
-                    <code className="text-primary font-mono font-semibold">> Цитата</code> — стильная цитата с левой рамкой.<br />
+                    <code className="text-primary font-mono font-semibold">&gt; Цитата</code> — стильная цитата с левой рамкой.<br />
                     <code className="text-primary font-mono font-semibold">**жирный**</code>, <code className="text-primary font-mono font-semibold">*курсив*</code>, <code className="text-primary font-mono font-semibold">`код`</code>, <code className="text-primary font-mono font-semibold">[текст](https://url)</code>.
                   </p>
                 </div>
