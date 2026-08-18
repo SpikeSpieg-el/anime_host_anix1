@@ -294,7 +294,7 @@ export default function BeginnersPage() {
                   {/* Card */}
                   <div className="relative aspect-[2/3] w-56 rounded-lg overflow-hidden bg-secondary shadow-2xl">
                     <Image
-                      src="https://images.unsplash.com/photo-1578632767115-351597cf2477?w=600&auto=format&fit=crop"
+                      src=""
                       alt="Demo"
                       fill
                       className="object-cover group-hover:scale-105 transition-transform duration-500"

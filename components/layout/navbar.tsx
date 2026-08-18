@@ -343,7 +343,7 @@ export function Navbar() {
       </header>
       
       {/* Spacer под хедера */}
-      <div className="h-16 md:h-20" aria-hidden="true" />
+      <div className="h-8 md:h-8" aria-hidden="true" />
 
       {/* 
         === MODERN MOBILE FLOATING DOCK === 
