@@ -1,437 +1,920 @@
 "use client"
 
-import { useState, useEffect, useRef, useCallback } from "react"
+import { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import { usePathname } from "next/navigation"
 import Link from "next/link"
-import { X, ChevronRight } from "lucide-react"
+import { X, ChevronRight, Sparkles, Dices, Quote, Moon, ArrowUp, Bell, BellOff } from "lucide-react"
 import { cn } from "@/lib/utils"
 
-// Фразы маскота по контексту и действиям
-const MASCOT_MESSAGES = [
-  {
-    text: "Привет! Помогу найти крутое аниме на вечер ✨",
-    action: { label: "Каталог", href: "/catalog" }
-  },
-  {
-    text: "Загляни в Гачу! Вдруг сегодня твоя удача на крутую карточку? 🎰",
-    action: { label: "Гача", href: "/gacha" }
-  },
-  {
-    text: "Готов к битве? Испробуй аниме PvP/PvE Арену! ⚔️",
-    action: { label: "В бой", href: "/battle" }
-  },
-  {
-    text: "Не знаешь что глянуть? Взгляни на вкладку «Для вас» в баннере! 🌟",
-  },
-  {
-    text: "Добавляй тайтлы в закладки, чтобы не потерять 🔖",
-    action: { label: "Закладки", href: "/bookmarks" }
-  }
-]
-
 export const CHIBI_STORAGE_KEY = "chibi-guide-enabled"
+export const CHIBI_SPEECH_MODE_KEY = "chibi-speech-mode"
 export const CHIBI_TOGGLE_EVENT = "chibi-toggle-event"
 
-// Поддерживаемые типы спрайт-анимаций
-export type ChibiAnimation = 'idle' | 'wave' | 'sit' | 'jump' | 'walk' | 'run'
+export type ActionType = 
+  | 'none'
+  | 'wave'       // Взмах ручкой
+  | 'love'       // Сердечко
+  | 'peek'       // Антенна
+  | 'star'       // Звезда
+  | 'spin'       // Вихрь
+  | 'surprise'   // Испуг от скролла
+  | 'yawn'       // Зевок
+  | 'giggle'     // Щекотка
+  | 'spark'      // Вспышка
+  | 'dizzy'      // Оффлайн
 
-interface AnimationConfig {
-  src: string
-  frames: number
-  rows: number
-  duration: number
-  steps: number
+const ANIME_QUOTES = [
+  { text: "«Если не сдаваться, мечта обязательно станет реальностью.»", author: "Наруто" },
+  { text: "«Тот, кто не умеет ценить прошлое, не построит будущее.»", author: "Ковбой Бибоп" },
+  { text: "«Слабые люди не имеют права выбирать, как они умрут.»", author: "Клинок, рассекающий демонов" },
+  { text: "«Нет ничего постыдного в том, чтобы упасть. Позорно не подняться.»", author: "Баскетбол Куроко" },
+  { text: "«Человек силен потому, что может меняться.»", author: "Ванпанчмен" }
+]
+
+const GENRE_ORACLE = [
+  "Киберпанк или научная фантастика на вечер!",
+  "Как насчет уютной слайс-оф-лайф комедии?",
+  "Время для эпического сёнэна с горячими битвами!",
+  "Сегодня идеально подойдет глубокий психологический триллер.",
+  "Романтика и магия скрасят этот день."
+]
+
+// ====================================================================
+// 🌌 Процедурный Dot-Matrix Сгусток
+// ====================================================================
+interface FluidWispProps {
+  size?: number
+  actionRef: React.MutableRefObject<{ type: ActionType; startTime: number; duration: number }>
+  lastActiveRef: React.MutableRefObject<number>
+  isSleepingRef: React.MutableRefObject<boolean>
+  mousePosRef: React.MutableRefObject<{ x: number; y: number; isNear: boolean; isPressing: boolean }>
+  pettingScoreRef: React.MutableRefObject<number>
+  onHideChange?: (hidingProgress: number) => void
+  isOffline?: boolean
+  className?: string
 }
 
-// Конфигурации доступных спрайтшитов персонажа (16x32)
-const ANIMATIONS: Record<ChibiAnimation, AnimationConfig> = {
-  idle: {
-    src: "/char/2/16x32/16x32_Idle-Sheet_elf.png",
-    frames: 4,
-    rows: 5,
-    duration: 1.2,
-    steps: 4,
-  },
-  wave: {
-    src: "/char/2/16x32/16x32 Interact-Sheet.png",
-    frames: 4,
-    rows: 5,
-    duration: 0.8,
-    steps: 4,
-  },
-  sit: {
-    src: "/char/2/16x32/16x32 Rotate-Sheet.png",
-    frames: 4,
-    rows: 5,
-    duration: 2.0,
-    steps: 4,
-  },
-  jump: {
-    src: "/char/2/16x32/16x32 Jump-Sheet.png",
-    frames: 4,
-    rows: 5,
-    duration: 0.6,
-    steps: 4,
-  },
-  walk: {
-    src: "/char/2/16x32/16x32 Walk-Sheet.png",
-    frames: 4,
-    rows: 5,
-    duration: 0.8,
-    steps: 4,
-  },
-  run: {
-    src: "/char/2/16x32/16x32 Run-Sheet.png",
-    frames: 4,
-    rows: 5,
-    duration: 0.5,
-    steps: 4,
-  },
+function FluidWisp({
+  size = 80,
+  actionRef,
+  lastActiveRef,
+  isSleepingRef,
+  mousePosRef,
+  pettingScoreRef,
+  onHideChange,
+  isOffline = false,
+  className
+}: FluidWispProps) {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null)
+  const onHideChangeRef = useRef(onHideChange)
+  onHideChangeRef.current = onHideChange
+
+  const isOfflineRef = useRef(isOffline)
+  isOfflineRef.current = isOffline
+
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext("2d")
+    if (!ctx) return
+
+    let animId: number
+    const GRID = 13
+    const SPACING = size / (GRID + 1)
+    const MAX_DOT_R = SPACING * 0.44
+    const scale = size / 80
+
+    const physics = {
+      coreX: 0,
+      coreY: 0,
+      lookX: 0,
+      lookY: 0,
+      armWeight: 0,
+      heartWeight: 0,
+      starWeight: 0,
+      antennaWeight: 0,
+      mouthOpen: 0,
+      spinAngle: 0,
+      giggleOffset: 0,
+      squishX: 1,
+      squishY: 1,
+      noiseAmp: 0.8,
+      sleepWeight: 0,
+      hideProgress: 0,
+      colorHue: 28,
+      purrPulse: 0,
+    }
+
+    let lastReportedHide = 0
+
+    const render = (now: number) => {
+      const time = now * 0.002
+      const isForcedSleep = isSleepingRef.current
+      const offline = isOfflineRef.current
+      const idleTimeSec = isForcedSleep ? 60 : Math.max(0, (now - lastActiveRef.current) / 1000)
+
+      const action = actionRef.current
+      const actionElapsed = now - action.startTime
+      const isActionActive = !isForcedSleep && actionElapsed < action.duration
+      const actionProgress = isActionActive ? actionElapsed / action.duration : 1
+      const actionCurve = isActionActive ? Math.sin(actionProgress * Math.PI) : 0
+      const currentActionType = isActionActive ? action.type : 'none'
+
+      // Поглаживание
+      const isBeingPetted = !isForcedSleep && pettingScoreRef.current > 60
+      physics.purrPulse = isBeingPetted ? Math.sin(time * 24) * 0.08 : 0
+
+      // Логика сна
+      const targetSleep = isForcedSleep ? 1 : (!isActionActive && idleTimeSec > 16) ? Math.min(1, (idleTimeSec - 16) / 4) : 0
+      const targetHide = isForcedSleep ? 0.85 : (!isActionActive && idleTimeSec > 34) ? Math.min(1, (idleTimeSec - 34) / 5) : 0
+      const isAutoYawning = !isForcedSleep && idleTimeSec >= 13.5 && idleTimeSec <= 16 && !isActionActive
+      const autoYawnWeight = isAutoYawning ? Math.sin(((idleTimeSec - 13.5) / 2.5) * Math.PI) : 0
+
+      physics.sleepWeight += (targetSleep - physics.sleepWeight) * (isForcedSleep ? 0.1 : 0.04)
+      physics.hideProgress += (targetHide - physics.hideProgress) * (isForcedSleep ? 0.08 : 0.03)
+
+      // Оповещаем родителя без лишних вызовов
+      if (Math.abs(lastReportedHide - physics.hideProgress) > 0.03) {
+        lastReportedHide = physics.hideProgress
+        if (onHideChangeRef.current) {
+          onHideChangeRef.current(physics.hideProgress)
+        }
+      }
+
+      // Веса трансформаций (во сне они плавно затухают)
+      const targetArm = (!isForcedSleep && currentActionType === 'wave') ? actionCurve : 0
+      const targetHeart = (!isForcedSleep && (currentActionType === 'love' ? actionCurve : 0)) || (isBeingPetted ? 1 : 0)
+      const targetStar = (!isForcedSleep && (currentActionType === 'star' || currentActionType === 'spark')) ? actionCurve : 0
+      const targetAntenna = !isForcedSleep ? ((currentActionType === 'peek' ? actionCurve : 0) || (mousePosRef.current.isNear && physics.sleepWeight < 0.2 ? 0.8 : 0)) : 0
+      const targetMouth = (!isForcedSleep ? (currentActionType === 'yawn' ? actionCurve : 0) : 0) || autoYawnWeight
+      const targetSurprise = (!isForcedSleep && currentActionType === 'surprise') ? actionCurve : 0
+      const isGiggling = !isForcedSleep && currentActionType === 'giggle'
+
+      physics.armWeight += (targetArm - physics.armWeight) * 0.12
+      physics.heartWeight += (targetHeart - physics.heartWeight) * 0.1
+      physics.starWeight += (targetStar - physics.starWeight) * 0.1
+      physics.antennaWeight += (targetAntenna - physics.antennaWeight) * 0.08
+      physics.mouthOpen += (targetMouth - physics.mouthOpen) * 0.12
+
+      if (currentActionType === 'spin' && isActionActive && !isForcedSleep) {
+        physics.spinAngle += 0.14
+      } else {
+        physics.spinAngle *= 0.85
+      }
+
+      physics.giggleOffset = isGiggling ? Math.sin(time * 30) * 3 : 0
+
+      const isPressing = mousePosRef.current.isPressing
+      const pressSquishX = isPressing ? 1.25 : 1
+      const pressSquishY = isPressing ? 0.72 : 1
+
+      // Плавное спокойное дыхание во сне
+      const sleepBreath = physics.sleepWeight * Math.sin(time * 2.5) * 0.05
+
+      let targetSquishX = (1 + physics.sleepWeight * 0.35 - targetSurprise * 0.15 - autoYawnWeight * 0.18 + (isGiggling ? 0.15 : 0) + sleepBreath) * pressSquishX + physics.purrPulse
+      let targetSquishY = (1 - physics.sleepWeight * 0.3 + targetSurprise * 0.25 + autoYawnWeight * 0.25 - (isGiggling ? 0.15 : 0) - sleepBreath) * pressSquishY - physics.purrPulse
+      physics.squishX += (targetSquishX - physics.squishX) * 0.1
+      physics.squishY += (targetSquishY - physics.squishY) * 0.1
+
+      let targetHue = 28
+      if (offline || currentActionType === 'dizzy') targetHue = 210
+      else if (physics.heartWeight > 0.1) targetHue = 345
+      else if (targetStar > 0.1) targetHue = 48
+      else if (targetSurprise > 0.1) targetHue = 15
+
+      physics.colorHue += (targetHue - physics.colorHue) * 0.08
+      physics.noiseAmp = (0.7 - physics.sleepWeight * 0.5 + targetSurprise * 1.2 + (offline ? 0.6 : 0))
+
+      const mouse = mousePosRef.current
+      const clampedMouseX = Math.max(-25, Math.min(25, mouse.x))
+      const clampedMouseY = Math.max(-25, Math.min(25, mouse.y))
+
+      // Траектория центра
+      const targetCoreX = isForcedSleep 
+        ? Math.sin(time * 0.6) * 1.2 
+        : Math.sin(time * 0.8) * 4.5 + (mouse.isNear ? clampedMouseX * 0.12 : 0) + physics.giggleOffset
+
+      const targetCoreY = isForcedSleep
+        ? Math.cos(time * 0.5) * 1.0 + physics.sleepWeight * 4
+        : Math.cos(time * 0.6) * 3.5 + (mouse.isNear ? clampedMouseY * 0.12 : 0) + physics.sleepWeight * 4
+
+      physics.coreX += (targetCoreX - physics.coreX) * 0.06
+      physics.coreY += (targetCoreY - physics.coreY) * 0.06
+
+      const targetLookX = (!isForcedSleep && mouse.isNear) ? Math.max(-4, Math.min(4, clampedMouseX * 0.14)) : Math.sin(time * 0.5) * 2.5
+      const targetLookY = (!isForcedSleep && mouse.isNear) ? Math.max(-3.5, Math.min(3.5, clampedMouseY * 0.14)) : Math.cos(time * 0.4) * 1.8
+      physics.lookX += (targetLookX - physics.lookX) * 0.08
+      physics.lookY += (targetLookY - physics.lookY) * 0.08
+
+      const isBlinking = (Math.sin(time * 1.8) > 0.96 || Math.sin(time * 0.47 + 2) > 0.97) && physics.sleepWeight < 0.3
+
+      // Масштабированные координаты глаз
+      const eyeL_WorldX = size / 2 + (physics.coreX - 7 * scale + physics.lookX * (1 - physics.sleepWeight)) * physics.squishX
+      const eyeL_WorldY = size / 2 + (physics.coreY - 2.5 * scale + physics.lookY * (1 - physics.sleepWeight)) * physics.squishY
+      const eyeR_WorldX = size / 2 + (physics.coreX + 7 * scale + physics.lookX * (1 - physics.sleepWeight)) * physics.squishX
+      const eyeR_WorldY = size / 2 + (physics.coreY - 2.5 * scale + physics.lookY * (1 - physics.sleepWeight)) * physics.squishY
+
+      const eyeL_gx = Math.max(0, Math.min(GRID - 1, Math.round(eyeL_WorldX / SPACING) - 1))
+      const eyeL_gy = Math.max(0, Math.min(GRID - 1, Math.round(eyeL_WorldY / SPACING) - 1))
+      const eyeR_gx = Math.max(0, Math.min(GRID - 1, Math.round(eyeR_WorldX / SPACING) - 1))
+      const eyeR_gy = Math.max(0, Math.min(GRID - 1, Math.round(eyeR_WorldY / SPACING) - 1))
+
+      ctx.clearRect(0, 0, size, size)
+
+      const centerX = size / 2
+      const centerY = size / 2
+
+      const armWaveY = Math.sin(time * 8) * 4.5
+      const armX = physics.coreX + 15 * scale
+      const armY = physics.coreY - 9 * scale + armWaveY
+
+      const antennaX = physics.coreX + Math.sin(time * 4) * 2
+      const antennaY = physics.coreY - 21 * scale
+
+      for (let gy = 0; gy < GRID; gy++) {
+        for (let gx = 0; gx < GRID; gx++) {
+          const rawX = (gx + 1) * SPACING
+          const rawY = (gy + 1) * SPACING
+
+          let dx = (rawX - centerX) / physics.squishX
+          let dy = (rawY - centerY) / physics.squishY
+
+          if (physics.spinAngle > 0.01) {
+            const cosA = Math.cos(physics.spinAngle)
+            const sinA = Math.sin(physics.spinAngle)
+            const rx = dx * cosA - dy * sinA
+            const ry = dx * sinA + dy * cosA
+            dx = rx
+            dy = ry
+          }
+
+          const distToCenter = Math.sqrt(dx * dx + dy * dy)
+          const angle = Math.atan2(dy, dx)
+
+          const noise = (Math.sin(angle * 3 + time * 1.5) * 3 + Math.cos(angle * 5 - time) * 2) * physics.noiseAmp
+          const baseRadius = size * 0.29 + noise
+
+          let armInfluence = 0
+          if (physics.armWeight > 0.01) {
+            const distArm = Math.hypot(dx - armX, dy - armY)
+            armInfluence = Math.max(0, 1 - distArm / (7 * scale)) * 8.5 * physics.armWeight
+          }
+
+          let antennaInfluence = 0
+          if (physics.antennaWeight > 0.01) {
+            const distAntenna = Math.hypot(dx - antennaX, dy - antennaY)
+            antennaInfluence = Math.max(0, 1 - distAntenna / (6 * scale)) * 7.5 * physics.antennaWeight
+          }
+
+          let heartMod = 0
+          if (physics.heartWeight > 0.01) {
+            const hAngle = angle + Math.PI / 2
+            const heartCurve = (Math.sin(hAngle) * Math.sqrt(Math.abs(Math.cos(hAngle)))) / (Math.sin(hAngle) + 1.4) - 0.2
+            heartMod = heartCurve * 11 * physics.heartWeight
+          }
+
+          const starMod = Math.cos(angle * 4) * 6.5 * physics.starWeight
+          const totalRadius = baseRadius + armInfluence + antennaInfluence + heartMod + starMod
+          const delta = totalRadius - distToCenter
+
+          if (delta > -3.2) {
+            const edgeFactor = Math.min(Math.max((delta + 3.2) / 7.2, 0), 1)
+            let dotR = MAX_DOT_R * edgeFactor
+
+            const isSingleLeftEye = (gx === eyeL_gx && gy === eyeL_gy)
+            const isSingleRightEye = (gx === eyeR_gx && gy === eyeR_gy)
+            const isEye = isSingleLeftEye || isSingleRightEye
+
+            const mouthX = physics.coreX
+            const mouthY = physics.coreY + 5 * scale
+            const distMouth = Math.hypot(dx - mouthX, dy - mouthY)
+
+            let fillStyle = ""
+
+            // 🌙 Глаза во сне: аккуратные дуги (— —)
+            if (physics.sleepWeight > 0.35) {
+              const isSleepEyeRow = (gy === eyeL_gy) && (
+                (gx >= eyeL_gx - 1 && gx <= eyeL_gx + 1) || 
+                (gx >= eyeR_gx - 1 && gx <= eyeR_gx + 1)
+              )
+              if (isSleepEyeRow) {
+                fillStyle = "rgba(15, 23, 42, 0.9)"
+                dotR = MAX_DOT_R * 0.55
+              } else {
+                const distToCore = Math.hypot(dx - physics.coreX, dy - physics.coreY)
+                const isCore = distToCore < totalRadius * 0.42
+                const lightness = isCore ? 63 : 50
+                const alpha = Math.min(0.85, Math.max(0.12, edgeFactor * (0.8 - physics.hideProgress * 0.25)))
+                fillStyle = `hsla(${physics.colorHue}, 90%, ${lightness}%, ${alpha})`
+              }
+            } else if (isEye && !isBlinking) {
+              if (physics.heartWeight > 0.2 || physics.starWeight > 0.2) {
+                fillStyle = "#ffffff"
+                dotR = MAX_DOT_R * 1.2
+              } else {
+                fillStyle = "#0f172a"
+                dotR = MAX_DOT_R * 1.05
+              }
+            } else if (distMouth < 3.8 && (physics.mouthOpen > 0.25 || isGiggling)) {
+              fillStyle = "#991b1b"
+              dotR = MAX_DOT_R * 0.8
+            } else {
+              const distToCore = Math.hypot(dx - physics.coreX, dy - physics.coreY)
+              const isCore = distToCore < totalRadius * 0.42
+              const lightness = isCore ? 64 : 52
+              const alpha = Math.min(0.95, Math.max(0.15, edgeFactor * 0.95))
+              fillStyle = `hsla(${physics.colorHue}, 95%, ${lightness}%, ${alpha})`
+            }
+
+            const renderX = centerX + dx * physics.squishX
+            const renderY = centerY + dy * physics.squishY
+
+            ctx.beginPath()
+            ctx.arc(renderX, renderY, Math.max(0.4, dotR), 0, Math.PI * 2)
+            ctx.fillStyle = fillStyle
+            ctx.fill()
+          }
+        }
+      }
+
+      animId = requestAnimationFrame(render)
+    }
+
+    animId = requestAnimationFrame(render)
+    return () => cancelAnimationFrame(animId)
+  }, [size, actionRef, lastActiveRef, isSleepingRef, mousePosRef, pettingScoreRef])
+
+  return (
+    <div className={cn("relative flex items-center justify-center select-none touch-none", className)}>
+      <canvas ref={canvasRef} width={size} height={size} />
+    </div>
+  )
 }
 
+// ====================================================================
+// Основной контроллер
+// ====================================================================
 export function ChibiGuide() {
   const [isEnabled, setIsEnabled] = useState<boolean>(true)
   const [isBubbleOpen, setIsBubbleOpen] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
-  const [messageIndex, setMessageIndex] = useState(0)
-  const [miniReaction, setMiniReaction] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState<'main' | 'oracle' | 'quote'>('main')
+  const [hideFraction, setHideFraction] = useState(0)
+  const [isPettedActive, setIsPettedActive] = useState(false)
+  const [isOffline, setIsOffline] = useState(false)
+  const [atBottom, setAtBottom] = useState(false)
 
-  // Анимация и направление взгляда
-  const [currentAnim, setCurrentAnim] = useState<ChibiAnimation>('idle')
-  const [row, setRow] = useState(0)
-  const [isFlipped, setIsFlipped] = useState(false)
-  const [isAfk, setIsAfk] = useState(false)
+  // Режим реплик ('auto' | 'click')
+  const [speechMode, setSpeechMode] = useState<'auto' | 'click'>('auto')
 
-  const charRef = useRef<HTMLDivElement>(null)
-  const bubbleTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-  const reactionTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-  const animTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-  const afkTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-  const lastScrollYRef = useRef<number>(0)
+  const [quoteIndex, setQuoteIndex] = useState(0)
+  const [oracleText, setOracleText] = useState(GENRE_ORACLE[0])
+
+  // Реф сна и таймеры
+  const isSleepingRef = useRef<boolean>(false)
+  const autoBubbleTimeout = useRef<NodeJS.Timeout | null>(null)
+
+  const lastActiveTimestamp = useRef<number>(performance.now())
+  const currentAction = useRef<{ type: ActionType; startTime: number; duration: number }>({
+    type: 'none',
+    startTime: 0,
+    duration: 0
+  })
+
+  const mousePos = useRef<{ x: number; y: number; isNear: boolean; isPressing: boolean }>({
+    x: 0,
+    y: 0,
+    isNear: false,
+    isPressing: false
+  })
+
+  const tapHistory = useRef<number[]>([])
+  const pettingScore = useRef(0)
+  const lastStrokePos = useRef<{ x: number; y: number }>({ x: 0, y: 0 })
+  const lastScrollY = useRef(0)
+  const isFirstMount = useRef(true)
   const pathname = usePathname()
 
-  // Включение временной анимации с авто-возвратом в idle
-  const playAnimation = useCallback((anim: ChibiAnimation, durationMs: number = 2000) => {
-    setCurrentAnim(anim)
-    if (animTimeoutRef.current) clearTimeout(animTimeoutRef.current)
-    animTimeoutRef.current = setTimeout(() => {
-      setCurrentAnim(isAfk ? 'sit' : 'idle')
-    }, durationMs)
-  }, [isAfk])
-
-  // Аккуратная мини-реакция (маленький значок/эмодзи над головой)
-  const triggerMiniReaction = useCallback((symbol: string) => {
-    setMiniReaction(symbol)
-    if (reactionTimeoutRef.current) clearTimeout(reactionTimeoutRef.current)
-    reactionTimeoutRef.current = setTimeout(() => {
-      setMiniReaction(null)
-    }, 1800)
+  // Запуск действия
+  const triggerAction = useCallback((type: ActionType, durationMs: number = 1800) => {
+    if (isSleepingRef.current && type !== 'wave' && type !== 'love') return
+    lastActiveTimestamp.current = performance.now()
+    currentAction.current = {
+      type,
+      startTime: performance.now(),
+      duration: durationMs
+    }
   }, [])
 
-  // Сброс таймера сна/скуки (AFK)
-  const resetAfk = useCallback(() => {
-    if (isAfk) {
-      setIsAfk(false)
-      setCurrentAnim('idle')
-      triggerMiniReaction("👀")
-    }
-    if (afkTimeoutRef.current) clearTimeout(afkTimeoutRef.current)
-    afkTimeoutRef.current = setTimeout(() => {
-      setIsAfk(true)
-      setCurrentAnim('sit') // Когда скучает / AFK — садится / отдыхает
-    }, 25000)
-  }, [isAfk, triggerMiniReaction])
+  // Автоматический показ подсказки
+  const triggerAutoBubble = useCallback(() => {
+    if (speechMode !== 'auto' || isSleepingRef.current) return
+    setIsBubbleOpen(true)
+    setActiveTab('main')
 
-  // Синхронизация настройки включения/выключения
+    if (autoBubbleTimeout.current) clearTimeout(autoBubbleTimeout.current)
+    autoBubbleTimeout.current = setTimeout(() => {
+      setIsBubbleOpen(false)
+    }, 5500)
+  }, [speechMode])
+
+  // Обработка активности пользователя
+  const handleUserActivity = useCallback((isDirect = false) => {
+    if (isSleepingRef.current) {
+      if (!isDirect) return // Во сне игнорируем случайные движения
+      isSleepingRef.current = false // Просыпается только от прямого клика по маскоту
+    }
+
+    const now = performance.now()
+    const wasDeepSleep = (now - lastActiveTimestamp.current) > 16000
+    lastActiveTimestamp.current = now
+
+    if (wasDeepSleep && currentAction.current.type === 'none') {
+      triggerAction('wave', 1800)
+    }
+  }, [triggerAction])
+
+  // Поглаживание
+  const handlePettingStroke = useCallback((clientX: number, clientY: number) => {
+    if (isSleepingRef.current) return
+
+    handleUserActivity(true)
+    const dx = clientX - lastStrokePos.current.x
+    const dy = clientY - lastStrokePos.current.y
+    const dist = Math.hypot(dx, dy)
+
+    lastStrokePos.current = { x: clientX, y: clientY }
+
+    if (dist > 3 && dist < 45) {
+      pettingScore.current = Math.min(100, pettingScore.current + dist * 1.5)
+      if (pettingScore.current > 60) {
+        setIsPettedActive(true)
+        triggerAction('love', 2200)
+      }
+    }
+  }, [handleUserActivity, triggerAction])
+
+  // Щекотка
+  const registerTap = useCallback(() => {
+    const now = performance.now()
+    tapHistory.current = [...tapHistory.current.filter(t => now - t < 700), now]
+    if (tapHistory.current.length >= 3) {
+      triggerAction('giggle', 1600)
+      tapHistory.current = []
+    }
+  }, [triggerAction])
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      pettingScore.current = Math.max(0, pettingScore.current * 0.85 - 2)
+      if (pettingScore.current < 20) {
+        setIsPettedActive(false)
+      }
+    }, 100)
+    return () => clearInterval(interval)
+  }, [])
+
+  // Слушатели событий
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      if (isMobile || isSleepingRef.current) return
+      handleUserActivity(false)
+      const w = window.innerWidth
+      const h = window.innerHeight
+      const mascotX = 50
+      const mascotY = h - 50
+      const dx = e.clientX - mascotX
+      const dy = e.clientY - mascotY
+
+      mousePos.current.x = dx
+      mousePos.current.y = dy
+      mousePos.current.isNear = Math.hypot(dx, dy) < 220
+    }
+
+    const onScroll = () => {
+      if (isSleepingRef.current) return
+      handleUserActivity(false)
+      const delta = Math.abs(window.scrollY - lastScrollY.current)
+      if (delta > 360 && currentAction.current.type === 'none') {
+        triggerAction('surprise', 1200)
+      }
+      lastScrollY.current = window.scrollY
+
+      const isBottom = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 60
+      if (isBottom && !atBottom) {
+        triggerAutoBubble()
+      }
+      setAtBottom(isBottom)
+    }
+
+    const onCopy = () => {
+      if (isSleepingRef.current) return
+      handleUserActivity(false)
+      triggerAction('spark', 2000)
+      triggerAutoBubble()
+    }
+
+    const onOnline = () => {
+      setIsOffline(false)
+      if (!isSleepingRef.current) {
+        triggerAction('wave', 2000)
+        triggerAutoBubble()
+      }
+    }
+    const onOffline = () => {
+      setIsOffline(true)
+      if (!isSleepingRef.current) {
+        triggerAction('dizzy', 3000)
+        triggerAutoBubble()
+      }
+    }
+
+    const onVisibility = () => {
+      if (!document.hidden && !isSleepingRef.current) handleUserActivity(false)
+    }
+
+    window.addEventListener("mousemove", onMove, { passive: true })
+    window.addEventListener("scroll", onScroll, { passive: true })
+    window.addEventListener("copy", onCopy)
+    window.addEventListener("online", onOnline)
+    window.addEventListener("offline", onOffline)
+    document.addEventListener("visibilitychange", onVisibility)
+
+    setIsOffline(!navigator.onLine)
+
+    return () => {
+      window.removeEventListener("mousemove", onMove)
+      window.removeEventListener("scroll", onScroll)
+      window.removeEventListener("copy", onCopy)
+      window.removeEventListener("online", onOnline)
+      window.removeEventListener("offline", onOffline)
+      document.removeEventListener("visibilitychange", onVisibility)
+    }
+  }, [handleUserActivity, triggerAction, atBottom, triggerAutoBubble, isMobile])
+
+  // Реакция на смену страниц
+  useEffect(() => {
+    if (!isEnabled || isSleepingRef.current) return
+
+    if (isFirstMount.current) {
+      isFirstMount.current = false
+      triggerAction('wave', 1800)
+      triggerAutoBubble()
+      return
+    }
+
+    handleUserActivity(false)
+
+    if (pathname.includes("/gacha")) {
+      triggerAction('star', 2500)
+    } else if (pathname.includes("/battle")) {
+      triggerAction('spin', 1800)
+    } else if (pathname.includes("/catalog") || pathname.includes("/bookmarks")) {
+      triggerAction('peek', 1600)
+    } else if (pathname.includes("/anime/")) {
+      triggerAction('love', 1800)
+    }
+
+    triggerAutoBubble()
+  }, [pathname, isEnabled, triggerAction, handleUserActivity, triggerAutoBubble])
+
+  // Контекстные подсказки
+  const contextualMessage = useMemo(() => {
+    const hour = new Date().getHours()
+
+    if (isOffline) {
+      return { text: "Кажется, связь с космосом пропала! Проверь интернет 📡" }
+    }
+
+    if (atBottom) {
+      return {
+        text: "Ты долистал до самого дна! Поднимемся наверх?",
+        action: { label: "Наверх", onClick: () => window.scrollTo({ top: 0, behavior: "smooth" }) }
+      }
+    }
+
+    if (pathname.includes("/gacha")) {
+      return { text: "Чувствую скорый дроп легендарки! Крути с верой в удачу ✨" }
+    }
+    if (pathname.includes("/battle")) {
+      return { text: "Арена полна соперников. Покажи силу своей колоды! ⚔️" }
+    }
+    if (pathname.includes("/bookmarks")) {
+      return { text: "Твоя библиотека закладок. Не откладывай просмотр 🔖" }
+    }
+    if (pathname.includes("/catalog")) {
+      return { text: "Используй фильтры каталога для поиска скрытых шедевров 🔍" }
+    }
+
+    if (hour >= 0 && hour < 6) {
+      return { text: "Ночной марафон тайтлов? Не забывай про воду и сон 🌙" }
+    }
+    if (hour >= 6 && hour < 12) {
+      return { text: "Доброе утро! Прекрасный день для новой серии ☀️" }
+    }
+
+    return {
+      text: "Привет! Я твой дух-проводник. Можешь погладить меня или спросить совет ✨",
+      action: { label: "В Каталог", href: "/catalog" }
+    }
+  }, [pathname, atBottom, isOffline])
+
+  // Загрузка настроек
   useEffect(() => {
     const saved = localStorage.getItem(CHIBI_STORAGE_KEY)
-    if (saved !== null) {
-      setIsEnabled(saved === "true")
+    if (saved !== null) setIsEnabled(saved === "true")
+
+    const savedSpeechMode = localStorage.getItem(CHIBI_SPEECH_MODE_KEY)
+    if (savedSpeechMode === 'auto' || savedSpeechMode === 'click') {
+      setSpeechMode(savedSpeechMode)
     }
 
-    const handleToggle = (e: CustomEvent<{ enabled: boolean }>) => {
-      setIsEnabled(e.detail.enabled)
-    }
-
+    const handleToggle = (e: CustomEvent<{ enabled: boolean }>) => setIsEnabled(e.detail.enabled)
     window.addEventListener(CHIBI_TOGGLE_EVENT as any, handleToggle as any)
-    return () => {
-      window.removeEventListener(CHIBI_TOGGLE_EVENT as any, handleToggle as any)
-    }
+    return () => window.removeEventListener(CHIBI_TOGGLE_EVENT as any, handleToggle as any)
   }, [])
 
-  // Определение мобильного устройства
+  const toggleSpeechMode = () => {
+    const nextMode = speechMode === 'auto' ? 'click' : 'auto'
+    setSpeechMode(nextMode)
+    localStorage.setItem(CHIBI_SPEECH_MODE_KEY, nextMode)
+  }
+
   useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 640 || 'ontouchstart' in window)
-    }
+    const checkMobile = () => setIsMobile(window.innerWidth < 640 || 'ontouchstart' in window)
     checkMobile()
     window.addEventListener("resize", checkMobile)
     return () => window.removeEventListener("resize", checkMobile)
   }, [])
 
-  // 1. Анимация приветствия (машет рукой) при первом входе / переходе на главную
-  useEffect(() => {
-    if (!isEnabled) return
-    resetAfk()
+  // Клик по маскоту (Прямой клик)
+  const handleClick = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (autoBubbleTimeout.current) clearTimeout(autoBubbleTimeout.current)
 
-    if (pathname === "/") {
-      playAnimation('wave', 2200)
-      triggerMiniReaction("👋")
-    } else if (pathname.includes("/watch")) {
-      playAnimation('idle', 1000)
-      triggerMiniReaction("🍿")
-    } else if (pathname.includes("/catalog")) {
-      triggerMiniReaction("🔍")
-    } else if (pathname.includes("/gacha")) {
-      playAnimation('jump', 1500)
-      triggerMiniReaction("✨")
-    } else if (pathname.includes("/bookmarks")) {
-      triggerMiniReaction("🔖")
-    } else if (pathname.includes("/battle")) {
-      playAnimation('jump', 1500)
-      triggerMiniReaction("⚔️")
-    }
-  }, [pathname, isEnabled, resetAfk, triggerMiniReaction, playAnimation])
-
-  // 2. Реакция на скролл
-  useEffect(() => {
-    if (!isEnabled) return
-
-    const handleScroll = () => {
-      resetAfk()
-      const currentScroll = window.scrollY
-      const delta = currentScroll - lastScrollYRef.current
-
-      if (Math.abs(delta) > 15) {
-        if (delta > 0) {
-          setRow(0) // Вниз
-        } else {
-          setRow(4) // Вверх
-        }
-      }
-      lastScrollYRef.current = currentScroll
+    // Если спал — будим мягко
+    if (isSleepingRef.current) {
+      isSleepingRef.current = false
+      lastActiveTimestamp.current = performance.now()
+      triggerAction('wave', 1800)
+      return
     }
 
-    window.addEventListener("scroll", handleScroll, { passive: true })
-    return () => window.removeEventListener("scroll", handleScroll)
-  }, [isEnabled, resetAfk])
+    handleUserActivity(true)
+    registerTap()
 
-  // 3. Слежение за курсором мыши (направление взгляда)
-  useEffect(() => {
-    if (isMobile || !isEnabled || isAfk) return
-
-    const handleMouseMove = (e: MouseEvent) => {
-      if (!charRef.current) return
-      resetAfk()
-
-      const rect = charRef.current.getBoundingClientRect()
-      const charX = rect.left + rect.width / 2
-      const charY = rect.top + rect.height / 2
-
-      const dx = e.clientX - charX
-      const dy = e.clientY - charY
-      const dist = Math.hypot(dx, dy)
-
-      if (dist < 40) {
-        setRow(0)
-        setIsFlipped(false)
-        return
-      }
-
-      const angle = Math.atan2(dy, dx) * (180 / Math.PI)
-
-      if (angle >= 45 && angle <= 135) {
-        setRow(0)
-        setIsFlipped(false)
-      } else if (angle > 15 && angle < 45) {
-        setRow(1)
-        setIsFlipped(false)
-      } else if (angle > 135 && angle < 165) {
-        setRow(1)
-        setIsFlipped(true)
-      } else if (angle >= -15 && angle <= 15) {
-        setRow(2)
-        setIsFlipped(false)
-      } else if (angle >= 165 || angle <= -165) {
-        setRow(2)
-        setIsFlipped(true)
-      } else if (angle > -75 && angle < -15) {
-        setRow(3)
-        setIsFlipped(false)
-      } else if (angle > -165 && angle < -105) {
-        setRow(3)
-        setIsFlipped(true)
-      } else if (angle >= -105 && angle <= -75) {
-        setRow(4)
-        setIsFlipped(false)
-      }
-    }
-
-    window.addEventListener("mousemove", handleMouseMove, { passive: true })
-    return () => {
-      window.removeEventListener("mousemove", handleMouseMove)
-      if (afkTimeoutRef.current) clearTimeout(afkTimeoutRef.current)
-    }
-  }, [isEnabled, isMobile, isAfk, resetAfk])
-
-  // Клик по персонажу: машет рукой + подсказка
-  const handleCharClick = useCallback(() => {
-    resetAfk()
-    setRow(0)
-    setIsFlipped(false)
-    playAnimation('wave', 2000)
-    triggerMiniReaction("💖")
-
-    if (!isBubbleOpen) {
-      setIsBubbleOpen(true)
-    } else {
-      setMessageIndex((prev) => (prev + 1) % MASCOT_MESSAGES.length)
-    }
-
-    if (bubbleTimeoutRef.current) clearTimeout(bubbleTimeoutRef.current)
-    bubbleTimeoutRef.current = setTimeout(() => {
-      setIsBubbleOpen(false)
-    }, 7000)
-  }, [isBubbleOpen, resetAfk, triggerMiniReaction, playAnimation])
-
-  if (!isEnabled) {
-    return null
+    setIsBubbleOpen((prev) => !prev)
+    setActiveTab('main')
   }
 
-  const currentMsg = MASCOT_MESSAGES[messageIndex]
-  const dynamicBottom = isMobile 
-    ? "calc(var(--bottom-nav-height, 88px) + 10px)" 
-    : "16px"
-  const SIZE = isMobile ? 44 : 56
+  // Принудительный сон
+  const putToSleep = (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    isSleepingRef.current = true
+    currentAction.current = { type: 'none', startTime: 0, duration: 0 }
+    lastActiveTimestamp.current = performance.now() - 60000
+    setIsBubbleOpen(false)
+    if (autoBubbleTimeout.current) clearTimeout(autoBubbleTimeout.current)
+  }
 
-  const activeConfig = ANIMATIONS[currentAnim] || ANIMATIONS.idle
+  if (!isEnabled) return null
+
+  const dynamicBottom = isMobile
+    ? "calc(var(--bottom-nav-height, 88px) + 8px)"
+    : "16px"
+
+  const isHidden = hideFraction > 0.5
+  const slideX = hideFraction * (isMobile ? 38 : -38)
+  const slideY = hideFraction * 14
 
   return (
-    <div 
-      style={{ bottom: dynamicBottom }}
-      className="fixed right-3 sm:left-4 sm:right-auto z-40 flex flex-col items-end sm:items-start pointer-events-none select-none"
+    <div
+      style={{
+        bottom: dynamicBottom,
+        transform: `translate(${slideX}px, ${slideY}px)`
+      }}
+      className={cn(
+        "fixed right-3 sm:left-4 sm:right-auto z-40 flex flex-col items-end sm:items-start select-none transition-transform duration-500 ease-out",
+        isHidden && "opacity-75 hover:opacity-100"
+      )}
     >
-      {/* 💬 Диалоговое облако */}
+      {/* 💬 Диалоговое облачко */}
       {isBubbleOpen && (
         <div 
-          className="pointer-events-auto mb-2 max-w-[240px] sm:max-w-[280px] bg-background/95 backdrop-blur-md border border-border p-3 rounded-xl shadow-xl transition-all relative"
+          onMouseEnter={() => {
+            if (autoBubbleTimeout.current) clearTimeout(autoBubbleTimeout.current)
+          }}
+          className="pointer-events-auto mb-2 w-[240px] sm:w-[270px] bg-background/95 backdrop-blur-md border border-orange-500/25 p-3 rounded-2xl shadow-2xl animate-in fade-in zoom-in-95 duration-200 relative"
         >
-          {/* Хвостик диалога */}
-          <div className="absolute -bottom-1.5 right-4 sm:right-auto sm:left-6 w-2.5 h-2.5 bg-background border-r border-b border-border rotate-45" />
-
-          {/* Шапка диалога */}
-          <div className="flex items-center justify-between pb-1 mb-1 border-b border-border/50">
-            <div className="flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-primary" />
-              <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-                Гид
-              </span>
-            </div>
-            
-            <button
-              onClick={() => setIsBubbleOpen(false)}
-              className="text-muted-foreground hover:text-foreground p-0.5 rounded transition-colors"
-              title="Закрыть"
-            >
-              <X className="w-3 h-3" />
-            </button>
-          </div>
-
-          {/* Текст */}
-          <p className="text-xs text-foreground/90 leading-snug">
-            {currentMsg.text}
-          </p>
-
-          {/* Быстрые действия */}
-          <div className="mt-2 flex items-center justify-between gap-2 pt-1 border-t border-border/40">
-            {currentMsg.action ? (
-              <Link
-                href={currentMsg.action.href}
-                onClick={() => setIsBubbleOpen(false)}
-                className="inline-flex items-center gap-1 px-2 py-0.5 bg-secondary hover:bg-secondary/80 text-foreground rounded-md text-[10px] font-medium transition-colors"
+          {/* Хедер */}
+          <div className="flex items-center justify-between pb-1.5 mb-1.5 border-b border-border/40">
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setActiveTab('main')}
+                className={cn(
+                  "text-[10px] font-semibold tracking-wider uppercase px-1.5 py-0.5 rounded transition-colors",
+                  activeTab === 'main' ? "bg-orange-500/15 text-orange-500" : "text-muted-foreground hover:text-foreground"
+                )}
               >
-                <span>{currentMsg.action.label}</span>
-                <ChevronRight className="w-2.5 h-2.5" />
-              </Link>
-            ) : (
-              <span />
-            )}
+                ✦ Дух
+              </button>
+              <button
+                onClick={() => {
+                  setActiveTab('oracle')
+                  setOracleText(GENRE_ORACLE[Math.floor(Math.random() * GENRE_ORACLE.length)])
+                  triggerAction('star', 1500)
+                }}
+                className={cn(
+                  "p-1 rounded transition-colors",
+                  activeTab === 'oracle' ? "bg-orange-500/15 text-orange-500" : "text-muted-foreground hover:text-foreground"
+                )}
+                title="Случайная идея"
+              >
+                <Dices className="w-3 h-3" />
+              </button>
+              <button
+                onClick={() => {
+                  setActiveTab('quote')
+                  setQuoteIndex((prev) => (prev + 1) % ANIME_QUOTES.length)
+                  triggerAction('peek', 1500)
+                }}
+                className={cn(
+                  "p-1 rounded transition-colors",
+                  activeTab === 'quote' ? "bg-orange-500/15 text-orange-500" : "text-muted-foreground hover:text-foreground"
+                )}
+                title="Цитата дня"
+              >
+                <Quote className="w-3 h-3" />
+              </button>
+            </div>
 
-            <button
-              onClick={() => {
-                setMessageIndex((prev) => (prev + 1) % MASCOT_MESSAGES.length)
-                if (bubbleTimeoutRef.current) clearTimeout(bubbleTimeoutRef.current)
-                bubbleTimeoutRef.current = setTimeout(() => setIsBubbleOpen(false), 7000)
-              }}
-              className="text-[10px] text-muted-foreground hover:text-primary transition-colors ml-auto"
-            >
-              Дальше →
-            </button>
+            <div className="flex items-center gap-1">
+              {/* Переключатель режима авто/клик */}
+              <button
+                onClick={toggleSpeechMode}
+                className={cn(
+                  "p-0.5 rounded transition-colors",
+                  speechMode === 'auto' ? "text-orange-500 hover:text-orange-600" : "text-muted-foreground hover:text-foreground"
+                )}
+                title={speechMode === 'auto' ? "Режим: Авто-показ реплик (нажмите для режима «По клику»)" : "Режим: Только по клику (нажмите для «Авто-показа»)"}
+              >
+                {speechMode === 'auto' ? <Bell className="w-3.5 h-3.5" /> : <BellOff className="w-3.5 h-3.5" />}
+              </button>
+
+              {/* Кнопка сна */}
+              <button
+                onClick={putToSleep}
+                className="text-muted-foreground hover:text-orange-400 p-0.5 rounded transition-colors"
+                title="Усыпить духа"
+              >
+                <Moon className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={() => setIsBubbleOpen(false)}
+                className="text-muted-foreground hover:text-foreground p-0.5 rounded"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
           </div>
+
+          {/* Контент вкладки */}
+          {activeTab === 'main' && (
+            <div>
+              <p className="text-xs text-foreground/90 leading-relaxed">
+                {contextualMessage.text}
+              </p>
+              {contextualMessage.action && (
+                <div className="mt-2.5 pt-1.5 border-t border-border/30 flex items-center justify-between">
+                  {'href' in contextualMessage.action ? (
+                    <Link
+                      href={contextualMessage.action.href!}
+                      onClick={() => setIsBubbleOpen(false)}
+                      className="inline-flex items-center gap-1 text-[11px] font-medium text-orange-500 hover:text-orange-600 transition-colors"
+                    >
+                      <span>{contextualMessage.action.label}</span>
+                      <ChevronRight className="w-3 h-3" />
+                    </Link>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        contextualMessage.action?.onClick?.()
+                        setIsBubbleOpen(false)
+                      }}
+                      className="inline-flex items-center gap-1 text-[11px] font-medium text-orange-500 hover:text-orange-600 transition-colors"
+                    >
+                      <span>{contextualMessage.action.label}</span>
+                      <ArrowUp className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'oracle' && (
+            <div className="space-y-2">
+              <div className="flex items-center gap-1 text-[10px] text-orange-500 font-medium">
+                <Sparkles className="w-3 h-3" />
+                <span>Оракул тайтлов</span>
+              </div>
+              <p className="text-xs text-foreground/90 italic leading-relaxed">
+                "{oracleText}"
+              </p>
+              <button
+                onClick={() => {
+                  setOracleText(GENRE_ORACLE[Math.floor(Math.random() * GENRE_ORACLE.length)])
+                  triggerAction('star', 1200)
+                }}
+                className="text-[10px] text-orange-500 hover:underline pt-1 block"
+              >
+                Еще вариант →
+              </button>
+            </div>
+          )}
+
+          {activeTab === 'quote' && (
+            <div className="space-y-1.5">
+              <p className="text-xs text-foreground/90 italic leading-relaxed">
+                {ANIME_QUOTES[quoteIndex].text}
+              </p>
+              <p className="text-[10px] text-muted-foreground text-right font-medium">
+                — {ANIME_QUOTES[quoteIndex].author}
+              </p>
+              <button
+                onClick={() => setQuoteIndex((prev) => (prev + 1) % ANIME_QUOTES.length)}
+                className="text-[10px] text-orange-500 hover:underline block pt-1"
+              >
+                Следующая цитата →
+              </button>
+            </div>
+          )}
         </div>
       )}
 
-      {/* 🚶 Персонаж */}
-      <div 
-        onClick={handleCharClick}
-        ref={charRef}
-        role="button"
-        tabIndex={0}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault()
-            handleCharClick()
+      {/* 🔮 Сам дух-сгусток */}
+      <div
+        onClick={handleClick}
+        onPointerDown={(e) => {
+          mousePos.current.isPressing = true
+          lastStrokePos.current = { x: e.clientX, y: e.clientY }
+        }}
+        onPointerUp={() => {
+          mousePos.current.isPressing = false
+        }}
+        onPointerMove={(e) => {
+          if (e.buttons > 0 && !isMobile) {
+            handlePettingStroke(e.clientX, e.clientY)
           }
         }}
-        className="pointer-events-auto relative cursor-pointer flex flex-col items-center opacity-90 hover:opacity-100 transition-opacity"
-        title="Нажмите для подсказки"
+        onTouchStart={(e) => {
+          mousePos.current.isPressing = true
+          if (e.touches[0]) {
+            lastStrokePos.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }
+          }
+        }}
+        onTouchMove={(e) => {
+          if (e.touches[0] && mousePos.current.isPressing) {
+            handlePettingStroke(e.touches[0].clientX, e.touches[0].clientY)
+          }
+        }}
+        onTouchEnd={() => {
+          mousePos.current.isPressing = false
+        }}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && handleClick(e as any)}
+        className={cn(
+          "pointer-events-auto relative cursor-pointer flex flex-col items-center touch-none select-none",
+          !isHidden && "transition-transform active:scale-95"
+        )}
+        title={isSleepingRef.current ? "Дух спит. Нажмите, чтобы разбудить" : "Нажмите или погладьте"}
       >
-        {/* Деликатный всплывающий эмодзи реакции */}
-        {miniReaction && !isBubbleOpen && (
-          <div className="absolute -top-5 left-1/2 -translate-x-1/2 text-xs select-none pointer-events-none drop-shadow-sm animate-in fade-in zoom-in-75 duration-200">
-            {miniReaction}
+        {isPettedActive && !isHidden && (
+          <div className="absolute -top-5 left-1/2 -translate-x-1/2 text-xs select-none pointer-events-none drop-shadow animate-bounce">
+            💖
           </div>
         )}
 
-        {/* Сонный значок при долгом бездействии */}
-        {isAfk && !miniReaction && !isBubbleOpen && (
-          <div className="absolute -top-4 left-1/2 -translate-x-1/2 text-[9px] font-mono font-bold text-muted-foreground/70 select-none pointer-events-none">
-            zzz
-          </div>
-        )}
-
-        {/* Контейнер спрайта */}
-        <div
-          className={cn(
-            "relative z-10 transition-transform duration-75 overflow-hidden aspect-square flex-shrink-0",
-            isMobile ? "w-[44px] h-[44px]" : "w-[56px] h-[56px]",
-            isAfk && "opacity-80"
-          )}
-          style={{
-            backgroundImage: `url('${activeConfig.src}')`,
-            backgroundRepeat: "no-repeat",
-            backgroundSize: `${SIZE * activeConfig.frames}px ${SIZE * activeConfig.rows}px`, 
-            backgroundPositionY: `-${row * SIZE}px`,
-            transform: `scaleX(${isFlipped ? -1 : 1})`,
-            imageRendering: "pixelated",
-            animation: `chibi-sprite-anim ${activeConfig.duration}s steps(${activeConfig.steps}) infinite`,
-          }}
+        <FluidWisp
+          size={isMobile ? 68 : 80}
+          actionRef={currentAction}
+          lastActiveRef={lastActiveTimestamp}
+          isSleepingRef={isSleepingRef}
+          mousePosRef={mousePos}
+          pettingScoreRef={pettingScore}
+          isOffline={isOffline}
+          onHideChange={(p) => setHideFraction(p)}
         />
 
-        {/* Аккуратная тень под ногами */}
-        <div className="w-5 sm:w-6 h-1 bg-black/25 rounded-full blur-[1px] -mt-0.5" />
+        {!isHidden && (
+          <div className={cn(
+            "w-7 sm:w-9 h-1 rounded-full blur-[2px] -mt-1 transition-all duration-500",
+            isOffline ? "bg-blue-500/20" : "bg-orange-500/15"
+          )} />
+        )}
       </div>
-
-      <style jsx global>{`
-        @keyframes chibi-sprite-anim {
-          from {
-            background-position-x: 0px;
-          }
-          to {
-            background-position-x: -${SIZE * activeConfig.frames}px;
-          }
-        }
-      `}</style>
     </div>
   )
 }
