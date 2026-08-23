@@ -59,9 +59,10 @@ interface AnimeCardProps {
   }
   showPreviousEpisode?: boolean
   priority?: boolean
+  maxHeight?: string // Для адаптивной высоты в модалках
 }
 
-export function AnimeCard({ anime, className, variant = 'default', showUpdateBadge, updateInfo, showPreviousEpisode, priority }: AnimeCardProps) {
+export function AnimeCard({ anime, className, variant = 'default', showUpdateBadge, updateInfo, showPreviousEpisode, priority, maxHeight }: AnimeCardProps) {
   const { isSaved, toggle } = useBookmarks()
   const saved = isSaved(anime.id)
   const [imageError, setImageError] = useState(false)
@@ -175,7 +176,7 @@ export function AnimeCard({ anime, className, variant = 'default', showUpdateBad
 
   return (
     <Link href={`/watch/${anime.id}`} className={cn("group relative block h-full flex flex-col", className)}>
-      <div className="relative aspect-[2/3] w-full overflow-hidden rounded-lg bg-secondary shadow-lg dark:bg-zinc-900">
+      <div className={`relative aspect-[2/3] w-full overflow-hidden rounded-lg bg-secondary shadow-lg dark:bg-zinc-900 ${maxHeight ? `max-h-[${maxHeight}]` : ''}`}>
         <Image
           src={posterSrc}
           alt={anime.title}

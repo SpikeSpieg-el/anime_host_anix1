@@ -4,13 +4,27 @@ import { useState, useEffect, useCallback, useRef, useTransition } from 'react'
 import { AnimeCard } from '@/components/shared/anime-card'
 import { GridSkeleton } from '@/components/shared/skeleton'
 import type { Anime, CatalogFilters } from '@/lib/shikimori'
+import { RandomAnimeModal } from '@/components/catalog/random-anime-modal'
 import { GENRES_MAP } from '@/lib/shikimori'
 import { fetchAnimeData } from '@/app/catalog/actions'
+import { fetchRandomAnime } from '@/app/catalog/actions/get-random-anime'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { MultiSelect } from '@/components/ui/multi-select'
 import { Input } from '@/components/ui/input'
-import { Search, Filter, Loader2, X, RotateCcw, LayoutGrid, Grid3x3, Table, ArrowLeft } from 'lucide-react'
+import { 
+  Search, 
+  Filter, 
+  Loader2, 
+  X, 
+  RotateCcw, 
+  LayoutGrid, 
+  Grid3x3, 
+  Table, 
+  ArrowLeft, 
+  Star,
+  Check
+} from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/components/auth/auth-provider'
@@ -93,8 +107,9 @@ export function CatalogClient({ initialFilters }: { initialFilters: CatalogFilte
   const [viewMode, setViewMode] = useState<'comfortable' | 'compact' | 'table'>('comfortable')
   const [isFilterPanelVisible, setIsFilterPanelVisible] = useState(true)
   const [lastScrollY, setLastScrollY] = useState(0)
+  const [randomAnime, setRandomAnime] = useState<Anime | null>(null)
+  const [showRandomModal, setShowRandomModal] = useState(false)
   
-  const debounceRef = useRef<NodeJS.Timeout | null>(null)
   const isInitialMount = useRef(true)
   const prevFiltersRef = useRef<CatalogFilters | null>(null)
 
@@ -133,63 +148,62 @@ export function CatalogClient({ initialFilters }: { initialFilters: CatalogFilte
     prevFiltersRef.current = updatedFilters
   }, [initialFilters, profile?.allow_nsfw_search, fetchAnimes])
 
-  useEffect(() => {
-    if (isInitialMount.current || !prevFiltersRef.current) return
-    
-    const prev = prevFiltersRef.current
-    const hasChanges = 
-      prev.order !== filters.order ||
-      prev.status !== filters.status ||
-      prev.kind !== filters.kind ||
-      prev.score !== filters.score ||
-      prev.search !== filters.search ||
-      JSON.stringify(prev.genre) !== JSON.stringify(filters.genre) ||
-      JSON.stringify(prev.year) !== JSON.stringify(filters.year)
-    
-    if (!hasChanges) return
-    
-    if (debounceRef.current) clearTimeout(debounceRef.current)
-    
-    const delay = filters.search !== prev.search ? 400 : 200
-    
-    debounceRef.current = setTimeout(() => {
-      const params = new URLSearchParams()
-      if (filters.order) params.set('sort', filters.order)
-      if (filters.genre && filters.genre !== 'all') {
-        if (Array.isArray(filters.genre)) {
-          if (filters.genre.length > 0) params.set('genre', filters.genre.join(','))
-        } else {
-          params.set('genre', filters.genre)
-        }
+  // Функция для применения фильтров по кнопке
+  const applyFilters = () => {
+    const params = new URLSearchParams()
+    if (filters.order) params.set('sort', filters.order)
+    if (filters.genre && filters.genre !== 'all') {
+      if (Array.isArray(filters.genre)) {
+        if (filters.genre.length > 0) params.set('genre', filters.genre.join(','))
+      } else {
+        params.set('genre', filters.genre)
       }
-      if (filters.status && filters.status !== 'all') params.set('status', filters.status)
-      if (filters.kind && filters.kind !== 'all') params.set('kind', filters.kind)
-      if (filters.year && filters.year !== 'all') {
-        if (Array.isArray(filters.year)) {
-          if (filters.year.length > 0) params.set('year', filters.year.join(','))
-        } else {
-          params.set('year', filters.year)
-        }
-      }
-      if (filters.score && filters.score !== 'all') params.set('score', filters.score)
-      if (filters.search) params.set('search', filters.search)
-
-      const newUrl = `/catalog?${params.toString()}`
-      const currentUrl = window.location.pathname + window.location.search
-      
-      if (newUrl !== currentUrl) {
-        startTransition(() => {
-          router.push(newUrl, { scroll: false })
-        })
-      }
-      
-      prevFiltersRef.current = filters
-    }, delay)
-    
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current)
     }
-  }, [filters, router])
+    if (filters.status && filters.status !== 'all') params.set('status', filters.status)
+    if (filters.kind && filters.kind !== 'all') params.set('kind', filters.kind)
+    if (filters.year && filters.year !== 'all') {
+      if (Array.isArray(filters.year)) {
+        if (filters.year.length > 0) params.set('year', filters.year.join(','))
+      } else {
+        params.set('year', filters.year)
+      }
+    }
+    if (filters.score && filters.score !== 'all') params.set('score', filters.score)
+    if (filters.search) params.set('search', filters.search)
+
+    const newUrl = `/catalog?${params.toString()}`
+    startTransition(() => {
+      router.push(newUrl, { scroll: false })
+    })
+  }
+
+  useEffect(() => {
+    if (isInitialMount.current) return
+    
+    const currentUrl = window.location.pathname + window.location.search
+    const params = new URLSearchParams(currentUrl)
+    
+    const urlOrder = params.get('sort')
+    const urlGenre = params.get('genre')
+    const urlStatus = params.get('status')
+    const urlKind = params.get('kind')
+    const urlYear = params.get('year')
+    const urlScore = params.get('score')
+    const urlSearch = params.get('search')
+    
+    const hasUrlChanges = 
+      (urlOrder && filters.order !== urlOrder) ||
+      (urlGenre && JSON.stringify(filters.genre) !== JSON.stringify(urlGenre ? urlGenre.split(',') : [])) ||
+      (urlStatus && filters.status !== urlStatus) ||
+      (urlKind && filters.kind !== urlKind) ||
+      (urlYear && JSON.stringify(filters.year) !== JSON.stringify(urlYear.split(',') || [])) ||
+      (urlScore && filters.score !== urlScore) ||
+      (urlSearch && filters.search !== urlSearch)
+    
+    if (!hasUrlChanges) return
+    
+    prevFiltersRef.current = { ...filters }
+  }, [filters])
 
   useEffect(() => {
     const handleScroll = () => {
@@ -253,11 +267,47 @@ export function CatalogClient({ initialFilters }: { initialFilters: CatalogFilte
     })
   }
 
+  const showRandomAnime = async () => {
+    startTransition(async () => {
+      const randomFilters: CatalogFilters = {
+        page: 1,
+        limit: 50,
+        order: filters.order || 'popularity',
+        search: filters.search || '',
+        genre: filters.genre,
+        status: filters.status,
+        kind: filters.kind,
+        year: filters.year,
+        score: filters.score,
+        allowNsfw: filters.allowNsfw
+      }
+
+      setShowFilters(false)
+      
+      const randomAnime = await fetchRandomAnime(randomFilters)
+      
+      if (randomAnime) {
+        setRandomAnime(randomAnime)
+        setShowRandomModal(true)
+      }
+    })
+  }
+
   const gridClass = viewMode === 'compact' 
     ? "grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-2 sm:gap-4"
     : viewMode === 'table'
     ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4"
     : "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-x-4 gap-y-6 sm:gap-y-8"
+
+  const hasActiveFilters = Boolean(
+    filters.search || 
+    (filters.genre && filters.genre !== 'all' && (!Array.isArray(filters.genre) || filters.genre.length > 0)) || 
+    (filters.status && filters.status !== 'all') || 
+    (filters.kind && filters.kind !== 'all') || 
+    (filters.year && filters.year !== 'all' && (!Array.isArray(filters.year) || filters.year.length > 0)) || 
+    (filters.score && filters.score !== 'all') || 
+    (filters.order && filters.order !== 'popularity')
+  )
 
   return (
     <div className={cn("min-h-screen pb-16 sm:pb-20 transition-opacity duration-200", isPending && "opacity-75 pointer-events-none")}>
@@ -268,46 +318,71 @@ export function CatalogClient({ initialFilters }: { initialFilters: CatalogFilte
         <div className="container mx-auto px-0 max-w-7xl">
           <div className="flex flex-col md:flex-row gap-3 md:gap-4">
 
-            {/* Чистый инпут фильтрации по каталогу без выпадающего окна */}
+            {/* Поисковая строка */}
             <div className="relative flex-1 w-full">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4 pointer-events-none" />
               <Input
                 placeholder="Поиск по названию..."
                 value={filters.search || ''}
                 onChange={(e) => updateFilter('search', e.target.value)}
-                className="h-10 sm:h-11 w-full text-sm sm:text-base pl-10 pr-10 bg-secondary border-border text-foreground placeholder-muted-foreground focus:ring-1 focus:ring-primary focus:border-primary transition-all dark:bg-zinc-900 dark:border-zinc-800 dark:text-white dark:placeholder-zinc-500 dark:focus:ring-orange-500 dark:focus:border-orange-500"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') applyFilters()
+                }}
+                className="h-10 sm:h-11 w-full text-sm sm:text-base pl-10 pr-24 bg-secondary border-border text-foreground placeholder-muted-foreground focus:ring-1 focus:ring-primary focus:border-primary transition-all dark:bg-zinc-900 dark:border-zinc-800 dark:text-white dark:placeholder-zinc-500 dark:focus:ring-orange-500 dark:focus:border-orange-500 rounded-xl"
               />
-              {filters.search && (
-                <button
-                  onClick={clearSearch}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground p-1 dark:text-zinc-500 dark:hover:text-white"
-                  type="button"
+              <div className="absolute right-2 top-1/2 transform -translate-y-1/2 flex items-center gap-1.5">
+                {filters.search && (
+                  <button
+                    onClick={clearSearch}
+                    className="p-1 text-muted-foreground hover:text-foreground rounded dark:text-zinc-500 dark:hover:text-white"
+                    type="button"
+                    title="Очистить поиск"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+                <Button
+                  size="sm"
+                  onClick={applyFilters}
+                  disabled={!hasActiveFilters}
+                  className="h-7 sm:h-8 px-2.5 sm:px-3 text-xs font-medium bg-primary hover:bg-primary/90 text-white rounded-lg shadow-sm dark:bg-orange-500 dark:hover:bg-orange-600 disabled:opacity-40"
+                  title="Применить поиск"
                 >
-                  <X className="w-4 h-4" />
-                </button>
-              )}
+                  Найти
+                </Button>
+              </div>
             </div>
 
+            {/* Верхний ряд управляющих кнопок */}
             <div className="flex gap-2 w-full md:w-auto">
               <div className="flex gap-2 flex-1 md:flex-none">
                 <Button
                   variant="outline"
                   onClick={() => setShowFilters(!showFilters)}
                   className={cn(
-                    "flex-1 md:flex-none border h-10 sm:h-11 text-sm sm:text-base transition-colors border-border dark:border-zinc-800",
+                    "flex-1 md:flex-none border h-10 sm:h-11 text-sm sm:text-base font-medium rounded-xl transition-all border-border dark:border-zinc-800",
                     showFilters
-                      ? "bg-secondary text-foreground dark:bg-zinc-800 dark:text-white dark:border-zinc-700"
-                      : "bg-transparent text-muted-foreground hover:bg-secondary hover:text-foreground dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-white"
+                      ? "bg-primary text-white border-primary dark:bg-orange-500 dark:border-orange-500 shadow-sm"
+                      : "bg-secondary text-foreground hover:bg-secondary/80 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-white"
                   )}
                 >
-                  <Filter className="w-4 h-4 sm:mr-2" />
-                  <span className="inline">Фильтры</span>
+                  <Filter className="w-4 h-4 mr-2" />
+                  <span>Фильтры</span>
+                </Button>
+
+                <Button
+                  variant="outline"
+                  onClick={showRandomAnime}
+                  className="border-border bg-secondary h-10 sm:h-11 w-10 sm:w-11 px-0 rounded-xl hover:bg-secondary/80 text-foreground transition-colors dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-white"
+                  title="Случайное аниме"
+                >
+                  <Star className="w-4 h-4" />
                 </Button>
 
                 <Button
                   variant="outline"
                   onClick={resetFilters}
-                  className="border-border bg-transparent h-10 sm:h-11 w-10 sm:w-11 px-0 hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors dark:border-zinc-800 dark:hover:bg-zinc-800 dark:text-zinc-400 dark:hover:text-white"
+                  className="border-border bg-secondary h-10 sm:h-11 w-10 sm:w-11 px-0 rounded-xl hover:bg-secondary/80 text-foreground transition-colors dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-white disabled:opacity-50"
                   disabled={(loading || isPending) && !loadingMore}
                   title="Сбросить все"
                 >
@@ -324,83 +399,128 @@ export function CatalogClient({ initialFilters }: { initialFilters: CatalogFilte
             </div>
           </div>
 
+          {/* Блок расширенных фильтров */}
           {showFilters && (
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mt-3 sm:mt-4 p-3 sm:p-4 bg-secondary/80 rounded-xl border animate-in fade-in slide-in-from-top-2 border-border dark:bg-zinc-900/80 dark:border-zinc-800">
-              <div className="col-span-1">
-                <Select value={filters.order || 'popularity'} onValueChange={(v: string) => updateFilter('order', v)}>
-                  <SelectTrigger className="h-9 sm:h-10 text-xs sm:text-sm bg-background border-border dark:bg-zinc-900 dark:border-zinc-800 dark:text-white">
-                    <SelectValue placeholder="Сортировка" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-background border-border dark:bg-zinc-900 dark:border-zinc-800">
-                    {ORDER_OPTIONS.map(opt => (
-                      <SelectItem key={opt.value} value={opt.value} className="dark:text-white dark:focus:bg-zinc-800">{opt.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+            <div className="mt-3 sm:mt-4 p-3.5 sm:p-5 bg-secondary/90 dark:bg-zinc-900/95 rounded-2xl border border-border dark:border-zinc-800 shadow-md animate-in fade-in slide-in-from-top-2 duration-200">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+                <div className="col-span-1">
+                  <label className="text-[11px] font-medium text-muted-foreground dark:text-zinc-400 mb-1 block uppercase tracking-wider">
+                    Сортировка
+                  </label>
+                  <Select value={filters.order || 'popularity'} onValueChange={(v: string) => updateFilter('order', v)}>
+                    <SelectTrigger className="h-10 text-xs sm:text-sm bg-background border-border dark:bg-zinc-950 dark:border-zinc-800 dark:text-white rounded-xl">
+                      <SelectValue placeholder="Сортировка" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-background border-border dark:bg-zinc-950 dark:border-zinc-800">
+                      {ORDER_OPTIONS.map(opt => (
+                        <SelectItem key={opt.value} value={opt.value} className="dark:text-white dark:focus:bg-zinc-800">{opt.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="col-span-1">
+                  <label className="text-[11px] font-medium text-muted-foreground dark:text-zinc-400 mb-1 block uppercase tracking-wider">
+                    Статус
+                  </label>
+                  <Select value={filters.status || 'all'} onValueChange={(v: string) => updateFilter('status', v)}>
+                    <SelectTrigger className="h-10 text-xs sm:text-sm bg-background border-border dark:bg-zinc-950 dark:border-zinc-800 dark:text-white rounded-xl">
+                      <SelectValue placeholder="Статус" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-background border-border dark:bg-zinc-950 dark:border-zinc-800">
+                      {STATUS_OPTIONS.map(opt => (
+                        <SelectItem key={opt.value} value={opt.value} className="dark:text-white dark:focus:bg-zinc-800">{opt.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="col-span-1">
+                  <label className="text-[11px] font-medium text-muted-foreground dark:text-zinc-400 mb-1 block uppercase tracking-wider">
+                    Тип
+                  </label>
+                  <Select value={filters.kind || 'all'} onValueChange={(v: string) => updateFilter('kind', v)}>
+                    <SelectTrigger className="h-10 text-xs sm:text-sm bg-background border-border dark:bg-zinc-950 dark:border-zinc-800 dark:text-white rounded-xl">
+                      <SelectValue placeholder="Тип" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-background border-border dark:bg-zinc-950 dark:border-zinc-800">
+                      {KIND_OPTIONS.map(opt => (
+                        <SelectItem key={opt.value} value={opt.value} className="dark:text-white dark:focus:bg-zinc-800">{opt.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="col-span-1">
+                  <label className="text-[11px] font-medium text-muted-foreground dark:text-zinc-400 mb-1 block uppercase tracking-wider">
+                    Рейтинг
+                  </label>
+                  <Select value={filters.score || 'all'} onValueChange={(v: string) => updateFilter('score', v)}>
+                    <SelectTrigger className="h-10 text-xs sm:text-sm bg-background border-border dark:bg-zinc-950 dark:border-zinc-800 dark:text-white rounded-xl">
+                      <SelectValue placeholder="Рейтинг" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-background border-border dark:bg-zinc-950 dark:border-zinc-800">
+                      {SCORE_OPTIONS.map(opt => (
+                        <SelectItem key={opt.value} value={opt.value} className="dark:text-white dark:focus:bg-zinc-800">{opt.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="col-span-1 sm:col-span-2">
+                  <label className="text-[11px] font-medium text-muted-foreground dark:text-zinc-400 mb-1 block uppercase tracking-wider">
+                    Жанры
+                  </label>
+                  <MultiSelect
+                    options={[
+                      { value: 'all', label: 'Все жанры' },
+                      ...Object.entries(GENRES_MAP)
+                        .filter(([_, id]) => profile?.allow_nsfw_search || id !== '12')
+                        .map(([name, id]) => ({ value: id, label: name }))
+                    ]}
+                    selected={Array.isArray(filters.genre) ? filters.genre : (filters.genre && filters.genre !== 'all' ? [filters.genre] : [])}
+                    onChange={(selected: string[]) => updateFilter('genre', selected.includes('all') ? [] : selected)}
+                    placeholder="Выберите жанры"
+                    className="w-full bg-background border-border text-foreground min-h-[2.5rem] rounded-xl dark:bg-zinc-950 dark:border-zinc-800 dark:text-white" 
+                  />
+                </div>
+
+                <div className="col-span-1 sm:col-span-2">
+                  <label className="text-[11px] font-medium text-muted-foreground dark:text-zinc-400 mb-1 block uppercase tracking-wider">
+                    Год выпуска
+                  </label>
+                  <MultiSelect
+                    options={YEAR_OPTIONS}
+                    selected={Array.isArray(filters.year) ? filters.year : (filters.year && filters.year !== 'all' ? [filters.year] : [])}
+                    onChange={(selected: string[]) => updateFilter('year', selected.includes('all') ? [] : selected)}
+                    placeholder="Выберите годы"
+                    className="w-full bg-background border-border text-foreground min-h-[2.5rem] rounded-xl dark:bg-zinc-950 dark:border-zinc-800 dark:text-white"
+                  />
+                </div>
               </div>
 
-              <div className="col-span-1">
-                <Select value={filters.status || 'all'} onValueChange={(v: string) => updateFilter('status', v)}>
-                  <SelectTrigger className="h-9 sm:h-10 text-xs sm:text-sm bg-background border-border dark:bg-zinc-900 dark:border-zinc-800 dark:text-white">
-                    <SelectValue placeholder="Статус" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-background border-border dark:bg-zinc-900 dark:border-zinc-800">
-                    {STATUS_OPTIONS.map(opt => (
-                      <SelectItem key={opt.value} value={opt.value} className="dark:text-white dark:focus:bg-zinc-800">{opt.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="col-span-1">
-                <Select value={filters.kind || 'all'} onValueChange={(v: string) => updateFilter('kind', v)}>
-                  <SelectTrigger className="h-9 sm:h-10 text-xs sm:text-sm bg-background border-border dark:bg-zinc-900 dark:border-zinc-800 dark:text-white">
-                    <SelectValue placeholder="Тип" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-background border-border dark:bg-zinc-900 dark:border-zinc-800">
-                    {KIND_OPTIONS.map(opt => (
-                      <SelectItem key={opt.value} value={opt.value} className="dark:text-white dark:focus:bg-zinc-800">{opt.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="col-span-1">
-                <Select value={filters.score || 'all'} onValueChange={(v: string) => updateFilter('score', v)}>
-                  <SelectTrigger className="h-9 sm:h-10 text-xs sm:text-sm bg-background border-border dark:bg-zinc-900 dark:border-zinc-800 dark:text-white">
-                    <SelectValue placeholder="Рейтинг" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-background border-border dark:bg-zinc-900 dark:border-zinc-800">
-                    {SCORE_OPTIONS.map(opt => (
-                      <SelectItem key={opt.value} value={opt.value} className="dark:text-white dark:focus:bg-zinc-800">{opt.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="col-span-2 lg:col-span-2">
-                 <MultiSelect
-                  options={[
-                    { value: 'all', label: 'Все жанры' },
-                    ...Object.entries(GENRES_MAP)
-                      .filter(([_, id]) => profile?.allow_nsfw_search || id !== '12')
-                      .map(([name, id]) => ({ value: id, label: name }))
-                  ]}
-                  selected={Array.isArray(filters.genre) ? filters.genre : (filters.genre && filters.genre !== 'all' ? [filters.genre] : [])}
-                  onChange={(selected: string[]) => updateFilter('genre', selected.includes('all') ? [] : selected)}
-                  placeholder="Жанры"
-                  className="w-full bg-secondary border-border text-foreground min-h-[2.5rem] h-auto py-1 dark:bg-zinc-800 dark:border-zinc-700 dark:text-white" 
-                />
-              </div>
-
-              <div className="col-span-2 lg:col-span-2">
-                <MultiSelect
-                  options={YEAR_OPTIONS}
-                  selected={Array.isArray(filters.year) ? filters.year : (filters.year && filters.year !== 'all' ? [filters.year] : [])}
-                  onChange={(selected: string[]) => updateFilter('year', selected.includes('all') ? [] : selected)}
-                  placeholder="Годы"
-                  className="w-full bg-secondary border-border text-foreground min-h-[2.5rem] h-auto py-1 dark:bg-zinc-800 dark:border-zinc-700 dark:text-white"
-                />
+              {/* Панель кнопок применения/сброса */}
+              <div className="mt-4 pt-3.5 sm:pt-4 border-t border-border/60 dark:border-zinc-800 flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2.5 sm:gap-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={resetFilters}
+                  disabled={(loading || isPending) && !loadingMore}
+                  className="w-full sm:w-auto h-10 px-4 text-xs sm:text-sm font-medium border-border/80 bg-background/80 hover:bg-background text-muted-foreground hover:text-foreground dark:border-zinc-800 dark:bg-zinc-950/80 dark:hover:bg-zinc-800 dark:text-zinc-400 dark:hover:text-white rounded-xl transition-all"
+                >
+                  <RotateCcw className="w-3.5 h-3.5 mr-2" />
+                  Сбросить
+                </Button>
+                
+                <Button
+                  type="button"
+                  onClick={applyFilters}
+                  disabled={!hasActiveFilters}
+                  className="w-full sm:w-auto h-10 px-6 text-xs sm:text-sm font-semibold bg-primary hover:bg-primary/90 text-white dark:bg-orange-500 dark:hover:bg-orange-600 rounded-xl shadow-md shadow-primary/20 dark:shadow-orange-500/20 transition-all"
+                >
+                  <Check className="w-4 h-4 mr-1.5" />
+                  Применить фильтры
+                </Button>
               </div>
             </div>
           )}
@@ -523,6 +643,14 @@ export function CatalogClient({ initialFilters }: { initialFilters: CatalogFilte
               Сбросить все фильтры
             </Button>
           </div>
+        )}
+
+        {/* Модалка случайного аниме */}
+        {showRandomModal && randomAnime && (
+          <RandomAnimeModal 
+            anime={randomAnime} 
+            onClose={() => setShowRandomModal(false)} 
+          />
         )}
       </div>
     </div>
