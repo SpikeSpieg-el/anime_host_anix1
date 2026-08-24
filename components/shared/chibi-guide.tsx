@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo, useTransition } from "react"
 import { usePathname } from "next/navigation"
 import Link from "next/link"
-import { X, ChevronRight, Sparkles, Dices, Quote, Moon, ArrowUp, Bell, BellOff, Loader2 } from "lucide-react"
+import { X, ChevronRight, Sparkles, Dices, Quote, Moon, ArrowUp, Bell, BellOff, Loader2, Search } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { Anime } from "@/lib/shikimori"
 import { AnimeCard } from "@/components/shared/anime-card"
@@ -371,6 +371,7 @@ export function ChibiGuide() {
   const [quoteIndex, setQuoteIndex] = useState(0)
   const [randomAnime, setRandomAnime] = useState<Anime | null>(null)
   const [isRandomLoading, setIsRandomLoading] = useState(false)
+  const [hasShownAnime, setHasShownAnime] = useState(false)
 
   // Реф сна и таймеры
   const isSleepingRef = useRef<boolean>(false)
@@ -428,7 +429,10 @@ export function ChibiGuide() {
     setIsRandomLoading(true)
     startTransition(() => {
       fetchRandomAnime()
-        .then(setRandomAnime)
+        .then((anime) => {
+          setRandomAnime(anime)
+          if (anime) setHasShownAnime(true)
+        })
         .catch((error) => {
           console.error("Error fetching random anime:", error)
           setRandomAnime(null)
@@ -1117,13 +1121,29 @@ export function ChibiGuide() {
                   <p className="text-[10px] text-muted-foreground">Ищу тайтл...</p>
                 </div>
               ) : randomAnime ? (
-                <Link
-                  href={`/watch/${randomAnime.id}`}
-                  onClick={() => setIsBubbleOpen(false)}
-                  className="w-full"
-                >
-                  <AnimeCard anime={randomAnime} variant="default" className="w-full shadow-lg" />
-                </Link>
+                <>
+                  <Link
+                    href={`/watch/${randomAnime.id}`}
+                    onClick={() => setIsBubbleOpen(false)}
+                    className="w-full block"
+                  >
+                    <AnimeCard anime={randomAnime} variant="default" className="w-full shadow-lg" />
+                  </Link>
+                  {hasShownAnime && (
+                    <button
+                      onClick={() => {
+                        setRandomAnime(null)
+                        setHasShownAnime(false)
+                        fetchRandomAnimeAction()
+                        triggerAction('star', 1200)
+                      }}
+                      className="mt-2 inline-flex items-center gap-1.5 text-[10px] text-orange-500 hover:text-orange-600 transition-colors"
+                    >
+                      <Search className="w-3 h-3" />
+                      Искать ещё аниме →
+                    </button>
+                  )}
+                </>
               ) : (
                 <button
                   onClick={() => {
