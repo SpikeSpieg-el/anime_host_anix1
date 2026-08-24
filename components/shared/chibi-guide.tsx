@@ -1,10 +1,13 @@
 "use client"
 
-import { useState, useEffect, useRef, useCallback, useMemo } from "react"
+import { useState, useEffect, useRef, useCallback, useMemo, useTransition } from "react"
 import { usePathname } from "next/navigation"
 import Link from "next/link"
-import { X, ChevronRight, Sparkles, Dices, Quote, Moon, ArrowUp, Bell, BellOff } from "lucide-react"
+import { X, ChevronRight, Sparkles, Dices, Quote, Moon, ArrowUp, Bell, BellOff, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import type { Anime } from "@/lib/shikimori"
+import { AnimeCard } from "@/components/shared/anime-card"
+import { fetchRandomAnime } from "@/app/catalog/actions/get-random-anime"
 
 export const CHIBI_STORAGE_KEY = "chibi-guide-enabled"
 export const CHIBI_SPEECH_MODE_KEY = "chibi-speech-mode"
@@ -28,15 +31,13 @@ const ANIME_QUOTES = [
   { text: "«Тот, кто не умеет ценить прошлое, не построит будущее.»", author: "Ковбой Бибоп" },
   { text: "«Слабые люди не имеют права выбирать, как они умрут.»", author: "Клинок, рассекающий демонов" },
   { text: "«Нет ничего постыдного в том, чтобы упасть. Позорно не подняться.»", author: "Баскетбол Куроко" },
-  { text: "«Человек силен потому, что может меняться.»", author: "Ванпанчмен" }
-]
-
-const GENRE_ORACLE = [
-  "Киберпанк или научная фантастика на вечер!",
-  "Как насчет уютной слайс-оф-лайф комедии?",
-  "Время для эпического сёнэна с горячими битвами!",
-  "Сегодня идеально подойдет глубокий психологический триллер.",
-  "Романтика и магия скрасят этот день."
+  { text: "«Человек силен потому, что может меняться.»", author: "Ванпанчмен" },
+  { text: "«Я становлюсь сильнее каждый день. Даже когда сплю.»", author: "Гочису Макфреш" },
+  { text: "«Самые сильные духом — те, кто умеет быть слабым.»", author: "Хаято" },
+  { text: "«Потеряв всё, я понял: главное — это то, что внутри.»", author: "Дзедзиро Окадзаки" },
+  { text: "«Мне нечего терять. Я уже проиграл свою жизнь.»", author: "Окисари" },
+  { text: "«Счастье — это когда тебя понимают, даже если ты смотришь аниме в три часа ночи.»", author: "Анонимный зритель" },
+  { text: "«Лучше один раз попробовать, чем сто раз пожалеть. Особенно перед финальной серией.»", author: "Фанат дорама" }
 ]
 
 // ====================================================================
@@ -368,7 +369,8 @@ export function ChibiGuide() {
   const [speechMode, setSpeechMode] = useState<'auto' | 'click'>('auto')
 
   const [quoteIndex, setQuoteIndex] = useState(0)
-  const [oracleText, setOracleText] = useState(GENRE_ORACLE[0])
+  const [randomAnime, setRandomAnime] = useState<Anime | null>(null)
+  const [isRandomLoading, setIsRandomLoading] = useState(false)
 
   // Реф сна и таймеры
   const isSleepingRef = useRef<boolean>(false)
@@ -417,6 +419,23 @@ export function ChibiGuide() {
       setIsBubbleOpen(false)
     }, 5500)
   }, [speechMode])
+
+  const [, startTransition] = useTransition()
+
+  // Загрузка случайного аниме для оракула
+  const fetchRandomAnimeAction = useCallback(async () => {
+    if (isSleepingRef.current) return
+    setIsRandomLoading(true)
+    startTransition(() => {
+      fetchRandomAnime()
+        .then(setRandomAnime)
+        .catch((error) => {
+          console.error("Error fetching random anime:", error)
+          setRandomAnime(null)
+        })
+        .finally(() => setIsRandomLoading(false))
+    })
+  }, [])
 
   // Обработка активности пользователя
   const handleUserActivity = useCallback((isDirect = false) => {
@@ -499,12 +518,7 @@ export function ChibiGuide() {
         triggerAction('surprise', 1200)
       }
       lastScrollY.current = window.scrollY
-
-      const isBottom = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 60
-      if (isBottom && !atBottom) {
-        triggerAutoBubble()
-      }
-      setAtBottom(isBottom)
+      setAtBottom(window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 60)
     }
 
     const onCopy = () => {
@@ -565,14 +579,25 @@ export function ChibiGuide() {
 
     handleUserActivity(false)
 
-    if (pathname.includes("/gacha")) {
-      triggerAction('star', 2500)
-    } else if (pathname.includes("/battle")) {
-      triggerAction('spin', 1800)
-    } else if (pathname.includes("/catalog") || pathname.includes("/bookmarks")) {
-      triggerAction('peek', 1600)
-    } else if (pathname.includes("/anime/")) {
-      triggerAction('love', 1800)
+    // 🎮 Разделы с уникальными реакциями
+    const path = pathname.toLowerCase()
+
+    if (path.includes("/gacha")) {
+      triggerAction('star', 2500) // Звезда для гачи
+    } else if (path.includes("/battle")) {
+      triggerAction('spin', 1800) // Вихрь для битвы
+    } else if (path.includes("/watch") || path.includes("/manga/")) {
+      triggerAction('love', 1800) // Сердечко для контента
+    } else if (path.includes("/catalog") || path.includes("/bookmarks")) {
+      triggerAction('peek', 1600) // Антенна для каталога
+    } else if (path.includes("/watch")) {
+      triggerAction('wave', 1500) // Взмах для просмотра
+    } else if (path.includes("/market")) {
+      triggerAction('spark', 2000) // Вспышка для торговли
+    } else if (path.includes("/schedule")) {
+      triggerAction('wave', 1400) // Взмах для расписания
+    } else if (path.includes("/news") || path.includes("/faq")) {
+      triggerAction('peek', 1500) // Антенна для новостей
     }
 
     triggerAutoBubble()
@@ -593,28 +618,296 @@ export function ChibiGuide() {
       }
     }
 
+    // 🎮 Разделы с персонализированными сообщениями
     if (pathname.includes("/gacha")) {
-      return { text: "Чувствую скорый дроп легендарки! Крути с верой в удачу ✨" }
-    }
-    if (pathname.includes("/battle")) {
-      return { text: "Арена полна соперников. Покажи силу своей колоды! ⚔️" }
-    }
-    if (pathname.includes("/bookmarks")) {
-      return { text: "Твоя библиотека закладок. Не откладывай просмотр 🔖" }
-    }
-    if (pathname.includes("/catalog")) {
-      return { text: "Используй фильтры каталога для поиска скрытых шедевров 🔍" }
+      const gachaPhrases = [
+        "Чувствую скорый дроп легендарки! Крути с верой в удачу ✨",
+        "Сегодня день рожденья для твоего арсенала! 🎁",
+        "Не забудь про пакеты — там спрятаны жемчужины! 💎",
+        "Удача любит смелых! Попробуй редкий дроп! 🎲",
+        "Крутишь, крутишь... и снова нуб? Не сдавайся, следующий раз повезёт! 🎰",
+        "Легендарный предмет уже смотрит на тебя из-за угла 😏",
+        "Совет мудрого духа: не продавай редкое в панике! Подожди пару дней 💸",
+        "Твой баг-хант готов? Иногда лучший дроп — это найденная ошибка 🐛",
+        "Судьба решает! А судьба, как известно, любит тех, кто верит ✨"
+      ]
+      return { text: gachaPhrases[Math.floor(Math.random() * gachaPhrases.length)] }
     }
 
+    if (pathname.includes("/battle")) {
+      const battlePhrases = [
+        "Арена полна соперников. Покажи силу своей колоды! ⚔️",
+        "Твоя колода готова к бою? Проверь синергию! 🃏",
+        "Соперники ждут — не откладывай победу на потом! 🏆",
+        "Используй способности умно, каждый ход важен! ⚡",
+        "Победа за 1 секунду до поражения — это лучший адреналин! 🔥",
+        "Не полагайся только на удачу, в битве решает стратегия 🧠",
+        "Секретный синер-комбо готов? Тогда вперёд к трону чемпиона! 👑",
+        "Проиграл не значит провалился — просто собери новую колоду 💪"
+      ]
+      return { text: battlePhrases[Math.floor(Math.random() * battlePhrases.length)] }
+    }
+
+    if (pathname.includes("/watch")) {
+      // Определение жанра по URL (например /watch/[id]?genre=action)
+      const genreMatch = pathname.match(/genre=(\w+)/)
+      const genre = genreMatch ? genreMatch[1] : "default"
+      
+      const animePhrases: Record<string, string[]> = {
+        action: [
+          "Готов к экшену! Битвы будут жаркими! ⚔️",
+          "Адаптируйся или проиграешь в этом мире боевых искусств! 🥋",
+          "Сила — это не всё, но она помогает выживать! 💪",
+          "Твой хай-рок готов? Тогда включай и рви экран от адреналина! 🔥",
+          "Лучший финал битвы — неожиданный поворот в последнюю секунду 🌀"
+        ],
+        romance: [
+          "Сердце бьётся чаще! Романтика на полную! 💕",
+          "Любовь побеждает все преграды! ❤️",
+          "Кто твой идеальный партнёр? 🌸",
+          "Иногда лучший сюжет — это просто два человека и много диалогов 😍",
+          "Не бойся признать чувства — даже в аниме так делают! 💗"
+        ],
+        fantasy: [
+          "Магия и мистика ждут тебя! ✨",
+          "Древние силы просыпаются... 🔮",
+          "Легендарные существа уже рядом! 🐉",
+          "Где-то там дракон ждёт своего героя... это ты! 🧙‍♂️",
+          "В этом мире правила не существуют — только воля и меч ⚔️"
+        ],
+        sciFi: [
+          "Киберпанк или научная фантастика на вечер! 🚀",
+          "Технологии изменили всё, но человечность осталась! 🤖",
+          "Космос — бесконечные возможности! 🌌",
+          "ИИ уже думает о будущем... а ты уже смотрел? 🛸",
+          "Межгалактический закат начинается прямо сейчас ✨"
+        ],
+        horror: [
+          "Осторожно, здесь страшно! 👻",
+          "Не оборачивайся... 🕯️",
+          "Тьма скрывает свои тайны... 🦇",
+          "Лучший способ победить монстра — это понять его мотивацию 🧟",
+          "Выключи свет, если осмелишься досмотреть до конца 😱"
+        ],
+        comedy: [
+          "Смех — лучшее лекарство! 😂",
+          "Жизнь полна абсурда, но это весело! 🎭",
+          "Не смейся слишком громко, иначе все узнают! 🤪",
+          "Если смешно — значит, ты выбрал правильно! 🎉",
+          "Смешные тайтлы лечат лучше любого сериала 😄"
+        ],
+        sliceOfLife: [
+          "Уютная слайс-оф-лайф комедия для души! ☕",
+          "Мелочи жизни — самые ценные моменты 🌸",
+          "Просто наслаждайся моментом! 🎨",
+          "Иногда лучший сюжет — это тишина и чашка чая 🍵",
+          "Здесь нет драмы, только теплое чувство уюта 🏡"
+        ],
+        mystery: [
+          "Загадка за загадкой! Раскрой тайну! 🔍",
+          "Логика и интуиция на страже! 🕵️",
+          "Истина где-то рядом... 💡",
+          "Подсказка от духа: не верь всему, что видишь 👀",
+          "Разгадка ближе, чем ты думаешь — просто перемотай назад 🔙"
+        ],
+        psychological: [
+          "Глубокий психологический триллер ждёт тебя! 🧠",
+          "Реальность — это иллюзия? 🌀",
+          "Твоя психика готова к испытаниям? 🎭",
+          "Смотри внимательно — детали решают всё 🕶️",
+          "Некоторые вопросы лучше не задавать вслух... 🤫"
+        ],
+        isekai: [
+          "Другой мир, другая жизнь! 🌍",
+          "Второе рождение начинается здесь! ⚡",
+          "Новые возможности в новом мире! 🗡️",
+          "Пробудись, герой! Твой призыв уже звучит 🔔",
+          "Иногда лучший способ сбежать от проблем — это телепортация ✨"
+        ],
+        default: [
+          "Отличный выбор тайтла! Не забудь поставить в избранное 📺",
+          "Эпизоды уже ждут тебя — включай и наслаждайся! 🎬",
+          "Хочешь узнать спойлеры? Я не подскажу 😉",
+          "Добавь в список просмотра, чтобы не потерять нить сюжета!"
+        ]
+      }
+
+      const genrePhrases = animePhrases[genre] || animePhrases.default
+      return { text: genrePhrases[Math.floor(Math.random() * genrePhrases.length)] }
+    }
+
+    if (pathname.includes("/manga/")) {
+      const mangaPhrases = [
+        "Отличный манга! Читай главу за главой 📖",
+        "Не забудь поставить оценку после прочтения ⭐",
+        "Хочешь найти похожие тайтлы? Используй фильтры!",
+        "Манга-марафон — это круто, но не забывай отдыхать!",
+        "Панели и диалоги — лучший способ провести вечер! 📚",
+        "Не пропусти финальную главу — она всегда самая сильная! 🎬",
+        "Спойлер от духа: обложка часто врёт... но иногда и правда 😏"
+      ]
+      return { text: mangaPhrases[Math.floor(Math.random() * mangaPhrases.length)] }
+    }
+
+    if (pathname.includes("/watch")) {
+      const watchPhrases = [
+        "Твой список просмотра готов! Выбирай тайтл 📺",
+        "Не забудь поставить отметку «Смотрел» после серии ✅",
+        "Хочешь продолжить просмотр? Я помогу найти последний эпизод!",
+        "Отличный выбор! Наслаждайся атмосферой тайтла 🎭",
+        "12 серий в неделю — это не шутка, но и не приговор 😅",
+        "Не забудь поставить «Смотрел», иначе духа разбудить будет сложно 💤"
+      ]
+      return { text: watchPhrases[Math.floor(Math.random() * watchPhrases.length)] }
+    }
+
+    if (pathname.includes("/schedule")) {
+      const schedulePhrases = [
+        "Расписание обновлено! Проверь новые серии 📅",
+        "Новые тайтлы ждут своего часа — не пропусти релиз! ⏰",
+        "Лучшее время для просмотра — когда все готовы к экшену 🎬"
+      ]
+      return { text: schedulePhrases[Math.floor(Math.random() * schedulePhrases.length)] }
+    }
+
+    if (pathname.includes("/news")) {
+      const newsPhrases = [
+        "Новости аниме-мира — свежо и актуально! 📰",
+        "Свежие слухи уже на столе — разбираем вместе 🔎",
+        "Аниме-индустрия не спит, как и ты в ночной сессии 😴"
+      ]
+      return { text: newsPhrases[Math.floor(Math.random() * newsPhrases.length)] }
+    }
+
+    if (pathname.includes("/faq")) {
+      const faqPhrases = [
+        "Ответы на частые вопросы найдены! 🤔",
+        "Все твои вопросы уже были заданы раньше — вот ответы 💡",
+        "Не паникуй, помощь рядом и она бесплатна 😌"
+      ]
+      return { text: faqPhrases[Math.floor(Math.random() * faqPhrases.length)] }
+    }
+
+    // 🎉 Праздничные и сезонные сообщения (еaster eggs)
+    const now = new Date()
+    const month = now.getMonth()
+    const dayOfYear = Math.floor((now.getTime() - new Date(now.getFullYear(), 0, 0).getTime()) / 86400000)
+
+    if ((month === 1 && dayOfYear >= 20 && dayOfYear <= 23) || (month === 3 && dayOfYear <= 1)) {
+      return { text: "🎄 Новый год! Время праздничных тайтлов и горячего чая! 🍵" }
+    }
+    if (month === 4 && dayOfYear >= 30 && dayOfYear <= 32) {
+      return { text: "🌸 Ханами-сезон! Идеальное время для уютных слайс-оф-лайф аниме! 🍃" }
+    }
+    if (month === 5 && dayOfYear >= 4 && dayOfYear <= 6) {
+      return { text: "🌸 День цветущей сакуры! Красота вокруг и отличный повод для романтики 💕" }
+    }
+    if (month === 7 && dayOfYear >= 19 && dayOfYear <= 22) {
+      return { text: "⛩️ Обон! Праздник духов — время для глубоких тайтлов о традициях 🏯" }
+    }
+    if (month === 8 && dayOfYear >= 30 && dayOfYear <= 31) {
+      return { text: "🎆 Ханэсэки! Фейерверки и летние тайтлы — лучший дуэт! 🌙" }
+    }
+    if (month === 12 && dayOfYear >= 24 && dayOfYear <= 26) {
+      return { text: "🎄 Рождество! Уютные тайтлы и горячий шоколад — идеальное сочетание ☕" }
+    }
+
+    // 🥳 День рождения духа (каждый 100-й день года)
+    if (dayOfYear % 100 === 0 && dayOfYear > 0) {
+      return { text: "🎂 Сегодня мой день рождения! Спасибо, что ты со мной! Погладь меня в честь праздника! 💖" }
+    }
+
+    // 🐱 Пасхалка для разработчиков
+    if (pathname.includes("easter-eggs") || pathname.includes("/easter")) {
+      const easterPhrases = [
+        "Поздравляю с находкой пасхалки! Ты настоящий искатель сокровищ! 🏴‍☠️",
+        "Скрытое сообщение: дух гордится тем, что ты его нашёл! 🎉",
+        "Разработчик улыбнулся, увидев тебя здесь! Спасибо за любовь к деталям! 💝"
+      ]
+      return { text: easterPhrases[Math.floor(Math.random() * easterPhrases.length)] }
+    }
+
+    if (pathname.includes("/dmca") || pathname.includes("/privacy") || pathname.includes("/terms")) {
+      const legalPhrases = [
+        "Юридические документы важны, но не скучны! ⚖️",
+        "Читай мелкий шрифт — вдруг там спрятаны бонусы 📜",
+        "Правовая база крепка, как финальный бой аниме 💪"
+      ]
+      return { text: legalPhrases[Math.floor(Math.random() * legalPhrases.length)] }
+    }
+
+    if (pathname.includes("/help")) {
+      const helpPhrases = [
+        "Нужна помощь? Я здесь, чтобы поддержать! 💬",
+        "Сложный вопрос? Разберём его по полочкам 🧩",
+        "Помощь на связи — как любимый герой в критический момент 🦸"
+      ]
+      return { text: helpPhrases[Math.floor(Math.random() * helpPhrases.length)] }
+    }
+
+    if (pathname.includes("/market")) {
+      const marketPhrases = [
+        "Торговая площадка оживает! Обменяйся редкими картами 🎴",
+        "Лучший момент для сделки — когда все готовы торговать 💹",
+        "Не переплачивай за легенду в панике, подожди пару дней 🧐"
+      ]
+      return { text: marketPhrases[Math.floor(Math.random() * marketPhrases.length)] }
+    }
+
+    if (pathname.includes("/catalog") || pathname.includes("/bookmarks")) {
+      const catalogPhrases = [
+        "Используй фильтры каталога для поиска скрытых шедевров 🔍",
+        "Сортируй по рейтингу — найди лучшие тайтлы! 🏅",
+        "Не забудь добавить в избранное понравившиеся аниме 📌",
+        "Фильтр по жанрам поможет найти идеальное настроение!",
+        "Каталог безграничен, как и твои возможности для просмотра 🌟",
+        "Скрытый жемчужина может быть прямо на первой странице! 💎"
+      ]
+      return { text: catalogPhrases[Math.floor(Math.random() * catalogPhrases.length)] }
+    }
+
+    // 🕒 Временные сообщения
     if (hour >= 0 && hour < 6) {
-      return { text: "Ночной марафон тайтлов? Не забывай про воду и сон 🌙" }
+      const nightMessages = [
+        "Ночной марафон тайтлов? Не забывай про воду и сон 🌙",
+        "Поздний сеанс — это круто, но не забудь про завтрашний день ☕",
+        "Космос наблюдает за твоим ночным просмотром... он одобряет ✨"
+      ]
+      return { text: nightMessages[Math.floor(Math.random() * nightMessages.length)] }
     }
     if (hour >= 6 && hour < 12) {
-      return { text: "Доброе утро! Прекрасный день для новой серии ☀️" }
+      const morningMessages = [
+        "Доброе утро! Прекрасный день для новой серии ☀️",
+        "Свежий ум — лучший зритель. Наслаждайся утренним тайтлом 🌅",
+        "Новый день, новые эпизоды — жизнь прекрасна! 🎬"
+      ]
+      return { text: morningMessages[Math.floor(Math.random() * morningMessages.length)] }
+    }
+    if (hour >= 12 && hour < 18) {
+      const afternoonMessages = [
+        "День в разгаре! Идеальное время для аниме-паузы ☕",
+        "Обед закончился? Пора загрузиться полезным контентом 🍱",
+        "После обеда лучший отдых — это хорошая серия 😴"
+      ]
+      return { text: afternoonMessages[Math.floor(Math.random() * afternoonMessages.length)] }
+    }
+    if (hour >= 18 && hour < 23) {
+      const eveningMessages = [
+        "Вечер настал — пора включать любимый тайтл! 🌆",
+        "Закат идеален для уютного просмотра с попкорном 🍿",
+        "Лучшее время суток для эпической истории наступило! ⭐"
+      ]
+      return { text: eveningMessages[Math.floor(Math.random() * eveningMessages.length)] }
     }
 
+    // 🎉 Общие приветственные сообщения
+    const greetingMessages = [
+      "Привет! Я твой дух-проводник. Можешь погладить меня или спросить совет ✨",
+      "Добро пожаловать в мир аниме! Готов помочь с выбором тайтла 🌟",
+      "Я здесь, чтобы сделать просмотр ещё веселее — не стесняйся гладить 💖"
+    ]
     return {
-      text: "Привет! Я твой дух-проводник. Можешь погладить меня или спросить совет ✨",
+      text: greetingMessages[Math.floor(Math.random() * greetingMessages.length)],
       action: { label: "В Каталог", href: "/catalog" }
     }
   }, [pathname, atBottom, isOffline])
@@ -722,7 +1015,6 @@ export function ChibiGuide() {
               <button
                 onClick={() => {
                   setActiveTab('oracle')
-                  setOracleText(GENRE_ORACLE[Math.floor(Math.random() * GENRE_ORACLE.length)])
                   triggerAction('star', 1500)
                 }}
                 className={cn(
@@ -817,20 +1109,32 @@ export function ChibiGuide() {
             <div className="space-y-2">
               <div className="flex items-center gap-1 text-[10px] text-orange-500 font-medium">
                 <Sparkles className="w-3 h-3" />
-                <span>Оракул тайтлов</span>
+                <span>Случайное аниме</span>
               </div>
-              <p className="text-xs text-foreground/90 italic leading-relaxed">
-                "{oracleText}"
-              </p>
-              <button
-                onClick={() => {
-                  setOracleText(GENRE_ORACLE[Math.floor(Math.random() * GENRE_ORACLE.length)])
-                  triggerAction('star', 1200)
-                }}
-                className="text-[10px] text-orange-500 hover:underline pt-1 block"
-              >
-                Еще вариант →
-              </button>
+              {isRandomLoading ? (
+                <div className="flex flex-col items-center gap-2 py-4">
+                  <Loader2 className="w-5 h-5 text-orange-500 animate-spin" />
+                  <p className="text-[10px] text-muted-foreground">Ищу тайтл...</p>
+                </div>
+              ) : randomAnime ? (
+                <Link
+                  href={`/watch/${randomAnime.id}`}
+                  onClick={() => setIsBubbleOpen(false)}
+                  className="w-full"
+                >
+                  <AnimeCard anime={randomAnime} variant="default" className="w-full shadow-lg" />
+                </Link>
+              ) : (
+                <button
+                  onClick={() => {
+                    fetchRandomAnimeAction()
+                    triggerAction('star', 1200)
+                  }}
+                  className="text-[10px] text-orange-500 hover:underline pt-1 block"
+                >
+                  Показать случайное аниме →
+                </button>
+              )}
             </div>
           )}
 
