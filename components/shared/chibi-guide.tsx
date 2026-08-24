@@ -5,9 +5,10 @@ import { usePathname } from "next/navigation"
 import Link from "next/link"
 import { X, ChevronRight, Sparkles, Dices, Quote, Moon, ArrowUp, Bell, BellOff, Loader2, Search } from "lucide-react"
 import { cn } from "@/lib/utils"
-import type { Anime } from "@/lib/shikimori"
+import type { Anime, CatalogFilters } from "@/lib/shikimori"
 import { AnimeCard } from "@/components/shared/anime-card"
 import { fetchRandomAnime } from "@/app/catalog/actions/get-random-anime"
+import { loadCatalogFilters } from "@/lib/catalog-preferences"
 
 export const CHIBI_STORAGE_KEY = "chibi-guide-enabled"
 export const CHIBI_SPEECH_MODE_KEY = "chibi-speech-mode"
@@ -423,12 +424,22 @@ export function ChibiGuide() {
 
   const [, startTransition] = useTransition()
 
-  // Загрузка случайного аниме для оракула
+  // Загрузка случайного аниме для оракула (с учётом активных фильтров каталога)
   const fetchRandomAnimeAction = useCallback(async () => {
     if (isSleepingRef.current) return
     setIsRandomLoading(true)
     startTransition(() => {
-      fetchRandomAnime()
+      // Берём сохранённые активные фильтры (жанры/статус/тип/год), если есть
+      const storedFilters = loadCatalogFilters()
+      const randomFilters: CatalogFilters = {
+        page: 1,
+        limit: 100,
+        order: 'popularity',
+        search: '',
+        ...storedFilters
+      }
+
+      fetchRandomAnime(randomFilters)
         .then((anime) => {
           setRandomAnime(anime)
           if (anime) setHasShownAnime(true)

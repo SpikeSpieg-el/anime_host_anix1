@@ -8,6 +8,7 @@ import { RandomAnimeModal } from '@/components/catalog/random-anime-modal'
 import { GENRES_MAP } from '@/lib/shikimori'
 import { fetchAnimeData } from '@/app/catalog/actions'
 import { fetchRandomAnime } from '@/app/catalog/actions/get-random-anime'
+import { saveCatalogFilters } from '@/lib/catalog-preferences'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { MultiSelect } from '@/components/ui/multi-select'
@@ -109,6 +110,11 @@ export function CatalogClient({ initialFilters }: { initialFilters: CatalogFilte
   const [lastScrollY, setLastScrollY] = useState(0)
   const [randomAnime, setRandomAnime] = useState<Anime | null>(null)
   const [showRandomModal, setShowRandomModal] = useState(false)
+
+  // Синхронизируем активные фильтры в общее хранилище для «духа»
+  useEffect(() => {
+    saveCatalogFilters(filters)
+  }, [filters])
   
   const isInitialMount = useRef(true)
   const prevFiltersRef = useRef<CatalogFilters | null>(null)
