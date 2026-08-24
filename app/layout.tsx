@@ -153,6 +153,8 @@ export default function RootLayout({
                   <BookmarksProvider>
                     <EpisodeUpdatesProvider>
                       <Navbar/>
+                      {/* Персонаж-гид размещен внутри провайдеров, чтобы карточка случайного аниме могла использовать useBookmarks */}
+                      <ChibiGuide/>
                       <ErrorBoundary name="Main App">{children}</ErrorBoundary>
                     </EpisodeUpdatesProvider>
                   </BookmarksProvider>
@@ -163,9 +165,6 @@ export default function RootLayout({
           </ConsentProvider>
           <Toaster />
           <ServiceWorkerRegister />
-
-          {/* Персонаж-гид размещен корректно внутри ThemeProvider */}
-          <ChibiGuide/>
         </ThemeProvider>
       </body>
     </html>
