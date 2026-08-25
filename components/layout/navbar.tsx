@@ -232,6 +232,9 @@ export function Navbar() {
                   <Link href="/history" className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-accent transition text-sm font-medium text-muted-foreground hover:text-foreground"><History size={14} /> История</Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
+                  <Link href="/gacha" className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-accent transition text-sm font-medium text-muted-foreground hover:text-foreground"><Sparkles size={14} /> Гача</Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
                   <a href="https://t.me/Weebix" target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-accent transition text-sm font-medium text-blue-500 hover:text-blue-600"><MessageCircle size={14} /> Telegram</a>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>

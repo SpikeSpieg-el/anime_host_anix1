@@ -995,6 +995,81 @@ export const DEMO_RECOMMENDATIONS_DATABASE: DemoAnimeItem[] = [
     genresList: ["Комедия", "Повседневность", "Мистика"],
     moods: ["relaxing", "exciting"],
     artStyle: "classic"
+  },
+
+  // --- МРАЧНОЕ ФЭНТЕЗИ, ТРИЛЛЕРЫ И ХОРРОРЫ ---
+  {
+    id: "9750",
+    title: "Магика Мадока (Puella Magi Madoka Magica)",
+    poster: "https://cdn.myanimelist.net/images/anime/1136/95966.jpg",
+    rating: 8.4,
+    year: 2011,
+    episodesCurrent: 12,
+    reason: "Тёмная переработка жанра «девушки-маги». Красивая рисовка скрывает жуткую психологическую драму о цене желаний и жестокости судьбы.",
+    category: "short",
+    genresList: ["Фэнтези", "Психологическое", "Мистика"],
+    moods: ["dark", "emotional", "intellectual"],
+    artStyle: "modern"
+  },
+
+  // --- ИСЕКАИ И ЭПИЧЕСКОЕ ФЭНТЕЗИ ---
+  {
+    id: "11781",
+    title: "Король рангов (Ousama Ranking)",
+    poster: "https://cdn.myanimelist.net/images/anime/1594/123895.jpg",
+    rating: 8.1,
+    year: 2013,
+    episodesCurrent: 12,
+    reason: "Трогательное эпическое фэнтези о мальчике без силы, мечтающем стать настоящим королём. Уютный темп и невероятно душевная развязка.",
+    category: "long",
+    genresList: ["Фэнтези", "Приключения", "Комедия"],
+    moods: ["relaxing", "exciting", "emotional"],
+    artStyle: "classic"
+  },
+
+  // --- ИНТЕЛЛЕКТУАЛЬНЫЕ ИГРЫ, СПОРТ И ПОВСЕДНЕВНОСТЬ ---
+  {
+    id: "41726",
+    title: "Виви: Песня из флюорита (Vivy: Fluorite Eye's Song)",
+    poster: "https://cdn.myanimelist.net/images/anime/1908/138546.jpg",
+    rating: 8.2,
+    year: 2021,
+    episodesCurrent: 13,
+    reason: "Гениальный научно-фантастический триллер о войне искусственного интеллекта. Музыкально-визуальный шедевр с захватывающей историей о мире и ненависти.",
+    category: "short",
+    genresList: ["Научная фантастика", "Драма", "Мистика"],
+    moods: ["intellectual", "emotional", "dark"],
+    artStyle: "modern"
+  },
+
+  // --- РОМАНТИКА И ДУШЕВНЫЕ ДРАМЫ ---
+  {
+    id: "203",
+    title: "Специя и волк (Ookami to Koushinryou)",
+    poster: "https://cdn.myanimelist.net/images/anime/1943/96538.jpg",
+    rating: 8.2,
+    year: 2007,
+    episodesCurrent: 13,
+    reason: "Интеллектуальная дорожная романтика про торговца специями и оборотня-волчицу. Глубокие диалоги, стратегия и уютная атмосфера.",
+    category: "long",
+    genresList: ["Романтика", "Драма", "Психологическое"],
+    moods: ["intellectual", "romantic", "emotional"],
+    artStyle: "classic"
+  },
+
+  // --- КОМЕДИЯ / РАССЛАБЛЕНИЕ / СПОРТ ---
+  {
+    id: "918",
+    title: "Гинтама (Gintama)",
+    poster: "https://cdn.myanimelist.net/images/anime/10/74234.jpg",
+    rating: 8.6,
+    year: 2006,
+    episodesCurrent: 201,
+    reason: "Безумная комедия с внезапными глубокими драматическими и экшен-арками. Идеальный выбор для тех, кто ценит юмор, дружбу и неожиданные повороты.",
+    category: "long",
+    genresList: ["Комедия", "Экшен", "Научная фантастика"],
+    moods: ["exciting", "emotional", "relaxing"],
+    artStyle: "modern"
   }
 ]
 

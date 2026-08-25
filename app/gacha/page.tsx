@@ -13,6 +13,7 @@ import { GachaLoading } from "@/components/gacha/gacha-loading"
 import { GachaAnimation } from "@/components/gacha/gacha-animation"
 import { CollectionCardSkeleton } from "@/components/gacha/collection-skeleton"
 import { PackCardSkeleton } from "@/components/gacha/pack-skeleton"
+import { BannerSkeleton } from "@/components/gacha/banner-skeleton"
 import { GachaErrorPopup } from "@/components/gacha/gacha-error-popup"
 import { DismantleConfirmPopup } from "@/components/gacha/dismantle-confirm-popup"
 import { DismantleSuccessPopup } from "@/components/gacha/dismantle-success-popup"
@@ -1475,47 +1476,61 @@ export default function GachaPage() {
         </div>
 
         {/* Events / Banners Section */}
-        {banners.length > 0 && (
+        {bannersLoading && banners.length === 0 ? (
           <section className="mb-12 sm:mb-16">
             <button
-              onClick={() => setEventsCollapsed(!eventsCollapsed)}
-              className="flex items-center gap-3 mb-6 sm:mb-8 w-full group"
+              className="flex items-center gap-3 mb-6 sm:mb-8 w-full group opacity-50 cursor-not-allowed"
+              disabled
             >
-              <Calendar className="w-6 h-6 sm:w-7 sm:h-7 text-pink-400 flex-shrink-0" />
-              <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight text-left">Ивенты</h2>
-              <span className="px-3 py-1 rounded-full bg-pink-500/20 border border-pink-500/30 text-pink-300 text-xs font-bold uppercase tracking-wider flex-shrink-0">Активно</span>
+              <div className="w-6 h-6 sm:w-7 sm:h-7 bg-slate-700 rounded-lg animate-pulse flex-shrink-0" />
+              <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">Ивенты</h2>
               <div className="flex-1" />
-              <div className="flex items-center gap-2 flex-shrink-0">
-                <span className="text-xs text-white/40 font-bold hidden sm:block">{eventsCollapsed ? 'Показать' : 'Скрыть'}</span>
-                <div className={`w-8 h-8 flex items-center justify-center rounded-lg bg-slate-800/80 border border-white/10 text-white/60 group-hover:text-white group-hover:bg-slate-700 transition-all ${eventsCollapsed ? '' : 'rotate-180'}`}>
-                  <ChevronDown className="w-5 h-5" />
-                </div>
-              </div>
             </button>
-            {!eventsCollapsed && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5 lg:gap-6">
-                {banners.map(banner => {
-                  const pullInfo = bannerPulls[banner.id]
-                  const remainingPity = pullInfo && banner.guaranteedCardPity > 0 && !pullInfo.guaranteedClaimed
-                    ? Math.max(0, banner.guaranteedCardPity - pullInfo.pullCount)
-                    : undefined
-                  return (
-                    <BannerCard
-                      key={banner.id}
-                      banner={banner}
-                      onSelect={handleBannerSelect}
-                      userCoins={userCoins}
-                      onInfoOpenChange={setBannerInfoOpen}
-                      remainingPity={remainingPity}
-                      pityClaimed={pullInfo?.guaranteedClaimed}
-                      sessionToken={session?.access_token}
-                      collectedGGs={pullInfo?.collectedGuaranteedCards}
-                    />
-                  )
-                })}
-              </div>
-            )}
+            <BannerSkeleton count={6} />
           </section>
+        ) : (
+          banners.length > 0 && (
+            <section className="mb-12 sm:mb-16">
+              <button
+                onClick={() => setEventsCollapsed(!eventsCollapsed)}
+                className="flex items-center gap-3 mb-6 sm:mb-8 w-full group"
+              >
+                <Calendar className="w-6 h-6 sm:w-7 sm:h-7 text-pink-400 flex-shrink-0" />
+                <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight text-left">Ивенты</h2>
+                <span className="px-3 py-1 rounded-full bg-pink-500/20 border border-pink-500/30 text-pink-300 text-xs font-bold uppercase tracking-wider flex-shrink-0">Активно</span>
+                <div className="flex-1" />
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <span className="text-xs text-white/40 font-bold hidden sm:block">{eventsCollapsed ? 'Показать' : 'Скрыть'}</span>
+                  <div className={`w-8 h-8 flex items-center justify-center rounded-lg bg-slate-800/80 border border-white/10 text-white/60 group-hover:text-white group-hover:bg-slate-700 transition-all ${eventsCollapsed ? '' : 'rotate-180'}`}>
+                    <ChevronDown className="w-5 h-5" />
+                  </div>
+                </div>
+              </button>
+              {!eventsCollapsed && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5 lg:gap-6">
+                  {banners.map(banner => {
+                    const pullInfo = bannerPulls[banner.id]
+                    const remainingPity = pullInfo && banner.guaranteedCardPity > 0 && !pullInfo.guaranteedClaimed
+                      ? Math.max(0, banner.guaranteedCardPity - pullInfo.pullCount)
+                      : undefined
+                    return (
+                      <BannerCard
+                        key={banner.id}
+                        banner={banner}
+                        onSelect={handleBannerSelect}
+                        userCoins={userCoins}
+                        onInfoOpenChange={setBannerInfoOpen}
+                        remainingPity={remainingPity}
+                        pityClaimed={pullInfo?.guaranteedClaimed}
+                        sessionToken={session?.access_token}
+                        collectedGGs={pullInfo?.collectedGuaranteedCards}
+                      />
+                    )
+                  })}
+                </div>
+              )}
+            </section>
+          )
         )}
 
         {/* Collection Section */}

@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState } from "react"
+import React, { useState, useEffect } from "react"
 import { Coins, Star, Clock, Flame, Info } from "lucide-react"
 import { Rarity, rarityConfig } from "@/types/gacha"
 import { getProxiedSrc } from "@/lib/image-loader"
@@ -63,6 +63,18 @@ function formatCountdown(endDate: string | null): string {
 export const BannerCard = ({ banner, onSelect, userCoins, onInfoOpenChange, remainingPity, pityClaimed, sessionToken, collectedGGs }: BannerCardProps) => {
   const [showInfo, setShowInfo] = useState(false)
   const [imgError, setImgError] = useState(false)
+  const [bgLoading, setBgLoading] = useState(true)
+  const [promoLoading, setPromoLoading] = useState(true)
+
+  // Fallback: hide spinners after 3 seconds to prevent infinite loading
+  useEffect(() => {
+    const bgTimer = setTimeout(() => setBgLoading(false), 3000)
+    const promoTimer = setTimeout(() => setPromoLoading(false), 3000)
+    return () => {
+      clearTimeout(bgTimer)
+      clearTimeout(promoTimer)
+    }
+  }, [])
   const handleSetShowInfo = (v: boolean) => {
     setShowInfo(v)
     onInfoOpenChange?.(v)
@@ -104,8 +116,15 @@ export const BannerCard = ({ banner, onSelect, userCoins, onInfoOpenChange, rema
             src={getProxiedSrc(banner.imageUrl)}
             alt=""
             className="w-full h-full object-cover"
-            onError={() => {}}
+            onError={() => setBgLoading(false)}
+            onLoad={() => setBgLoading(false)}
           />
+          {bgLoading && (
+            <div
+              style={{ backgroundSize: "200% 100%", animation: "shimmer 1.5s infinite linear" }}
+              className="absolute inset-0 w-full h-full bg-gradient-to-br from-slate-800 via-slate-900 to-pink-900 opacity-70"
+            />
+          )}
           <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/60 to-black/90" />
         </div>
       )}
@@ -121,7 +140,14 @@ export const BannerCard = ({ banner, onSelect, userCoins, onInfoOpenChange, rema
             alt={banner.name}
             className="w-full h-full object-contain"
             onError={() => setImgError(true)}
+            onLoad={() => setPromoLoading(false)}
           />
+          {promoLoading && (
+            <div
+              style={{ backgroundSize: "200% 100%", animation: "shimmer 1.5s infinite linear" }}
+              className="absolute inset-0 w-full h-full bg-gradient-to-br from-slate-800 via-slate-900 to-pink-900 opacity-70"
+            />
+          )}
         </div>
       )}
 
