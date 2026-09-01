@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import {
@@ -53,10 +53,33 @@ function formatDuration(ms: number): string {
   return parts.join(" ") || "0м"
 }
 
+/** Строка детальной информации о сессии */
+function DetailRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <span className="text-muted-foreground dark:text-zinc-500">{label}</span>
+      <span className="font-medium text-foreground dark:text-zinc-200">{value}</span>
+    </div>
+  )
+}
+
 /** Форматирует число с разделителями */
 function formatNumber(num: number | undefined | null): string {
   if (!num || num <= 0) return "0"
   return Math.round(num).toLocaleString("ru-RU")
+}
+
+/** Компактное время HH:MM:SS для заголовка строки журнала сессий */
+function formatClock(ms: number): string {
+  const totalSeconds = Math.floor(ms / 1000)
+  const h = Math.floor(totalSeconds / 3600)
+  const m = Math.floor((totalSeconds % 3600) / 60)
+  const s = totalSeconds % 60
+  return `${pad(h)}:${pad(m)}:${pad(s)}`
+}
+
+function pad(n: number): string {
+  return String(n).padStart(2, "0")
 }
 
 /** Дата и время сессии */
@@ -183,6 +206,12 @@ export default function AccountStatsPage() {
   const [activeTab, setActiveTab] = useState<"overview" | "time" | "history" | "progress" | "activity">("overview")
   const [showAuthModal, setShowAuthModal] = useState(false)
   const [isRefreshing, setIsRefreshing] = useState(false)
+  const [expandedSessions, setExpandedSessions] = useState<Set<number>>(new Set())
+
+  // Количество отображаемых элементов истории (стартуем с 6 или 12, по клику добавляем порцию)
+  const HISTORY_PAGE_SIZE = 6
+  const [visibleHistoryCount, setVisibleHistoryCount] = useState(HISTORY_PAGE_SIZE)
+  const [isLoadingMoreHistory, setIsLoadingMoreHistory] = useState(false)
 
   useEffect(() => {
     setMounted(true)
@@ -196,6 +225,32 @@ export default function AccountStatsPage() {
       setTimeout(() => setIsRefreshing(false), 500)
     }
   }
+
+  // Сортировка истории: гарантируем, что последние просмотренные идут первыми
+  const sortedHistoryItems = useMemo(() => {
+    if (!historyItems || historyItems.length === 0) return []
+    return [...historyItems].sort((a: any, b: any) => {
+      const timeA = new Date(a.updatedAt || a.watchedAt || a.timestamp || a.createdAt || 0).getTime()
+      const timeB = new Date(b.updatedAt || b.watchedAt || b.timestamp || b.createdAt || 0).getTime()
+      return timeB - timeA
+    })
+  }, [historyItems])
+
+  const hasMoreHistory = sortedHistoryItems.length > visibleHistoryCount
+
+  // Накапливаемый список: от 0 до visibleHistoryCount (список раскрывается вниз)
+  const visibleHistoryItems = useMemo(() => {
+    return sortedHistoryItems.slice(0, visibleHistoryCount)
+  }, [sortedHistoryItems, visibleHistoryCount])
+
+  const loadMoreHistory = useCallback(() => {
+    if (isLoadingMoreHistory || !hasMoreHistory) return
+    setIsLoadingMoreHistory(true)
+    setTimeout(() => {
+      setVisibleHistoryCount((prev) => prev + HISTORY_PAGE_SIZE)
+      setIsLoadingMoreHistory(false)
+    }, 200)
+  }, [isLoadingMoreHistory, hasMoreHistory])
 
   // Безопасное получение списка сессий
   const sessions = useMemo(() => {
@@ -212,7 +267,14 @@ export default function AccountStatsPage() {
     return []
   }, [])
 
-  // Агрегация прогресса по тайтлам из истории (исправлен баг с переменной total)
+  // По умолчанию раскрываем сессии после загрузки
+  useEffect(() => {
+    if (!sessions || sessions.length === 0) return
+    const next = new Set(sessions.map((_, idx) => idx))
+    setExpandedSessions(next)
+  }, [sessions])
+
+  // Агрегация прогресса по тайтлам из истории
   const progressByAnime = useMemo(() => {
     type ProgressItem = { 
       id: string
@@ -224,7 +286,7 @@ export default function AccountStatsPage() {
     }
     const map = new Map<string, ProgressItem>()
 
-    for (const item of historyItems || []) {
+    for (const item of sortedHistoryItems || []) {
       if (!item?.id) continue
       const total = Number(item.episodesTotal) || 0
       const ep = Number(item.episode) || 0
@@ -253,7 +315,7 @@ export default function AccountStatsPage() {
         return { ...v, progress }
       })
       .sort((a, b) => b.progress - a.progress || b.count - a.count)
-  }, [historyItems])
+  }, [sortedHistoryItems])
 
   // Разбивка по ключевым событиям
   const eventBreakdown = useMemo(() => {
@@ -418,7 +480,6 @@ export default function AccountStatsPage() {
         {/* ========================================================================= */}
         {activeTab === "overview" && (
           <div className="space-y-6 sm:space-y-8 animate-in fade-in duration-300">
-            {/* Сетка основных метрик */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
               <StatCard icon={Activity} label="Всего сессий" value={formatNumber(stats.totalSessions)} sub="сессий" badge="Общее" />
               <StatCard icon={Clock} label="Время на сайте" value={formatDuration(totalMs)} sub="всего" badge="Время" />
@@ -430,7 +491,6 @@ export default function AccountStatsPage() {
               <StatCard icon={BarChart3} label="Средняя сессия" value={formatDuration(avgSessionMs)} sub="в среднем" />
             </div>
 
-            {/* Быстрый срез активности */}
             <div className="bg-card/40 dark:bg-zinc-900/30 backdrop-blur-xl border border-border/50 dark:border-zinc-800/80 rounded-3xl p-4 sm:p-6">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-base sm:text-lg font-bold text-foreground dark:text-white flex items-center gap-2">
@@ -465,7 +525,6 @@ export default function AccountStatsPage() {
               <StatCard icon={History} label="Самая долгая сессия" value={formatDuration(longestSessionMs)} sub="рекорд" />
             </div>
 
-            {/* Список сессий */}
             <div className="bg-card/40 dark:bg-zinc-900/30 backdrop-blur-xl border border-border/50 dark:border-zinc-800/80 rounded-3xl p-4 sm:p-6">
               <h2 className="text-base sm:text-lg font-bold text-foreground dark:text-white mb-4 flex items-center gap-2">
                 <Clock className="w-5 h-5 text-orange-500" />
@@ -480,21 +539,41 @@ export default function AccountStatsPage() {
               ) : (
                 <div className="space-y-2 max-h-[460px] overflow-y-auto pr-1 custom-scrollbar">
                   {sessions.map((s, i) => {
+                    if ((s.end - s.start) <= 0) return null
                     const duration = s.end - s.start
+                    const isOpen = expandedSessions.has(i)
                     return (
-                      <div 
-                        key={i} 
-                        className="flex items-center justify-between p-3 sm:p-3.5 rounded-xl bg-secondary/30 border border-border/40 dark:bg-zinc-900/40 dark:border-zinc-800/60 hover:border-orange-500/30 transition-colors"
-                      >
-                        <div className="flex items-center gap-2.5">
-                          <span className="w-2 h-2 rounded-full bg-orange-500" />
-                          <span className="text-xs sm:text-sm text-foreground/80 dark:text-zinc-300 font-medium">
-                            {formatSessionTime(s.start)}
+                      <div key={i} className="rounded-xl bg-secondary/30 border border-border/40 dark:bg-zinc-900/40 dark:border-zinc-800/60 overflow-hidden">
+                        <button
+                          onClick={() => {
+                            const next = new Set(expandedSessions)
+                            if (next.has(i)) next.delete(i)
+                            else next.add(i)
+                            setExpandedSessions(next)
+                          }}
+                          className="flex items-center justify-between w-full p-3 sm:p-3.5 rounded-xl transition-colors hover:border-orange-500/30"
+                        >
+                          <div className="flex items-center gap-2.5">
+                            <ChevronRight
+                              size={16}
+                              className={`text-muted-foreground dark:text-zinc-400 shrink-0 transition-transform duration-200 ${isOpen ? "rotate-90" : ""}`}
+                            />
+                            <span className="w-2 h-2 rounded-full bg-orange-500" />
+                            <span className="text-xs sm:text-sm text-foreground/80 dark:text-zinc-300 font-medium">
+                              {formatSessionTime(s.start)}
+                            </span>
+                          </div>
+                          <span className="text-xs sm:text-sm font-bold text-orange-500 dark:text-orange-400">
+                            {formatDuration(duration)}
                           </span>
-                        </div>
-                        <span className="text-xs sm:text-sm font-bold text-orange-500 dark:text-orange-400">
-                          {formatDuration(duration)}
-                        </span>
+                        </button>
+                        {isOpen && (
+                          <div className="px-3.5 pb-3 pt-1.5 pl-8 text-xs sm:text-sm space-y-1.5 border-t border-border/40 dark:border-zinc-800/60">
+                            <DetailRow label="Начало" value={formatSessionTime(s.start)} />
+                            <DetailRow label="Конец" value={formatSessionTime(s.end)} />
+                            <DetailRow label="Длительность" value={formatDuration(duration)} />
+                          </div>
+                        )}
                       </div>
                     )
                   })}
@@ -513,11 +592,11 @@ export default function AccountStatsPage() {
               <div className="flex items-center justify-between mb-5">
                 <h2 className="text-base sm:text-lg font-bold text-foreground dark:text-white flex items-center gap-2">
                   <History className="w-5 h-5 text-orange-500" />
-                  История просмотров ({historyItems?.length || 0})
+                  История просмотров ({sortedHistoryItems.length})
                 </h2>
               </div>
 
-              {!historyItems || historyItems.length === 0 ? (
+              {sortedHistoryItems.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-16 text-center text-muted-foreground">
                   <Film className="w-12 h-12 mb-3 opacity-30 text-orange-500" />
                   <p className="text-sm font-medium text-foreground dark:text-zinc-300">История пуста</p>
@@ -532,60 +611,84 @@ export default function AccountStatsPage() {
                   </Link>
                 </div>
               ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-4">
-                  {historyItems.map((item) => {
-                    const total = item?.episodesTotal && item.episodesTotal > 0 ? item.episodesTotal : null
-                    const progress = item?.episode && total ? Math.min(item.episode / total, 1) : null
+                <>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-4">
+                    {visibleHistoryItems.map((item) => {
+                      const total = item?.episodesTotal && item.episodesTotal > 0 ? item.episodesTotal : null
+                      const progress = item?.episode && total ? Math.min(item.episode / total, 1) : null
 
-                    return (
-                      <div
-                        key={item.id}
-                        className="group relative bg-secondary/30 dark:bg-zinc-900/40 border border-border/50 dark:border-zinc-800/80 rounded-2xl overflow-hidden transition-all hover:border-orange-500/50 hover:shadow-lg flex flex-col"
-                      >
-                        {/* Постер с правильным relative контейнером */}
-                        <Link href={`/watch/${item.id}`} className="relative block aspect-[2/3] w-full overflow-hidden bg-zinc-900">
-                          <Image
-                            src={normalizePoster(item?.poster)}
-                            alt={item.title || "Anime"}
-                            fill
-                            sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
-                            className="object-cover transition-transform duration-300 group-hover:scale-105"
-                          />
-                          {item.episode && (
-                            <div className="absolute top-2 right-2 px-2 py-0.5 rounded-lg bg-black/80 backdrop-blur-md text-[10px] font-bold text-white border border-white/10">
-                              {item.episode} {total ? `/ ${total} эп.` : "эп."}
+                      return (
+                        <div
+                          key={item.id}
+                          className="group relative bg-secondary/30 dark:bg-zinc-900/40 border border-border/50 dark:border-zinc-800/80 rounded-2xl overflow-hidden transition-all hover:border-orange-500/50 hover:shadow-lg flex flex-col"
+                        >
+                          <Link href={`/watch/${item.id}`} className="relative block aspect-[2/3] w-full overflow-hidden bg-zinc-900">
+                            <Image
+                              src={normalizePoster(item?.poster)}
+                              alt={item.title || "Anime"}
+                              fill
+                              sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
+                              className="object-cover transition-transform duration-300 group-hover:scale-105"
+                            />
+                            {item.episode && (
+                              <div className="absolute top-2 right-2 px-2 py-0.5 rounded-lg bg-black/80 backdrop-blur-md text-[10px] font-bold text-white border border-white/10">
+                                {item.episode} {total ? `/ ${total} эп.` : "эп."}
+                              </div>
+                            )}
+                          </Link>
+
+                          <div className="p-2.5 sm:p-3 flex-1 flex flex-col justify-between">
+                            <div>
+                              <Link
+                                href={`/watch/${item.id}`}
+                                className="block font-bold text-xs sm:text-sm text-foreground hover:text-orange-500 transition-colors line-clamp-1 dark:text-zinc-200"
+                                title={item.title}
+                              >
+                                {item.title}
+                              </Link>
+                              <p className="text-[10px] sm:text-[11px] text-muted-foreground dark:text-zinc-500 mt-0.5">
+                                {item.episode ? `Серия ${item.episode}` : "Смотреть"}
+                              </p>
                             </div>
-                          )}
-                        </Link>
 
-                        {/* Инфо */}
-                        <div className="p-2.5 sm:p-3 flex-1 flex flex-col justify-between">
-                          <div>
-                            <Link
-                              href={`/watch/${item.id}`}
-                              className="block font-bold text-xs sm:text-sm text-foreground hover:text-orange-500 transition-colors line-clamp-1 dark:text-zinc-200"
-                              title={item.title}
-                            >
-                              {item.title}
-                            </Link>
-                            <p className="text-[10px] sm:text-[11px] text-muted-foreground dark:text-zinc-500 mt-0.5">
-                              {item.episode ? `Серия ${item.episode}` : "Смотреть"}
-                            </p>
+                            {progress !== null && (
+                              <div className="w-full h-1.5 bg-secondary dark:bg-zinc-800 rounded-full overflow-hidden mt-2.5">
+                                <div
+                                  className="h-full bg-gradient-to-r from-orange-500 to-amber-500 rounded-full transition-all duration-300"
+                                  style={{ width: `${(progress * 100).toFixed(0)}%` }}
+                                />
+                              </div>
+                            )}
                           </div>
-
-                          {progress !== null && (
-                            <div className="w-full h-1.5 bg-secondary dark:bg-zinc-800 rounded-full overflow-hidden mt-2.5">
-                              <div
-                                className="h-full bg-gradient-to-r from-orange-500 to-amber-500 rounded-full transition-all duration-300"
-                                style={{ width: `${(progress * 100).toFixed(0)}%` }}
-                              />
-                            </div>
-                          )}
                         </div>
-                      </div>
-                    )
-                  })}
-                </div>
+                      )
+                    })}
+                  </div>
+
+                  {/* Кнопка «Показать ещё» */}
+                  <div className="flex justify-center pt-8 pb-2">
+                    {hasMoreHistory ? (
+                      <button
+                        onClick={loadMoreHistory}
+                        disabled={isLoadingMoreHistory}
+                        className="inline-flex items-center gap-2 px-6 py-2.5 bg-secondary/70 hover:bg-secondary border border-border/60 text-foreground font-semibold rounded-xl transition-all dark:bg-zinc-900/60 dark:hover:bg-zinc-800 dark:border-zinc-800 text-xs sm:text-sm active:scale-95 disabled:opacity-50 hover:border-orange-500/40"
+                      >
+                        {isLoadingMoreHistory ? (
+                          <>
+                            <RefreshCw className="w-4 h-4 text-orange-500 animate-spin" />
+                            <span>Загрузка...</span>
+                          </>
+                        ) : (
+                          <span>Показать ещё ({sortedHistoryItems.length - visibleHistoryCount})</span>
+                        )}
+                      </button>
+                    ) : (
+                      <p className="text-xs font-medium text-muted-foreground">
+                        Вы просмотрели всю историю ({sortedHistoryItems.length})
+                      </p>
+                    )}
+                  </div>
+                </>
               )}
             </div>
           </div>
@@ -617,7 +720,6 @@ export default function AccountStatsPage() {
                         key={anime.id}
                         className="p-3 sm:p-4 rounded-2xl bg-secondary/30 dark:bg-zinc-900/40 border border-border/40 dark:border-zinc-800/60 hover:border-orange-500/30 transition-all flex items-center gap-3 sm:gap-4"
                       >
-                        {/* Миниатюра */}
                         <div className="relative w-12 h-16 sm:w-14 sm:h-20 rounded-xl overflow-hidden bg-zinc-800 shrink-0">
                           <Image
                             src={normalizePoster(anime.poster)}
@@ -627,7 +729,6 @@ export default function AccountStatsPage() {
                           />
                         </div>
 
-                        {/* Инфо и полоса прогресса */}
                         <div className="flex-1 min-w-0 space-y-2">
                           <div className="flex items-center justify-between gap-2">
                             <Link
@@ -698,7 +799,6 @@ export default function AccountStatsPage() {
                 })}
               </div>
 
-              {/* Графическая разбивка */}
               <div className="space-y-3">
                 {eventBreakdown.map((item) => (
                   <StatBar

@@ -8,6 +8,14 @@ export type ActivityEvent = {
 
 const SESSION_STORAGE_KEY = "account-stats-session"
 
+// Минимальная длительность сессии (мс), ниже которой запись отбрасывается —
+// убирает мусорные микро-сессии (1–4с) от частых scroll/visibility событий.
+const MIN_SESSION_MS = 5000
+// Троттлинг heartbeat: без реального изменения не перезаписываем localStorage чаще раза в секунду.
+const HEARTBEAT_THROTTLE_MS = 1200
+
+let lastBeatTime = 0
+
 type SessionRecord = { start: number; end: number }
 
 type SessionState = {
@@ -28,19 +36,31 @@ function createActivityRecorder(): ActivityRecorder {
     try {
       const current = readSession()
       const now = Date.now()
-      // If a previous session is still open, flush it.
+      let flushedThisBeat = false
+
+      // Если открытая сессия уже достаточно длинная — завершаем её как готовую запись.
       if (current.startedAt && !current.flushed) {
-        current.sessions.push({ start: current.startedAt, end: now })
-        current.flushed = true
+        const durationMs = computeDuration(current, now)
+        if (durationMs >= MIN_SESSION_MS) {
+          current.sessions.push({ start: current.startedAt, end: now })
+          current.flushed = true
+          flushedThisBeat = true
+        }
+        // Иначе микро-сессию отбрасываем и оставляем сессию открытой — она продолжит расти.
       }
-      // On visible -> keep/refresh the "session started" timestamp so idle gaps don't kill time-on-site.
+
+      // На видимом -> обновляем "начало" текущей сессии, чтобы паузы не съедали время на сайте.
       const wasVisible = document.visibilityState === "visible"
       if (wasVisible) {
         current.startedAt = now
       } else {
-        // page hidden: mark session as open-but-paused; we recompute duration on next visible.
+        // page hidden: помечаем сессию как открытую-но-приостановленную; пересчитаем длительность при следующем visible.
         current.pausedAt = now
       }
+
+      // Троттлинг heartbeat: без реального изменения не перезаписываем localStorage чаще раза в секунду.
+      if (!flushedThisBeat && now - lastBeatTime < HEARTBEAT_THROTTLE_MS) return
+      lastBeatTime = now
       writeSession(current)
     } catch (e) {
       console.error("[account-stats] beat error:", e)
@@ -104,22 +124,25 @@ function createActivityRecorder(): ActivityRecorder {
       return 0
     },
 
-    /** Total accumulated time-on-site across all flushed sessions. */
+    /** Total accumulated time-on-site across all flushed sessions (sessions shorter than MIN_SESSION_MS are skipped). */
     getTotalTimeMs: (): number => {
       const current = readSession()
       let total = 0
-      for (const s of current.sessions) total += s.end - s.start
+      for (const s of current.sessions) {
+        if (s.end - s.start >= MIN_SESSION_MS) total += s.end - s.start
+      }
+      // Ongoing-but-paused session: count it only if it already meets the minimum threshold.
       if (!current.flushed && current.startedAt) {
-        const now = Date.now()
-        total += Math.max(0, (document.visibilityState === "visible" ? now : current.pausedAt ?? now) - current.startedAt)
+        const durationMs = computeDuration(current)
+        if (durationMs >= MIN_SESSION_MS) total += durationMs
       }
       return total
     },
 
-    /** Read the last N session durations from localStorage. */
+    /** Read the last N session durations from localStorage (sessions shorter than MIN_SESSION_MS are skipped). */
     getSessionDurations: (): SessionRecord[] => {
       const current = readSession()
-      return current.sessions.slice(-30)
+      return current.sessions.filter((s) => s.end - s.start >= MIN_SESSION_MS).slice(-30)
     },
 
     // --- internal helpers ---
@@ -163,6 +186,14 @@ function writeSession(state: SessionState): void {
   if (typeof window !== "undefined") {
     try { window.localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(state)) } catch {}
   }
+}
+
+/** Длительность текущей (открытой) сессии в мс. Оngoing -> до now; paused -> до последнего пауза. */
+function computeDuration(current: SessionState, now?: number): number {
+  const ref = now ?? Date.now()
+  if (!current.startedAt) return 0
+  const endRef = document.visibilityState === "visible" ? ref : current.pausedAt ?? ref
+  return Math.max(0, endRef - current.startedAt)
 }
 
 async function supabaseRecordActivityEvent(userId: string, eventType: string, category: string | null | undefined, payload: Record<string, any>): Promise<void> {
