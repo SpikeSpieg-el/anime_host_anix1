@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState, memo } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import {
@@ -31,6 +31,7 @@ import { activityRecorder } from "@/components/providers/account-stats-recorder"
 import { useHistory } from "@/components/providers/history-provider"
 import { useAuth } from "@/components/auth/auth-provider"
 import { AuthModal } from "@/components/auth/auth-modal"
+import { ErrorBoundary } from "@/components/ui/error-boundary"
 import { cn } from "@/lib/utils"
 
 // ---------- Вспомогательные функции форматирования ----------
@@ -127,7 +128,7 @@ interface StatCardProps {
   badge?: string
 }
 
-function StatCard({ icon: Icon, label, value, sub, accentColor = "text-orange-500", badge }: StatCardProps) {
+const StatCard = memo(({ icon: Icon, label, value, sub, accentColor = "text-orange-500", badge }: StatCardProps) => {
   return (
     <div className="group relative bg-background/70 dark:bg-zinc-900/60 backdrop-blur-xl border border-border/60 dark:border-zinc-800/80 rounded-2xl sm:rounded-3xl p-4 sm:p-5 transition-all duration-300 hover:border-orange-500/40 hover:shadow-lg hover:shadow-orange-500/5">
       <div className="flex items-center justify-between mb-3.5">
@@ -155,7 +156,9 @@ function StatCard({ icon: Icon, label, value, sub, accentColor = "text-orange-50
       </div>
     </div>
   )
-}
+})
+
+StatCard.displayName = "StatCard"
 
 // ---------- Полоса прогресса ----------
 
@@ -343,6 +346,7 @@ export default function AccountStatsPage() {
             <Link
               href="/"
               className="inline-flex items-center gap-2 px-3.5 py-2 bg-secondary/60 hover:bg-secondary border border-border/60 text-muted-foreground hover:text-foreground font-medium rounded-xl transition-all dark:bg-zinc-900/60 dark:hover:bg-zinc-800 text-xs sm:text-sm"
+              aria-label="Вернуться на главную страницу"
             >
               <ArrowLeft className="w-4 h-4" />
               На главную
@@ -351,7 +355,7 @@ export default function AccountStatsPage() {
 
           <div className="flex flex-col items-center justify-center p-8 sm:p-14 text-center bg-card/60 dark:bg-zinc-900/40 backdrop-blur-2xl rounded-3xl border border-border/60 dark:border-zinc-800 shadow-2xl">
             <div className="p-4 bg-orange-500/10 border border-orange-500/20 rounded-3xl mb-6 ring-8 ring-orange-500/5">
-              <BarChart3 className="w-10 h-10 sm:w-12 sm:h-12 text-orange-500" />
+              <BarChart3 className="w-10 h-10 sm:w-12 sm:h-12 text-orange-500" aria-hidden="true" />
             </div>
             <h1 className="text-2xl sm:text-3xl font-extrabold text-foreground dark:text-white tracking-tight">
               Статистика аккаунта
@@ -362,8 +366,9 @@ export default function AccountStatsPage() {
             <button
               onClick={() => setShowAuthModal(true)}
               className="mt-7 inline-flex items-center gap-2.5 px-6 py-3 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-bold rounded-2xl transition-all shadow-lg shadow-orange-500/25 hover:scale-[1.02]"
+              aria-label="Открыть окно входа в аккаунт"
             >
-              <LogIn className="w-4 h-4" />
+              <LogIn className="w-4 h-4" aria-hidden="true" />
               Войти в аккаунт
             </button>
           </div>
@@ -414,8 +419,9 @@ export default function AccountStatsPage() {
           <Link
             href="/"
             className="inline-flex items-center gap-2 px-3.5 py-2 bg-secondary/50 hover:bg-secondary border border-border/50 text-muted-foreground hover:text-foreground font-medium rounded-xl transition-all dark:bg-zinc-900/50 dark:hover:bg-zinc-800 dark:border-zinc-800 text-xs sm:text-sm"
+            aria-label="Вернуться на главную страницу"
           >
-            <ArrowLeft className="w-4 h-4" />
+            <ArrowLeft className="w-4 h-4" aria-hidden="true" />
             На главную
           </Link>
         </div>
@@ -424,7 +430,7 @@ export default function AccountStatsPage() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 sm:mb-8">
           <div className="flex items-center gap-3.5">
             <div className="p-3 bg-gradient-to-br from-orange-500/20 to-amber-500/10 border border-orange-500/20 rounded-2xl">
-              <BarChart3 className="w-6 h-6 sm:w-7 sm:h-7 text-orange-500" />
+              <BarChart3 className="w-6 h-6 sm:w-7 sm:h-7 text-orange-500" aria-hidden="true" />
             </div>
             <div>
               <h1 className="text-xl sm:text-2xl md:text-3xl font-black text-foreground dark:text-white tracking-tight">
@@ -440,14 +446,15 @@ export default function AccountStatsPage() {
             onClick={handleManualRefresh}
             disabled={isRefreshing}
             className="self-start sm:self-auto inline-flex items-center gap-2 px-4 py-2.5 bg-secondary/50 hover:bg-secondary border border-border/60 text-muted-foreground hover:text-foreground font-semibold rounded-xl transition-all dark:bg-zinc-900/50 dark:hover:bg-zinc-800 dark:border-zinc-800 text-xs sm:text-sm active:scale-95 disabled:opacity-50"
+            aria-label="Обновить статистику"
           >
-            <RefreshCw className={cn("w-4 h-4 text-orange-500 transition-transform duration-500", isRefreshing && "animate-spin")} />
+            <RefreshCw className={cn("w-4 h-4 text-orange-500 transition-transform duration-500", isRefreshing && "animate-spin")} aria-hidden="true" />
             Обновить
           </button>
         </div>
 
         {/* Переключатель вкладок */}
-        <div className="flex items-center gap-1.5 p-1.5 bg-secondary/40 dark:bg-zinc-900/60 backdrop-blur-xl border border-border/50 dark:border-zinc-800/80 rounded-2xl mb-6 sm:mb-8 overflow-x-auto no-scrollbar">
+        <div className="flex items-center gap-1.5 p-1.5 bg-secondary/40 dark:bg-zinc-900/60 backdrop-blur-xl border border-border/50 dark:border-zinc-800/80 rounded-2xl mb-6 sm:mb-8 overflow-x-auto no-scrollbar" role="tablist" aria-label="Вкладки статистики">
           {[
             { id: "overview", label: "Обзор", icon: BarChart3 },
             { id: "time", label: "Время", icon: Clock },
@@ -461,6 +468,9 @@ export default function AccountStatsPage() {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id as any)}
+                role="tab"
+                aria-selected={active}
+                aria-controls={`panel-${tab.id}`}
                 className={cn(
                   "flex-1 min-w-[100px] sm:min-w-[110px] px-3.5 py-2.5 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all duration-200 shrink-0",
                   active
@@ -468,7 +478,7 @@ export default function AccountStatsPage() {
                     : "text-muted-foreground hover:text-foreground hover:bg-background/50 dark:hover:bg-zinc-800/60"
                 )}
               >
-                <Icon className={cn("w-4 h-4", active ? "text-white" : "text-muted-foreground")} />
+                <Icon className={cn("w-4 h-4", active ? "text-white" : "text-muted-foreground")} aria-hidden="true" />
                 <span>{tab.label}</span>
               </button>
             )
@@ -479,39 +489,47 @@ export default function AccountStatsPage() {
         {/* ВКЛАДКА: ОБЗОР */}
         {/* ========================================================================= */}
         {activeTab === "overview" && (
-          <div className="space-y-6 sm:space-y-8 animate-in fade-in duration-300">
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-              <StatCard icon={Activity} label="Всего сессий" value={formatNumber(stats.totalSessions)} sub="сессий" badge="Общее" />
-              <StatCard icon={Clock} label="Время на сайте" value={formatDuration(totalMs)} sub="всего" badge="Время" />
-              <StatCard icon={Eye} label="Просмотры страниц" value={formatNumber(stats.pageViews)} sub="просмотров" />
-              <StatCard icon={PlayCircle} label="События просмотра" value={formatNumber(stats.watchEvents)} sub="событий" />
-              <StatCard icon={Dices} label="Прокрутки гача" value={formatNumber(stats.gachaRolls)} sub="прокруток" />
-              <StatCard icon={Trophy} label="Битвы персонажей" value={formatNumber(stats.battlesStarted)} sub="битв" />
-              <StatCard icon={Bookmark} label="В закладках" value={formatNumber(stats.bookmarksAdded)} sub="тайтлов" />
-              <StatCard icon={BarChart3} label="Средняя сессия" value={formatDuration(avgSessionMs)} sub="в среднем" />
+          <ErrorBoundary fallback={
+            <div className="space-y-6 sm:space-y-8 animate-in fade-in duration-300">
+              <div className="p-6 bg-red-500/10 border border-red-500/20 rounded-2xl text-center">
+                <p className="text-red-400 font-medium">Ошибка при загрузке обзора статистики</p>
+              </div>
             </div>
+          }>
+            <div className="space-y-6 sm:space-y-8 animate-in fade-in duration-300">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+                <StatCard icon={Activity} label="Всего сессий" value={formatNumber(stats.totalSessions)} sub="сессий" badge="Общее" />
+                <StatCard icon={Clock} label="Время на сайте" value={formatDuration(totalMs)} sub="всего" badge="Время" />
+                <StatCard icon={Eye} label="Просмотры страниц" value={formatNumber(stats.pageViews)} sub="просмотров" />
+                <StatCard icon={PlayCircle} label="События просмотра" value={formatNumber(stats.watchEvents)} sub="событий" />
+                <StatCard icon={Dices} label="Прокрутки гача" value={formatNumber(stats.gachaRolls)} sub="прокруток" />
+                <StatCard icon={Trophy} label="Битвы персонажей" value={formatNumber(stats.battlesStarted)} sub="битв" />
+                <StatCard icon={Bookmark} label="В закладках" value={formatNumber(stats.bookmarksAdded)} sub="тайтлов" />
+                <StatCard icon={BarChart3} label="Средняя сессия" value={formatDuration(avgSessionMs)} sub="в среднем" />
+              </div>
 
-            <div className="bg-card/40 dark:bg-zinc-900/30 backdrop-blur-xl border border-border/50 dark:border-zinc-800/80 rounded-3xl p-4 sm:p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-base sm:text-lg font-bold text-foreground dark:text-white flex items-center gap-2">
-                  <Flame className="w-5 h-5 text-orange-500" />
-                  Распределение активности
-                </h2>
-                <span className="text-xs text-muted-foreground font-medium">Всего действий: {formatNumber(eventBreakdown.reduce((acc, curr) => acc + curr.value, 0))}</span>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                {eventBreakdown.slice(0, 6).map((item) => (
-                  <StatBar 
-                    key={item.key} 
-                    label={item.label} 
-                    value={item.value} 
-                    icon={item.icon}
-                    max={Math.max(...eventBreakdown.map((b) => b.value), 1)} 
-                  />
-                ))}
+              <div className="bg-card/40 dark:bg-zinc-900/30 backdrop-blur-xl border border-border/50 dark:border-zinc-800/80 rounded-3xl p-4 sm:p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-base sm:text-lg font-bold text-foreground dark:text-white flex items-center gap-2">
+                    <Flame className="w-5 h-5 text-orange-500" aria-hidden="true" />
+                    Распределение активности
+                  </h2>
+                  <span className="text-xs text-muted-foreground font-medium">Всего действий: {formatNumber(eventBreakdown.reduce((acc, curr) => acc + curr.value, 0))}</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                  {eventBreakdown.slice(0, 6).map((item) => (
+                    <StatBar 
+                      key={item.key} 
+                      label={item.label} 
+                      value={item.value} 
+                      icon={item.icon}
+                      max={Math.max(...eventBreakdown.map((b) => b.value), 1)} 
+                    />
+                  ))}
+                </div>
               </div>
             </div>
-          </div>
+          </ErrorBoundary>
         )}
 
         {/* ========================================================================= */}
@@ -552,13 +570,16 @@ export default function AccountStatsPage() {
                             setExpandedSessions(next)
                           }}
                           className="flex items-center justify-between w-full p-3 sm:p-3.5 rounded-xl transition-colors hover:border-orange-500/30"
+                          aria-expanded={isOpen}
+                          aria-label={`Сессия ${formatSessionTime(s.start)}, длительность ${formatDuration(duration)}`}
                         >
                           <div className="flex items-center gap-2.5">
                             <ChevronRight
                               size={16}
                               className={`text-muted-foreground dark:text-zinc-400 shrink-0 transition-transform duration-200 ${isOpen ? "rotate-90" : ""}`}
+                              aria-hidden="true"
                             />
-                            <span className="w-2 h-2 rounded-full bg-orange-500" />
+                            <span className="w-2 h-2 rounded-full bg-orange-500" aria-hidden="true" />
                             <span className="text-xs sm:text-sm text-foreground/80 dark:text-zinc-300 font-medium">
                               {formatSessionTime(s.start)}
                             </span>
@@ -672,10 +693,11 @@ export default function AccountStatsPage() {
                         onClick={loadMoreHistory}
                         disabled={isLoadingMoreHistory}
                         className="inline-flex items-center gap-2 px-6 py-2.5 bg-secondary/70 hover:bg-secondary border border-border/60 text-foreground font-semibold rounded-xl transition-all dark:bg-zinc-900/60 dark:hover:bg-zinc-800 dark:border-zinc-800 text-xs sm:text-sm active:scale-95 disabled:opacity-50 hover:border-orange-500/40"
+                        aria-label={`Загрузить ещё ${sortedHistoryItems.length - visibleHistoryCount} записей истории`}
                       >
                         {isLoadingMoreHistory ? (
                           <>
-                            <RefreshCw className="w-4 h-4 text-orange-500 animate-spin" />
+                            <RefreshCw className="w-4 h-4 text-orange-500 animate-spin" aria-hidden="true" />
                             <span>Загрузка...</span>
                           </>
                         ) : (
