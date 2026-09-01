@@ -7,6 +7,7 @@ import { GlobalLoading } from "@/components/layout/global-loading"
 import { BookmarksProvider } from "@/components/providers/bookmarks-provider"
 import { HistoryProvider } from "@/components/providers/history-provider"
 import { EpisodeUpdatesProvider } from "@/components/providers/episode-updates-provider"
+import { AccountStatsProvider } from "@/components/providers/account-stats-provider"
 import { CoverProvider } from "@/components/providers/cover-provider"
 import { ErrorBoundary } from "@/components/shared/error-boundary"
 import "./globals.css"
@@ -146,20 +147,22 @@ export default function RootLayout({
           <ConsentProvider>
             <CookieConsent />
             <AuthProvider>
-              <UserDataLoadingBar />
-              <LogoutLoadingScreen />
-              <CoverProvider>
-                <HistoryProvider>
-                  <BookmarksProvider>
-                    <EpisodeUpdatesProvider>
-                      <Navbar/>
-                      {/* Персонаж-гид размещен внутри провайдеров, чтобы карточка случайного аниме могла использовать useBookmarks */}
-                      <ChibiGuide/>
-                      <ErrorBoundary name="Main App">{children}</ErrorBoundary>
-                    </EpisodeUpdatesProvider>
-                  </BookmarksProvider>
-                </HistoryProvider>
-              </CoverProvider>
+              <AccountStatsProvider>
+                <UserDataLoadingBar />
+                <LogoutLoadingScreen />
+                <CoverProvider>
+                  <HistoryProvider>
+                    <BookmarksProvider>
+                      <EpisodeUpdatesProvider>
+                        <Navbar/>
+                        {/* Персонаж-гид размещен внутри провайдеров, чтобы карточка случайного аниме могла использовать useBookmarks */}
+                        <ChibiGuide/>
+                        <ErrorBoundary name="Main App">{children}</ErrorBoundary>
+                      </EpisodeUpdatesProvider>
+                    </BookmarksProvider>
+                  </HistoryProvider>
+                </CoverProvider>
+              </AccountStatsProvider>
             </AuthProvider>
             <AnalyticsWrapper />
           </ConsentProvider>

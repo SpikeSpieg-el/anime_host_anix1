@@ -13,21 +13,23 @@ import { saveCatalogFilters } from '@/lib/catalog-preferences'
 import { Button } from '@/components/ui/button'
 import { MultiSelect } from '@/components/ui/multi-select'
 import { Input } from '@/components/ui/input'
-import { 
-  Search, 
-  SlidersHorizontal, 
-  Loader2, 
-  X, 
-  RotateCcw, 
-  LayoutGrid, 
-  Grid3x3, 
-  Table, 
-  ArrowLeft, 
+import {
+  Search,
+  SlidersHorizontal,
+  Loader2,
+  X,
+  RotateCcw,
+  LayoutGrid,
+  Grid3x3,
+  Table,
+  ArrowLeft,
   Sparkles,
   Check
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
+import { supabase, updateAccountStats } from '@/lib/supabase'
+import { activityRecorder } from '@/components/providers/account-stats-recorder'
 import { useAuth } from '@/components/auth/auth-provider'
 
 const ORDER_OPTIONS = [
@@ -108,6 +110,7 @@ export function CatalogClient({ initialFilters }: { initialFilters: CatalogFilte
   const [viewMode, setViewMode] = useState<'comfortable' | 'compact' | 'table'>('comfortable')
   const [isFilterPanelVisible, setIsFilterPanelVisible] = useState(true)
   const [lastScrollY, setLastScrollY] = useState(0)
+  const lastRecordedSearch = useRef("")
   const [randomAnime, setRandomAnime] = useState<Anime | null>(null)
   const [showRandomModal, setShowRandomModal] = useState(false)
 
@@ -223,6 +226,33 @@ export function CatalogClient({ initialFilters }: { initialFilters: CatalogFilte
   }, [lastScrollY])
 
   const updateFilter = (key: keyof CatalogFilters, value: string | string[]) => {
+    if (key === 'search') {
+      try {
+        const q = Array.isArray(value) ? '' : String(value).trim()
+        if (q && q !== lastRecordedSearch.current) {
+          lastRecordedSearch.current = q
+          activityRecorder.recordActivity({ eventType: 'search_query', category: 'activity', payload: { query: q } })
+
+          // Обновляем статистику аккаунта (только для авторизованных)
+          const { data: { session } } = supabase.auth.getSession()
+          if (session?.user) {
+            supabase
+              .from('account_stats')
+              .select('searches')
+              .eq('user_id', session.user.id)
+              .single()
+              .then(({ data: currentStats }: any) => {
+                const currentCount = currentStats?.searches ?? 0
+                updateAccountStats(session.user.id, { searches: currentCount + 1 })
+                window.dispatchEvent(new CustomEvent('account-stats-updated'))
+              })
+              .catch(() => {})
+          }
+        }
+      } catch (e) {
+        console.error('[catalog] search_query error:', e)
+      }
+    }
     setFilters(prev => ({
       ...prev,
       [key]: Array.isArray(value) ? (value.length === 0 ? undefined : value) : (value === 'all' ? undefined : value),

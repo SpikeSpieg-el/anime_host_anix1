@@ -346,4 +346,118 @@ export async function syncLocalDataToAccount(userId: string) {
   } catch (error) {
     console.error('Error clearing gacha local data:', error)
   }
+
+  // 5. Синхронизация статистики аккаунта (DB -> localStorage-состояние)
+  try {
+    const stats = await getAccountStats(userId)
+    if (stats && (stats.total_time_ms !== undefined || stats.last_visit_at !== undefined)) {
+      console.log('Account stats synced from DB')
+      await updateAccountStats(userId, { ...stats })
+    } else {
+      console.log('No account_stats found for user during sync')
+    }
+  } catch (error) {
+    console.error('Error syncing account stats:', error)
+  }
+}
+
+// --- Account statistics helpers ---
+
+/** SELECT summary stats row for a user. Returns null if not found / guest. */
+export async function getAccountStats(userId: string) {
+  try {
+    const { data, error } = await supabase
+      .from('account_stats')
+      .select('*')
+      .eq('user_id', userId)
+      .single()
+
+    if (error) return null
+    // Преобразуем snake_case в camelCase для совместимости с TypeScript
+    if (data) {
+      return {
+        id: data.id,
+        user_id: data.user_id,
+        totalSessions: data.total_sessions,
+        totalTimeMs: data.total_time_ms,
+        lastVisitAt: data.last_visit_at,
+        firstVisitAt: data.first_visit_at,
+        pageViews: data.page_views,
+        watchEvents: data.watch_events,
+        gachaRolls: data.gacha_rolls,
+        battlesStarted: data.battles_started,
+        bookmarksAdded: data.bookmarks_added,
+        marketActions: data.market_actions,
+        searches: data.searches,
+        avgSessionMs: data.avg_session_ms,
+        lastUpdatedAt: data.last_updated_at,
+      } as any
+    }
+    return null
+  } catch (e) {
+    console.error('[supabase] getAccountStats error:', e)
+    return null
+  }
+}
+
+/** UPSERT a partial patch into account_stats, always refreshing last_updated_at. */
+export async function updateAccountStats(userId: string, patch: Record<string, any>) {
+  try {
+    // Преобразуем camelCase в snake_case для БД
+    const dbPatch: Record<string, any> = {
+      last_updated_at: new Date().toISOString(),
+    }
+    
+    if (patch.totalSessions !== undefined) dbPatch.total_sessions = patch.totalSessions
+    if (patch.totalTimeMs !== undefined) dbPatch.total_time_ms = patch.totalTimeMs
+    if (patch.lastVisitAt !== undefined) dbPatch.last_visit_at = patch.lastVisitAt
+    if (patch.firstVisitAt !== undefined) dbPatch.first_visit_at = patch.firstVisitAt
+    if (patch.pageViews !== undefined) dbPatch.page_views = patch.pageViews
+    if (patch.watchEvents !== undefined) dbPatch.watch_events = patch.watchEvents
+    if (patch.gachaRolls !== undefined) dbPatch.gacha_rolls = patch.gachaRolls
+    if (patch.battlesStarted !== undefined) dbPatch.battles_started = patch.battlesStarted
+    if (patch.bookmarksAdded !== undefined) dbPatch.bookmarks_added = patch.bookmarksAdded
+    if (patch.marketActions !== undefined) dbPatch.market_actions = patch.marketActions
+    if (patch.searches !== undefined) dbPatch.searches = patch.searches
+    if (patch.avgSessionMs !== undefined) dbPatch.avg_session_ms = patch.avgSessionMs
+    
+    const { error } = await supabase
+      .from('account_stats')
+      .upsert({ user_id: userId, ...dbPatch }, { onConflict: 'user_id' })
+    if (error) console.error('[supabase] updateAccountStats error:', error)
+  } catch (e) {
+    console.error('[supabase] updateAccountStats exception:', e)
+  }
+}
+
+/** INSERT a single activity event row into user_activity_events. */
+export async function recordActivityEvent(userId: string, eventType: string, category?: string | null, payload: Record<string, any> = {}) {
+  try {
+    const { error } = await supabase.from('user_activity_events').insert({
+      user_id: userId,
+      event_type: eventType,
+      category: category ?? undefined,
+      payload: JSON.stringify(payload)
+    })
+    if (error) console.error('[supabase] recordActivityEvent error:', error)
+  } catch (e) {
+    console.error('[supabase] recordActivityEvent exception:', e)
+  }
+}
+
+/** Batch INSERT of activity events. */
+export async function recordActivityEvents(userId: string, events: Array<{ eventType: string; category?: string | null; payload?: Record<string, any> }>) {
+  try {
+    if (!events || events.length === 0) return
+    const rows = events.map((e) => ({
+      user_id: userId,
+      event_type: e.eventType,
+      category: e.category ?? undefined,
+      payload: JSON.stringify(e.payload ?? {})
+    }))
+    const { error } = await supabase.from('user_activity_events').insert(rows)
+    if (error) console.error('[supabase] recordActivityEvents error:', error)
+  } catch (e) {
+    console.error('[supabase] recordActivityEvents exception:', e)
+  }
 }

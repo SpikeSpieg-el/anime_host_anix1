@@ -1,5 +1,6 @@
 export { BookmarksProvider, useBookmarks } from './bookmarks-provider'
 export { HistoryProvider, useHistory } from './history-provider'
+export { AccountStatsProvider, useAccountStats } from './account-stats-provider'
 export { recordWatchStart, HistoryTracker } from './history-tracker'
 export { RegionDetector } from './region-detector'
 export { ThemeProvider } from './theme-provider'

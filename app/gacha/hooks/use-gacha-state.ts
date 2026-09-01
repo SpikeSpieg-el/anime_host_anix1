@@ -3,6 +3,7 @@
 import { useRouter, usePathname } from "next/navigation"
 import { useState, useRef, useCallback, useEffect, useMemo } from "react"
 import { flushSync } from "react-dom"
+import { supabase } from "@/lib/supabase"
 import {
   rollAnimeCharacter,
   rollFromAnimePack,
@@ -13,10 +14,10 @@ import {
   updateUserPityAfterRoll,
   generateStatsForRarity
 } from "../actions"
-import { 
-  saveCardToDatabase, 
-  loadUserCards, 
-  deleteCardFromDatabase, 
+import {
+  saveCardToDatabase,
+  loadUserCards,
+  deleteCardFromDatabase,
   queueCardForSync, 
   syncQueuedCards 
 } from "../client-actions"
@@ -25,6 +26,7 @@ import { ANIME_PACKS, AnimePack, CustomAnimePack, createCustomPack, loadYearBase
 import { useCoins } from "@/hooks/use-coins"
 import { useDust } from "@/hooks/use-dust"
 import { useAuth } from "@/components/auth/auth-provider"
+import { activityRecorder } from "@/components/providers/account-stats-recorder"
 import { Card } from "../types"
 import { rarityConfig, getDismantleValue, Rarity } from "@/types/gacha"
 import { generateCardUniqueId, calculateCollectionRating, signCard, verifyCard } from "../utils"
@@ -728,7 +730,20 @@ export function useGachaState() {
 
       if (result) {
         try {
+          activityRecorder.recordActivity({ eventType: 'gacha_roll', category: 'activity' })
+
           if (authUser) {
+            // Обновляем статистику аккаунта
+            const { updateAccountStats } = await import('@/lib/supabase')
+            const { data: currentStats } = await supabase
+              .from('account_stats')
+              .select('gacha_rolls')
+              .eq('user_id', authUser.id)
+              .single()
+            const currentCount = currentStats?.gacha_rolls ?? 0
+            await updateAccountStats(authUser.id, { gachaRolls: currentCount + 1 })
+            window.dispatchEvent(new CustomEvent('account-stats-updated'))
+
             const pityUpdate = await updateUserPityAfterRoll(authUser.id, result)
             setPityData(prev => prev ? {
               ...prev,

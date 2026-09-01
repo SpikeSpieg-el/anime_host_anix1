@@ -3,12 +3,14 @@ import { useAuth } from "@/components/auth/auth-provider"
 import { useCoins } from "@/hooks/use-coins"
 import { useDust } from "@/hooks/use-dust"
 import { arrayMove } from "@dnd-kit/sortable"
+import { supabase } from "@/lib/supabase"
 import { Card, Dungeon, Enemy, BattleProgress, BattleLog, CCGBattleState, BattleZone, ZoneCard, CardRole, DeckContext } from "../types"
 import { getCardRole, getCardProvision, calculateCardPowerOnZone, getCardBasePower, computeDeckSynergies, buildAutoDeck } from "../utils"
 import { PROVISION_LIMIT, DECK_SIZE, TERRITORY_MODIFIERS, FormationId, MAX_CARDS_PER_SIDE } from "../config"
 import { Rarity } from "@/types/gacha"
 import { getAIDeckForDungeon, getRandomMarketDeck, generateAdaptiveAIDeck } from "../ai-decks"
 import { createAI, createAIDecisionContext, AIConfig, AICardDecision, syncPlaystyleFromDB, recordPlayerBattle } from "../ai"
+import { activityRecorder } from "@/components/providers/account-stats-recorder"
 
 // Helper function to preload card images in background
 const preloadCardImages = (cards: Card[]) => {
@@ -753,6 +755,25 @@ export function useBattleData() {
   }
 
   const startBattle = async () => {
+    try {
+      activityRecorder.recordActivity({ eventType: 'battle_started', category: 'activity' })
+
+      // Обновляем статистику аккаунта
+      if (user) {
+        const { updateAccountStats } = await import('@/lib/supabase')
+        const { data: currentStats } = await supabase
+          .from('account_stats')
+          .select('battles_started')
+          .eq('user_id', user.id)
+          .single()
+        const currentCount = currentStats?.battles_started ?? 0
+        await updateAccountStats(user.id, { battlesStarted: currentCount + 1 })
+        window.dispatchEvent(new CustomEvent('account-stats-updated'))
+      }
+    } catch (e) {
+      console.error("Error recording battle_started:", e)
+    }
+
     console.log('[Battle] startBattle called')
     console.log('[Battle] selectedCards length:', selectedCards.length)
     console.log('[Battle] selectedDungeon:', selectedDungeon?.id)

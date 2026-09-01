@@ -2,8 +2,9 @@
 
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState, useRef } from "react"
 import type { Anime } from "@/lib/shikimori"
-import { supabase } from "@/lib/supabase"
+import { supabase, updateAccountStats } from "@/lib/supabase"
 import { useAuth } from "@/components/auth/auth-provider"
+import { activityRecorder } from "./account-stats-recorder"
 import { loggers } from "@/lib/logger"
 
 type BookmarkAnime = Anime & {
@@ -209,6 +210,22 @@ export function BookmarksProvider({ children }: { children: React.ReactNode }) {
       })
       if (error && error.code !== '23505') {
         loggers.bookmarks.error('Failed to add bookmark', error)
+      } else if (!error) {
+        // Обновляем статистику аккаунта
+        const { data: currentStats } = await supabase
+          .from('account_stats')
+          .select('bookmarks_added')
+          .eq('user_id', user.id)
+          .single()
+        const currentCount = currentStats?.bookmarks_added ?? 0
+        await updateAccountStats(user.id, { bookmarksAdded: currentCount + 1 })
+        window.dispatchEvent(new CustomEvent('account-stats-updated'))
+      }
+
+      try {
+        activityRecorder.recordActivity({ eventType: 'bookmark_add', category: 'viewing' })
+      } catch (e) {
+        console.error("Error recording bookmark_add:", e)
       }
     }
   }, [user?.id])
@@ -218,7 +235,18 @@ export function BookmarksProvider({ children }: { children: React.ReactNode }) {
 
     if (user) {
       try {
-        await supabase.from('bookmarks').delete().match({ user_id: user.id, anime_id: id })
+        const { error } = await supabase.from('bookmarks').delete().match({ user_id: user.id, anime_id: id })
+        if (!error) {
+          // Обновляем статистику аккаунта
+          const { data: currentStats } = await supabase
+            .from('account_stats')
+            .select('bookmarks_added')
+            .eq('user_id', user.id)
+            .single()
+          const currentCount = currentStats?.bookmarks_added ?? 0
+          await updateAccountStats(user.id, { bookmarksAdded: Math.max(0, currentCount - 1) })
+          window.dispatchEvent(new CustomEvent('account-stats-updated'))
+        }
       } catch (error) {
         loggers.bookmarks.error('Failed to remove bookmark', error)
       }
@@ -241,6 +269,14 @@ export function BookmarksProvider({ children }: { children: React.ReactNode }) {
       return [anime, ...prev]
     })
 
+    if (isAdded) {
+      try {
+        activityRecorder.recordActivity({ eventType: 'bookmark_add', category: 'viewing' })
+      } catch (e) {
+        console.error("Error recording bookmark_add:", e)
+      }
+    }
+
     if (user) {
       if (isAdded) {
         const { error } = await supabase.from('bookmarks').insert({
@@ -251,11 +287,31 @@ export function BookmarksProvider({ children }: { children: React.ReactNode }) {
         })
         if (error && error.code !== '23505') {
           loggers.bookmarks.error('Failed to toggle bookmark (insert)', error)
+        } else if (!error) {
+          // Обновляем статистику аккаунта
+          const { data: currentStats } = await supabase
+            .from('account_stats')
+            .select('bookmarks_added')
+            .eq('user_id', user.id)
+            .single()
+          const currentCount = currentStats?.bookmarks_added ?? 0
+          await updateAccountStats(user.id, { bookmarksAdded: currentCount + 1 })
+          window.dispatchEvent(new CustomEvent('account-stats-updated'))
         }
       } else {
         const { error } = await supabase.from('bookmarks').delete().match({ user_id: user.id, anime_id: anime.id })
         if (error) {
           loggers.bookmarks.error('Failed to toggle bookmark (delete)', error)
+        } else {
+          // Обновляем статистику аккаунта
+          const { data: currentStats } = await supabase
+            .from('account_stats')
+            .select('bookmarks_added')
+            .eq('user_id', user.id)
+            .single()
+          const currentCount = currentStats?.bookmarks_added ?? 0
+          await updateAccountStats(user.id, { bookmarksAdded: Math.max(0, currentCount - 1) })
+          window.dispatchEvent(new CustomEvent('account-stats-updated'))
         }
       }
     }
