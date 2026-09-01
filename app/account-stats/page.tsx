@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef, useState, memo } from "react"
+import { useCallback, useEffect, useMemo, useState, memo } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import {
@@ -34,9 +34,8 @@ import { AuthModal } from "@/components/auth/auth-modal"
 import { ErrorBoundary } from "@/components/ui/error-boundary"
 import { cn } from "@/lib/utils"
 
-// ---------- Вспомогательные функции форматирования ----------
+// ---------- Вспомогательные функции ----------
 
-/** Форматирует миллисекунды в компактный вид: "1д 5ч", "2ч 34м", "45с" */
 function formatDuration(ms: number): string {
   if (!ms || ms <= 0) return "0м"
   const totalSeconds = Math.floor(ms / 1000)
@@ -54,7 +53,6 @@ function formatDuration(ms: number): string {
   return parts.join(" ") || "0м"
 }
 
-/** Строка детальной информации о сессии */
 function DetailRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center justify-between gap-3">
@@ -64,26 +62,11 @@ function DetailRow({ label, value }: { label: string; value: string }) {
   )
 }
 
-/** Форматирует число с разделителями */
 function formatNumber(num: number | undefined | null): string {
   if (!num || num <= 0) return "0"
   return Math.round(num).toLocaleString("ru-RU")
 }
 
-/** Компактное время HH:MM:SS для заголовка строки журнала сессий */
-function formatClock(ms: number): string {
-  const totalSeconds = Math.floor(ms / 1000)
-  const h = Math.floor(totalSeconds / 3600)
-  const m = Math.floor((totalSeconds % 3600) / 60)
-  const s = totalSeconds % 60
-  return `${pad(h)}:${pad(m)}:${pad(s)}`
-}
-
-function pad(n: number): string {
-  return String(n).padStart(2, "0")
-}
-
-/** Дата и время сессии */
 function formatSessionTime(ts: number): string {
   try {
     const d = new Date(ts)
@@ -98,7 +81,6 @@ function formatSessionTime(ts: number): string {
   }
 }
 
-/** Очистка URL постера */
 function normalizePoster(value: string | undefined | null): string {
   const raw = (value ?? "").trim()
   if (!raw) return "/placeholder-anime.png"
@@ -107,7 +89,6 @@ function normalizePoster(value: string | undefined | null): string {
   return raw
 }
 
-/** Склонение русских слов для чисел */
 function pluralize(n: number, one: string, few: string, many: string): string {
   const abs = Math.abs(n) % 100
   const rem = abs % 10
@@ -117,7 +98,7 @@ function pluralize(n: number, one: string, few: string, many: string): string {
   return many
 }
 
-// ---------- Компонент карточки статистики ----------
+// ---------- Компоненты ----------
 
 interface StatCardProps {
   icon: any
@@ -157,10 +138,7 @@ const StatCard = memo(({ icon: Icon, label, value, sub, accentColor = "text-oran
     </div>
   )
 })
-
 StatCard.displayName = "StatCard"
-
-// ---------- Полоса прогресса ----------
 
 function StatBar({ label, value, max, icon: Icon }: { label: string; value: number; max: number; icon?: any }) {
   const percent = max > 0 ? Math.min(Math.max((value / max) * 100, 2), 100) : 0
@@ -184,8 +162,6 @@ function StatBar({ label, value, max, icon: Icon }: { label: string; value: numb
   )
 }
 
-// ---------- Скелетоны ----------
-
 function StatCardSkeleton() {
   return (
     <div className="relative bg-background/50 dark:bg-zinc-900/40 backdrop-blur-xl border border-border/60 dark:border-zinc-800 rounded-2xl sm:rounded-3xl p-5 animate-pulse">
@@ -198,7 +174,7 @@ function StatCardSkeleton() {
   )
 }
 
-// ---------- Основной компонент ----------
+// ---------- Главный компонент ----------
 
 export default function AccountStatsPage() {
   const { stats, isLoading, refresh } = useAccountStats()
@@ -209,9 +185,10 @@ export default function AccountStatsPage() {
   const [activeTab, setActiveTab] = useState<"overview" | "time" | "history" | "progress" | "activity">("overview")
   const [showAuthModal, setShowAuthModal] = useState(false)
   const [isRefreshing, setIsRefreshing] = useState(false)
+  
+  // Изначально пусто (все сессии свернуты)
   const [expandedSessions, setExpandedSessions] = useState<Set<number>>(new Set())
 
-  // Количество отображаемых элементов истории (стартуем с 6 или 12, по клику добавляем порцию)
   const HISTORY_PAGE_SIZE = 6
   const [visibleHistoryCount, setVisibleHistoryCount] = useState(HISTORY_PAGE_SIZE)
   const [isLoadingMoreHistory, setIsLoadingMoreHistory] = useState(false)
@@ -229,7 +206,6 @@ export default function AccountStatsPage() {
     }
   }
 
-  // Сортировка истории: гарантируем, что последние просмотренные идут первыми
   const sortedHistoryItems = useMemo(() => {
     if (!historyItems || historyItems.length === 0) return []
     return [...historyItems].sort((a: any, b: any) => {
@@ -241,7 +217,6 @@ export default function AccountStatsPage() {
 
   const hasMoreHistory = sortedHistoryItems.length > visibleHistoryCount
 
-  // Накапливаемый список: от 0 до visibleHistoryCount (список раскрывается вниз)
   const visibleHistoryItems = useMemo(() => {
     return sortedHistoryItems.slice(0, visibleHistoryCount)
   }, [sortedHistoryItems, visibleHistoryCount])
@@ -255,29 +230,37 @@ export default function AccountStatsPage() {
     }, 200)
   }, [isLoadingMoreHistory, hasMoreHistory])
 
-  // Безопасное получение списка сессий
+  // Получение списка сессий
   const sessions = useMemo(() => {
     try {
       if (typeof activityRecorder?.getSessionDurations === "function") {
-        return activityRecorder
-          .getSessionDurations()
-          .map((s: { start: number; end: number }) => ({ start: s.start, end: s.end }))
-          .sort((a: { start: number }, b: { start: number }) => b.start - a.start)
+        return activityRecorder.getSessionDurations()
       }
     } catch (e) {
       console.error("Failed to load sessions:", e)
     }
     return []
-  }, [])
+  }, [isRefreshing, activeTab])
 
-  // По умолчанию раскрываем сессии после загрузки
-  useEffect(() => {
-    if (!sessions || sessions.length === 0) return
-    const next = new Set(sessions.map((_, idx) => idx))
-    setExpandedSessions(next)
-  }, [sessions])
+  // Пагинация журнала сессий во вкладке "Время"
+  const SESSIONS_PAGE_SIZE = 8
+  const [visibleSessionsCount, setVisibleSessionsCount] = useState(SESSIONS_PAGE_SIZE)
+  const [isLoadingMoreSessions, setIsLoadingMoreSessions] = useState(false)
 
-  // Агрегация прогресса по тайтлам из истории
+  const hasMoreSessions = sessions.length > visibleSessionsCount
+  const visibleSessions = useMemo(() => {
+    return sessions.slice(0, visibleSessionsCount)
+  }, [sessions, visibleSessionsCount])
+
+  const loadMoreSessions = useCallback(() => {
+    if (isLoadingMoreSessions || !hasMoreSessions) return
+    setIsLoadingMoreSessions(true)
+    setTimeout(() => {
+      setVisibleSessionsCount((prev) => prev + SESSIONS_PAGE_SIZE)
+      setIsLoadingMoreSessions(false)
+    }, 150)
+  }, [isLoadingMoreSessions, hasMoreSessions])
+
   const progressByAnime = useMemo(() => {
     type ProgressItem = { 
       id: string
@@ -320,7 +303,6 @@ export default function AccountStatsPage() {
       .sort((a, b) => b.progress - a.progress || b.count - a.count)
   }, [sortedHistoryItems])
 
-  // Разбивка по ключевым событиям
   const eventBreakdown = useMemo(() => {
     const s = (stats || {}) as AccountStats & { searches?: number }
     return [
@@ -336,7 +318,6 @@ export default function AccountStatsPage() {
 
   if (!mounted) return null
 
-  // ---------- Неавторизованный пользователь ----------
   if (!user) {
     return (
       <main className="min-h-screen bg-background text-foreground pb-20 md:pb-24 relative flex flex-col justify-between">
@@ -379,7 +360,6 @@ export default function AccountStatsPage() {
     )
   }
 
-  // ---------- Экран загрузки ----------
   if (isLoading) {
     return (
       <main className="min-h-screen bg-background text-foreground pb-20 md:pb-24 relative">
@@ -402,19 +382,16 @@ export default function AccountStatsPage() {
     )
   }
 
-  // Расчётные данные
   const totalMs = stats.totalTimeMs ?? 0
   const avgSessionMs = stats.avgSessionMs ?? 0
   const longestSessionMs = sessions.length > 0 ? Math.max(...sessions.map((s) => s.end - s.start)) : 0
-  const totalSessionsCount = stats.totalSessions ?? 0
+  const totalSessionsCount = stats.totalSessions ?? sessions.length
 
   return (
     <main className="min-h-screen bg-background text-foreground pb-20 md:pb-24 relative">
       <Navbar />
 
       <div className="container mx-auto px-3 sm:px-4 pt-6 sm:pt-8 pb-12 relative z-10 max-w-7xl">
-        
-        {/* Кнопка «Назад» */}
         <div className="mb-6">
           <Link
             href="/"
@@ -426,7 +403,6 @@ export default function AccountStatsPage() {
           </Link>
         </div>
 
-        {/* Шапка страницы */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 sm:mb-8">
           <div className="flex items-center gap-3.5">
             <div className="p-3 bg-gradient-to-br from-orange-500/20 to-amber-500/10 border border-orange-500/20 rounded-2xl">
@@ -453,8 +429,8 @@ export default function AccountStatsPage() {
           </button>
         </div>
 
-        {/* Переключатель вкладок */}
-        <div className="flex items-center gap-1.5 p-1.5 bg-secondary/40 dark:bg-zinc-900/60 backdrop-blur-xl border border-border/50 dark:border-zinc-800/80 rounded-2xl mb-6 sm:mb-8 overflow-x-auto no-scrollbar" role="tablist" aria-label="Вкладки статистики">
+        {/* Табы */}
+        <div className="flex items-center gap-1.5 p-1.5 bg-secondary/40 dark:bg-zinc-900/60 backdrop-blur-xl border border-border/50 dark:border-zinc-800/80 rounded-2xl mb-6 sm:mb-8 overflow-x-auto no-scrollbar" role="tablist">
           {[
             { id: "overview", label: "Обзор", icon: BarChart3 },
             { id: "time", label: "Время", icon: Clock },
@@ -470,7 +446,6 @@ export default function AccountStatsPage() {
                 onClick={() => setActiveTab(tab.id as any)}
                 role="tab"
                 aria-selected={active}
-                aria-controls={`panel-${tab.id}`}
                 className={cn(
                   "flex-1 min-w-[100px] sm:min-w-[110px] px-3.5 py-2.5 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all duration-200 shrink-0",
                   active
@@ -485,20 +460,16 @@ export default function AccountStatsPage() {
           })}
         </div>
 
-        {/* ========================================================================= */}
         {/* ВКЛАДКА: ОБЗОР */}
-        {/* ========================================================================= */}
         {activeTab === "overview" && (
           <ErrorBoundary fallback={
-            <div className="space-y-6 sm:space-y-8 animate-in fade-in duration-300">
-              <div className="p-6 bg-red-500/10 border border-red-500/20 rounded-2xl text-center">
-                <p className="text-red-400 font-medium">Ошибка при загрузке обзора статистики</p>
-              </div>
+            <div className="p-6 bg-red-500/10 border border-red-500/20 rounded-2xl text-center">
+              <p className="text-red-400 font-medium">Ошибка при загрузке обзора статистики</p>
             </div>
           }>
             <div className="space-y-6 sm:space-y-8 animate-in fade-in duration-300">
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-                <StatCard icon={Activity} label="Всего сессий" value={formatNumber(stats.totalSessions)} sub="сессий" badge="Общее" />
+                <StatCard icon={Activity} label="Всего сессий" value={formatNumber(totalSessionsCount)} sub="сессий" badge="Общее" />
                 <StatCard icon={Clock} label="Время на сайте" value={formatDuration(totalMs)} sub="всего" badge="Время" />
                 <StatCard icon={Eye} label="Просмотры страниц" value={formatNumber(stats.pageViews)} sub="просмотров" />
                 <StatCard icon={PlayCircle} label="События просмотра" value={formatNumber(stats.watchEvents)} sub="событий" />
@@ -532,9 +503,7 @@ export default function AccountStatsPage() {
           </ErrorBoundary>
         )}
 
-        {/* ========================================================================= */}
-        {/* ВКЛАДКА: ВРЕМЯ */}
-        {/* ========================================================================= */}
+        {/* ВКЛАДКА: ВРЕМЯ (Пагинация журнала сессий + скрытые детали по клику) */}
         {activeTab === "time" && (
           <div className="space-y-6 animate-in fade-in duration-300">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
@@ -544,10 +513,18 @@ export default function AccountStatsPage() {
             </div>
 
             <div className="bg-card/40 dark:bg-zinc-900/30 backdrop-blur-xl border border-border/50 dark:border-zinc-800/80 rounded-3xl p-4 sm:p-6">
-              <h2 className="text-base sm:text-lg font-bold text-foreground dark:text-white mb-4 flex items-center gap-2">
-                <Clock className="w-5 h-5 text-orange-500" />
-                Журнал последних сессий
-              </h2>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-base sm:text-lg font-bold text-foreground dark:text-white flex items-center gap-2">
+                  <Clock className="w-5 h-5 text-orange-500" />
+                  Журнал последних сессий ({sessions.length})
+                </h2>
+                {sessions.length > 0 && (
+                  <span className="text-xs text-muted-foreground font-medium">
+                    Показано {Math.min(visibleSessionsCount, sessions.length)} из {sessions.length}
+                  </span>
+                )}
+              </div>
+
               {sessions.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground">
                   <Clock className="w-10 h-10 mb-2 opacity-30 text-orange-500" />
@@ -555,21 +532,23 @@ export default function AccountStatsPage() {
                   <p className="text-xs mt-1 opacity-70">Проводите время на страницах сайта, чтобы они отобразились в списке</p>
                 </div>
               ) : (
-                <div className="space-y-2 max-h-[460px] overflow-y-auto pr-1 custom-scrollbar">
-                  {sessions.map((s, i) => {
-                    if ((s.end - s.start) <= 0) return null
+                <div className="space-y-2">
+                  {visibleSessions.map((s, i) => {
                     const duration = s.end - s.start
+                    if (duration <= 0) return null
                     const isOpen = expandedSessions.has(i)
                     return (
-                      <div key={i} className="rounded-xl bg-secondary/30 border border-border/40 dark:bg-zinc-900/40 dark:border-zinc-800/60 overflow-hidden">
+                      <div key={i} className="rounded-xl bg-secondary/30 border border-border/40 dark:bg-zinc-900/40 dark:border-zinc-800/60 overflow-hidden transition-colors">
                         <button
                           onClick={() => {
-                            const next = new Set(expandedSessions)
-                            if (next.has(i)) next.delete(i)
-                            else next.add(i)
-                            setExpandedSessions(next)
+                            setExpandedSessions((prev) => {
+                              const next = new Set(prev)
+                              if (next.has(i)) next.delete(i)
+                              else next.add(i)
+                              return next
+                            })
                           }}
-                          className="flex items-center justify-between w-full p-3 sm:p-3.5 rounded-xl transition-colors hover:border-orange-500/30"
+                          className="flex items-center justify-between w-full p-3 sm:p-3.5 rounded-xl hover:bg-secondary/50 dark:hover:bg-zinc-800/40 transition-colors"
                           aria-expanded={isOpen}
                           aria-label={`Сессия ${formatSessionTime(s.start)}, длительность ${formatDuration(duration)}`}
                         >
@@ -580,7 +559,7 @@ export default function AccountStatsPage() {
                               aria-hidden="true"
                             />
                             <span className="w-2 h-2 rounded-full bg-orange-500" aria-hidden="true" />
-                            <span className="text-xs sm:text-sm text-foreground/80 dark:text-zinc-300 font-medium">
+                            <span className="text-xs sm:text-sm text-foreground/90 dark:text-zinc-200 font-medium">
                               {formatSessionTime(s.start)}
                             </span>
                           </div>
@@ -588,8 +567,10 @@ export default function AccountStatsPage() {
                             {formatDuration(duration)}
                           </span>
                         </button>
+                        
+                        {/* Детали скрыты изначально, показываются по клику */}
                         {isOpen && (
-                          <div className="px-3.5 pb-3 pt-1.5 pl-8 text-xs sm:text-sm space-y-1.5 border-t border-border/40 dark:border-zinc-800/60">
+                          <div className="px-3.5 pb-3 pt-2 pl-9 text-xs sm:text-sm space-y-2 border-t border-border/40 dark:border-zinc-800/60 bg-secondary/10 animate-in fade-in slide-in-from-top-1 duration-150">
                             <DetailRow label="Начало" value={formatSessionTime(s.start)} />
                             <DetailRow label="Конец" value={formatSessionTime(s.end)} />
                             <DetailRow label="Длительность" value={formatDuration(duration)} />
@@ -598,15 +579,39 @@ export default function AccountStatsPage() {
                       </div>
                     )
                   })}
+                  {/* Кнопка «Показать ещё» */}
+                  {sessions.length > SESSIONS_PAGE_SIZE && (
+                    <div className="flex justify-center pt-4 pb-1">
+                      {hasMoreSessions ? (
+                        <button
+                          onClick={loadMoreSessions}
+                          disabled={isLoadingMoreSessions}
+                          className="inline-flex items-center gap-2 px-5 py-2.5 bg-secondary/70 hover:bg-secondary border border-border/60 text-foreground font-semibold rounded-xl transition-all dark:bg-zinc-900/60 dark:hover:bg-zinc-800 dark:border-zinc-800 text-xs sm:text-sm active:scale-95 disabled:opacity-50 hover:border-orange-500/40"
+                          aria-label={`Загрузить ещё ${Math.min(SESSIONS_PAGE_SIZE, sessions.length - visibleSessionsCount)} сессий`}
+                        >
+                          {isLoadingMoreSessions ? (
+                            <>
+                              <RefreshCw className="w-4 h-4 text-orange-500 animate-spin" aria-hidden="true" />
+                              <span>Загрузка...</span>
+                            </>
+                          ) : (
+                            <span>Показать ещё ({sessions.length - visibleSessionsCount})</span>
+                          )}
+                        </button>
+                      ) : (
+                        <p className="text-xs font-medium text-muted-foreground">
+                          Все сессии загружены ({sessions.length})
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
           </div>
         )}
 
-        {/* ========================================================================= */}
         {/* ВКЛАДКА: ИСТОРИЯ */}
-        {/* ========================================================================= */}
         {activeTab === "history" && (
           <div className="space-y-6 animate-in fade-in duration-300">
             <div className="bg-card/40 dark:bg-zinc-900/30 backdrop-blur-xl border border-border/50 dark:border-zinc-800/80 rounded-3xl p-4 sm:p-6">
@@ -686,14 +691,12 @@ export default function AccountStatsPage() {
                     })}
                   </div>
 
-                  {/* Кнопка «Показать ещё» */}
                   <div className="flex justify-center pt-8 pb-2">
                     {hasMoreHistory ? (
                       <button
                         onClick={loadMoreHistory}
                         disabled={isLoadingMoreHistory}
                         className="inline-flex items-center gap-2 px-6 py-2.5 bg-secondary/70 hover:bg-secondary border border-border/60 text-foreground font-semibold rounded-xl transition-all dark:bg-zinc-900/60 dark:hover:bg-zinc-800 dark:border-zinc-800 text-xs sm:text-sm active:scale-95 disabled:opacity-50 hover:border-orange-500/40"
-                        aria-label={`Загрузить ещё ${sortedHistoryItems.length - visibleHistoryCount} записей истории`}
                       >
                         {isLoadingMoreHistory ? (
                           <>
@@ -716,9 +719,7 @@ export default function AccountStatsPage() {
           </div>
         )}
 
-        {/* ========================================================================= */}
         {/* ВКЛАДКА: ПРОГРЕСС */}
-        {/* ========================================================================= */}
         {activeTab === "progress" && (
           <div className="space-y-6 animate-in fade-in duration-300">
             <div className="bg-card/40 dark:bg-zinc-900/30 backdrop-blur-xl border border-border/50 dark:border-zinc-800/80 rounded-3xl p-4 sm:p-6">
@@ -786,9 +787,7 @@ export default function AccountStatsPage() {
           </div>
         )}
 
-        {/* ========================================================================= */}
         {/* ВКЛАДКА: АКТИВНОСТЬ */}
-        {/* ========================================================================= */}
         {activeTab === "activity" && (
           <div className="space-y-6 animate-in fade-in duration-300">
             <div className="bg-card/40 dark:bg-zinc-900/30 backdrop-blur-xl border border-border/50 dark:border-zinc-800/80 rounded-3xl p-4 sm:p-6">
@@ -835,7 +834,6 @@ export default function AccountStatsPage() {
             </div>
           </div>
         )}
-
       </div>
 
       <ScrollToTop />
