@@ -30,6 +30,7 @@ export const activityRecorder = createActivityRecorder()
 
 function createActivityRecorder(): ActivityRecorder {
   let enabled = true
+  let pendingSyncTimeout: ReturnType<typeof setTimeout> | null = null
 
   function beat(_event?: ActivityEvent): void {
     if (typeof window === "undefined") return
@@ -67,6 +68,84 @@ function createActivityRecorder(): ActivityRecorder {
     }
   }
 
+  /** Откладывает синхронизацию статистики в БД на короткое время, чтобы избежать частых запросов. */
+  function scheduleDbSync(userId: string): void {
+    if (pendingSyncTimeout) {
+      clearTimeout(pendingSyncTimeout)
+    }
+    pendingSyncTimeout = setTimeout(() => {
+      syncSessionStatsToDb(userId)
+      pendingSyncTimeout = null
+    }, 2000)
+  }
+
+  /** Синхронизирует накопленные сессии и время из localStorage в БД. */
+  async function syncSessionStatsToDb(userId: string): Promise<void> {
+    if (typeof window === "undefined") return
+    try {
+      const current = readSession()
+      const totalTimeMs = computeTotalTimeMs(current)
+      const durations = computeSessionDurations(current)
+      const totalSessions = durations.length
+
+      if (totalSessions === 0 && totalTimeMs === 0) {
+        return // Нет данных для синхронизации
+      }
+
+      // Вычисляем среднее время сессии
+      const avgSessionMs = totalSessions > 0 ? Math.round(totalTimeMs / totalSessions) : 0
+
+      // Получаем последнюю сессию для last_visit_at
+      let lastVisitAt: string | undefined = undefined
+      if (durations.length > 0) {
+        const lastSession = durations[durations.length - 1]
+        lastVisitAt = new Date(lastSession.end).toISOString()
+      }
+
+      // Получаем первую сессию для first_visit_at (если ещё не установлено)
+      let firstVisitAt: string | undefined = undefined
+      if (durations.length > 0) {
+        const firstSession = durations[0]
+        firstVisitAt = new Date(firstSession.start).toISOString()
+      }
+
+      console.log('[account-stats] syncSessionStatsToDb:', { userId, totalSessions, totalTimeMs, avgSessionMs, lastVisitAt })
+
+      // Обновляем account_stats в БД
+      const mod = await import("../../lib/supabase")
+      if (typeof mod.updateAccountStats === "function") {
+        await mod.updateAccountStats(userId, {
+          totalSessions,
+          totalTimeMs,
+          avgSessionMs,
+          lastVisitAt,
+          firstVisitAt,
+        })
+      }
+    } catch (e) {
+      console.error("[account-stats] syncSessionStatsToDb error:", e)
+    }
+  }
+
+  /** Вычисляет общее время всех сессий */
+  function computeTotalTimeMs(current: SessionState): number {
+    let total = 0
+    for (const s of current.sessions) {
+      if (s.end - s.start >= MIN_SESSION_MS) total += s.end - s.start
+    }
+    // Ongoing-but-paused session: count it only if it already meets the minimum threshold.
+    if (!current.flushed && current.startedAt) {
+      const durationMs = computeDuration(current)
+      if (durationMs >= MIN_SESSION_MS) total += durationMs
+    }
+    return total
+  }
+
+  /** Вычисляет длительности сессий */
+  function computeSessionDurations(current: SessionState): SessionRecord[] {
+    return current.sessions.filter((s) => s.end - s.start >= MIN_SESSION_MS).slice(-30)
+  }
+
   return {
     enabled,
 
@@ -77,6 +156,8 @@ function createActivityRecorder(): ActivityRecorder {
         if (userId) {
           // Fire-and-forget DB write; never block the UI on it.
           void supabaseRecordActivityEvent(userId, event.eventType, event.category, event.payload ?? {})
+          // Планируем синхронизацию статистики сессий в БД
+          scheduleDbSync(userId)
         }
       } catch (e) {
         console.error("[account-stats] recordActivity DB error:", e)
@@ -98,6 +179,12 @@ function createActivityRecorder(): ActivityRecorder {
       try {
         const current = readSession()
         writeSession({ ...current, startedAt: Date.now(), pausedAt: undefined, flushed: false })
+        
+        // Для авторизованных пользователей планируем синхронизацию
+        const userId = getCurrentUserId()
+        if (userId) {
+          scheduleDbSync(userId)
+        }
       } catch (e) { console.error("[account-stats] startSession error:", e) }
     },
 
@@ -118,6 +205,12 @@ function createActivityRecorder(): ActivityRecorder {
           current.sessions.push({ start: current.startedAt, end: durationMs > 0 ? current.pausedAt ?? now : current.startedAt })
           current.flushed = true
           writeSession(current)
+          
+          // Для авторизованных пользователей синхронизируем с БД
+          const userId = getCurrentUserId()
+          if (userId) {
+            scheduleDbSync(userId)
+          }
         }
         return durationMs
       } catch (e) { console.error("[account-stats] flushSession error:", e) }
@@ -143,6 +236,14 @@ function createActivityRecorder(): ActivityRecorder {
     getSessionDurations: (): SessionRecord[] => {
       const current = readSession()
       return current.sessions.filter((s) => s.end - s.start >= MIN_SESSION_MS).slice(-30)
+    },
+
+    /** Принудительная синхронизация статистики сессий в БД (вызывается при монтировании провайдера). */
+    syncStatsToDb: async (): Promise<void> => {
+      const userId = getCurrentUserId()
+      if (userId) {
+        await syncSessionStatsToDb(userId)
+      }
     },
 
     // --- internal helpers ---
@@ -217,6 +318,7 @@ type ActivityRecorder = {
   flushSession(): number
   getTotalTimeMs(): number
   getSessionDurations(): SessionRecord[]
+  syncStatsToDb(): Promise<void>
   getCurrentUserId(): string | null
   readSession(): SessionState
   writeSession(state: SessionState): void

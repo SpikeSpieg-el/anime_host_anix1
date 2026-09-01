@@ -129,6 +129,15 @@ export function AccountStatsProvider({ children }: { children: React.ReactNode }
         console.log('[AccountStatsProvider] dbStats from DB:', dbStats)
         merged = { ...(dbStats ?? {}) } as Record<string, any>
         console.log('[AccountStatsProvider] merged stats:', merged)
+        
+        // Синхронизируем накопленные сессии и время из localStorage в БД
+        await activityRecorder.syncStatsToDb()
+        
+        // Обновляем merged после синхронизации, чтобы получить актуальные данные
+        const refreshedStats = await getAccountStats(user.id)
+        if (refreshedStats) {
+          merged = { ...(refreshedStats ?? {}) } as Record<string, any>
+        }
       } else {
         isGuestRef.current = true
         // Гостевой fallback: время на сайте из recorder, остальное — из localStorage.
