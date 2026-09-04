@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { QRCodeSVG } from "qrcode.react"
 import { Navbar } from "@/components/layout/navbar"
 import { Card, CardStats } from "@/app/gacha/types"
 import { Rarity, rarityConfig } from "@/types/gacha"
@@ -82,6 +83,7 @@ export default function CardEditorPage() {
   const [jsonInput, setJsonInput] = useState<string>("")
   const [showJsonInput, setShowJsonInput] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [giftLink, setGiftLink] = useState("")
   
   const [card, setCard] = useState<Partial<Card>>({
     name: "Новый персонаж",
@@ -300,6 +302,33 @@ export default function CardEditorPage() {
     }).catch(() => {
       toast.error("Не удалось скопировать JSON")
     })
+  }
+
+  const encodeBase64Url = (value: string) => {
+    const bytes = new TextEncoder().encode(value)
+    let binary = ""
+    bytes.forEach((byte) => {
+      binary += String.fromCharCode(byte)
+    })
+    return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "")
+  }
+
+  const handleGenerateGiftLink = async () => {
+    if (process.env.NODE_ENV !== "development") return
+
+    const finalCard = buildFinalCard()
+    if (!finalCard) return
+
+    const token = encodeBase64Url(JSON.stringify(finalCard))
+    const link = `${window.location.origin}/gift/${token}`
+    setGiftLink(link)
+
+    try {
+      await navigator.clipboard.writeText(link)
+      toast.success("Ссылка для QR-кода сгенерирована и скопирована")
+    } catch {
+      toast.success("Ссылка для QR-кода сгенерирована")
+    }
   }
 
   const handleLoadFromJson = () => {

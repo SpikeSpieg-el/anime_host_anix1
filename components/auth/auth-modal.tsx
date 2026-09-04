@@ -8,6 +8,20 @@ import { Input } from "@/components/ui/input"
 import { Loader2, Mail, Lock, LogIn, UserPlus, AlertCircle, X, KeyRound, CheckCircle2, ArrowLeft } from "lucide-react"
 import { loggers } from "@/lib/logger"
 
+function decodeGiftCardToken(token: string | null) {
+  if (!token) return null
+
+  try {
+    const normalized = token.replace(/-/g, "+").replace(/_/g, "/")
+    const padded = normalized + "=".repeat((4 - (normalized.length % 4)) % 4)
+    const binary = atob(padded)
+    const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0))
+    return JSON.parse(new TextDecoder().decode(bytes))
+  } catch {
+    return null
+  }
+}
+
 function userFacingAuthError(err: unknown): string {
   const e = err as { message?: string; status?: number; code?: string } | null
   const msg = (e?.message || "").trim()
@@ -125,12 +139,22 @@ export function AuthModal({
           ? decodeURIComponent(referralCookie.substring("referral_code=".length))
           : null
 
+        const giftCardToken = new URLSearchParams(window.location.search).get("gift_card")
+          || document.cookie
+            .split("; ")
+            .find((cookie) => cookie.startsWith("gift_card="))
+          || null
+        const giftCardValue = giftCardToken
+          ? decodeGiftCardToken(giftCardToken.includes("gift_card=") ? giftCardToken.substring("gift_card=".length) : giftCardToken)
+          : null
+
         const { data, error } = await supabase.auth.signUp({
           email: emailTrim,
           password: passwordTrim,
           options: {
             data: {
               referral_code: referralCode,
+              gift_card: giftCardValue ? JSON.stringify(giftCardValue) : null,
             },
           },
         })
@@ -149,6 +173,7 @@ export function AuthModal({
         // Email confirmation handled by Supabase settings
         if (data.user) {
           document.cookie = "referral_code=; path=/; max-age=0"
+          document.cookie = "gift_card=; path=/; max-age=0"
           setIsOpen(false)
         } else {
           setError('Не удалось создать аккаунт. Попробуйте снова.')
