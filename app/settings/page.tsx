@@ -16,6 +16,7 @@ import Link from "next/link"
 import { ScrollToTop } from "@/components/layout/scroll-to-top"
 import { SuccessNotification } from "@/components/settings/success-notification"
 import { Footer } from "@/components/layout/footer"
+import { ReferralCard } from "@/components/profile/ReferralCard"
 
 export default function SettingsPage() {
   const { user, profile, refreshProfile, session } = useAuth()
@@ -294,6 +295,8 @@ export default function SettingsPage() {
         </Card>
 
         {/* NSFW Search Settings */}
+        {profile?.referral_code && <ReferralCard referralCode={profile.referral_code} />}
+
         <Card>
           <CardHeader>
             <CardTitle className="text-foreground flex items-center gap-2">

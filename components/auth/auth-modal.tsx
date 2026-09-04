@@ -42,11 +42,17 @@ interface AuthModalProps {
   isOpen?: boolean
   onClose?: (open: boolean) => void
   children?: React.ReactNode
+  initialMode?: "login" | "register"
 }
 
-export function AuthModal({ isOpen: externalIsOpen, onClose, children }: AuthModalProps = {}) {
+export function AuthModal({
+  isOpen: externalIsOpen,
+  onClose,
+  children,
+  initialMode = "login",
+}: AuthModalProps = {}) {
   const [internalIsOpen, setInternalIsOpen] = useState(false)
-  const [isLogin, setIsLogin] = useState(true)
+  const [isLogin, setIsLogin] = useState(initialMode === "login")
   const [isForgot, setIsForgot] = useState(false)
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
@@ -112,9 +118,21 @@ export function AuthModal({ isOpen: externalIsOpen, onClose, children }: AuthMod
 
         setIsOpen(false)
       } else {
+        const referralCookie = document.cookie
+          .split("; ")
+          .find((cookie) => cookie.startsWith("referral_code="))
+        const referralCode = referralCookie
+          ? decodeURIComponent(referralCookie.substring("referral_code=".length))
+          : null
+
         const { data, error } = await supabase.auth.signUp({
           email: emailTrim,
           password: passwordTrim,
+          options: {
+            data: {
+              referral_code: referralCode,
+            },
+          },
         })
 
         if (error) {
@@ -130,6 +148,7 @@ export function AuthModal({ isOpen: externalIsOpen, onClose, children }: AuthMod
         // Если пользователь создан успешно - закрываем модалку
         // Email confirmation handled by Supabase settings
         if (data.user) {
+          document.cookie = "referral_code=; path=/; max-age=0"
           setIsOpen(false)
         } else {
           setError('Не удалось создать аккаунт. Попробуйте снова.')

@@ -24,6 +24,8 @@ interface Profile {
   username: string | null
   updated_at: string | null
   allow_nsfw_search?: boolean
+  referral_code?: string | null
+  referred_by?: string | null
 }
 
 const AuthContext = createContext<AuthContextType>({
