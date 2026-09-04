@@ -1,9 +1,8 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import { createPortal } from "react-dom"
-import { Search, Clock, X, ChevronRight } from "lucide-react"
-import { getProxiedSrc } from "@/lib/image-loader"
+import Image from "next/image"
+import { Search, X } from "lucide-react"
 import { Anime } from "@/lib/shikimori"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/components/auth/auth-provider"
@@ -170,11 +169,11 @@ export function SearchSuggestions({
         )}
       </div>
 
-      {isOpen && typeof document !== "undefined" && createPortal(
+      {isOpen && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
           
-          <div className="fixed left-3 right-3 top-14 bg-background/95 backdrop-blur-xl border rounded-xl shadow-2xl z-50 max-h-[80vh] overflow-y-auto overflow-x-hidden md:absolute md:left-0 md:right-0 md:top-full md:mt-2 md:rounded-xl">
+          <div className="absolute left-0 right-0 top-full mt-2 bg-background/95 backdrop-blur-xl border rounded-xl shadow-2xl z-50 max-h-[80vh] overflow-y-auto overflow-x-hidden">
             
             {/* Результаты поиска */}
             {suggestions.length > 0 ? (
@@ -188,10 +187,16 @@ export function SearchSuggestions({
                     onClick={() => handleAnimeClick(anime.id)}
                     className="w-full text-left p-2 rounded-lg hover:bg-secondary transition-colors group flex items-start gap-3 mb-1"
                   >
-                    <img
-                        src={getProxiedSrc(anime.poster)}
-                        alt={anime.title}
-                        className="w-10 h-14 object-cover rounded shadow-lg group-hover:scale-105 transition-transform"
+                    <Image
+                      src={anime.poster}
+                      alt={anime.title}
+                      width={40}
+                      height={56}
+                      className="w-10 h-14 object-cover rounded shadow-lg group-hover:scale-105 transition-transform"
+                      sizes="40px"
+                      placeholder="blur"
+                      blurDataURL="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjMjIyIi8+PC9zdmc+"
+                      unoptimized={anime.poster.startsWith("data:image")}
                     />
                     <div className="flex-1 min-w-0 py-0.5">
                         <div className="text-sm font-semibold text-foreground group-hover:text-primary transition-colors truncate">
@@ -245,8 +250,7 @@ export function SearchSuggestions({
               </div>
             )}
           </div>
-        </>,
-        document.body
+        </>
       )}
     </div>
   )
