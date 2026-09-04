@@ -144,9 +144,12 @@ export function AuthModal({
             .split("; ")
             .find((cookie) => cookie.startsWith("gift_card="))
           || null
-        const giftCardValue = giftCardToken
-          ? decodeGiftCardToken(giftCardToken.includes("gift_card=") ? giftCardToken.substring("gift_card=".length) : giftCardToken)
-          : null
+        const rawGiftCardToken = giftCardToken?.includes("gift_card=")
+          ? giftCardToken.substring("gift_card=".length)
+          : giftCardToken
+        const giftCardValue = rawGiftCardToken && /^[A-Za-z0-9]{32}$/.test(rawGiftCardToken)
+          ? rawGiftCardToken
+          : decodeGiftCardToken(rawGiftCardToken)
 
         const { data, error } = await supabase.auth.signUp({
           email: emailTrim,

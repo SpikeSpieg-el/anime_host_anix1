@@ -1,17 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
 
-function decodeGiftCardToken(token: string) {
-  try {
-    const normalized = token.replace(/-/g, "+").replace(/_/g, "/")
-    const padded = normalized + "=".repeat((4 - (normalized.length % 4)) % 4)
-    const binary = Buffer.from(padded, "base64").toString("utf-8")
-    JSON.parse(binary)
-    return true
-  } catch {
-    return false
-  }
-}
-
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ token: string }> },
@@ -20,7 +8,7 @@ export async function GET(
   const rawToken = decodeURIComponent(token || "").trim()
   const redirectUrl = new URL("/auth/register", request.url)
 
-  if (rawToken && decodeGiftCardToken(rawToken)) {
+  if (/^[A-Za-z0-9]{32}$/.test(rawToken)) {
     redirectUrl.searchParams.set("gift_card", rawToken)
   }
 

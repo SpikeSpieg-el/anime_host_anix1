@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { QRCodeSVG } from "qrcode.react"
+import { useState, useEffect, useRef } from "react"
+import { QRCodeCanvas, QRCodeSVG } from "qrcode.react"
 import { Navbar } from "@/components/layout/navbar"
 import { Card, CardStats } from "@/app/gacha/types"
 import { Rarity, rarityConfig } from "@/types/gacha"
@@ -42,6 +42,7 @@ import {
   getAdminUsersSimple,
   getBanners,
   adminGiftCardToUser,
+  createGiftCardToken,
   addBannerCard,
   setBannerGuaranteedCard,
 } from "@/app/admin/actions"
@@ -84,6 +85,7 @@ export default function CardEditorPage() {
   const [showJsonInput, setShowJsonInput] = useState(false)
   const [copied, setCopied] = useState(false)
   const [giftLink, setGiftLink] = useState("")
+  const giftQrCanvasRef = useRef<HTMLCanvasElement>(null)
   
   const [card, setCard] = useState<Partial<Card>>({
     name: "Новый персонаж",
@@ -304,22 +306,13 @@ export default function CardEditorPage() {
     })
   }
 
-  const encodeBase64Url = (value: string) => {
-    const bytes = new TextEncoder().encode(value)
-    let binary = ""
-    bytes.forEach((byte) => {
-      binary += String.fromCharCode(byte)
-    })
-    return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "")
-  }
-
   const handleGenerateGiftLink = async () => {
     if (process.env.NODE_ENV !== "development") return
 
     const finalCard = buildFinalCard()
     if (!finalCard) return
 
-    const token = encodeBase64Url(JSON.stringify(finalCard))
+    const token = await createGiftCardToken(finalCard)
     const link = `${window.location.origin}/gift/${token}`
     setGiftLink(link)
 
@@ -329,6 +322,16 @@ export default function CardEditorPage() {
     } catch {
       toast.success("Ссылка для QR-кода сгенерирована")
     }
+  }
+
+  const handleDownloadGiftQr = () => {
+    const canvas = giftQrCanvasRef.current
+    if (!canvas || !giftLink) return
+
+    const link = document.createElement("a")
+    link.download = "gift-card-qr.png"
+    link.href = canvas.toDataURL("image/png")
+    link.click()
   }
 
   const handleLoadFromJson = () => {
@@ -893,6 +896,57 @@ export default function CardEditorPage() {
                   )}
                 </Button>
               </div>
+
+              {/* Generate a shareable gift link and QR code */}
+              {process.env.NODE_ENV === "development" && (
+                <div className="space-y-3 p-4 bg-indigo-950/30 rounded-2xl border border-indigo-500/20">
+                  <Label className="flex items-center gap-2 text-sm font-bold">
+                    <Gift className="w-4 h-4 text-indigo-400" /> Подарок по QR-коду
+                  </Label>
+                  <p className="text-[10px] text-indigo-200/60">
+                    Сгенерируйте ссылку для регистрации с этой картой и покажите QR-код получателю.
+                  </p>
+                  <Button
+                    onClick={handleGenerateGiftLink}
+                    disabled={!card.name || !card.rarity}
+                    className="w-full h-12 bg-indigo-600 hover:bg-indigo-500 font-black uppercase tracking-widest rounded-2xl disabled:opacity-50"
+                  >
+                    <Gift className="w-4 h-4 mr-2" />
+                    Сгенерировать QR-код
+                  </Button>
+                  {giftLink && (
+                    <div className="flex flex-col items-center gap-3 rounded-xl bg-white p-4">
+                      <QRCodeSVG
+                        value={giftLink}
+                        size={128}
+                        level="L"
+                        includeMargin
+                        aria-label="QR-код подарочной карты"
+                      />
+                      <QRCodeCanvas
+                        ref={giftQrCanvasRef}
+                        value={giftLink}
+                        size={2000}
+                        level="L"
+                        includeMargin
+                        className="hidden"
+                        aria-hidden="true"
+                      />
+                      <Button
+                        type="button"
+                        onClick={handleDownloadGiftQr}
+                        variant="outline"
+                        className="border-slate-300 bg-white text-slate-900 hover:bg-slate-100"
+                      >
+                        Скачать QR 2000×2000 PNG
+                      </Button>
+                      <p className="w-full break-all text-center font-mono text-xs text-slate-700">
+                        {giftLink}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Add to banner */}
               <div className="space-y-3 p-4 bg-slate-900/50 rounded-2xl border border-white/5">
