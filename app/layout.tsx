@@ -24,6 +24,7 @@ import { OrganizationStructuredData, WebSiteStructuredData } from "@/components/
 import NextTopLoader from "nextjs-toploader"
 import { Navbar } from "@/components/layout/navbar" 
 import { ChibiGuide } from "@/components/shared/chibi-guide"
+import { GiftCardReceivedModal } from "@/components/gacha/gift-card-received-modal"
 
 const _geist = Geist({ subsets: ["latin"] })
 const _geistMono = Geist_Mono({ subsets: ["latin"] })
@@ -167,6 +168,7 @@ export default function RootLayout({
             <AnalyticsWrapper />
           </ConsentProvider>
           <Toaster />
+          <GiftCardReceivedModal />
           <ServiceWorkerRegister />
         </ThemeProvider>
       </body>

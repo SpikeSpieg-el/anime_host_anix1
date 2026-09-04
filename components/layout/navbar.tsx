@@ -13,6 +13,8 @@ import { EpisodeUpdateBadge } from "@/components/watch/episode-update-badge"
 import { useEpisodeUpdates } from "@/hooks/use-episode-updates"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/components/auth/auth-provider"
+import { useToast } from "@/hooks/use-toast"
+import { dispatchGiftCardReceived } from "@/lib/gift-card-events"
 import { getProxiedSrc } from "@/lib/image-loader"
 import { AuthModal } from "@/components/auth/auth-modal"
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
@@ -51,7 +53,8 @@ function saveSearchHistory(query: string) {
 export function Navbar() {
   const router = useRouter()
   const pathname = usePathname()
-  const { user, signOut, profile, sessionLoading } = useAuth()
+  const { user, session, signOut, profile, sessionLoading } = useAuth()
+  const { toast } = useToast()
   const { updates, clearUpdate, clearAllUpdates } = useEpisodeUpdates()
 
   const isDev = process.env.NODE_ENV === 'development'
@@ -61,6 +64,7 @@ export function Navbar() {
   const [scrolled, setScrolled] = useState(false)
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
   const [authModalOpen, setAuthModalOpen] = useState(false)
+  const [authInitialMode, setAuthInitialMode] = useState<"login" | "register">("login")
   
   // Mobile specific states
   const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false)
@@ -98,6 +102,56 @@ export function Navbar() {
     window.addEventListener("open-auth-modal", handleOpenAuth)
     return () => window.removeEventListener("open-auth-modal", handleOpenAuth)
   }, [])
+
+  useEffect(() => {
+    const giftCardToken = new URLSearchParams(window.location.search).get("gift_card")
+    if (giftCardToken && /^[A-Za-z0-9]{32}$/.test(giftCardToken)) {
+      setAuthInitialMode("register")
+      if (!user) setAuthModalOpen(true)
+    }
+  }, [user])
+
+  useEffect(() => {
+    const giftCardToken = new URLSearchParams(window.location.search).get("gift_card")
+    if (!user || !session?.access_token || !giftCardToken || !/^[A-Za-z0-9]{32}$/.test(giftCardToken)) return
+
+    const claimGiftCard = async () => {
+      const response = await fetch("/api/gift/claim", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ token: giftCardToken }),
+      })
+
+      if (!response.ok) throw new Error("Gift card claim failed")
+
+      const result = await response.json()
+      if (!result.alreadyClaimed) {
+        dispatchGiftCardReceived(result.card)
+        toast({
+          title: "Подарок получен!",
+          description: "Карта добавлена в вашу коллекцию.",
+        })
+      }
+
+      document.cookie = "gift_card=; path=/; max-age=0"
+      const cleanUrl = new URL(window.location.href)
+      cleanUrl.searchParams.delete("gift_card")
+      window.history.replaceState({}, "", cleanUrl.toString())
+      router.refresh()
+    }
+
+    claimGiftCard().catch((error) => {
+      console.error("[GiftCard] Failed to claim gift card:", error)
+    })
+  }, [router, session?.access_token, toast, user])
+
+  const handleAuthModalChange = (open: boolean) => {
+    setAuthModalOpen(open)
+    if (!open) setAuthInitialMode("login")
+  }
 
   // Время на сайте: фиксируем сессию и слушаем переключение видимости вкладки
   useEffect(() => {
@@ -370,7 +424,12 @@ export function Navbar() {
                 </DropdownMenuContent>
               </DropdownMenu>
             ) : (
-              <AuthModal isOpen={authModalOpen} onClose={setAuthModalOpen} />
+              <AuthModal
+                key={authInitialMode}
+                isOpen={authModalOpen}
+                onClose={handleAuthModalChange}
+                initialMode={authInitialMode}
+              />
             )}
           </div>
         </div>

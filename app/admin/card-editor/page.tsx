@@ -313,7 +313,9 @@ export default function CardEditorPage() {
     if (!finalCard) return
 
     const token = await createGiftCardToken(finalCard)
-    const link = `${window.location.origin}/gift/${token}`
+    const origin = new URL(window.location.origin)
+    if (origin.hostname === "0.0.0.0") origin.hostname = "localhost"
+    const link = `${origin.origin}/gift/${token}`
     setGiftLink(link)
 
     try {

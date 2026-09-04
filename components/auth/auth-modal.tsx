@@ -7,6 +7,9 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Loader2, Mail, Lock, LogIn, UserPlus, AlertCircle, X, KeyRound, CheckCircle2, ArrowLeft } from "lucide-react"
 import { loggers } from "@/lib/logger"
+import { useToast } from "@/hooks/use-toast"
+import { dispatchGiftCardReceived } from "@/lib/gift-card-events"
+import type { Card } from "@/app/gacha/types"
 
 function decodeGiftCardToken(token: string | null) {
   if (!token) return null
@@ -20,6 +23,34 @@ function decodeGiftCardToken(token: string | null) {
   } catch {
     return null
   }
+}
+
+function getGiftCardToken() {
+  const queryToken = new URLSearchParams(window.location.search).get("gift_card")
+  const cookieValue = document.cookie
+    .split("; ")
+    .find((cookie) => cookie.startsWith("gift_card="))
+    ?.substring("gift_card=".length)
+  const token = queryToken || cookieValue || null
+
+  return token && /^[A-Za-z0-9]{32}$/.test(token) ? token : null
+}
+
+async function claimGiftCard(token: string, accessToken: string) {
+  const response = await fetch("/api/gift/claim", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify({ token }),
+  })
+
+  if (!response.ok) {
+    throw new Error("Не удалось добавить подарочную карту")
+  }
+
+  return response.json() as Promise<{ alreadyClaimed?: boolean; card?: Card }>
 }
 
 function userFacingAuthError(err: unknown): string {
@@ -73,6 +104,7 @@ export function AuthModal({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [resetSent, setResetSent] = useState(false)
+  const { toast } = useToast()
 
   const isOpen = externalIsOpen !== undefined ? externalIsOpen : internalIsOpen
   const setIsOpen = onClose || setInternalIsOpen
@@ -115,7 +147,7 @@ export function AuthModal({
 
     try {
       if (isLogin) {
-        const { error } = await supabase.auth.signInWithPassword({
+        const { data, error } = await supabase.auth.signInWithPassword({
           email: emailTrim,
           password: passwordTrim,
         })
@@ -130,6 +162,25 @@ export function AuthModal({
           return
         }
 
+        const giftCardToken = getGiftCardToken()
+        if (giftCardToken && data.session?.access_token) {
+          try {
+            const claimResult = await claimGiftCard(giftCardToken, data.session.access_token)
+            if (!claimResult.alreadyClaimed) {
+              if (claimResult.card) dispatchGiftCardReceived(claimResult.card)
+              toast({
+                title: "Подарок получен!",
+                description: "Карта добавлена в вашу коллекцию.",
+              })
+            }
+            document.cookie = "gift_card=; path=/; max-age=0"
+          } catch (claimError) {
+            loggers.auth.warn("claimGiftCard after sign in", claimError)
+            setError("Вход выполнен, но подарочную карту не удалось добавить. Откройте ссылку ещё раз после входа.")
+            return
+          }
+        }
+
         setIsOpen(false)
       } else {
         const referralCookie = document.cookie
@@ -139,14 +190,7 @@ export function AuthModal({
           ? decodeURIComponent(referralCookie.substring("referral_code=".length))
           : null
 
-        const giftCardToken = new URLSearchParams(window.location.search).get("gift_card")
-          || document.cookie
-            .split("; ")
-            .find((cookie) => cookie.startsWith("gift_card="))
-          || null
-        const rawGiftCardToken = giftCardToken?.includes("gift_card=")
-          ? giftCardToken.substring("gift_card=".length)
-          : giftCardToken
+        const rawGiftCardToken = getGiftCardToken()
         const giftCardValue = rawGiftCardToken && /^[A-Za-z0-9]{32}$/.test(rawGiftCardToken)
           ? rawGiftCardToken
           : decodeGiftCardToken(rawGiftCardToken)
@@ -175,6 +219,21 @@ export function AuthModal({
         // Если пользователь создан успешно - закрываем модалку
         // Email confirmation handled by Supabase settings
         if (data.user) {
+          if (rawGiftCardToken && data.session?.access_token) {
+            try {
+              const claimResult = await claimGiftCard(rawGiftCardToken, data.session.access_token)
+              if (claimResult.card) dispatchGiftCardReceived(claimResult.card)
+              toast({
+                title: "Подарок получен!",
+                description: "Карта добавлена в вашу коллекцию.",
+              })
+            } catch (claimError) {
+              loggers.auth.warn("claimGiftCard after sign up", claimError)
+              setError("Аккаунт создан, но подарочную карту не удалось добавить. Откройте ссылку ещё раз после входа.")
+              return
+            }
+          }
+
           document.cookie = "referral_code=; path=/; max-age=0"
           document.cookie = "gift_card=; path=/; max-age=0"
           setIsOpen(false)

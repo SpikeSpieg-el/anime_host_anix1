@@ -6,7 +6,7 @@ export async function GET(
 ) {
   const { token } = await params
   const rawToken = decodeURIComponent(token || "").trim()
-  const redirectUrl = new URL("/auth/register", request.url)
+  const redirectUrl = new URL("/", request.url)
 
   if (/^[A-Za-z0-9]{32}$/.test(rawToken)) {
     redirectUrl.searchParams.set("gift_card", rawToken)
