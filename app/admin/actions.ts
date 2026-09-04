@@ -686,6 +686,18 @@ export async function adminGiftCardToUser(userId: string, cardPayload: any, titl
   })
 }
 
+export async function createGiftCardToken(cardPayload: unknown) {
+  const supabase = await getAdminSupabase()
+  const token = crypto.randomUUID().replace(/-/g, "")
+  const { error } = await supabase.from("gift_card_tokens").insert({
+    token,
+    payload: cardPayload,
+  })
+
+  if (error) throw error
+  return token
+}
+
 // ============================================================
 // BANNERS (events) CRUD
 // ============================================================

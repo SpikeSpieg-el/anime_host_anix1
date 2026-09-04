@@ -4,6 +4,21 @@ const nextConfig = {
   poweredByHeader: false,
   images: {
     remotePatterns: [
+      // Development uses direct external image URLs from many artwork providers.
+      ...(process.env.NODE_ENV !== 'production'
+        ? [
+            {
+              protocol: 'http',
+              hostname: '**',
+              pathname: '/**',
+            },
+            {
+              protocol: 'https',
+              hostname: '**',
+              pathname: '/**',
+            },
+          ]
+        : []),
       // 1. MyAnimeList
       {
         protocol: 'https',
@@ -48,9 +63,28 @@ const nextConfig = {
         hostname: 'media.kitsu.app',
         pathname: '/**',
       },
+      // 5. Yande.re artwork used by the gacha collection
+      {
+        protocol: 'https',
+        hostname: 'yande.re',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'files.yande.re',
+        pathname: '/**',
+      },
+      // 6. Safebooru artwork used by the gacha collection
+      {
+        protocol: 'https',
+        hostname: 'safebooru.org',
+        pathname: '/**',
+      },
     ],
+    // Disable the default optimizer in dev so newly added external art hosts work
+    // without requiring a config change for every source.
+    unoptimized: process.env.NODE_ENV !== 'production',
     // Custom loader delegates to Coolify image service (bypasses Vercel transformations)
-    // In dev, use default Next.js image optimization instead
     ...(process.env.NODE_ENV === 'production' && {
       loader: 'custom',
       loaderFile: './lib/coolify-image-loader.js',
