@@ -29,6 +29,7 @@ export default function SettingsPage() {
   const [lampaDevices, setLampaDevices] = useState<any[]>([])
   const [lampaLoading, setLampaLoading] = useState(false)
   const [lampaUnlinking, setLampaUnlinking] = useState<string | null>(null)
+  const [referralCount, setReferralCount] = useState(0)
   const { toast } = useToast()
 
   const fetchLampaDevices = async () => {
@@ -54,6 +55,28 @@ export default function SettingsPage() {
       fetchLampaDevices()
     }
   }, [user?.id, session?.access_token])
+
+  useEffect(() => {
+    if (!user || !session?.access_token || !profile?.referral_code) return
+
+    const fetchReferralStats = async () => {
+      try {
+        const response = await fetch("/api/referrals", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        })
+        const result = await response.json()
+        if (!response.ok) {
+          throw new Error(result.error || "Не удалось загрузить статистику рефералов")
+        }
+        setReferralCount(result.referralCount)
+      } catch (error) {
+        console.error("Failed to fetch referral stats:", error)
+      }
+    }
+
+    fetchReferralStats()
+  }, [user?.id, session?.access_token, profile?.referral_code])
 
   const handleUnlinkDevice = async (deviceId: string) => {
     if (!session?.access_token) return
@@ -295,7 +318,9 @@ export default function SettingsPage() {
         </Card>
 
         {/* NSFW Search Settings */}
-        {profile?.referral_code && <ReferralCard referralCode={profile.referral_code} />}
+        {profile?.referral_code && (
+          <ReferralCard referralCode={profile.referral_code} referralCount={referralCount} />
+        )}
 
         <Card>
           <CardHeader>

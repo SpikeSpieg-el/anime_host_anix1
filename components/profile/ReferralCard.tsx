@@ -6,7 +6,7 @@ import { QRCodeSVG } from "qrcode.react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 
-export function ReferralCard({ referralCode }: { referralCode: string }) {
+export function ReferralCard({ referralCode, referralCount }: { referralCode: string; referralCount: number }) {
   const [copied, setCopied] = useState(false)
   const [referralLink, setReferralLink] = useState(`/r/${referralCode}`)
 
@@ -30,6 +30,9 @@ export function ReferralCard({ referralCode }: { referralCode: string }) {
         <CardDescription>
           Вы и ваш друг получите по 2000 монет за регистрацию по вашей ссылке.
         </CardDescription>
+        <p className="mt-2 text-sm font-medium text-foreground">
+          Рефералов приглашено: {referralCount}
+        </p>
       </CardHeader>
       <CardContent>
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
