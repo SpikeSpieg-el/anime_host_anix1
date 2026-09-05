@@ -9,6 +9,7 @@ import { useBattleData } from "./hooks/use-battle-data"
 import { useAuth } from "@/components/auth/auth-provider"
 import { AuthModal } from "@/components/auth/auth-modal"
 import { GachaTutorial } from "@/components/gacha/gacha-tutorial"
+import { getCardProvision, getCardRole } from "./utils"
 import { StatsPanel, StatsPanelSkeleton } from "./components/StatsPanel"
 import { DungeonSelector } from "./components/DungeonSelector"
 import { ModeSelector } from "./components/ModeSelector"
@@ -19,8 +20,9 @@ import { TeamBuilderModal } from "./components/TeamBuilderModal"
 import { AutoBuildConfirmModal } from "./components/AutoBuildConfirmModal"
 import { PvPArena } from "./components/PvPArena"
 import { Leaderboard } from "./components/Leaderboard"
+import { DeckPresets } from "./components/DeckPresets"
 import { usePvPBattle } from "./hooks/use-pvp-battle"
-import { glassCard } from "./config"
+import { glassCard, DECK_SIZE } from "./config"
 import { computeDeckSynergies } from "./utils"
 import { Card } from "./types"
 import { rarityConfig } from "@/types/gacha"
@@ -285,7 +287,7 @@ const InteractiveCard = ({ card }: { card: Card }) => {
 
 export default function BattlePage() {
   const router = useRouter()
-  const { user, sessionLoading } = useAuth()
+  const { user, session, sessionLoading } = useAuth()
   const [showAuthModal, setShowAuthModal] = useState(false)
   const [showLocationSelector, setShowLocationSelector] = useState(false)
   const [showModeSelector, setShowModeSelector] = useState(false)
@@ -309,7 +311,9 @@ export default function BattlePage() {
     dungeons,
     enemies,
     logs,
+    collectedCards,
     selectedCards,
+    setSelectedCards,
     selectedDungeon,
     setSelectedDungeon,
     leaderId,
@@ -365,6 +369,7 @@ export default function BattlePage() {
     isInitializing,
     loadBattleData,
     aiThinking,
+    saveDeckToAPI,
   } = useBattleData()
 
   const isPlayer1Ref = useRef<boolean>(false)
@@ -474,6 +479,42 @@ export default function BattlePage() {
     const keepCards = selectedCards.filter(c => keepIds.includes(c.uniqueId))
     autoBuildDeck(keepCards)
   }, [selectedCards, autoBuildDeck])
+
+  const handleLoadPreset = useCallback((preset: any) => {
+    const presetCardIds: string[] = preset.card_ids || []
+    
+    // Сохраняем исходный порядок карт из пресета
+    const idMap = new Map(collectedCards.map(c => [c.uniqueId, c]))
+    const presetCards = presetCardIds
+      .map(id => idMap.get(id))
+      .filter((c): c is Card => Boolean(c))
+    
+    if (presetCards.length === 0) {
+      setError('Не найдено карт из этого пресета в вашей коллекции')
+      return
+    }
+    
+    // Пересчитываем роли и стоимость провизии
+    presetCards.forEach((c: Card) => {
+      c.provisionCost = getCardProvision(c)
+      c.role = getCardRole(c)
+    })
+    
+    setSelectedCards(presetCards)
+    setLeaderId(preset.leader_id || null)
+    setFormation(preset.formation || 'balance')
+    
+    // Сохраняем локально и на сервере
+    if (user) {
+      const validCardIds = presetCards.map(c => c.uniqueId)
+      localStorage.setItem(`battle_deck_${DECK_SIZE}_${user.id}`, JSON.stringify(validCardIds))
+      if (preset.leader_id) {
+        localStorage.setItem(`battle_leader_${user.id}`, preset.leader_id)
+      }
+      localStorage.setItem(`battle_formation_${user.id}`, preset.formation || 'balance')
+      saveDeckToAPI(validCardIds, preset.leader_id, preset.formation || 'balance')
+    }
+  }, [collectedCards, user, saveDeckToAPI, setLeaderId, setFormation, setSelectedCards, setError])
 
   const handleSharePage = async () => {
     const shareText = isPvPMode
@@ -721,6 +762,21 @@ export default function BattlePage() {
                 />
               )}
             </div>
+            
+            {/* Deck Presets */}
+            {!sessionLoading && progress && (
+              <div className="w-full max-w-md lg:max-w-none">
+                <DeckPresets
+                  selectedCards={selectedCards}
+                  leaderId={leaderId}
+                  formation={formation}
+                  isPvPMode={isPvPMode}
+                  onLoadPreset={handleLoadPreset}
+                  session={session}
+                  collectedCards={collectedCards}
+                />
+              </div>
+            )}
           </div>
         )}
 

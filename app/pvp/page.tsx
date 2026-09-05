@@ -17,9 +17,10 @@ import { TeamBuilderModal } from "@/app/battle/components/TeamBuilderModal"
 import { AutoBuildConfirmModal } from "@/app/battle/components/AutoBuildConfirmModal"
 import { PvPArena } from "@/app/battle/components/PvPArena"
 import { Leaderboard } from "@/app/battle/components/Leaderboard"
+import { DeckPresets } from "@/app/battle/components/DeckPresets"
 import { usePvPBattle } from "@/app/battle/hooks/use-pvp-battle"
 import { glassCard } from "@/app/battle/config"
-import { computeDeckSynergies } from "@/app/battle/utils"
+import { computeDeckSynergies, getCardProvision, getCardRole } from "@/app/battle/utils"
 import { Card } from "@/app/battle/types"
 import { rarityConfig } from "@/types/gacha"
 import { getProxiedSrc } from "@/lib/image-loader"
@@ -152,7 +153,7 @@ const InteractiveCard = ({ card }: { card: Card }) => {
 
 export default function PvPPage() {
   const router = useRouter()
-  const { user, sessionLoading } = useAuth()
+  const { user, session, sessionLoading } = useAuth()
   const [showAuthModal, setShowAuthModal] = useState(false)
   const [showPvPArena, setShowPvPArena] = useState(false)
   const [showLeaderboard, setShowLeaderboard] = useState(false)
@@ -230,6 +231,36 @@ export default function PvPPage() {
     setShowAutoBuildConfirm(false)
     autoBuildDeck(selectedCards.filter(c => keepIds.includes(c.uniqueId)))
   }, [selectedCards, autoBuildDeck])
+
+  const handleLoadPreset = useCallback((preset: any) => {
+    const presetCardIds: string[] = preset.card_ids || []
+    
+    // Сохраняем исходный порядок карт из пресета
+    const idMap = new Map(filteredCards.map(c => [c.uniqueId, c]))
+    const presetCards = presetCardIds
+      .map(id => idMap.get(id))
+      .filter((c): c is Card => Boolean(c))
+
+    if (presetCards.length === 0) {
+      setError('Не найдено карт из этого пресета в вашей коллекции')
+      return
+    }
+    
+    // Пересчитываем роли и стоимость провизии
+    presetCards.forEach((c: Card) => {
+      c.provisionCost = getCardProvision(c)
+      c.role = getCardRole(c)
+    })
+    
+    // Очищаем текущий выбор
+    selectedCards.forEach(card => toggleCardSelection(card))
+    
+    // Выбираем карты из пресета
+    presetCards.forEach(card => toggleCardSelection(card))
+    
+    setLeaderId(preset.leader_id || null)
+    setFormation(preset.formation || 'balance')
+  }, [filteredCards, selectedCards, toggleCardSelection, setLeaderId, setFormation, setError])
 
   const handleSharePage = async () => {
     const shareText = `⚔️ WEEB-X PVP - Сражайся с реальными игроками в онлайн-арене! Поднимайся в рейтинге и докажи своё мастерство! Зарегистрируй аккаунт и начни бой! За первую регистрацию получи 10,000 монет бесплатно.`
@@ -341,6 +372,21 @@ export default function PvPPage() {
                 />
               )}
             </div>
+            
+            {/* Deck Presets для сохранения и загрузки PvP колод */}
+            {session && !sessionLoading && progress && (
+              <div className="w-full max-w-md lg:max-w-none">
+                <DeckPresets
+                  selectedCards={selectedCards}
+                  leaderId={leaderId}
+                  formation={formation}
+                  isPvPMode={true}
+                  onLoadPreset={handleLoadPreset}
+                  session={session}
+                  collectedCards={filteredCards}
+                />
+              </div>
+            )}
           </div>
         )}
       </div>

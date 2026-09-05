@@ -1900,5 +1900,6 @@ export function useBattleData() {
     isInitializing,
     loadBattleData,
     aiThinking,
+    saveDeckToAPI,
   }
 }

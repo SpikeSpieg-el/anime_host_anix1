@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState } from "react"
-import { Lock } from "lucide-react"
+import { Lock, Loader2 } from "lucide-react"
 import { Card, CardRole } from "../types"
 import { rarityConfig } from "@/types/gacha"
 import { getCardBasePower, getCardRole } from "../utils"
@@ -41,6 +41,7 @@ export const BattleCard: React.FC<BattleCardProps> = ({
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const imageRef = useRef<HTMLImageElement | null>(null)
   const [redrawTrigger, setRedrawTrigger] = useState(0)
+  const [isImageLoading, setIsImageLoading] = useState(true)
 
   const role = card.role || getCardRole(card)
   const finalPower = powerValue !== undefined ? powerValue : getCardBasePower(card)
@@ -74,9 +75,12 @@ export const BattleCard: React.FC<BattleCardProps> = ({
   useEffect(() => {
     if (!card.imageUrl) return
 
+    setIsImageLoading(true)
+
     const cached = getCachedImage(card.imageUrl)
     if (cached) {
       imageRef.current = cached
+      setIsImageLoading(false)
       setRedrawTrigger(prev => prev + 1)
       return
     }
@@ -87,10 +91,12 @@ export const BattleCard: React.FC<BattleCardProps> = ({
       .then((img) => {
         if (cancelled) return
         imageRef.current = img
+        setIsImageLoading(false)
         setRedrawTrigger(prev => prev + 1)
       })
       .catch(() => {
         // Fallback - silent, canvas will show placeholder
+        setIsImageLoading(false)
       })
 
     return () => {
@@ -425,6 +431,11 @@ export const BattleCard: React.FC<BattleCardProps> = ({
         transform: "translateZ(0)",
       }}
     >
+      {isImageLoading && !((isSecret && !isPlayerCard) || forceHidden) && (
+        <div className="absolute inset-0 flex items-center justify-center bg-slate-900/80 backdrop-blur-sm z-20">
+          <Loader2 className="w-6 h-6 text-white/60 animate-spin" />
+        </div>
+      )}
       <canvas
         ref={canvasRef}
         className="block w-full h-full pointer-events-none"
