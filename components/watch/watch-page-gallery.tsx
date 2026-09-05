@@ -213,7 +213,7 @@ export function WatchPageGallery({ anime }: WatchPageGalleryProps) {
           )}
 
           {displayedScreenshots.length > 0 && (
-            <SectionContainer id="frames">
+            <SectionContainer id="frames" className="scroll-mt-24">
               <SectionHeader 
                 icon={Camera} 
                 title="Кадры из аниме" 
@@ -254,7 +254,7 @@ export function WatchPageGallery({ anime }: WatchPageGalleryProps) {
           )}
 
           {displayedCharacters.length > 0 && (
-            <SectionContainer id="characters">
+            <SectionContainer id="characters" className="scroll-mt-24">
               <SectionHeader 
                 icon={Users} 
                 title="Персонажи" 

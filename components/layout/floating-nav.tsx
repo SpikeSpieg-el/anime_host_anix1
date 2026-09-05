@@ -59,11 +59,35 @@ interface FloatingNavProps {
 export function FloatingNav({ config, variant = 'default' }: FloatingNavProps) {
   const finalConfig = config || (variant === 'watch-page' ? watchPageConfig : defaultConfig)
   const { navItems, scrollThreshold = 100, showScrollUpButton = true } = finalConfig
-  
+  const [visibleNavItems, setVisibleNavItems] = useState<NavItem[]>(
+    variant === 'watch-page' ? [] : navItems
+  )
   const [isVisible, setIsVisible] = useState(false)
   const [activeSection, setActiveSection] = useState("")
   const [isScrollingDown, setIsScrollingDown] = useState(false)
   const lastScrollY = useRef(0)
+
+  useEffect(() => {
+    if (variant !== 'watch-page') {
+      setVisibleNavItems(navItems)
+      return
+    }
+
+    const updateVisibleNavItems = () => {
+      const nextVisibleNavItems = navItems.filter(item => document.getElementById(item.id))
+      setVisibleNavItems(currentItems => {
+        const hasSameItems = currentItems.length === nextVisibleNavItems.length
+          && currentItems.every((item, index) => item.id === nextVisibleNavItems[index]?.id)
+        return hasSameItems ? currentItems : nextVisibleNavItems
+      })
+    }
+
+    updateVisibleNavItems()
+    const observer = new MutationObserver(updateVisibleNavItems)
+    observer.observe(document.body, { childList: true, subtree: true })
+
+    return () => observer.disconnect()
+  }, [navItems, variant])
 
   useEffect(() => {
     const handleScroll = () => {
@@ -72,7 +96,7 @@ export function FloatingNav({ config, variant = 'default' }: FloatingNavProps) {
       setIsScrollingDown(currentScrollY > lastScrollY.current)
       lastScrollY.current = currentScrollY
 
-      const sections = navItems.map(item => document.getElementById(item.id)).filter(Boolean)
+      const sections = visibleNavItems.map(item => document.getElementById(item.id)).filter(Boolean)
       let currentSection = ""
       for (const section of sections) {
         if (!section) continue;
@@ -87,7 +111,7 @@ export function FloatingNav({ config, variant = 'default' }: FloatingNavProps) {
     window.addEventListener("scroll", handleScroll, { passive: true })
     handleScroll()
     return () => window.removeEventListener("scroll", handleScroll)
-  }, [navItems, scrollThreshold])
+  }, [scrollThreshold, visibleNavItems])
 
   const scrollToSection = (id: string) => {
     const element = document.getElementById(id)
@@ -131,8 +155,8 @@ export function FloatingNav({ config, variant = 'default' }: FloatingNavProps) {
       )}
 
       {/* Основная панель (Стиль идентичен везде) */}
-      <nav className="flex flex-row lg:flex-col items-center gap-1.5 p-1.5 bg-background/80 backdrop-blur-2xl border border-white/10 dark:border-white/5 rounded-[22px] shadow-2xl">
-        {navItems.map((item) => {
+      <nav className="flex flex-row lg:flex-col items-center gap-1.5 p-1.5 max-w-[calc(100vw-1rem)] overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden bg-background/80 backdrop-blur-2xl border border-white/10 dark:border-white/5 rounded-[22px] shadow-2xl">
+        {visibleNavItems.map((item) => {
           const Icon = item.icon
           const isActive = activeSection === item.id
           

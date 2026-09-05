@@ -10,7 +10,7 @@ interface WatchPageOrderProps {
 
 export function WatchPageOrder({ anime }: WatchPageOrderProps) {
   return (
-    <div id="order" className="bg-card/20 border border-border rounded-2xl p-4 md:p-6 backdrop-blur-sm">
+    <div id="order" className="scroll-mt-24 bg-card/20 border border-border rounded-2xl p-4 md:p-6 backdrop-blur-sm">
       <h2 className="text-lg md:text-xl font-bold text-foreground mb-4">
         Порядок просмотра
       </h2>

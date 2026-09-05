@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import Image from "next/image"
 import {
   ArrowLeft,
   Star,
@@ -65,19 +64,13 @@ export default function BeginnersPage() {
     setMounted(true)
 
     const handleScroll = () => {
-      const sections = navItems.map(item => item.id)
-      const scrollPosition = window.scrollY + 150
-
-      for (const section of sections) {
-        const element = document.getElementById(section)
-        if (element) {
-          const { offsetTop, offsetHeight } = element
-          if (scrollPosition >= offsetTop && scrollPosition < offsetTop + offsetHeight) {
-            setActiveSection(section)
-            break
-          }
-        }
-      }
+      const activeItem = navItems.find(({ id }) => {
+        const element = document.getElementById(id)
+        if (!element) return false
+        const rect = element.getBoundingClientRect()
+        return rect.top <= 180 && rect.bottom > 180
+      })
+      setActiveSection(activeItem?.id || "")
     }
 
     window.addEventListener("scroll", handleScroll)
@@ -87,11 +80,7 @@ export default function BeginnersPage() {
   const scrollToSection = (sectionId: string) => {
     const element = document.getElementById(sectionId)
     if (element) {
-      const offsetTop = element.offsetTop - 180
-      window.scrollTo({
-        top: offsetTop,
-        behavior: "smooth"
-      })
+      element.scrollIntoView({ behavior: "smooth", block: "start" })
     }
   }
 
@@ -159,8 +148,8 @@ export default function BeginnersPage() {
         </section>
 
         {/* --- Sticky Navigation --- */}
-        <nav className="sticky top-20 z-40 mb-12">
-          <div className="bg-background/80 backdrop-blur-xl border border-border rounded-2xl p-2 overflow-x-auto">
+        <nav className="sticky top-16 md:top-20 z-40 mb-8 md:mb-12">
+          <div className="bg-background/80 backdrop-blur-xl border border-border rounded-2xl p-1.5 md:p-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             <div className="flex gap-1 min-w-max">
               {navItems.map((item) => {
                 const Icon = item.icon
@@ -168,13 +157,13 @@ export default function BeginnersPage() {
                   <button
                     key={item.id}
                     onClick={() => scrollToSection(item.id)}
-                    className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                    className={`flex items-center gap-1.5 md:gap-2 px-3 md:px-4 py-2 md:py-2.5 rounded-xl text-xs md:text-sm font-medium transition-all ${
                       activeSection === item.id
                         ? "bg-orange-500 text-white shadow-lg shadow-orange-500/25"
                         : "text-muted-foreground hover:text-foreground hover:bg-secondary/50"
                     }`}
                   >
-                    <Icon className="w-4 h-4" />
+                    <Icon className="w-3.5 h-3.5 md:w-4 md:h-4" />
                     {item.label}
                   </button>
                 )
@@ -293,12 +282,12 @@ export default function BeginnersPage() {
                   
                   {/* Card */}
                   <div className="relative aspect-[2/3] w-56 rounded-lg overflow-hidden bg-secondary shadow-2xl">
-                    <Image
-                      src=""
-                      alt="Demo"
-                      fill
-                      className="object-cover group-hover:scale-105 transition-transform duration-500"
-                    />
+                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-gradient-to-br from-zinc-800 via-zinc-900 to-black text-zinc-400">
+                      <LayoutGrid className="w-12 h-12 text-orange-500/70" />
+                      <span className="px-3 text-center text-xs font-medium uppercase tracking-wider">
+                        Изображение-пример
+                      </span>
+                    </div>
                     <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-transparent opacity-60" />
 
                     {/* Bookmark */}
