@@ -307,8 +307,6 @@ export default function CardEditorPage() {
   }
 
   const handleGenerateGiftLink = async () => {
-    if (process.env.NODE_ENV !== "development") return
-
     const finalCard = buildFinalCard()
     if (!finalCard) return
 
@@ -900,8 +898,7 @@ export default function CardEditorPage() {
               </div>
 
               {/* Generate a shareable gift link and QR code */}
-              {process.env.NODE_ENV === "development" && (
-                <div className="space-y-3 p-4 bg-indigo-950/30 rounded-2xl border border-indigo-500/20">
+              <div className="space-y-3 p-4 bg-indigo-950/30 rounded-2xl border border-indigo-500/20">
                   <Label className="flex items-center gap-2 text-sm font-bold">
                     <Gift className="w-4 h-4 text-indigo-400" /> Подарок по QR-коду
                   </Label>
@@ -947,8 +944,7 @@ export default function CardEditorPage() {
                       </p>
                     </div>
                   )}
-                </div>
-              )}
+              </div>
 
               {/* Add to banner */}
               <div className="space-y-3 p-4 bg-slate-900/50 rounded-2xl border border-white/5">

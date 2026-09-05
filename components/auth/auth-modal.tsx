@@ -219,6 +219,7 @@ export function AuthModal({
         // Если пользователь создан успешно - закрываем модалку
         // Email confirmation handled by Supabase settings
         if (data.user) {
+          let giftCardClaimed = false
           if (rawGiftCardToken && data.session?.access_token) {
             try {
               const claimResult = await claimGiftCard(rawGiftCardToken, data.session.access_token)
@@ -227,6 +228,7 @@ export function AuthModal({
                 title: "Подарок получен!",
                 description: "Карта добавлена в вашу коллекцию.",
               })
+              giftCardClaimed = true
             } catch (claimError) {
               loggers.auth.warn("claimGiftCard after sign up", claimError)
               setError("Аккаунт создан, но подарочную карту не удалось добавить. Откройте ссылку ещё раз после входа.")
@@ -235,7 +237,10 @@ export function AuthModal({
           }
 
           document.cookie = "referral_code=; path=/; max-age=0"
-          document.cookie = "gift_card=; path=/; max-age=0"
+          // Keep the token when email confirmation is required and no session exists yet.
+          if (!rawGiftCardToken || giftCardClaimed) {
+            document.cookie = "gift_card=; path=/; max-age=0"
+          }
           setIsOpen(false)
         } else {
           setError('Не удалось создать аккаунт. Попробуйте снова.')
