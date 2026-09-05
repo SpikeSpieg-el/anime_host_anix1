@@ -367,7 +367,7 @@ export function ChibiGuide() {
   const [atBottom, setAtBottom] = useState(false)
 
   // Режим реплик ('auto' | 'click')
-  const [speechMode, setSpeechMode] = useState<'auto' | 'click'>('auto')
+  const [speechMode, setSpeechMode] = useState<'auto' | 'click'>('click')
 
   const [quoteIndex, setQuoteIndex] = useState(0)
   const [randomAnime, setRandomAnime] = useState<Anime | null>(null)

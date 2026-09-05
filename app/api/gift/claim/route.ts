@@ -70,13 +70,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const { data: claimedToken, error: claimError } = await supabaseAdmin
+    const { data: giftTokenRow, error: claimError } = await supabaseAdmin
       .from("gift_card_tokens")
-      .update({ claimed_at: new Date().toISOString() })
-      .eq("token", giftToken)
-      .is("claimed_at", null)
-      .gt("created_at", new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
       .select("payload")
+      .eq("token", giftToken)
+      .gt("created_at", new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
       .maybeSingle()
 
     if (claimError) {
@@ -84,31 +82,50 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Failed to claim gift token" }, { status: 500 })
     }
 
-    if (!claimedToken?.payload) {
-      return NextResponse.json({ success: true, alreadyClaimed: true })
+    if (!giftTokenRow?.payload) {
+      return NextResponse.json({ error: "Gift token not found or expired" }, { status: 404 })
     }
 
-    const card = claimedToken.payload as Card
-    let uniqueId = card.uniqueId
-    let serialId = card.serialId || String(card.characterId)
+    const card = giftTokenRow.payload as Card
 
     const { data: existingCard } = await supabaseAdmin
       .from("user_cards")
       .select("id")
       .eq("user_id", user.id)
-      .eq("unique_id", uniqueId)
+      .eq("unique_id", card.uniqueId)
       .maybeSingle()
 
     if (existingCard) {
-      uniqueId = `${uniqueId}-${Date.now()}`
-      serialId = `${serialId}-G`
+      return NextResponse.json({ success: true, alreadyClaimed: true })
+    }
+
+    const { error: claimInsertError } = await supabaseAdmin
+      .from("gift_card_claims")
+      .insert({
+        token: giftToken,
+        user_id: user.id,
+        card_unique_id: card.uniqueId,
+      })
+
+    if (claimInsertError?.code === "23505") {
+      return NextResponse.json({ success: true, alreadyClaimed: true })
+    }
+
+    if (claimInsertError) {
+      console.error("Gift claim tracking error:", claimInsertError)
+      return NextResponse.json({ error: "Failed to track gift claim" }, { status: 500 })
     }
 
     const { error: insertError } = await supabaseAdmin
       .from("user_cards")
-      .insert(cardInsertPayload(user.id, { ...card, uniqueId, serialId }))
+      .insert(cardInsertPayload(user.id, card))
 
     if (insertError) {
+      await supabaseAdmin
+        .from("gift_card_claims")
+        .delete()
+        .eq("token", giftToken)
+        .eq("user_id", user.id)
       console.error("Gift card insert error:", insertError)
       return NextResponse.json({ error: "Failed to add gift card" }, { status: 500 })
     }
