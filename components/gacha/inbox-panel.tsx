@@ -204,11 +204,11 @@ export function InboxPanel({ open, onOpenChange, session, onClaimed }: InboxPane
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange} direction="right">
-      <DrawerContent className="bg-slate-950 border-slate-800 text-white sm:max-w-md w-full">
-        <DrawerHeader className="border-b border-slate-800 pb-4">
+      <DrawerContent className="bg-slate-950 border-slate-800 text-white sm:max-w-md w-full max-w-[90vw] h-screen sm:h-auto">
+        <DrawerHeader className="border-b border-slate-800 pb-4 pt-4 sm:pt-2">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="relative">
+            <div className="flex items-center gap-3 min-w-0 flex-1">
+              <div className="relative shrink-0">
                 <Mail className="w-6 h-6 text-indigo-400" />
                 {unreadCount > 0 && (
                   <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center">
@@ -216,25 +216,25 @@ export function InboxPanel({ open, onOpenChange, session, onClaimed }: InboxPane
                   </span>
                 )}
               </div>
-              <div>
-                <DrawerTitle className="text-white text-lg font-bold">Почта</DrawerTitle>
-                <DrawerDescription className="text-slate-400 text-xs">
+              <div className="min-w-0">
+                <DrawerTitle className="text-white text-base sm:text-lg font-bold truncate">Почта</DrawerTitle>
+                <DrawerDescription className="text-slate-400 text-xs truncate">
                   {mail.length > 0
-                    ? `${mail.length} ${mail.length === 1 ? "письмо" : "писем"}`
+                    ? `${mail.length} ${mail.length === 1 ? "письмо" : mail.length >= 5 ? "писем" : "письма"}`
                     : "Нет писем"}
                 </DrawerDescription>
               </div>
             </div>
             <button
               onClick={() => onOpenChange(false)}
-              className="p-2 rounded-lg hover:bg-slate-800 transition-colors"
+              className="p-2 rounded-lg hover:bg-slate-800 transition-colors shrink-0 ml-2"
             >
               <X className="w-5 h-5 text-slate-400" />
             </button>
           </div>
         </DrawerHeader>
 
-        <ScrollArea className="flex-1 px-4">
+        <ScrollArea className="flex-1 px-3 sm:px-4">
           {loading ? (
             <div className="flex flex-col items-center justify-center py-20 gap-3">
               <Loader2 className="w-8 h-8 text-indigo-400 animate-spin" />
@@ -243,8 +243,8 @@ export function InboxPanel({ open, onOpenChange, session, onClaimed }: InboxPane
           ) : mail.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 gap-3">
               <Mail className="w-12 h-12 text-slate-600" />
-              <p className="text-slate-500 text-sm">Здесь пока пусто</p>
-              <p className="text-slate-600 text-xs">Награды и подарки будут появляться здесь</p>
+              <p className="text-slate-500 text-sm text-center px-4">Здесь пока пусто</p>
+              <p className="text-slate-600 text-xs text-center px-4">Награды и подарки будут появляться здесь</p>
             </div>
           ) : (
             <div className="flex flex-col gap-3 py-4">
@@ -257,7 +257,7 @@ export function InboxPanel({ open, onOpenChange, session, onClaimed }: InboxPane
                 return (
                   <div
                     key={item.id}
-                    className={`relative rounded-xl border p-4 transition-colors ${
+                    className={`relative rounded-xl border p-3 sm:p-4 transition-colors ${
                       !item.isRead
                         ? "bg-indigo-950/40 border-indigo-700/50"
                         : "bg-slate-900/60 border-slate-800"
@@ -267,7 +267,7 @@ export function InboxPanel({ open, onOpenChange, session, onClaimed }: InboxPane
                     }}
                   >
                     {!item.isRead && (
-                      <span className="absolute top-4 right-4 w-2.5 h-2.5 rounded-full bg-indigo-400" />
+                      <span className="absolute top-3 right-3 sm:top-4 sm:right-4 w-2.5 h-2.5 rounded-full bg-indigo-400" />
                     )}
 
                     <div className="flex items-start gap-3 pr-6">
@@ -283,12 +283,12 @@ export function InboxPanel({ open, onOpenChange, session, onClaimed }: InboxPane
                     </div>
 
                     {item.body && (
-                      <p className="text-slate-300 text-sm mt-2 leading-relaxed">{item.body}</p>
+                      <p className="text-slate-300 text-xs sm:text-sm mt-2 leading-relaxed line-clamp-3">{item.body}</p>
                     )}
 
                     {card && (
-                      <div className="mt-3 flex items-center gap-3 rounded-lg bg-slate-900/80 border border-slate-800 p-2.5">
-                        <div className="relative w-12 h-16 rounded overflow-hidden shrink-0 bg-slate-800">
+                      <div className="mt-3 flex items-center gap-2 sm:gap-3 rounded-lg bg-slate-900/80 border border-slate-800 p-2">
+                        <div className="relative w-10 h-14 sm:w-12 sm:h-16 rounded overflow-hidden shrink-0 bg-slate-800">
                           {card.imageUrl && (
                             <Image
                               src={getProxiedSrc(card.imageUrl)}
@@ -300,8 +300,8 @@ export function InboxPanel({ open, onOpenChange, session, onClaimed }: InboxPane
                             />
                           )}
                         </div>
-                        <div className="min-w-0">
-                          <p className="text-white text-sm font-medium truncate">{card.name}</p>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-white text-xs sm:text-sm font-medium truncate">{card.name}</p>
                           <p className="text-slate-400 text-xs truncate">{card.anime}</p>
                           {rarityCfg && (
                             <span
@@ -328,11 +328,11 @@ export function InboxPanel({ open, onOpenChange, session, onClaimed }: InboxPane
                       </div>
                     )}
 
-                    <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-800/60">
-                      <span className="text-slate-500 text-[11px]">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mt-3 pt-3 border-t border-slate-800/60">
+                      <span className="text-slate-500 text-[10px] sm:text-[11px]">
                         {formatDate(item.createdAt)}
                       </span>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         {item.isClaimed && (
                           <span className="flex items-center gap-1 text-green-400 text-xs font-medium">
                             <Check className="w-3.5 h-3.5" />
