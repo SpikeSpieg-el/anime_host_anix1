@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useRef } from "react"
+import { useEffect, useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import type { FranchiseItem } from "@/lib/shikimori"
@@ -11,35 +11,32 @@ interface WatchOrderSectionProps {
 }
 
 export function WatchOrderSection({ watchOrder }: WatchOrderSectionProps) {
-  const { preloadBatch, getFromCache } = useCover()
+  const { getPoster } = useCover()
   const [items, setItems] = useState<FranchiseItem[]>(watchOrder)
-  const loadedRef = useRef(false)
 
   useEffect(() => {
-    if (loadedRef.current || watchOrder.length === 0) return
-    loadedRef.current = true
+    setItems(watchOrder)
+    if (watchOrder.length === 0) return
 
-    const posterRequests = watchOrder.map(item => ({
-      id: item.id,
-      shikimoriUrl: item.poster,
-      romajiName: "",
-      russianName: item.title
-    }))
-
-    preloadBatch(posterRequests).then(() => {
-      setItems(prev =>
-        prev.map(item => {
-          const cached = getFromCache(item.id)
-          if (cached && cached.poster && !cached.poster.startsWith('data:')) {
-            return { ...item, poster: cached.poster }
-          }
+    let cancelled = false
+    Promise.all(
+      watchOrder.map(async (item) => {
+        try {
+          const poster = await getPoster(item.id, item.poster, item.originalTitle || "", item.title)
+          return { ...item, poster }
+        } catch (error) {
+          console.error(`[WatchOrderSection] Error loading poster for ${item.id}:`, error)
           return item
-        })
-      )
-    }).catch(error => {
-      console.error('[WatchOrderSection] Error preloading posters:', error)
+        }
+      }),
+    ).then((resolvedItems) => {
+      if (!cancelled) setItems(resolvedItems)
     })
-  }, [watchOrder, preloadBatch, getFromCache])
+
+    return () => {
+      cancelled = true
+    }
+  }, [watchOrder, getPoster])
 
   if (items.length === 0) {
     return (

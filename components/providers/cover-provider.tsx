@@ -23,7 +23,7 @@ interface CoverContextValue {
 const CoverContext = createContext<CoverContextValue | null>(null)
 
 const CACHE_KEY = "cover-cache"
-const CACHE_VERSION = "v2"
+const CACHE_VERSION = "v3"
 const CACHE_TTL = 7 * 24 * 60 * 60 * 1000 // 7 дней
 
 function isReusablePoster(poster: string): boolean {

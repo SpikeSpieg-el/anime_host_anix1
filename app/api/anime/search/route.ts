@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
       allowNsfw,
       limit: 10,
       enableGenreFallback: false,
-      disableExternalAPIs: true,
+      disableExternalAPIs: false,
     })
 
     return NextResponse.json({ results })

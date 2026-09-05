@@ -88,6 +88,7 @@ export interface NewsItem {
 export interface FranchiseItem {
   id: string;
   title: string;
+  originalTitle?: string;
   poster: string;
   year?: number;
   kind?: string;

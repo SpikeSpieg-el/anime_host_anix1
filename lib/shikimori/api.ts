@@ -2,7 +2,7 @@ import { BASE_URL, HEADERS, GENRES_MAP } from "./config";
 import { shikimoriJson } from "./client";
 import { transformAnime, transformTopic, transformAnimeCalendar } from "./transformers";
 import { getAnimeBackdrop } from "./images";
-import { generateSearchVariants, isAnimeSafe, normalizeShikimoriUrl, transliterateRuToEn, containsCyrillic } from "./utils";
+import { generateSearchVariants, isAnimeSafe, normalizeShikimoriUrl, upgradeShikimoriUrl, transliterateRuToEn, containsCyrillic } from "./utils";
 import { Anime, CatalogFilters, FranchiseItem, NewsItem, RecommendationReason, ShikimoriAnime, WeeklySchedule } from "./types";
 
 // --- Catalog & Search ---
@@ -352,12 +352,20 @@ export async function getAnimeFranchise(id: string): Promise<FranchiseItem[]> {
 
   const nodes = data.nodes.filter((node: any) => node.url?.startsWith('/animes/'));
   const items = await Promise.all(nodes.map(async (node: any) => {
-    // Временная заглушка, так как для франшизы нужен отдельный резолв картинок, но можно использовать дефолтный
-    // Для простоты здесь не используем тяжелый resolveBestPoster, чтобы не спамить запросами
+    // Franchise nodes often contain only missing_x96.jpg. Fetch the exact anime
+    // record by ID instead of searching external services by title.
+    const animeData = await shikimoriJson<any>(
+      `${BASE_URL}/animes/${node.id}`,
+      { next: { revalidate: 21600 } },
+      { fallback: null },
+    );
+    const sourcePoster = animeData?.image?.original || node.image_url || "";
+
     return {
       id: String(node.id),
       title: node.name,
-      poster: normalizeShikimoriUrl(node.image_url),
+      originalTitle: animeData?.name || node.name,
+      poster: upgradeShikimoriUrl(sourcePoster),
       year: node.year,
       kind: node.kind,
       weight: node.weight,

@@ -125,7 +125,7 @@ export function EpisodeUpdateBadge({ updates, onClearUpdate, onClearAll, classNa
         </DialogTrigger>
 
         <DialogContent 
-          className="bg-background/95 backdrop-blur-xl border w-[95vw] sm:w-full sm:max-w-md p-0 gap-0 overflow-hidden shadow-2xl rounded-2xl flex flex-col max-h-[85vh]" 
+          className="bg-background/95 backdrop-blur-xl border w-[calc(100vw-2rem)] sm:w-full sm:max-w-md p-0 gap-0 overflow-hidden shadow-2xl rounded-2xl flex flex-col max-h-[85vh]"
           showCloseButton={false}
         >
           <DialogDescription className="sr-only">
@@ -233,7 +233,7 @@ export function EpisodeUpdateBadge({ updates, onClearUpdate, onClearAll, classNa
       </DialogTrigger>
 
       <DialogContent 
-        className="bg-background/95 backdrop-blur-xl border w-[95vw] sm:w-full sm:max-w-md p-0 gap-0 overflow-hidden shadow-2xl rounded-2xl flex flex-col max-h-[85vh]" 
+        className="bg-background/95 backdrop-blur-xl border w-[calc(100vw-2rem)] sm:w-full sm:max-w-md p-0 gap-0 overflow-hidden shadow-2xl rounded-2xl flex flex-col max-h-[85vh]"
         showCloseButton={false}
       >
         <DialogDescription className="sr-only">
@@ -382,7 +382,7 @@ export function EpisodeUpdateBadge({ updates, onClearUpdate, onClearAll, classNa
             )}
             {pushStatus === "error" && (
               <div className="mt-1 p-2 rounded-lg bg-red-500/10 border border-red-500/30">
-                <p className="text-xs text-red-500 text-center leading-relaxed">{getPushErrorMessage(pushErrorReason)}</p>
+                <p className="text-xs text-red-500 text-center leading-relaxed break-words">{getPushErrorMessage(pushErrorReason)}</p>
               </div>
             )}
           </div>

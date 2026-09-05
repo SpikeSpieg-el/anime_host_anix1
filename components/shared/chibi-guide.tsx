@@ -996,6 +996,10 @@ export function ChibiGuide() {
   const slideX = hideFraction * (isMobile ? 38 : -38)
   const slideY = hideFraction * 14
 
+  if (pathname === "/battle" || pathname === "/pvp") {
+    return null
+  }
+
   return (
     <div
       style={{

@@ -108,7 +108,9 @@ export function Footer() {
               <li><a className="text-zinc-500 hover:text-orange-500 transition-colors text-sm sm:text-[15px] font-bold" href="/catalog?sort=popular">Популярные хиты</a></li>
               <li><a className="text-zinc-500 hover:text-orange-500 transition-colors text-sm sm:text-[15px] font-bold" href="/catalog?kind=movie">Полнометражные фильмы</a></li>
               <li><a className="text-zinc-500 hover:text-orange-500 transition-colors text-sm sm:text-[15px] font-bold" href="/gacha">WEEB-X Гача</a></li>
-              <li><a className="text-zinc-500 hover:text-orange-500 transition-colors text-sm sm:text-[15px] font-bold" href="/market-dashboard">Рынок карт</a></li>
+              <li><a className="text-zinc-500 hover:text-orange-500 transition-colors text-sm sm:text-[15px] font-bold" href="/gacha?tab=market">Маркет карт</a></li>
+              <li><a className="text-zinc-500 hover:text-orange-500 transition-colors text-sm sm:text-[15px] font-bold" href="/battle">PVE битвы</a></li>
+              <li><a className="text-zinc-500 hover:text-orange-500 transition-colors text-sm sm:text-[15px] font-bold" href="/pvp">PvP арена</a></li>
             </ul>
           </div>
 

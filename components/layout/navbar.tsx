@@ -192,6 +192,10 @@ export function Navbar() {
     window.scrollTo({ top: 0, behavior: "smooth" })
   }
 
+  if (pathname === "/battle" || pathname === "/pvp") {
+    return null
+  }
+
   // Общие классы для иконок навигации
   const navIconClass = (isActive: boolean) => cn(
     "flex flex-col items-center justify-center gap-1 w-full h-full rounded-xl transition-all duration-300",

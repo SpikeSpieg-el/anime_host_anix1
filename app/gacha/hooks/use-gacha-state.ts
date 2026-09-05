@@ -154,6 +154,12 @@ export function useGachaState() {
   const [cardToPositionArt, setCardToPositionArt] = useState<Card | null>(null)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("tab") === "market") {
+      setGachaMainTab("market")
+    }
+  }, [])
+
   const collectionRating = useMemo(() => calculateCollectionRating(collectedCards), [collectedCards])
 
   const loadListedCards = useCallback(async () => {

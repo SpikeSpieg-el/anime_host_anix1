@@ -3,7 +3,6 @@
 import { useState, useRef, useCallback, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
-import { Navbar } from "@/components/layout/navbar"
 import { Footer } from "@/components/layout/footer"
 import { Swords, AlertCircle, X, RefreshCcw, Star, Crown, Lock, LogIn, Share, Sparkles } from "lucide-react"
 import { useBattleData } from "@/app/battle/hooks/use-battle-data"
@@ -250,8 +249,6 @@ export default function PvPPage() {
         <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMiIgY3k9IjIiIHI9IjEiIGZpbGw9InJnYmEoMjU1LDI1NSwyNTUsMC4wMykiLz48L3N2Zz4=')] opacity-50" />
       </div>
 
-      {battleState === "idle" && <Navbar />}
-
       {!sessionLoading && !user && battleState === "idle" && (
         <div className="fixed inset-0 z-20 flex items-center justify-center p-4 bg-[#05050A]">
           <div className="max-w-md w-full text-center space-y-6 animate-in fade-in zoom-in-95">
@@ -295,9 +292,9 @@ export default function PvPPage() {
         )}
 
         {error && (
-          <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 max-w-md mx-auto p-4 rounded-2xl bg-red-500/10 backdrop-blur-md border border-red-500/20 shadow-lg shadow-red-500/10 flex items-center gap-3 animate-in fade-in slide-in-from-top-4">
+          <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 w-[calc(100%-2rem)] max-w-md max-h-[calc(100vh-2rem)] overflow-y-auto mx-auto p-4 rounded-2xl bg-red-500/10 backdrop-blur-md border border-red-500/20 shadow-lg shadow-red-500/10 flex items-start gap-3 animate-in fade-in slide-in-from-top-4">
             <AlertCircle className="w-5 h-5 text-red-400 shrink-0" />
-            <p className="text-red-200 text-sm font-medium flex-1">{error}</p>
+            <p className="text-red-200 text-sm font-medium flex-1 min-w-0 break-words">{error}</p>
             <button onClick={() => setError(null)} className="p-1 rounded-md hover:bg-white/10 transition-colors"><X className="w-4 h-4 text-red-400" /></button>
           </div>
         )}
