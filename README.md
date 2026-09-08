@@ -298,12 +298,27 @@ npm start
 - Toast-уведомления (Sonner)
 - Drag-and-drop сортировка (@dnd-kit)
 
+## 🧪 Автотесты
+
+Полная инструкция: **[docs/TESTING.md](docs/TESTING.md)**.
+
+```bash
+npm test                 # unit + inventory API/страниц (секунды)
+npm run test:watch       # watch-режим на время разработки
+npm run test:e2e         # Playwright по всем публичным страницам
+npm run test:coverage    # отчёт coverage/
+```
+
+Новая страница или API **обязаны** быть добавлены в `tests/registry/`, иначе CI красный. Шаблон теста фичи: `tests/templates/new-feature.test.template.ts`.
+
 ## 📝 Скрипты
 
 - `npm run dev` — Запуск dev сервера (порт 80, `0.0.0.0`)
 - `npm run build` — Сборка проекта
 - `npm run start` — Запуск продакшн сервера (порт 80, `0.0.0.0`)
-- `npm run lint` — Проверка кода ESLint
+- `npm test` — Unit-тесты и инвентарь страниц/API
+- `npm run test:e2e` — E2E в браузере (Playwright)
+- `npm run test:coverage` — Покрытие кода
 
 ## 🚀 Развертывание
 

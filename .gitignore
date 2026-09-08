@@ -28,3 +28,10 @@ next-env.d.ts
 
 # AI server checkpoints
 ai-server/checkpoints/
+
+# tests
+/coverage
+/playwright-report
+/test-results
+/blob-report
+/playwright/.cache
