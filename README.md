@@ -72,7 +72,7 @@
 - **Realtime PvP**: Socket.io (выделенный сервер)
 - **API**: Shikimori, Kodik, Anilist, Jikan (MAL), Anilibria, MangaDex, Comick, MangaLib, Remanga
 - **Кэширование**: LRU Cache, серверные API-прокси для предотвращения rate limiting
-- **Аналитика**: Umami 3 (self-hosted, без cookie)
+- **Аналитика**: Umami
 - **Деплой**: Coolify (self-hosted)
 
 ## 📦 Установка и запуск
