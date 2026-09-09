@@ -6,6 +6,7 @@ import { User, Session } from "@supabase/supabase-js"
 import { supabase, syncLocalDataToAccount } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
 import { loggers } from "@/lib/logger"
+import { AnalyticsEvent, trackEvent } from "@/lib/analytics"
 
 interface AuthContextType {
   user: User | null
@@ -86,6 +87,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const hardSignOut = useCallback(async () => {
     try {
+      trackEvent(AnalyticsEvent.AUTH_SIGN_OUT)
       // Отправляем событие начала выхода для оверлея
       window.dispatchEvent(new Event("logout-start"))
       
@@ -257,6 +259,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setSessionLoading(false) // Сессия обновлена
 
       if (_event === 'SIGNED_IN' && session?.user) {
+        trackEvent(AnalyticsEvent.AUTH_SIGN_IN, {
+          method: session.user?.app_metadata?.provider ?? "unknown",
+        })
         try {
           await syncLocalDataToAccount(session.user.id)
           window.dispatchEvent(new Event("auth-synced"))

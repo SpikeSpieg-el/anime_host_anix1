@@ -1,16 +1,17 @@
 /** @type {import('next').NextConfig} */
-// PostHog (self-hosted analytics): origins the browser must reach for event
-// capture (/e/), person updates (/i/), /decide/ and the wss:// session-replay
-// stream. NEXT_PUBLIC_POSTHOG_HOST is also inlined into the client bundle.
-const POSTHOG_CONNECT = (() => {
-  const raw = process.env.NEXT_PUBLIC_POSTHOG_HOST
-  if (!raw) return []
+// Umami (self-hosted analytics in Coolify): the browser fetches the tracker
+// (<umami>/script.js) and posts events to the same origin (/api/send). The
+// default host matches DEFAULT_UMAMI_ORIGIN in lib/analytics.ts, so setting
+// only NEXT_PUBLIC_UMAMI_WEBSITE_ID is enough.
+const UMAMI_ORIGIN = (() => {
+  const DEFAULT_ORIGIN = 'https://analytics.weeb-x.com'
+  const raw = process.env.NEXT_PUBLIC_UMAMI_URL
+  if (!raw) return DEFAULT_ORIGIN
   try {
     const withScheme = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`
-    const host = new URL(withScheme).host
-    return [`https://${host}`, `wss://${host}`]
+    return new URL(withScheme).origin
   } catch {
-    return []
+    return DEFAULT_ORIGIN
   }
 })()
 
@@ -132,11 +133,11 @@ const nextConfig = {
             key: 'Content-Security-Policy',
             value: [
               "default-src 'self'",
-              "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://vercel.live https://assets.vercel.com",
+              `script-src 'self' 'unsafe-inline' 'unsafe-eval' https://vercel.live https://assets.vercel.com ${UMAMI_ORIGIN}`,
               "style-src 'self' 'unsafe-inline'",
               "img-src 'self' data: blob: https: http:",
               "font-src 'self' data:",
-              "connect-src 'self' https: http: wss:" + (POSTHOG_CONNECT.length ? ` ${POSTHOG_CONNECT.join(" ")}` : ""),
+              `connect-src 'self' https: http: wss: ${UMAMI_ORIGIN}`,
               "frame-src 'self' https: http:",
               "media-src 'self' https: http: blob:",
               "object-src 'none'",

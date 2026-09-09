@@ -109,7 +109,7 @@ export function CookieConsent() {
             />
             <CookieOption
               label="Аналитика"
-              description="PostHog (self-hosted) — какие страницы популярны, клики и поведение на сайте."
+              description="Umami (self-hosted, без cookie) — какие страницы популярны, клики и поведение на сайте."
               checked={preferences.analytics}
               onChange={() => togglePreference("analytics")}
             />

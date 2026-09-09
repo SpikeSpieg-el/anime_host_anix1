@@ -9,6 +9,7 @@ import {
 import { cn } from '@/lib/utils';
 import { Footer } from '@/components/layout/footer';
 import { getProxiedSrc } from '@/lib/image-loader';
+import { AnalyticsEvent, trackEvent } from "@/lib/analytics"
 
 interface Chapter {
   id: string;
@@ -105,6 +106,12 @@ export default function MangaDetailClient({ mangaId }: MangaDetailClientProps) {
     setLoadingImages(new Set());
     
     const provider = forceProvider || chapter.provider || 'mangadex';
+
+    trackEvent(AnalyticsEvent.MANGA_CHAPTER_OPEN, {
+      manga_id: mangaId,
+      chapter: chapter.chapter ?? chapter.id,
+      provider,
+    });
     const chapterId = forceProvider === 'mangadex' && chapter.fallbackId ? chapter.fallbackId : chapter.id;
     
     try {

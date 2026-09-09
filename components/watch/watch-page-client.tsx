@@ -36,6 +36,7 @@ import { CoverModal } from "@/components/watch/cover-modal"
 import { FloatingNav } from "@/components/layout/floating-nav"
 import { cn } from "@/lib/utils"
 import { Eye } from "lucide-react"
+import { AnalyticsEvent, trackEvent } from "@/lib/analytics"
 
 interface WatchPageClientProps {
   anime: Anime
@@ -161,6 +162,11 @@ export function WatchPageClient({ anime, initialEpisode }: WatchPageClientProps)
 
   const handleSelectEpisode = (episode: number) => {
     const safeEpisode = Math.min(Math.max(1, episode), availableEpisodes)
+    trackEvent(AnalyticsEvent.EPISODE_CHANGE, {
+      shikimori_id: anime.shikimoriId,
+      title: anime.title,
+      episode: safeEpisode,
+    })
     setSelectedEpisode(safeEpisode)
     setIsStarted(true)
     scrollToPlayer()
@@ -458,7 +464,15 @@ export function WatchPageClient({ anime, initialEpisode }: WatchPageClientProps)
               title={anime.title}
               poster={anime.poster}
               episode={selectedEpisode}
-              onStart={() => setIsStarted(true)}
+              onStart={() => {
+                trackEvent(AnalyticsEvent.EPISODE_PLAY, {
+                  shikimori_id: anime.shikimoriId,
+                  title: anime.title,
+                  episode: selectedEpisode,
+                  player: "kodik",
+                })
+                setIsStarted(true)
+              }}
               onCountryChange={handleCountryChange}
               onRegionDetected={handleRegionDetected}
               onEpisodeChange={handleEpisodeChangeFromPlayer}
