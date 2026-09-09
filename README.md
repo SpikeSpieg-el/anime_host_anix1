@@ -97,7 +97,16 @@ SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
 # PostHog (self-hosted аналитика). Host с протоколом и без слэша в конце.
 NEXT_PUBLIC_POSTHOG_KEY=phc_xxx
 NEXT_PUBLIC_POSTHOG_HOST=https://analytics.weeb-x.com
+
+# Image-service (см. docs/COOLIFY-DEPLOY.md)
+NEXT_PUBLIC_IMAGE_SERVER_URL=https://img.weeb-x.com
+IMAGE_SERVICE_URL=https://img.weeb-x.com
 ```
+
+⚠️ **Для Coolify**: `NEXT_PUBLIC_*` переменные инлайнятся в клиентский бандл
+при `next build`. В Coolify для них нужно включить чекбокс «Is build variable»
+и делать Redeploy с очисткой кэша. Подробности и чеклист — в
+[docs/COOLIFY-DEPLOY.md](docs/COOLIFY-DEPLOY.md).
 
 ### Запуск разработки
 ```bash

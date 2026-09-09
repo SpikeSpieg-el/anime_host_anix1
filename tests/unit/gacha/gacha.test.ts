@@ -111,10 +111,15 @@ describe("image helpers", () => {
     expect(getProxiedSrc("")).toBe("")
   })
 
-  it("getOptimizedThumbSrc uses next/image for non-pinterest", () => {
+  it("getOptimizedThumbSrc falls back to /api/image-proxy (not /_next/image, which 404s with a custom loader)", () => {
     const url = "https://cdn.example/a.jpg"
     expect(getOptimizedThumbSrc(url, 384, 60)).toBe(
-      `/_next/image?url=${encodeURIComponent(url)}&w=384&q=60`,
+      `/api/image-proxy?url=${encodeURIComponent(url)}`,
+    )
+    // Локальные пути и data:URI не проксируются
+    expect(getOptimizedThumbSrc("/icon.svg")).toBe("/icon.svg")
+    expect(getOptimizedThumbSrc("data:image/svg+xml;base64,xxx")).toBe(
+      "data:image/svg+xml;base64,xxx",
     )
   })
 })

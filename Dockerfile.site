@@ -1,0 +1,62 @@
+# ============================================================================
+# Dockerfile.site — сборка ОСНОВНОГО САЙТА (Next.js) для деплоя на Coolify.
+#
+# ВНИМАНИЕ: корневой ./Dockerfile собирает image-service
+# (coolify-image-service), а НЕ сайт.
+# Для сайта в Coolify: Build Pack = Dockerfile,
+# Dockerfile Location = /Dockerfile.site
+#
+# NEXT_PUBLIC_* переменные инлайнятся в клиентский бандл ВО ВРЕМЯ СБОРКИ
+# (next build). В рантайме их менять бесполезно — они уже «запечены» в JS.
+# Coolify автоматически передаёт переменные окружения, объявленные ниже как
+# ARG (в UI они должны быть помечены чекбоксом «Is build variable»).
+# После изменения этих переменных нужен Redeploy с очисткой кэша
+# («Deploy without cache» / Purge cached images) — иначе Docker возьмёт
+# старый слой сборки со старыми значениями.
+#
+# Секретные серверные переменные (SUPABASE_SERVICE_ROLE_KEY, SMTP_*, etc.)
+# в ARG НЕ объявлять: build args видны в истории образа. Им хватит рантайма.
+# ============================================================================
+
+# ---------- Стадия сборки ----------
+FROM node:20-slim AS builder
+WORKDIR /app
+
+# Только публичные переменные, нужные клиентскому бандлу при next build:
+ARG NEXT_PUBLIC_IMAGE_SERVER_URL
+ARG NEXT_PUBLIC_SUPABASE_URL
+ARG NEXT_PUBLIC_SUPABASE_ANON_KEY
+ARG NEXT_PUBLIC_POSTHOG_KEY
+ARG NEXT_PUBLIC_POSTHOG_HOST
+
+COPY package.json package-lock.json ./
+RUN npm ci --no-audit --no-fund
+
+COPY . .
+
+RUN npm run build
+
+# ---------- Рантайм ----------
+FROM node:20-slim AS runner
+WORKDIR /app
+
+ENV NODE_ENV=production
+ENV PORT=80
+ENV HOSTNAME=0.0.0.0
+
+# Только то, что нужно для `next start`
+COPY --from=builder /app/package.json /app/package-lock.json ./
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/.next ./.next
+COPY --from=builder /app/public ./public
+COPY --from=builder /app/next.config.mjs ./
+COPY --from=builder /app/lib ./lib
+COPY --from=builder /app/tsconfig.json ./
+
+EXPOSE 80
+
+# Healthcheck без curl (node:20-slim, есть встроенный fetch)
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+  CMD node -e "fetch('http://127.0.0.1:80/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+
+CMD ["npm", "run", "start"]

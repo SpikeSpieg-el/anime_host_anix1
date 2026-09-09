@@ -24,6 +24,8 @@ const ALLOWED_HOSTS = [
   's4.anilist.co',
   'kitsu.app',
   'media.kitsu.app',
+  // Kitsu signed S3 media URLs (media.kitsu.app resolves to these)
+  'kitsu-production-media.s3.us-west-002.backblazeb2.com',
   'kodikapi.com',
   'kodik.info',
   'cdn.kodik.info',

@@ -151,7 +151,10 @@ export const getOptimizedThumbSrc = (url: string, width: number = 384, quality: 
     return `${IMAGE_SERVER_URL}/optimize?url=${encodeURIComponent(url)}&w=${width}&q=${quality}&f=webp`
   }
   if (isPinterestUrl(url)) return `/api/image-proxy?url=${encodeURIComponent(url)}`
-  return `/_next/image?url=${encodeURIComponent(url)}&w=${width}&q=${quality}`
+  // Fallback: собственный прокси-роут. /_next/image использовать нельзя —
+  // при кастомном лоадере Next.js не отдаёт этот эндпоинт (404 в проде).
+  if (/^https?:\/\//i.test(url)) return `/api/image-proxy?url=${encodeURIComponent(url)}`
+  return url
 }
 
 export const handleImageError = (

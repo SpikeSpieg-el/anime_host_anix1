@@ -84,6 +84,8 @@ const ALLOWED_HOSTS = [
   'kitsu.app',
   'media.kitsu.app',
   'media.kitsu.io',
+  // Kitsu signed S3 media URLs (media.kitsu.app resolves to these)
+  'kitsu-production-media.s3.us-west-002.backblazeb2.com',
   'cdn.myanimelist.net',
   'myanimelist.net',
   'api.jikan.moe',
