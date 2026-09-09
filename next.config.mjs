@@ -1,4 +1,19 @@
 /** @type {import('next').NextConfig} */
+// PostHog (self-hosted analytics): origins the browser must reach for event
+// capture (/e/), person updates (/i/), /decide/ and the wss:// session-replay
+// stream. NEXT_PUBLIC_POSTHOG_HOST is also inlined into the client bundle.
+const POSTHOG_CONNECT = (() => {
+  const raw = process.env.NEXT_PUBLIC_POSTHOG_HOST
+  if (!raw) return []
+  try {
+    const withScheme = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`
+    const host = new URL(withScheme).host
+    return [`https://${host}`, `wss://${host}`]
+  } catch {
+    return []
+  }
+})()
+
 const nextConfig = {
   staticPageGenerationTimeout: 300,
   poweredByHeader: false,
@@ -121,7 +136,7 @@ const nextConfig = {
               "style-src 'self' 'unsafe-inline'",
               "img-src 'self' data: blob: https: http:",
               "font-src 'self' data:",
-              "connect-src 'self' https: http: wss:",
+              "connect-src 'self' https: http: wss:" + (POSTHOG_CONNECT.length ? ` ${POSTHOG_CONNECT.join(" ")}` : ""),
               "frame-src 'self' https: http:",
               "media-src 'self' https: http: blob:",
               "object-src 'none'",

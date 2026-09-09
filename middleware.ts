@@ -17,6 +17,20 @@ const CSRF_EXEMPT_PATHS = [
 // Paths that are API routes (for header checks)
 const API_PATH_PREFIX = "/api/"
 
+// PostHog (self-hosted analytics) origins for connect-src: event capture (/e/),
+// person updates (/i/), /decide/ and the wss:// session-replay stream.
+const POSTHOG_CONNECT = (() => {
+  const raw = process.env.NEXT_PUBLIC_POSTHOG_HOST
+  if (!raw) return []
+  try {
+    const withScheme = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`
+    const host = new URL(withScheme).host
+    return [`https://${host}`, `wss://${host}`]
+  } catch {
+    return []
+  }
+})()
+
 const SECURITY_HEADERS: Record<string, string> = {
   "X-Content-Type-Options": "nosniff",
   "X-Frame-Options": "DENY",
@@ -29,7 +43,7 @@ const SECURITY_HEADERS: Record<string, string> = {
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob: https: http:",
     "font-src 'self' data:",
-    "connect-src 'self' https://*.supabase.co https://*.vercel.app https://*.analytics.vercel.com wss://*.vercel.app https://nhost.weebx.duckdns.org:8443 wss://nhost.weebx.duckdns.org:8443",
+    "connect-src 'self' https://*.supabase.co https://nhost.weebx.duckdns.org:8443 wss://nhost.weebx.duckdns.org:8443" + (POSTHOG_CONNECT.length ? ` ${POSTHOG_CONNECT.join(" ")}` : ""),
     "frame-src 'self' https: http:",
     "media-src 'self' https: http: blob:",
     "object-src 'none'",

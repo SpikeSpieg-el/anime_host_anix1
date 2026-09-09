@@ -164,8 +164,8 @@ export default function RootLayout({
                   </HistoryProvider>
                 </CoverProvider>
               </AccountStatsProvider>
+              <AnalyticsWrapper />
             </AuthProvider>
-            <AnalyticsWrapper />
           </ConsentProvider>
           <Toaster />
           <GiftCardReceivedModal />
