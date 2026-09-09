@@ -106,13 +106,14 @@ export default function PrivacyPage() {
               <li><code className="text-foreground">googtrans</code> — выбранный язык перевода</li>
             </ul>
 
-            <h3 className="text-base font-semibold text-foreground mb-3">Аналитические cookie</h3>
+            <h3 className="text-base font-semibold text-foreground mb-3">Аналитика (без cookie)</h3>
             <p className="text-muted-foreground leading-relaxed mb-4">
-              Используются для понимания того, какие страницы популярны, а также для улучшения интерфейса (анонимные клики, поведение на сайте). Данные хранятся на нашем собственном сервере. Вы можете отключить их в настройках cookie.
+              Используется для понимания того, какие страницы популярны, а также для улучшения интерфейса (анонимные клики, поведение на сайте). Данные хранятся на нашем собственном сервере. Вы можете отключить сбор в настройках cookie — до вашего согласия скрипт аналитики не загружается вовсе.
             </p>
             <ul className="list-disc list-inside space-y-2 text-muted-foreground">
-              <li><code className="text-foreground">ph_*</code> — идентификатор посетителя и cookie аналитики PostHog</li>
-              <li><code className="text-foreground">PostHog</code> — self-hosted статистика посещений, кликов и поведения</li>
+              <li><code className="text-foreground">Umami</code> — self-hosted статистика посещений, кликов и событий; cookie не устанавливает</li>
+              <li>Визит определяется на сервере по необратимому хэшу IP-адреса и User-Agent с регулярной сменой «соли»; сами IP-адреса не сохраняются</li>
+              <li>Для залогиненных пользователей события связываются с внутренним UUID аккаунта (без e-mail и других персональных данных)</li>
             </ul>
           </div>
 

@@ -14,6 +14,7 @@ import { getCardBasePower, getCardProvision } from "@/app/battle/utils"
 import { getProxiedSrc } from "@/lib/image-loader"
 import { CanvasImage } from "@/components/gacha/canvas-image"
 import { MarketCardSkeleton } from "@/components/gacha/market-card-skeleton"
+import { AnalyticsEvent, trackEvent } from "@/lib/analytics"
 
 type MarketListingApi = {
   listingId: string
@@ -658,6 +659,7 @@ export function GachaMarketPanel({
         }
         throw new Error(data.error || "Покупка не удалась")
       }
+      trackEvent(AnalyticsEvent.MARKET_BUY, { listing_id: listingId })
       onNotify("Маркет", "Карта добавлена в коллекцию.", "info")
       setListings(prev => prev.filter(l => l.listingId !== listingId))
       void onTradeComplete()

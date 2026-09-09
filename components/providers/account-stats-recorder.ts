@@ -1,5 +1,7 @@
 // Account stats activity recorder + session heartbeat (pure module, no React)
 
+import { trackEvent } from "@/lib/analytics"
+
 export type ActivityEvent = {
   eventType: string          // page_view, page_leave, watch_start, watch_end, gacha_roll, ...
   category?: string | null   // time | viewing | activity
@@ -16,6 +18,10 @@ const INACTIVITY_TIMEOUT_MS = 15 * 60 * 1000
 
 // Троттлинг записи в localStorage (не чаще 1 раза в 2 секунды)
 const HEARTBEAT_THROTTLE_MS = 2000
+
+// Эти события уже покрыты самим Umami (pageview + время на странице),
+// дублировать их кастомными событиями не нужно.
+const UMAMI_SKIP_EVENT_TYPES = new Set(["page_view", "page_leave"])
 
 let lastBeatTime = 0
 
@@ -167,6 +173,20 @@ function createActivityRecorder(): ActivityRecorder {
     enabled,
 
     async recordActivity(event: ActivityEvent): Promise<void> {
+      // Дублируем внутреннюю активность в Umami. Функция сама по себе no-op,
+      // если аналитика не настроена или пользователь не принял cookie,
+      // поэтому работает и для анонимных посетителей.
+      if (!UMAMI_SKIP_EVENT_TYPES.has(event.eventType)) {
+        try {
+          trackEvent(event.eventType, {
+            ...(event.payload ?? {}),
+            ...(event.category ? { activity_category: event.category } : {}),
+          })
+        } catch (e) {
+          console.error("[account-stats] umami trackEvent error:", e)
+        }
+      }
+
       try {
         const userId = getCurrentUserId()
         if (userId) {

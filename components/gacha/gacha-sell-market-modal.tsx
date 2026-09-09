@@ -5,6 +5,7 @@ import { Loader2, Store } from "lucide-react"
 import type { Card } from "@/app/gacha/types"
 import { computeMaxListingPrice, computeMinListingPrice } from "@/lib/market-floor"
 import { useAuth } from "@/components/auth/auth-provider" // Импортируем хук авторизации
+import { AnalyticsEvent, trackEvent } from "@/lib/analytics"
 
 export function GachaSellMarketModal({
   card,
@@ -165,6 +166,11 @@ export function GachaSellMarketModal({
         throw new Error(data.error || "Не удалось выставить карту")
       }
 
+      trackEvent(AnalyticsEvent.MARKET_LIST, {
+        price,
+        rarity: card?.rarity ?? null,
+        anime: card?.anime ?? null,
+      })
       onNotify("Маркет", "Карта выставлена на продажу.", "info")
       onClose()
       await onListed()

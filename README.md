@@ -72,7 +72,7 @@
 - **Realtime PvP**: Socket.io (выделенный сервер)
 - **API**: Shikimori, Kodik, Anilist, Jikan (MAL), Anilibria, MangaDex, Comick, MangaLib, Remanga
 - **Кэширование**: LRU Cache, серверные API-прокси для предотвращения rate limiting
-- **Аналитика**: PostHog Community Edition (self-hosted)
+- **Аналитика**: Umami 3 (self-hosted, без cookie)
 - **Деплой**: Coolify (self-hosted)
 
 ## 📦 Установка и запуск
@@ -94,9 +94,13 @@ NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
 
-# PostHog (self-hosted аналитика). Host с протоколом и без слэша в конце.
-NEXT_PUBLIC_POSTHOG_KEY=phc_xxx
-NEXT_PUBLIC_POSTHOG_HOST=https://analytics.weeb-x.com
+# Umami (self-hosted аналитика). Обязателен только website id —
+# без него аналитика выключена, остальное опционально.
+NEXT_PUBLIC_UMAMI_WEBSITE_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+NEXT_PUBLIC_UMAMI_URL=https://analytics.weeb-x.com
+# NEXT_PUBLIC_UMAMI_SCRIPT_PATH=/script.js   # если в Umami задан TRACKER_SCRIPT_NAME
+# NEXT_PUBLIC_UMAMI_DOMAINS=weeb-x.com       # сбор только с этих хостов
+# NEXT_PUBLIC_UMAMI_TAG=production
 ```
 
 ### Запуск разработки
@@ -327,12 +331,13 @@ npm run test:coverage    # отчёт coverage/
 ## 🚀 Развертывание
 
 ### Coolify (self-hosted)
-1. Поднимите `PostHog` (Community Edition) в Coolify и получите `project API key` и URL хоста.
-2. Добавьте в проект переменные `NEXT_PUBLIC_POSTHOG_KEY` и `NEXT_PUBLIC_POSTHOG_HOST` (например `https://analytics.weeb-x.com`).
-3. Убедитесь, что у PostHog настроен домен и он доступен по HTTPS (Coolify выдаёт TLS сам).
-4. Разверните проект.
+1. Поднимите `Umami` в Coolify (сервис `umami` + `postgres:16-alpine`) и выдайте ему домен, например `https://analytics.weeb-x.com`.
+2. В интерфейсе Umami создайте сайт (**Settings → Websites → Add website**) и скопируйте `data-website-id` из сниппета Tracking code.
+3. Добавьте в приложение переменную `NEXT_PUBLIC_UMAMI_WEBSITE_ID` (и при необходимости `NEXT_PUBLIC_UMAMI_URL`).
+4. Сделайте **Redeploy** приложения: `NEXT_PUBLIC_*` подставляются в бандл на этапе сборки.
+5. Проверьте в DevTools → Network запрос `script.js` и `POST .../api/send`, а в Umami — вкладку Realtime.
 
-> Полный пошаговый гайд — см. [`docs/POSTHOG-COOLIFY.md`](docs/POSTHOG-COOLIFY.md).
+> Полный пошаговый гайд — см. [`docs/UMAMI-COOLIFY.md`](docs/UMAMI-COOLIFY.md).
 
 ### PvP-сервер (опционально)
 Для онлайн-PvP требуется отдельный Socket.io сервер. См. `pvp-server/` (если присутствует) для инструкций по запуску.
@@ -351,7 +356,7 @@ npm run test:coverage    # отчёт coverage/
 - [MangaDex](https://mangadex.org) — за API манги
 - [Supabase](https://supabase.com) — за backend, auth и realtime
 - [Coolify](https://coolify.io) — за платформу развертывания
-- [PostHog](https://posthog.com) — за self-hosted аналитику
+- [Umami](https://umami.is) — за self-hosted аналитику
 
 ---
 

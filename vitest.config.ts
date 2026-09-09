@@ -4,6 +4,18 @@ import path from "node:path"
 export default defineConfig({
   test: {
     environment: "happy-dom",
+    // Тесты не должны ходить в сеть: трекер Umami (и любые другие внешние
+    // скрипты) в happy-dom не скачиваются.
+    environmentOptions: {
+      happyDOM: {
+        settings: {
+          disableJavaScriptFileLoading: true,
+          disableJavaScriptEvaluation: true,
+          disableCSSFileLoading: true,
+          disableIframePageLoading: true,
+        },
+      },
+    },
     globals: false,
     setupFiles: ["./tests/setup/vitest.setup.ts"],
     include: ["tests/unit/**/*.test.ts", "tests/api/**/*.test.ts"],

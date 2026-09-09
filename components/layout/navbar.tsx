@@ -32,6 +32,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Charm } from "next/font/google"
 import { activityRecorder } from "@/components/providers/account-stats-recorder"
+import { AnalyticsEvent, trackEvent } from "@/lib/analytics"
 
 // --- Helper для истории поиска ---
 function saveSearchHistory(query: string) {
@@ -128,6 +129,9 @@ export function Navbar() {
       if (!response.ok) throw new Error("Gift card claim failed")
 
       const result = await response.json()
+      trackEvent(AnalyticsEvent.GIFT_CARD_REDEEM, {
+        already_claimed: Boolean(result.alreadyClaimed),
+      })
       if (!result.alreadyClaimed) {
         dispatchGiftCardReceived(result.card)
         toast({

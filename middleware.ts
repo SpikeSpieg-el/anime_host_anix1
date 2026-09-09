@@ -17,17 +17,21 @@ const CSRF_EXEMPT_PATHS = [
 // Paths that are API routes (for header checks)
 const API_PATH_PREFIX = "/api/"
 
-// PostHog (self-hosted analytics) origins for connect-src: event capture (/e/),
-// person updates (/i/), /decide/ and the wss:// session-replay stream.
-const POSTHOG_CONNECT = (() => {
-  const raw = process.env.NEXT_PUBLIC_POSTHOG_HOST
-  if (!raw) return []
+// Umami (self-hosted analytics in Coolify): the browser must be allowed to load
+// the tracker script (<umami>/script.js) and to POST events to the same origin.
+// Значение по умолчанию совпадает с DEFAULT_UMAMI_ORIGIN в lib/analytics.ts,
+// поэтому достаточно задать только NEXT_PUBLIC_UMAMI_WEBSITE_ID.
+// ВАЖНО: эти заголовки выставляет middleware, и они перекрывают заголовки из
+// next.config.mjs — править нужно оба места.
+const UMAMI_ORIGIN = (() => {
+  const DEFAULT_ORIGIN = "https://analytics.weeb-x.com"
+  const raw = process.env.NEXT_PUBLIC_UMAMI_URL
+  if (!raw) return DEFAULT_ORIGIN
   try {
     const withScheme = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`
-    const host = new URL(withScheme).host
-    return [`https://${host}`, `wss://${host}`]
+    return new URL(withScheme).origin
   } catch {
-    return []
+    return DEFAULT_ORIGIN
   }
 })()
 
@@ -39,11 +43,11 @@ const SECURITY_HEADERS: Record<string, string> = {
   "Permissions-Policy": "camera=(), microphone=(), geolocation=(), browsing-topics=()",
   "Content-Security-Policy": [
     "default-src 'self'",
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://vercel.live https://assets.vercel.com",
+    `script-src 'self' 'unsafe-inline' 'unsafe-eval' https://vercel.live https://assets.vercel.com ${UMAMI_ORIGIN}`,
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob: https: http:",
     "font-src 'self' data:",
-    "connect-src 'self' https://*.supabase.co https://nhost.weebx.duckdns.org:8443 wss://nhost.weebx.duckdns.org:8443" + (POSTHOG_CONNECT.length ? ` ${POSTHOG_CONNECT.join(" ")}` : ""),
+    `connect-src 'self' https://*.supabase.co https://nhost.weebx.duckdns.org:8443 wss://nhost.weebx.duckdns.org:8443 ${UMAMI_ORIGIN}`,
     "frame-src 'self' https: http:",
     "media-src 'self' https: http: blob:",
     "object-src 'none'",

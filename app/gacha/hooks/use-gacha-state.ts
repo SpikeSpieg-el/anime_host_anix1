@@ -30,6 +30,7 @@ import { activityRecorder } from "@/components/providers/account-stats-recorder"
 import { Card } from "../types"
 import { rarityConfig, getDismantleValue, Rarity } from "@/types/gacha"
 import { generateCardUniqueId, calculateCollectionRating, signCard, verifyCard } from "../utils"
+import { AnalyticsEvent, trackEvent } from "@/lib/analytics"
 
 export function useGachaState() {
   const router = useRouter()
@@ -829,6 +830,17 @@ export function useGachaState() {
 
         setRevealedCard(newCard)
 
+        // Umami: детальный факт выдачи карты. Сам факт крутки уже уходит
+        // событием gacha_roll через activityRecorder — здесь добавляем детали.
+        trackEvent(AnalyticsEvent.GACHA_CARD_REVEALED, {
+          rarity: finalRarity,
+          pack: newCard.packName,
+          anime: newCard.anime,
+          character: newCard.name,
+          cost: rollCost,
+          guest: !authUser,
+        })
+
         // Увеличиваем счётчик круток для гостей
         if (!authUser) {
           const currentGuestRolls = parseInt(localStorage.getItem('gacha-guest-rolls') || '0', 10)
@@ -1142,6 +1154,12 @@ export function useGachaState() {
       setShowDismantleConfirm(false)
       setShowDismantleSuccess(true)
       setIsDismantling(false)
+
+      trackEvent(AnalyticsEvent.GACHA_DISMANTLE, {
+        rarity: dismantleCardData.rarity,
+        anime: dismantleCardData.anime,
+        dust: reward,
+      })
     } catch (e) {
       console.error("Dismantle failed", e)
       setErrorPopupConfig({

@@ -11,6 +11,7 @@ import { Rarity } from "@/types/gacha"
 import { getAIDeckForDungeon, getRandomMarketDeck, generateAdaptiveAIDeck } from "../ai-decks"
 import { createAI, createAIDecisionContext, AIConfig, AICardDecision, syncPlaystyleFromDB, recordPlayerBattle } from "../ai"
 import { activityRecorder } from "@/components/providers/account-stats-recorder"
+import { AnalyticsEvent, trackEvent } from "@/lib/analytics"
 
 // Helper function to preload card images in background
 const preloadCardImages = (cards: Card[]) => {
@@ -688,6 +689,10 @@ export function useBattleData() {
     
     try {
       setError(null)
+      trackEvent(AnalyticsEvent.PVP_START, {
+        opponent_id: matchData?.opponentId ?? null,
+        mode: matchData?.mode ?? "pvp",
+      })
       setPlacedPlacedThisRound([])
       setAiPlacedThisRound([])
       setPlacementCounter(0)
