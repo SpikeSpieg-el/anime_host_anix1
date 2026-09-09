@@ -31,6 +31,7 @@ import { Card } from "../types"
 import { rarityConfig, getDismantleValue, Rarity } from "@/types/gacha"
 import { generateCardUniqueId, calculateCollectionRating, signCard, verifyCard } from "../utils"
 import { AnalyticsEvent, trackEvent } from "@/lib/analytics"
+import { getProxiedSrc } from "@/lib/image-loader"
 
 export function useGachaState() {
   const router = useRouter()
@@ -826,6 +827,13 @@ export function useGachaState() {
           frameModifier: result.frameModifier,
           coatingModifier: result.coatingModifier,
           isArtBlacklisted: result.isMainCharacter && blacklistedUrls.includes(result.imageUrl || '')
+        }
+
+        // Preload card art immediately after result to reduce animation delay
+        if (newCard.imageUrl) {
+          const img = new Image()
+          img.src = getProxiedSrc(newCard.imageUrl)
+          console.log('[handleRoll] Preloading card art:', newCard.imageUrl)
         }
 
         setRevealedCard(newCard)
