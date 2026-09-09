@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { Slider } from "@/components/ui/slider"
 import { useAuth } from "@/components/auth/auth-provider"
+import { useFullscreenOrientation } from "@/hooks/use-fullscreen-orientation"
 
 interface HentaiPlayerProps {
 title: string
@@ -34,7 +35,8 @@ const [currentTime, setCurrentTime] = useState(0)
 const [volume, setVolume] = useState(0.7)
 const [isMuted, setIsMuted] = useState(false)
 const [showControls, setShowControls] = useState(true)
-const [isFullscreen, setIsFullscreen] = useState(false)
+// Fullscreen + автоповорот экрана в landscape (см. hooks/use-fullscreen-orientation)
+const isFullscreen = useFullscreenOrientation("landscape")
 
 const videoRef = useRef<HTMLVideoElement>(null)
 const containerRef = useRef<HTMLDivElement>(null)
@@ -109,12 +111,16 @@ videoRef.current.play().catch(() => {});
 const handleFullscreen = (e: React.MouseEvent) => {
 e.stopPropagation();
 if (!containerRef.current) return;
+// Ориентацией и состоянием рулит useFullscreenOrientation (событие fullscreenchange)
 if (!document.fullscreenElement) {
-containerRef.current.requestFullscreen();
-setIsFullscreen(true);
+const el = containerRef.current as any
+const req = el.requestFullscreen || el.webkitRequestFullscreen
+if (!req) return
+Promise.resolve(req.call(el)).catch(() => {})
 } else {
-document.exitFullscreen();
-setIsFullscreen(false);
+const doc = document as any
+if (doc.exitFullscreen) doc.exitFullscreen().catch(() => {})
+else if (doc.webkitExitFullscreen) doc.webkitExitFullscreen()
 }
 };
 
