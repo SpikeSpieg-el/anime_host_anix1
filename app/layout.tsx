@@ -164,7 +164,9 @@ export default function RootLayout({
                   </HistoryProvider>
                 </CoverProvider>
               </AccountStatsProvider>
-              <AnalyticsWrapper />
+              <Suspense fallback={null}>
+                <AnalyticsWrapper />
+              </Suspense>
             </AuthProvider>
           </ConsentProvider>
           <Toaster />

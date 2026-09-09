@@ -1,168 +1,254 @@
-# Umami на Coolify: self-hosted аналитика weeb-x.com
+# Umami: аудит, подключение и отчёты Behavior
 
-Сайт переехал на собственный хостинг **Coolify**, аналитика живёт там же — **Umami**
-(лёгкая self-hosted альтернатива Google Analytics без cookies). Прежняя интеграция
-PostHog удалена: Umami покрывает трафик, события и Web Vitals одним внешним скриптом
-`script.js` и не тянет SDK в бандл приложения.
+Дата аудита: **9 сентября 2026**. Сайт: `https://weeb-x.com`.
+Umami: `https://analytics.weeb-x.com`.
+Website ID из предоставленных ссылок: `9f20b8ce-f914-4cf9-a2b4-b638b4a93e43`.
 
-| Возможность | Vercel Analytics | Umami (self-hosted) |
-| --- | --- | --- |
-| Просмотры страниц / визиты | ✅ (лимит Hobby) | ✅ без лимитов |
-| SPA-навигация Next.js | ✅ | ✅ (трекер сам ловит history API) |
-| Кастомные события | ✅ | ✅ (`umami.track` + `data-umami-event`) |
-| Источники перехода / UTM | ✅ | ✅ |
-| Web Vitals (LCP/CLS/INP/FCP/TTFB) | ✅ | ✅ (`data-performance="true"`) |
-| Клики по кнопкам/ссылкам | ❌ | ✅ (наш делегированный автотрек + `data-umami-event`) |
-| Воронки / ретеншн по событиям | ❌ | ✅ (Funnels, Journey, Retention) |
-| Cookies / баннер согласия | нужны | не нужны (мы всё равно gated согласием) |
-| Данные принадлежат вам | частично | ✅ полностью, на вашем сервере |
+## 1. Что подтверждено, а что нет
 
-## 1. Что уже развёрнуто в Coolify
+- Проверены исходники приложения и публичный `https://analytics.weeb-x.com/script.js`.
+  Публичный трекер соответствует контракту Umami 3.0.3: `track`, `identify`,
+  `data-auto-track`, `data-before-send`, отправка через `fetch(..., {keepalive: true})`.
+- Исправления в этой ветке **не означают, что production уже обновлён**.
+- Страница Goals перенаправляет на `/login`. Авторизованного доступа к панели нет:
+  события в базе, текущие цели, сохранённые воронки, пути и удержание **не подтверждены**.
+- Доступность скрипта не доказывает сбор данных. Нужны успешный ответ коллектора
+  **и** проверка события в Realtime/Events для нужного website ID.
+- Unit/DOM/React-тесты аналитики не обращаются к production и не доказывают запись в его БД.
 
-Проект **weeb.x → production → service `umami-...`**:
+### Найденные проблемы и исправления
 
-| Компонент | Образ | Домен | Статус |
-| --- | --- | --- | --- |
-| Umami | `ghcr.io/umami-software/umami:3.0.3` | `https://analytics.weeb-x.com` | Running (healthy) |
-| PostgreSQL | `postgres:16-alpine` | — (внутренняя сеть Coolify) | Running (healthy) |
+| Было | Теперь |
+| --- | --- |
+| В очередь попадали события без согласия, в том числе после отзыва | В очередь допускаются только события после согласия; отзыв очищает её |
+| Удаление script/window.umami ошибочно считалось удалением обработчиков | Один трекер в ручном режиме, отправка закрывается через consent gate и `before-send` |
+| Надежда на нативный SPA-трекинг, хотя публичный скрипт не слушает `popstate` | Pageview управляет App Router: pathname, query, назад/вперёд; соседние дубли исключены |
+| Событие из очереди могло получить URL следующей страницы | URL, referrer, title и identity фиксируются в момент события |
+| Параллельные identify/event могли конкурировать за session cache | Последовательная отправка; повторное согласие ждёт завершения старого запроса |
+| Пользователь оставался идентифицированным после logout | Identity сбрасывается при выходе и отзыве согласия; первый pageview ждёт восстановления auth-сессии для корректного retention |
+| `engagement` повторно включал уже учтённое и скрытое время | Только видимые интервалы, отправляются приращения, URL прошлого экрана сохранён |
+| `SIGNED_IN` при восстановлении сессии считался новым входом | `auth_sign_in` отправляется после успешного `signInWithPassword` |
+| Поиск каталога считался на каждый символ | Событие только при применении/отправке запроса |
+| `watch_start` повторялся при синхронизации URL серии | Дедупликация по текущему аниме и серии |
+| Ошибка активации и уже забранный подарок могли засчитываться как цели | Отдельные `lampa_activate_error`, `gift_card_already_claimed` |
+| `data-performance=true` обещал Web Vitals, но скрипт его не поддерживает | Ложное обещание удалено: Web Vitals этим подключением **не собираются** |
 
-TLS выдаёт Traefik/Caddy внутри Coolify — отдельно настраивать сертификат не нужно.
+## 2. Настройки Coolify: нужны на этапе BUILD
 
-## 2. Создать сайт и получить `data-website-id`
+В приложении **сайта**, не только в контейнере Umami:
 
-1. Откройте `https://analytics.weeb-x.com` и войдите. При первой установке Umami создаёт
-   пользователя **admin** с паролем **umami** — сразу смените его в **Settings → Profile**.
-2. **Settings → Websites → Add website**.
-   - **Name**: `weeb-x.com`
-   - **Domain**: `weeb-x.com`
-3. Откройте созданный сайт → **Tracking code**. Там будет сниппет вида:
-
-```html
-<script defer src="https://analytics.weeb-x.com/script.js" data-website-id="XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX"></script>
+```dotenv
+NEXT_PUBLIC_UMAMI_WEBSITE_ID=9f20b8ce-f914-4cf9-a2b4-b638b4a93e43
+NEXT_PUBLIC_UMAMI_URL=https://analytics.weeb-x.com
+NEXT_PUBLIC_UMAMI_DOMAINS=weeb-x.com,www.weeb-x.com
+NEXT_PUBLIC_UMAMI_TAG=production
 ```
 
-Нужен только UUID из `data-website-id` — это и есть `NEXT_PUBLIC_UMAMI_WEBSITE_ID`.
+`NEXT_PUBLIC_UMAMI_SCRIPT_PATH=/script.js` — необязательная настройка, если трекер
+переименован на сервере. Website ID намеренно не зашит в клиентский код: без env сбор выключен.
+После изменения переменных нужен **Redeploy со сборкой**, одного рестарта недостаточно.
+Для staging используйте отдельный сайт Umami и соответствующий список доменов.
+Не направляйте тесты/preview в production-статистику без явной необходимости.
 
-## 3. Переменные окружения приложения weeb-x (Coolify)
+CSP задаётся в **двух** местах: `middleware.ts` и `next.config.mjs`.
+В обоих хост Umami разрешён в `script-src` и `connect-src`.
+`Referrer-Policy: strict-origin-when-cross-origin` сохраняет источники переходов.
 
-Coolify → проект **weeb.x** → окружение **production** → приложение → **Environment Variables**:
+## 3. Как устроена отправка
 
-| Переменная | Обязательна | Значение |
-| --- | --- | --- |
-| `NEXT_PUBLIC_UMAMI_WEBSITE_ID` | **да** | UUID из шага 2. Без неё аналитика полностью выключена |
-| `NEXT_PUBLIC_UMAMI_URL` | нет | `https://analytics.weeb-x.com` (это значение по умолчанию) |
-| `NEXT_PUBLIC_UMAMI_SCRIPT_PATH` | нет | `/script.js`; меняется, если в Umami задан `TRACKER_SCRIPT_NAME` |
-| `NEXT_PUBLIC_UMAMI_DOMAINS` | нет | например `weeb-x.com` — сбор только с этих хостов |
-| `NEXT_PUBLIC_UMAMI_TAG` | нет | метка окружения, например `production` |
+- `lib/analytics.ts`: consent/domain gate, нормализация, очередь до 30 операций,
+  последовательная отправка и снимок контекста события.
+- `AnalyticsWrapper` внутри `Suspense`: согласие, identify, pageview и обработчики.
+- `analytics-dom.ts`: клики, отправка форм, checkbox/radio/range/select.
+- `analytics-engagement.ts`: видимое время и максимальная глубина скролла.
+- `analytics-video.ts`: native video и ограниченные milestones позиции.
+- `account-stats-recorder.ts`: мост продуктовых событий в Umami, кроме
+  `page_view`/`page_leave` — они иначе дублировали бы общую аналитику.
 
-`NEXT_PUBLIC_*` подставляются в бандл **на этапе сборки**, поэтому после добавления
-переменных нужен **Redeploy** приложения, а не только рестарт Umami.
-
-## 4. Как это встроено в код
-
-```
-app/layout.tsx
-└── <AnalyticsWrapper />            components/layout/analytics-wrapper.tsx
-    ├── загрузка/выгрузка трекера по согласию на cookies
-    ├── делегированный автотрек кликов (событие `click`) и форм (`form_submit`)
-    ├── вовлечённость страницы (`engagement`: секунды + глубина скролла)
-    └── identifyUser(`supabase:<uuid>`) для залогиненных
-
-lib/analytics.ts                    trackEvent / trackPageview / identifyUser
-components/providers/account-stats-recorder.ts
-└── каждая внутренняя активность (gacha_roll, battle_started, watch_start,
-    search_query, bookmark_add, page_leave...) дублируется в Umami
-```
-
-### Согласие на cookies
-Пока пользователь не принял «Аналитику» в баннере (`ConsentProvider`), `script.js`
-не вставляется в DOM и ни один запрос к Umami не уходит. Отзыв согласия убирает тег
-скрипта (`unloadAnalyticsScript()`).
-
-### Pageview в SPA
-Трекер Umami сам перехватывает `history.pushState` / `replaceState` / `popstate`,
-поэтому **не нужно** слать pageview вручную на смену `pathname` — будут дубли.
-`trackPageview()` оставлен только для «виртуальных» экранов, которых нет в URL.
-
-### Автотрек кликов
-Делегированный слушатель в `AnalyticsWrapper` ловит клики по
-`a[href]`, `button`, `[role="button|link|tab|menuitem|option"]`, `input[type=submit]`,
-`summary` и элементам с `data-track`, и шлёт событие `click` с данными
-`{ element, label, path, href?, id?, name? }`.
-
-- отключить трек конкретного элемента: `data-track="off"`;
-- задать свою подпись: `data-track="Открыть гачу"`;
-- полностью своё событие без кода (нативный механизм Umami):
+Не вставляйте второй сниппет Umami через HTML/GTM и не вызывайте дополнительно
+`umami.track()` при навигации. Для продуктовых действий используйте `trackEvent`.
 
 ```tsx
-<button
-  data-umami-event="gacha_pack_open"
-  data-umami-event-pack="2024"
->
-  Крутить
+<button data-umami-event="my_feature_open" data-umami-event-source="navbar">
+  Открыть
 </button>
 ```
 
-> Не вешайте `data-umami-event` на внутренние `<Link>`: Umami делает им
-> `preventDefault()` и переходит по `href` полной загрузкой страницы — потеряется
-> клиентская навигация Next.js. Для ссылок работает автотрек `click`.
+Эти атрибуты теперь обрабатывает **наш** слушатель: один custom event без второго
+`click`, без `preventDefault` и принудительной полной перезагрузки Next Link.
+Обычная кнопка даёт `click`; явное продуктовое событие в её обработчике может идти
+дополнительно — это разные метрики, их не нужно суммировать как одну конверсию.
 
-### CSP
-`next.config.mjs` добавляет хост Umami в `script-src` и `connect-src`. Хост берётся из
-`NEXT_PUBLIC_UMAMI_URL`, а при его отсутствии — `https://analytics.weeb-x.com`
-(константа `DEFAULT_UMAMI_ORIGIN` в `lib/analytics.ts`).
+`data-track="off"` отключает DOM-автотрек элемента и его потомков.
+`data-track="stable_label"` задаёт стабильную подпись. Для произвольного div с
+обработчиком клика используйте семантический button/role или явный атрибут:
+невозможно автоматически узнать все React-обработчики по DOM.
 
-## 5. Что уже трекается
+### Приватность и ограничения
 
-| Событие | Где шлётся | Данные |
-| --- | --- | --- |
-| `pageview` | сам трекер (загрузка + SPA-навигация) | url, title, referrer, screen, language |
-| `click` | автотрек в `AnalyticsWrapper` | `element`, `label`, `path`, `href`, `id`, `name` |
-| `form_submit` | автотрек в `AnalyticsWrapper` | `path`, `id`, `name`, `action` |
-| `engagement` | смена маршрута / уход со страницы | `path`, `seconds`, `max_scroll_pct` |
-| `gacha_roll` | `activityRecorder` (мост в Umami) | payload активности |
-| `gacha_card_revealed` | `use-gacha-state.ts` | `rarity`, `pack`, `anime`, `character`, `cost`, `guest` |
-| `gacha_dismantle` | `use-gacha-state.ts` | `rarity`, `anime`, `dust` |
-| `battle_started` | `activityRecorder` | payload активности |
-| `pvp_started` | `use-battle-data.ts` | `opponent_id`, `mode` |
-| `watch_start` / `watch_end` | `history-tracker.tsx` → мост | `anime_id` |
-| `episode_play` | `watch-page-client.tsx` | `shikimori_id`, `title`, `episode`, `player` |
-| `episode_change` | `watch-page-client.tsx` | `shikimori_id`, `title`, `episode` |
-| `search_query` | `catalog-client.tsx` → мост | `query` |
-| `bookmark_add` | `bookmarks-provider.tsx` → мост | payload активности |
-| `market_buy` / `market_list` | маркет-панель / модал продажи | `listing_id` / `price`, `rarity`, `anime` |
-| `manga_chapter_open` | `manga-detail-client.tsx` | `manga_id`, `chapter`, `provider` |
-| `auth_sign_in` / `auth_sign_out` | `auth-provider.tsx` | `method` |
-| `gift_card_redeem` | `navbar.tsx` | `already_claimed` |
-| Web Vitals | трекер (`data-performance="true"`) | LCP, CLS, INP, FCP, TTFB |
+Согласие сохраняется. До него скрипт не загружается; при отзыве новые события
+запрещены, очередь очищается. Уже отправленный HTTP-запрос отозвать невозможно.
+Загруженный тег остаётся как singleton, но в ручном режиме он не устанавливает
+нативные автотрекеры. Наличие тега после отзыва **не означает**, что сбор продолжается.
 
-Новые имена событий добавляйте в `AnalyticsEvent` (`lib/analytics.ts`) — иначе в
-дашборде расплодятся варианты регистра.
+DOM-автотрек не читает пароли, email, значения текстовых полей и содержимое форм.
+URL очищаются от fragment и неизвестных query-параметров (включая auth/gift tokens),
+сохраняются разрешённые параметры каталога и UTM. Значения рекламных click ID
+не сохраняются этим allowlist. Поисковые запросы передаются только как отдельное
+поисковое действие. Не добавляйте личные данные в labels/custom event data.
+Supabase UUID — **псевдонимный персональный идентификатор**, а не анонимные данные.
 
-## 6. Проверка
+## 4. Карта событий после деплоя
 
-1. Откройте сайт, примите cookies (галочка «Аналитика»).
-2. DevTools → Network → найдите запрос `script.js` с `analytics.weeb-x.com`
-   и `POST .../api/send` (события). Статус 200 — всё работает.
-3. В Umami: **Realtime** должен показать текущего посетителя, **Websites → weeb-x.com →
-   Events** — события `click` / `engagement` и т.д.
-4. Проверьте отзыв согласия: уберите галочку «Аналитика» в настройках cookie — тег
-   `#umami-script` должен исчезнуть из `<head>`, новых запросов быть не должно.
+Таблица отражает инструментирование кода, **не подтверждение production-доставки**.
 
-## 7. Траблшутинг
-
-| Симптом | Причина / решение |
+| Область | События / смысл |
 | --- | --- |
-| Нет вообще никаких данных | Не задан `NEXT_PUBLIC_UMAMI_WEBSITE_ID` или не было Redeploy после добавления переменной |
-| `script.js` блокируется (ERR_BLOCKED_BY_CLIENT) | Ad-blocker режет путь `/script.js`. В Coolify у сервиса Umami задайте `TRACKER_SCRIPT_NAME=au`, перезапустите сервис и поставьте `NEXT_PUBLIC_UMAMI_SCRIPT_PATH=/au.js` |
-| Скрипт грузится, но `POST /api/send` не уходит | Не принято согласие на аналитику; либо домен не совпадает с `NEXT_PUBLIC_UMAMI_DOMAINS`; либо у пользователя включён Do-Not-Track |
-| В дашборде дубли pageview | Где-то вручную вызывается `trackPageview()`/`umami.track()` на смену маршрута — уберите, трекер делает это сам |
-| Данные с localhost мешают | Задайте `NEXT_PUBLIC_UMAMI_DOMAINS=weeb-x.com` |
-| Событий нет в Events, но визиты есть | События живут в **Websites → Events**, а не на графике pageview |
+| Навигация | Настоящие Umami pageview (без `name`): первый экран, SPA, query, назад/вперёд |
+| Интерфейс | `click`, `form_submit` (попытка отправки, не успех), `control_change` |
+| Вовлечённость | `engagement`: `seconds` — приращение видимого времени, `max_scroll_pct`, `path` |
+| Поиск/каталог | `search_query` с `source=navbar/catalog/manga`, `catalog_filter` |
+| Аккаунт | `auth_sign_in`, `auth_sign_up` (`confirmation_required`), `auth_sign_out`, `auth_password_reset` — запрос письма, не завершённая смена пароля |
+| Просмотр | `episode_play` — пользователь открыл/запустил оболочку плеера, **не доказательство воспроизведения**; `episode_change`, `player_change`, `watch_start` — старт записи в истории |
+| Native video | `video_play` по `playing`, `video_pause`, `video_complete` по `ended`, `video_progress` на позиции 25/50/75% |
+| Kodik | `video_progress` только при сообщении от проверенного iframe с временем **и duration**; если данных нет, событие не выдумывается |
+| Манга | `manga_chapter_open` — открытие главы, не доказательство полного прочтения |
+| Закладки/история | `bookmark_add`, `bookmark_remove`, `history_clear`, `history_remove` |
+| Гача | `gacha_pack_open`, `gacha_roll`, `gacha_card_revealed`, `gacha_dismantle`, `gacha_bulk_dismantle` |
+| Рынок/награды | `market_buy`, `market_list`, `market_cancel`, `inbox_claim` |
+| Бои | `battle_started`, `battle_end`, `pvp_started`, `pvp_end` |
+| Приглашения/подарки | `referral_copy`, `gift_card_redeem`; повторное получение — `gift_card_already_claimed` |
+| Lampa | `lampa_activate` — успех; `lampa_activate_error` — отказ/сетевая ошибка, без PIN |
 
-## 8. Ресурсы и эксплуатация
+`recordWatchEnd` существует как неиспользуемый helper: считать `watch_end`
+покрытым событием нельзя. Для фактического завершения native video есть `video_complete`.
+Milestones позиции не равны проценту реально просмотренного времени: возможна перемотка.
+Чужие iframe (Kodik/backup/TV) не раскрывают все свои клики, паузы, рекламу и завершения
+родительскому сайту. Полное покрытие возможно только через подтверждённый API провайдера.
+Мобильные/TV/Lampa-клиенты вне DOM сайта не получают автоматически весь этот автотрек.
 
-- Umami + PostgreSQL 16 занимают ~300–500 МБ RAM в idle — заметно легче PostHog CE.
-- Бэкап: volume PostgreSQL сервиса (в Coolify → service → Persistent Storages).
-- Обновление: смена тега образа `ghcr.io/umami-software/umami:3.x.y` → Deploy.
-  Миграции Umami применяет сам при старте.
+## 5. Behavior: настройка для данного website ID
+
+Настройки отчётов хранятся в Umami, код приложения **не создаёт их автоматически**.
+Ниже — рекомендуемая конфигурация, а не утверждение о существующих настройках.
+
+### Цели
+
+[Открыть Goals](https://analytics.weeb-x.com/websites/9f20b8ce-f914-4cf9-a2b4-b638b4a93e43/goals)
+
+Создайте event-цели с точными именами:
+
+| Цель | Событие |
+| --- | --- |
+| Регистрация (создание аккаунта, не подтверждение email) | `auth_sign_up` |
+| Успешный вход | `auth_sign_in` |
+| Открытие плеера | `episode_play` |
+| Добавление в закладки | `bookmark_add` |
+| Успешная крутка | `gacha_roll` |
+| Покупка на рынке | `market_buy` |
+| Получение награды | `inbox_claim` |
+| Получение нового подарка | `gift_card_redeem` |
+| Привязка Lampa | `lampa_activate` |
+
+Не используйте общий `click`/`form_submit` как подтверждение успеха операции.
+Не включайте `*_error`/`gift_card_already_claimed` в успешные конверсии.
+Исторические события до исправления не переименованы: проверяйте отчёты с даты деплоя.
+
+### Воронки
+
+[Открыть Funnels](https://analytics.weeb-x.com/websites/9f20b8ce-f914-4cf9-a2b4-b638b4a93e43/funnels)
+
+Начальное окно: **30 минут**. Типы шагов выбирайте явно: Path или Event.
+
+1. Поиск → плеер: Event `search_query` → Path `/watch/*` → Event `episode_play`.
+2. Гача: Path `/gacha` → Event `gacha_roll` → Event `gacha_card_revealed`.
+3. Рынок: Event `market_list` → Event `market_cancel` — сценарий отмены **собственного** лота.
+   Для покупки используйте Path `/gacha` → Event `market_buy` (если рынок открыт там).
+   Не делайте `market_list → market_buy` общей воронкой продавец→покупатель: это разные люди.
+4. Авторизованная активация: Event `auth_sign_in` → Event `gacha_roll`.
+
+Не вставляйте необязательный выбор пака в обязательную воронку всех круток.
+Umami сопоставляет шаги по session ID. При переходе guest → identified user
+идентификатор меняется: анонимная часть не сшивается задним числом. Для таких
+сценариев смотрите отдельные воронки до и после входа, иначе получите ложный drop-off.
+
+### Пути
+
+[Открыть Journeys](https://analytics.weeb-x.com/websites/9f20b8ce-f914-4cf9-a2b4-b638b4a93e43/journeys)
+
+Выберите диапазон после деплоя и стартовую страницу (`/`, `/catalog`, `/gacha`).
+Проверьте последовательность тестового визита, включая возвраты назад/вперёд.
+Не смешивайте шумные интерфейсные клики с последовательностью просмотров страниц.
+Query-параметры у Umami хранятся отдельно от пути: `/catalog?page=2` не обязательно
+появится отдельным узлом пути `/catalog`, хотя запрос pageview отправляется.
+
+### Удержание
+
+[Открыть Retention](https://analytics.weeb-x.com/websites/9f20b8ce-f914-4cf9-a2b4-b638b4a93e43/retention)
+
+Задайте достаточный диапазон и одинаковый часовой пояс. Для D1 нужен реальный
+возврат на следующий день, для D7 — данные минимум за соответствующий период.
+Вход с тем же Supabase UUID передаёт стабильный `id`; выход его сбрасывает.
+В Umami 3.0.3 retention считается по session ID. Анонимный ID зависит от IP,
+User-Agent и месячной соли; смена сети/браузера/месяца ограничивает точность.
+Нельзя обещать точное долгосрочное удержание всех анонимных посетителей.
+
+## 6. Приёмка после деплоя
+
+### Автоматический smoke-check
+
+```bash
+npm ci
+npx playwright install chromium
+# Реальный сайт и его script.js, но POST перехватываются — БД не проверяется:
+npm run analytics:check
+# Настоящая отправка нескольких тестовых событий:
+npm run analytics:check -- --live
+# Другое окружение:
+npm run analytics:check -- --url https://staging.example.com --website-id <staging-uuid>
+```
+
+Скрипт проверяет отсутствие отправки до согласия, website ID, ручной режим трекера,
+первый pageview, DOM custom event `analytics_diagnostic`, SPA-переход, back/forward,
+query-only навигацию. Не входит в аккаунты и не совершает покупок.
+В `--live` весь тестовый трафик помечается `audit:<run-id>`; исключайте его из
+рабочих отчётов. Проверяются `cache`, `sessionId`, `visitId` и отсутствие `disabled`:
+одного HTTP 200 недостаточно (bot filter может вернуть `{beep:"boop"}`).
+При фильтрации headless-браузера попробуйте `--headed` на компьютере с GUI.
+**Этот smoke-check сам по себе не проверяет сохранённые настройки Behavior.**
+
+### Ручная проверка с доступом к панели
+
+1. В чистом браузере откройте сайт. До согласия нет запросов к коллектору.
+2. Примите аналитику. В `#umami-script` проверьте website ID и `data-auto-track=false`.
+3. Network: `POST https://analytics.weeb-x.com/api/send` возвращает receipt, не ошибку/disabled/bot response.
+4. Umami → нужный website → Realtime/Events: найдите `analytics_diagnostic` по времени аудита.
+5. Проверьте реальные сценарии: вход, поиск, плеер, закладка, крутка, покупка,
+   бой, манга, награда. Сверьте точное имя события, URL и число срабатываний.
+6. Отзовите согласие через настройки сайта: новые события не отправляются.
+   Примите снова: события за период отказа не должны «догонять» пользователя.
+7. В Goals/Funnels проверьте шаги этого визита. В Journeys — путь.
+   Retention подтвердите отдельным повторным визитом на следующий день.
+
+### Известные результаты локальных проверок
+
+- `npm test`: 208 тестов прошли, включая 45 проверок аналитики на момент аудита.
+- `npx tsc --noEmit`: исходные ошибки TS2540 в `tests/unit/lib/logger.test.ts:51,59`
+  (присваивание readonly `NODE_ENV`); ошибок изменённой аналитики не обнаружено.
+- `npm run build`: остановился на TLS-загрузке Google Fonts (Geist/Geist Mono/Unbounded)
+  в sandbox. Production-сборка этим запуском **не подтверждена**.
+- Production browser/collector smoke-check в этом окружении не подтверждён;
+  для подготовленного CLI проверены синтаксис и `--help`.
+
+## 7. Что не может гарантировать клиентская аналитика
+
+100% доставка невозможна при отказе от согласия, блокировщиках, закрытии браузера,
+недоступной сети, переполнении очереди или ошибках сервера. SDK не предоставляет
+нашему коду подтверждение сохранения каждого события и поглощает сетевые ошибки.
+Автоматические повторы не добавлены: у событий нет ключа идемпотентности, повтор
+после неопределённого результата может удвоить конверсии. Источник истины для
+покупок/балансов/наград — серверная БД, а не счётчик кликов Umami.
+
+Источники контракта: публичный `script.js`, исходники Umami `v3.0.3`:
+`src/tracker/index.js`, `src/app/api/send/route.ts`,
+`src/queries/sql/reports/getFunnel.ts`, `getRetention.ts`.

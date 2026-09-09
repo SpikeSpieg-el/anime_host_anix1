@@ -19,7 +19,7 @@ const INACTIVITY_TIMEOUT_MS = 15 * 60 * 1000
 // Троттлинг записи в localStorage (не чаще 1 раза в 2 секунды)
 const HEARTBEAT_THROTTLE_MS = 2000
 
-// Эти события уже покрыты самим Umami (pageview + время на странице),
+// Эти события уже покрыты AnalyticsWrapper (pageview + время на странице),
 // дублировать их кастомными событиями не нужно.
 const UMAMI_SKIP_EVENT_TYPES = new Set(["page_view", "page_leave"])
 

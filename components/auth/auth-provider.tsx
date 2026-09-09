@@ -259,9 +259,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setSessionLoading(false) // Сессия обновлена
 
       if (_event === 'SIGNED_IN' && session?.user) {
-        trackEvent(AnalyticsEvent.AUTH_SIGN_IN, {
-          method: session.user?.app_metadata?.provider ?? "unknown",
-        })
         try {
           await syncLocalDataToAccount(session.user.id)
           window.dispatchEvent(new Event("auth-synced"))

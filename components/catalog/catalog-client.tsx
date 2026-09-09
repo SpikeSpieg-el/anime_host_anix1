@@ -1,5 +1,6 @@
 'use client'
 
+import { AnalyticsEvent, trackEvent } from '@/lib/analytics'
 import { useState, useEffect, useCallback, useRef, useTransition } from 'react'
 import { createPortal } from 'react-dom'
 import { AnimeCard } from '@/components/shared/anime-card'
@@ -181,6 +182,27 @@ export function CatalogClient({ initialFilters }: { initialFilters: CatalogFilte
   }, [initialFilters, profile?.allow_nsfw_search, fetchAnimes])
 
   const applyFilters = () => {
+    // Count a submitted query, not every typed character.
+    const query = filters.search?.trim()
+    if (query && query !== lastRecordedSearch.current) {
+      lastRecordedSearch.current = query
+      void activityRecorder.recordActivity({
+        eventType: AnalyticsEvent.SEARCH_QUERY, category: 'activity',
+        payload: { query, source: 'catalog' },
+      })
+      void supabase.auth.getSession().then(async ({ data: { session } }: any) => {
+        if (!session?.user) return
+        const { data: currentStats } = await supabase.from('account_stats')
+          .select('searches').eq('user_id', session.user.id).single()
+        await updateAccountStats(session.user.id, { searches: (currentStats?.searches ?? 0) + 1 })
+        window.dispatchEvent(new CustomEvent('account-stats-updated'))
+      }).catch(() => {})
+    }
+
+    trackEvent(AnalyticsEvent.CATALOG_FILTER, {
+      sort: filters.order, genre: filters.genre, year: filters.year,
+      status: filters.status, type: filters.kind,
+    })
     const params = new URLSearchParams()
     if (filters.order) params.set('sort', filters.order)
     if (filters.genre && filters.genre !== 'all') {
@@ -226,33 +248,6 @@ export function CatalogClient({ initialFilters }: { initialFilters: CatalogFilte
   }, [lastScrollY])
 
   const updateFilter = (key: keyof CatalogFilters, value: string | string[]) => {
-    if (key === 'search') {
-      try {
-        const q = Array.isArray(value) ? '' : String(value).trim()
-        if (q && q !== lastRecordedSearch.current) {
-          lastRecordedSearch.current = q
-          activityRecorder.recordActivity({ eventType: 'search_query', category: 'activity', payload: { query: q, source: 'catalog' } })
-
-          // Обновляем статистику аккаунта (только для авторизованных)
-          const { data: { session } } = supabase.auth.getSession()
-          if (session?.user) {
-            supabase
-              .from('account_stats')
-              .select('searches')
-              .eq('user_id', session.user.id)
-              .single()
-              .then(({ data: currentStats }: any) => {
-                const currentCount = currentStats?.searches ?? 0
-                updateAccountStats(session.user.id, { searches: currentCount + 1 })
-                window.dispatchEvent(new CustomEvent('account-stats-updated'))
-              })
-              .catch(() => {})
-          }
-        }
-      } catch (e) {
-        console.error('[catalog] search_query error:', e)
-      }
-    }
     setFilters(prev => ({
       ...prev,
       [key]: Array.isArray(value) ? (value.length === 0 ? undefined : value) : (value === 'all' ? undefined : value),

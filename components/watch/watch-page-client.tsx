@@ -100,6 +100,7 @@ export function WatchPageClient({ anime, initialEpisode }: WatchPageClientProps)
   } | null>(null)
 
   const playerRef = useRef<HTMLDivElement>(null)
+  const lastRecordedEpisode = useRef("")
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -146,10 +147,14 @@ export function WatchPageClient({ anime, initialEpisode }: WatchPageClientProps)
       router.replace(`${pathname}?${next.toString()}`, { scroll: false })
     }
 
-    recordWatchStart(
-      { id: anime.id, title: anime.title, poster: anime.poster },
-      { episode: selectedEpisode, episodesTotal: availableEpisodes }
-    )
+    const episodeKey = `${anime.id}:${selectedEpisode}`
+    if (episodeKey !== lastRecordedEpisode.current) {
+      lastRecordedEpisode.current = episodeKey
+      recordWatchStart(
+        { id: anime.id, title: anime.title, poster: anime.poster },
+        { episode: selectedEpisode, episodesTotal: availableEpisodes }
+      )
+    }
   }, [selectedEpisode, isStarted, pathname, router, searchParams, anime, isUpdatingFromPlayer, availableEpisodes])
 
   const scrollToPlayer = useCallback(() => {
@@ -195,6 +200,9 @@ export function WatchPageClient({ anime, initialEpisode }: WatchPageClientProps)
   const handleEpisodeChangeFromPlayer = (newEpisode: number) => {
     const safeEpisode = Math.min(Math.max(1, newEpisode), availableEpisodes)
     if (safeEpisode !== selectedEpisode) {
+      trackEvent(AnalyticsEvent.EPISODE_CHANGE, {
+        shikimori_id: anime.shikimoriId, episode: safeEpisode, source: "player",
+      })
       setIsUpdatingFromPlayer(true)
       setSelectedEpisode(safeEpisode)
       setIsStarted(true)
@@ -236,7 +244,10 @@ export function WatchPageClient({ anime, initialEpisode }: WatchPageClientProps)
             <Button
               size="sm"
               variant={activePlayer === 'main' ? "default" : "ghost"}
-              onClick={() => setActivePlayer('main')}
+              onClick={() => {
+                if (activePlayer !== 'main') trackEvent(AnalyticsEvent.PLAYER_CHANGE, { player: 'kodik', shikimori_id: anime.shikimoriId })
+                setActivePlayer('main')
+              }}
               className={cn(
                 "gap-2 text-xs transition-all",
                 activePlayer === 'main' 
@@ -249,7 +260,10 @@ export function WatchPageClient({ anime, initialEpisode }: WatchPageClientProps)
             <Button
               size="sm"
               variant={activePlayer === 'backup' ? "default" : "ghost"}
-              onClick={() => setActivePlayer('backup')}
+              onClick={() => {
+                if (activePlayer !== 'backup') trackEvent(AnalyticsEvent.PLAYER_CHANGE, { player: 'backup', shikimori_id: anime.shikimoriId })
+                setActivePlayer('backup')
+              }}
               className={cn(
                 "gap-2 text-xs transition-all",
                 activePlayer === 'backup' 

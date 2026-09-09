@@ -934,12 +934,14 @@ export function useGachaState() {
       setIsPackLoading(true)
       await new Promise(resolve => setTimeout(resolve, 300))
       setSelectedPack(pack)
+      trackEvent(AnalyticsEvent.GACHA_PACK_OPEN, { pack: pack.id, price: pack.price })
       setShowPacks(false)
       setIsPackLoading(false)
     }
   }
 
   const handleRandomRoll = () => {
+    trackEvent(AnalyticsEvent.GACHA_PACK_OPEN, { pack: "random" })
     setSelectedPack(null)
     setShowPacks(false)
   }
@@ -1027,6 +1029,7 @@ export function useGachaState() {
       setIsCustomPackLoading(true)
       await new Promise(resolve => setTimeout(resolve, 300))
       setSelectedPack(pack)
+      trackEvent(AnalyticsEvent.GACHA_PACK_OPEN, { pack: pack.id, price: pack.price })
       setShowCustomPackCreator(false)
       setCreatedCustomPack(null)
       setCustomPackQuery("")
