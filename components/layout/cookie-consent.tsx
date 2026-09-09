@@ -109,7 +109,7 @@ export function CookieConsent() {
             />
             <CookieOption
               label="Аналитика"
-              description="Vercel Analytics — какие страницы популярны."
+              description="PostHog (self-hosted) — какие страницы популярны, клики и поведение на сайте."
               checked={preferences.analytics}
               onChange={() => togglePreference("analytics")}
             />

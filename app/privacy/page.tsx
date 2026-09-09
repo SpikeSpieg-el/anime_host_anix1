@@ -108,10 +108,11 @@ export default function PrivacyPage() {
 
             <h3 className="text-base font-semibold text-foreground mb-3">Аналитические cookie</h3>
             <p className="text-muted-foreground leading-relaxed mb-4">
-              Используются для понимания того, какие страницы популярны. Вы можете отключить их в настройках cookie.
+              Используются для понимания того, какие страницы популярны, а также для улучшения интерфейса (анонимные клики, поведение на сайте). Данные хранятся на нашем собственном сервере. Вы можете отключить их в настройках cookie.
             </p>
             <ul className="list-disc list-inside space-y-2 text-muted-foreground">
-              <li><code className="text-foreground">Vercel Analytics</code> — анонимная статистика посещений</li>
+              <li><code className="text-foreground">ph_*</code> — идентификатор посетителя и cookie аналитики PostHog</li>
+              <li><code className="text-foreground">PostHog</code> — self-hosted статистика посещений, кликов и поведения</li>
             </ul>
           </div>
 

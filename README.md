@@ -72,8 +72,8 @@
 - **Realtime PvP**: Socket.io (выделенный сервер)
 - **API**: Shikimori, Kodik, Anilist, Jikan (MAL), Anilibria, MangaDex, Comick, MangaLib, Remanga
 - **Кэширование**: LRU Cache, серверные API-прокси для предотвращения rate limiting
-- **Аналитика**: Vercel Analytics
-- **Деплой**: Vercel
+- **Аналитика**: PostHog Community Edition (self-hosted)
+- **Деплой**: Coolify (self-hosted)
 
 ## 📦 Установка и запуск
 
@@ -93,6 +93,10 @@ KODIK_API_TOKEN=your_kodik_api_token
 NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
+
+# PostHog (self-hosted аналитика). Host с протоколом и без слэша в конце.
+NEXT_PUBLIC_POSTHOG_KEY=phc_xxx
+NEXT_PUBLIC_POSTHOG_HOST=https://analytics.weeb-x.com
 ```
 
 ### Запуск разработки
@@ -322,10 +326,13 @@ npm run test:coverage    # отчёт coverage/
 
 ## 🚀 Развертывание
 
-### Vercel (Рекомендуется)
-1. Подключите репозиторий к Vercel
-2. Добавьте переменные окружения в настройках проекта
-3. Разверните проект
+### Coolify (self-hosted)
+1. Поднимите `PostHog` (Community Edition) в Coolify и получите `project API key` и URL хоста.
+2. Добавьте в проект переменные `NEXT_PUBLIC_POSTHOG_KEY` и `NEXT_PUBLIC_POSTHOG_HOST` (например `https://analytics.weeb-x.com`).
+3. Убедитесь, что у PostHog настроен домен и он доступен по HTTPS (Coolify выдаёт TLS сам).
+4. Разверните проект.
+
+> Полный пошаговый гайд — см. [`docs/POSTHOG-COOLIFY.md`](docs/POSTHOG-COOLIFY.md).
 
 ### PvP-сервер (опционально)
 Для онлайн-PvP требуется отдельный Socket.io сервер. См. `pvp-server/` (если присутствует) для инструкций по запуску.
@@ -343,7 +350,8 @@ npm run test:coverage    # отчёт coverage/
 - [Jikan / MAL](https://jikan.moe) — за дополнительные данные
 - [MangaDex](https://mangadex.org) — за API манги
 - [Supabase](https://supabase.com) — за backend, auth и realtime
-- [Vercel](https://vercel.com) — за платформу развертывания
+- [Coolify](https://coolify.io) — за платформу развертывания
+- [PostHog](https://posthog.com) — за self-hosted аналитику
 
 ---
 
