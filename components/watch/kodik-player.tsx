@@ -6,6 +6,7 @@ import { PlayerLoading } from "@/components/watch/player-loading"
 import { AlertCircle, ChevronDown, Mic, Subtitles, Check, X } from "lucide-react"
 import { RegionDetector } from "@/components/providers/region-detector"
 import { getProxiedSrc } from "@/lib/image-loader"
+import { lockOrientation, useFullscreenOrientation } from "@/hooks/use-fullscreen-orientation"
 
 interface KodikPlayerProps {
   shikimoriId: string
@@ -84,7 +85,6 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCo
   const [isMobile, setIsMobile] = useState(false)
   const [menuPos, setMenuPos] = useState<{ top: number; left: number; width: number } | null>(null)
   const [mounted, setMounted] = useState(false)
-  const [isFullscreen, setIsFullscreen] = useState(false)
 
   // Таймаут для загрузки плеера
   const [loadTimeout, setLoadTimeout] = useState<ReturnType<typeof setTimeout> | null>(null)
@@ -150,26 +150,9 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCo
     }
   }, [])
 
-  // Отслеживание fullscreen режима
-  useEffect(() => {
-    const handleChange = () => {
-      const fs = !!(document.fullscreenElement ||
-        (document as any).webkitFullscreenElement ||
-        (document as any).mozFullScreenElement ||
-        (document as any).msFullscreenElement)
-      setIsFullscreen(fs)
-    }
-    document.addEventListener('fullscreenchange', handleChange)
-    document.addEventListener('webkitfullscreenchange', handleChange)
-    document.addEventListener('mozfullscreenchange', handleChange)
-    document.addEventListener('MSFullscreenChange', handleChange)
-    return () => {
-      document.removeEventListener('fullscreenchange', handleChange)
-      document.removeEventListener('webkitfullscreenchange', handleChange)
-      document.removeEventListener('mozfullscreenchange', handleChange)
-      document.removeEventListener('MSFullscreenChange', handleChange)
-    }
-  }, [])
+  // Отслеживание fullscreen режима + автоповорот экрана в landscape
+  // (в PWA без этого экран стоит в портрете даже на полном экране)
+  const isFullscreen = useFullscreenOrientation("landscape")
 
   const openMenu = useCallback(() => {
     if (triggerButtonRef.current) {
@@ -411,9 +394,11 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCo
                                element.msRequestFullscreen;
 
           if (requestMethod) {
-            requestMethod.call(element).catch((err: any) => {
-              console.error(`Fullscreen error: ${err.message}`)
-            })
+            Promise.resolve(requestMethod.call(element))
+              .then(() => lockOrientation("landscape"))
+              .catch((err: any) => {
+                console.error(`Fullscreen error: ${err?.message ?? err}`)
+              })
           }
         } else {
           if (document.exitFullscreen) document.exitFullscreen().catch(() => {})

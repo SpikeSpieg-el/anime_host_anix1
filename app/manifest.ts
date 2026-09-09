@@ -8,7 +8,11 @@ export default function manifest(): MetadataRoute.Manifest {
       "Стриминг аниме в HD с русской озвучкой. Гача-крутки, PvP-арена, каталог манги и новости аниме. Бесплатно на Weebx.",
     start_url: "/",
     display: "standalone",
-    orientation: "portrait-primary",
+    // НЕ ставим сюда "portrait-*": в установленной PWA (display: standalone)
+    // это залочивает ориентацию всего окна приложения, и экран не поворачивается
+    // даже внутри полноэкранного плеера. Поворот плеера в landscape управляется
+    // из JS (см. hooks/use-fullscreen-orientation.ts).
+    orientation: "any",
     background_color: "#0a0a0a",
     theme_color: "#0a0a0a",
     lang: "ru",
