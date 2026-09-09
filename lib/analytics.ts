@@ -1,29 +1,8 @@
 /**
- * Umami — self-hosted аналитика (поднимается в Coolify на https://analytics.weeb-x.com).
- *
- * Модуль не зависит от React, поэтому его можно импортировать из любых
- * клиентских компонентов, хуков и «чистых» модулей (например из
- * `account-stats-recorder.ts`). Все функции безопасны на сервере и до
- * загрузки трекера: они либо no-op, либо кладут событие во внутреннюю
- * очередь, которая уходит в Umami сразу после инициализации скрипта.
- *
- * Что делает сам трекер Umami (`/script.js` на нашем хосте):
- *   - присылает pageview при загрузке и автоматически на pushState /
- *     replaceState / popstate (SPA-навигация Next.js покрыта из коробки,
- *     вручную pageview слать НЕ нужно — будут дубли);
- *   - трекает клики по элементам с атрибутом `data-umami-event`;
- *   - шлёт Web Vitals (TTFB/FCP/LCP/CLS/INP) при `data-performance="true"`.
- *
- * Переменные окружения (задаются в Coolify → Environment Variables):
- *   NEXT_PUBLIC_UMAMI_WEBSITE_ID — data-website-id из Settings → Websites
- *                                  (без него аналитика выключена)
- *   NEXT_PUBLIC_UMAMI_URL        — опционально, по умолчанию https://analytics.weeb-x.com
- *   NEXT_PUBLIC_UMAMI_SCRIPT_PATH— опционально, по умолчанию /script.js
- *                                  (меняется вместе с TRACKER_SCRIPT_NAME в Umami)
- *   NEXT_PUBLIC_UMAMI_DOMAINS    — опционально, список хостов через запятую,
- *                                  на которых разрешён сбор (data-domains)
- *   NEXT_PUBLIC_UMAMI_TAG        — опционально, метка окружения (data-tag),
- *                                  например production / staging
+ * Consent-gated Umami client. We own pageviews and DOM events: the deployed
+ * v3.0.3 tracker misses popstate and cannot uninstall its automatic listeners.
+ * Keep one manual-mode tracker per document; never collect before consent.
+ * NEXT_PUBLIC_UMAMI_* must be supplied at Next.js BUILD time (see docs).
  */
 
 /** Значения, которые Umami умеет хранить в `data` события. */
@@ -44,13 +23,14 @@ export interface UmamiTrackerLike {
 declare global {
   interface Window {
     umami?: UmamiTrackerLike
+    weebxBeforeSend?: (type: string, payload: Record<string, unknown>) => Record<string, unknown> | false
   }
 }
 
 /** Домен Umami по умолчанию (наш self-hosted инстанс в Coolify). */
 export const DEFAULT_UMAMI_ORIGIN = "https://analytics.weeb-x.com"
 
-/** id тега со скриптом трекера — по нему находим и убираем его при отзыве согласия. */
+/** id единственного тега трекера в ручном режиме. */
 export const UMAMI_SCRIPT_TAG_ID = "umami-script"
 
 /** Ограничения самого Umami: строка ≤ 500 символов, ≤ 50 свойств у объекта. */
@@ -61,12 +41,18 @@ const MAX_EVENT_NAME_LENGTH = 50
 /** События, пришедшие до загрузки трекера, держим в небольшой очереди. */
 const MAX_QUEUED_EVENTS = 30
 
+type EventContext = { url: string; title: string; referrer: string; id?: string }
 type QueuedEvent =
-  | { kind: "event"; name: string; data?: UmamiEventData }
+  | { kind: "event"; name?: string; data?: UmamiEventData; context: EventContext }
   | { kind: "identify"; id: string; data?: UmamiEventData }
 
 const queue: QueuedEvent[] = []
 let scriptLoaded = false
+let consentGranted = false
+let identity = ""
+let lastPageUrl = ""
+let previousPageUrl = ""
+let sending = false
 
 /* -------------------------------------------------------------------------- */
 /* Конфигурация из env (читаем лениво, но статическими выражениями —           */
@@ -121,7 +107,7 @@ export function isAnalyticsConfigured(): boolean {
 
 /** Трекер загружен и готов принимать события. */
 export function isAnalyticsActive(): boolean {
-  if (typeof window === "undefined" || !scriptLoaded) return false
+  if (!isAnalyticsEnabled() || !scriptLoaded) return false
   return typeof window.umami?.track === "function"
 }
 
@@ -202,173 +188,165 @@ export function sanitizeEventData(data?: UmamiEventData): UmamiEventData | undef
 /* Очередь событий до загрузки трекера                                         */
 /* -------------------------------------------------------------------------- */
 
-function enqueue(event: QueuedEvent): void {
-  if (queue.length >= MAX_QUEUED_EVENTS) queue.shift()
-  queue.push(event)
-}
-
-function flushQueue(): void {
-  const tracker = typeof window !== "undefined" ? window.umami : undefined
-  if (!tracker?.track) return
-
-  while (queue.length > 0) {
-    const event = queue.shift()
-    if (!event) break
-    try {
-      if (event.kind === "identify") {
-        if (typeof tracker.identify === "function") void tracker.identify(event.id, event.data)
-      } else {
-        void tracker.track(event.name, event.data)
-      }
-    } catch {
-      /* аналитика не должна ломать приложение */
+/** Strip secrets from links, OAuth callbacks and referrers. Only public query keys survive. */
+export function sanitizeAnalyticsUrl(raw: string): string {
+  if (!raw) return ""
+  try {
+    const base = typeof window === "undefined" ? "https://weeb-x.com" : window.location.origin
+    const url = new URL(raw, base)
+    if (!["http:", "https:"].includes(url.protocol)) return ""
+    url.username = ""
+    url.password = ""
+    url.hash = ""
+    url.pathname = url.pathname.replace(/^\/r\/[^/]+/, "/r/[code]")
+    const allowed = /^(utm_(source|medium|campaign|term|content)|search|q|page|sort|genre|year|season|status|type|kind|score|episode)$/
+    for (const key of [...url.searchParams.keys()]) {
+      if (!allowed.test(key)) url.searchParams.delete(key)
     }
+    return url.origin === base ? url.pathname + url.search : url.href
+  } catch {
+    return ""
   }
 }
 
-/* -------------------------------------------------------------------------- */
-/* Загрузка / выгрузка трекера (по согласию на cookies)                        */
-/* -------------------------------------------------------------------------- */
+/** Consent and domain gate, including while script.js is still loading. */
+export function isAnalyticsEnabled(): boolean {
+  if (typeof window === "undefined" || !consentGranted || !isAnalyticsConfigured()) return false
+  const domains = getUmamiDomains().split(",").map(value => value.trim()).filter(Boolean)
+  if (domains.length && !domains.includes(window.location.hostname)) return false
+  try {
+    if (window.localStorage.getItem("umami.disabled")) return false
+  } catch { /* storage can be unavailable */ }
+  return true
+}
+
+function context(url?: string, title?: string): EventContext {
+  return {
+    url: sanitizeAnalyticsUrl(url ?? window.location.href),
+    title: (title ?? document.title).slice(0, MAX_STRING_LENGTH),
+    referrer: previousPageUrl || sanitizeAnalyticsUrl(document.referrer),
+    id: identity || undefined,
+  }
+}
+
+function enqueue(event: QueuedEvent): void {
+  if (queue.length >= MAX_QUEUED_EVENTS) {
+    const oldestEvent = queue.findIndex(item => item.kind === "event")
+    queue.splice(Math.max(0, oldestEvent), 1)
+  }
+  queue.push(event)
+  flushQueue()
+}
+
+// Serialize requests: the server's first response establishes the session cache.
+// Concurrent identify/pageview requests can otherwise split a visitor's funnel.
+function flushQueue(): void {
+  if (sending || !isAnalyticsActive()) return
+  const tracker = window.umami!
+  const event = queue.shift()
+  if (!event) return
+  sending = true
+  let result: unknown
+  try {
+    result = event.kind === "identify"
+      ? tracker.identify?.(event.id, event.data)
+      : tracker.track((base: Record<string, unknown>) => ({
+          ...base,
+          ...event.context,
+          ...(event.name ? { name: event.name, data: event.data } : {}),
+        }))
+  } catch { /* analytics must not break the app */ }
+  Promise.resolve(result).catch(() => {}).finally(() => {
+    sending = false
+    flushQueue()
+  })
+}
 
 export interface LoadAnalyticsOptions {
-  /** data-domains: хосты, на которых разрешён сбор. Пусто = все. */
   domains?: string
-  /** data-tag: метка окружения. */
   tag?: string
-  /** data-performance: сбор Web Vitals. По умолчанию включён. */
-  performance?: boolean
 }
 
-/**
- * Вставляет `<script src="{umami}/script.js" data-website-id="...">` в `<head>`.
- * Повторные вызовы безопасны: второй вызов просто ничего не делает.
- */
+/** Called only after explicit analytics consent. One tracker, no native listeners. */
 export function loadAnalyticsScript(options: LoadAnalyticsOptions = {}): void {
-  if (typeof document === "undefined") return
-  if (!isAnalyticsConfigured()) return
+  if (typeof document === "undefined" || !isAnalyticsConfigured()) return
+  const resuming = !consentGranted && Boolean(document.getElementById(UMAMI_SCRIPT_TAG_ID))
+  consentGranted = true
+  // Also protects direct window.umami calls, not just our public API.
+  window.weebxBeforeSend = (_type, payload) => {
+    if (!isAnalyticsEnabled()) return false
+    return {
+      ...payload,
+      url: sanitizeAnalyticsUrl(String(payload.url ?? "")),
+      referrer: sanitizeAnalyticsUrl(String(payload.referrer ?? "")),
+    }
+  }
   if (document.getElementById(UMAMI_SCRIPT_TAG_ID)) {
-    scriptLoaded = typeof window !== "undefined" && typeof window.umami?.track === "function"
+    scriptLoaded = typeof window.umami?.track === "function"
+    // Reset the old SDK identity/cache after any in-flight request settles.
+    if (resuming) enqueue({ kind: "identify", id: "" })
+    flushQueue()
     return
   }
-
+  scriptLoaded = false
   const script = document.createElement("script")
   script.id = UMAMI_SCRIPT_TAG_ID
   script.src = getUmamiScriptUrl()
   script.async = true
-  script.defer = true
   script.setAttribute("data-website-id", getUmamiWebsiteId())
-
+  script.setAttribute("data-auto-track", "false")
+  script.setAttribute("data-before-send", "weebxBeforeSend")
   const domains = options.domains ?? getUmamiDomains()
   if (domains) script.setAttribute("data-domains", domains)
-
   const tag = options.tag ?? getUmamiTag()
   if (tag) script.setAttribute("data-tag", tag)
-
-  // Web Vitals (TTFB/FCP/LCP/CLS/INP) — полезно и дёшево.
-  if (options.performance !== false) script.setAttribute("data-performance", "true")
-
   script.addEventListener("load", () => {
-    scriptLoaded = true
+    scriptLoaded = typeof window.umami?.track === "function"
     flushQueue()
   })
   script.addEventListener("error", () => {
-    // Блокировщик рекламы или недоступный хост — молча живём дальше.
     scriptLoaded = false
+    script.remove() // a subsequent consent/load attempt can retry
+    queue.length = 0
   })
-
   document.head.appendChild(script)
 }
 
-/** Убирает трекер (пользователь отозвал согласие на аналитику). */
+/** Stop collecting immediately. An already in-flight HTTP request cannot be recalled. */
 export function unloadAnalyticsScript(): void {
-  scriptLoaded = false
+  consentGranted = false
   queue.length = 0
-  if (typeof document === "undefined") return
-  document.getElementById(UMAMI_SCRIPT_TAG_ID)?.remove()
-  // Удаляем и сам объект трекера: иначе уже навешанные им слушатели
-  // (авто-pageview на history API) продолжат слать данные, а повторная
-  // загрузка скрипта задвоит pageview.
-  if (typeof window !== "undefined") {
-    try {
-      delete window.umami
-    } catch {
-      /* ignore */
-    }
-  }
+  identity = ""
+  lastPageUrl = ""
+  previousPageUrl = ""
+  // Keep the singleton in manual mode. Removing a script cannot undo executed JS.
+  // Do not release the send lock: re-consent must wait for the old response,
+  // otherwise it can overwrite the new identity's session cache.
 }
 
-/* -------------------------------------------------------------------------- */
-/* Публичное API                                                               */
-/* -------------------------------------------------------------------------- */
-
-/**
- * Отправляет именованное событие в Umami.
- *
- *   trackEvent("gacha_roll", { rarity: "UR", pack: "2024" })
- *
- * До загрузки трекера событие попадает в очередь, после — уходит сразу.
- * Если `NEXT_PUBLIC_UMAMI_WEBSITE_ID` не задан или пользователь не принял
- * аналитические cookie — это no-op.
- */
-export function trackEvent(name: string, data?: UmamiEventData): void {
+/** No pre-consent buffering; permitted events retain the URL/identity at event time. */
+export function trackEvent(name: string, data?: UmamiEventData, url?: string): void {
+  if (!isAnalyticsEnabled()) return
   const eventName = normalizeEventName(name)
   if (!eventName) return
-
-  const payload = sanitizeEventData(data)
-
-  if (typeof window === "undefined" || !isAnalyticsConfigured()) return
-
-  if (!isAnalyticsActive()) {
-    enqueue({ kind: "event", name: eventName, data: payload })
-    return
-  }
-
-  try {
-    void window.umami?.track(eventName, payload)
-  } catch {
-    /* аналитика не должна ломать приложение */
-  }
+  enqueue({ kind: "event", name: eventName, data: sanitizeEventData(data), context: context(url) })
 }
 
-/**
- * Ручной pageview. В App Router обычно НЕ нужен: трекер сам ловит
- * pushState/replaceState. Используется только для «виртуальных» страниц,
- * которых нет в URL (открытый модал, шаг мастера).
- */
+/** Owned by AnalyticsWrapper, including initial, query-only and back/forward navigation. */
 export function trackPageview(url?: string, title?: string): void {
-  if (typeof window === "undefined" || !isAnalyticsActive()) return
-  try {
-    void window.umami?.track({
-      website: getUmamiWebsiteId(),
-      url: url || window.location.pathname + window.location.search,
-      title: title || document.title,
-    })
-  } catch {
-    /* no-op */
-  }
+  if (!isAnalyticsEnabled()) return
+  const nextUrl = sanitizeAnalyticsUrl(url ?? window.location.href)
+  if (nextUrl === lastPageUrl) return
+  previousPageUrl = lastPageUrl
+  lastPageUrl = nextUrl
+  enqueue({ kind: "event", context: context(nextUrl, title) })
 }
 
-/**
- * Привязывает посетителя к стабильному внутреннему идентификатору
- * (UUID пользователя Supabase — без email и прочих PII).
- */
+/** Supabase UUID is pseudonymous personal data, never email/password. Empty id resets logout. */
 export function identifyUser(id: string, data?: UmamiEventData): void {
-  if (typeof window === "undefined" || !isAnalyticsConfigured() || !id) return
-
-  const payload = sanitizeEventData(data)
-
-  if (!isAnalyticsActive()) {
-    enqueue({ kind: "identify", id, data: payload })
-    return
-  }
-
-  const identify = window.umami?.identify
-  if (typeof identify !== "function") return
-  try {
-    void identify(id, payload)
-  } catch {
-    /* no-op */
-  }
+  if (!isAnalyticsEnabled() || id === identity) return
+  identity = id
+  enqueue({ kind: "identify", id, data: sanitizeEventData(data) })
 }
 
 /**
@@ -378,6 +356,13 @@ export function identifyUser(id: string, data?: UmamiEventData): void {
 export const AnalyticsEvent = {
   CLICK: "click",
   FORM_SUBMIT: "form_submit",
+  CONTROL_CHANGE: "control_change",
+  PLAYER_CHANGE: "player_change",
+  CATALOG_FILTER: "catalog_filter",
+  VIDEO_PLAY: "video_play",
+  VIDEO_PAUSE: "video_pause",
+  VIDEO_COMPLETE: "video_complete",
+  VIDEO_PROGRESS: "video_progress",
   ENGAGEMENT: "engagement",
   SEARCH: "search_query",
   /** Алиас: весь поиск (каталог, навбар, манга) шлётся как `search_query`
@@ -410,6 +395,8 @@ export const AnalyticsEvent = {
   GIFT_CARD_REDEEM: "gift_card_redeem",
   REFERRAL_COPY: "referral_copy",
   LAMPA_ACTIVATE: "lampa_activate",
+  LAMPA_ACTIVATE_ERROR: "lampa_activate_error",
+  GIFT_CARD_ALREADY_CLAIMED: "gift_card_already_claimed",
 } as const
 
 export type AnalyticsEventName = (typeof AnalyticsEvent)[keyof typeof AnalyticsEvent]

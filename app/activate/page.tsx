@@ -41,7 +41,7 @@ export default function ActivatePage() {
       const data = await res.json()
 
       if (!res.ok) {
-        trackEvent(AnalyticsEvent.LAMPA_ACTIVATE, { success: false })
+        trackEvent(AnalyticsEvent.LAMPA_ACTIVATE_ERROR, { reason: "rejected", status: res.status })
         setStatus("error")
         setMessage(data.message || "Ошибка активации")
         return
@@ -51,6 +51,7 @@ export default function ActivatePage() {
       setStatus("success")
       setMessage("Устройство Lampa успешно привязано к вашему аккаунту!")
     } catch (err) {
+      trackEvent(AnalyticsEvent.LAMPA_ACTIVATE_ERROR, { reason: "network" })
       setStatus("error")
       setMessage("Сетевая ошибка. Попробуйте снова.")
     }

@@ -2,6 +2,8 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react"
 
+import { unloadAnalyticsScript } from "@/lib/analytics"
+
 type ConsentPreferences = {
   necessary: boolean
   analytics: boolean
@@ -46,15 +48,21 @@ export function ConsentProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const saveConsent = useCallback((prefs: ConsentPreferences) => {
-    localStorage.setItem("cookie-consent-v1", JSON.stringify(prefs))
-    localStorage.setItem("cookie-consent-date", new Date().toISOString())
+    if (!prefs.analytics) unloadAnalyticsScript()
+    try {
+      localStorage.setItem("cookie-consent-v1", JSON.stringify(prefs))
+      localStorage.setItem("cookie-consent-date", new Date().toISOString())
+    } catch { /* consent still works when storage is unavailable */ }
     setConsent(prefs)
     setHasConsent(true)
   }, [])
 
   const revokeConsent = useCallback(() => {
-    localStorage.removeItem("cookie-consent-v1")
-    localStorage.removeItem("cookie-consent-date")
+    unloadAnalyticsScript()
+    try {
+      localStorage.removeItem("cookie-consent-v1")
+      localStorage.removeItem("cookie-consent-date")
+    } catch { /* no-op */ }
     setConsent(DEFAULT_CONSENT)
     setHasConsent(false)
   }, [])

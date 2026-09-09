@@ -336,6 +336,7 @@ npm run test:coverage    # отчёт coverage/
 3. Добавьте в приложение переменную `NEXT_PUBLIC_UMAMI_WEBSITE_ID` (и при необходимости `NEXT_PUBLIC_UMAMI_URL`).
 4. Сделайте **Redeploy** приложения: `NEXT_PUBLIC_*` подставляются в бандл на этапе сборки.
 5. Проверьте в DevTools → Network запрос `script.js` и `POST .../api/send`, а в Umami — вкладку Realtime.
+6. Для браузерной проверки после деплоя: `npm run analytics:check` (без реальной отправки) или `npm run analytics:check -- --live` (несколько тестовых событий с тегом `audit:*`). Настройки Goals/Funnels/Journeys/Retention нужно отдельно проверить в панели — они не создаются кодом приложения.
 
 > Полный пошаговый гайд — см. [`docs/UMAMI-COOLIFY.md`](docs/UMAMI-COOLIFY.md).
 

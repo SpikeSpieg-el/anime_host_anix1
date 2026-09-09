@@ -15,6 +15,8 @@ import {
   normalizeEventName,
   sanitizeEventData,
   trackEvent,
+  trackPageview,
+  sanitizeAnalyticsUrl,
   unloadAnalyticsScript,
 } from "@/lib/analytics"
 
@@ -30,17 +32,24 @@ function markScriptLoaded() {
 }
 
 beforeEach(() => {
+  const append = document.head.appendChild.bind(document.head)
+  vi.spyOn(document.head, "appendChild").mockImplementation(<T extends Node>(node: T): T => {
+    if (node instanceof HTMLScriptElement) node.type = "application/json" // inert; manually emit load/error
+    return append(node)
+  })
   vi.stubEnv("NEXT_PUBLIC_UMAMI_WEBSITE_ID", WEBSITE_ID)
   vi.stubEnv("NEXT_PUBLIC_UMAMI_URL", "")
   vi.stubEnv("NEXT_PUBLIC_UMAMI_SCRIPT_PATH", "")
   vi.stubEnv("NEXT_PUBLIC_UMAMI_DOMAINS", "")
   vi.stubEnv("NEXT_PUBLIC_UMAMI_TAG", "")
   unloadAnalyticsScript()
+  scriptTag()?.remove()
   delete window.umami
 })
 
 afterEach(() => {
   unloadAnalyticsScript()
+  scriptTag()?.remove()
   delete window.umami
 })
 
@@ -131,13 +140,15 @@ describe("loadAnalyticsScript", () => {
     expect(scriptTag()).toBeNull()
   })
 
-  it("вставляет трекер с data-website-id и Web Vitals", () => {
+  it("вставляет трекер с data-website-id в ручном режиме", () => {
     loadAnalyticsScript()
     const tag = scriptTag()
     expect(tag).not.toBeNull()
     expect(tag?.src).toBe(`${DEFAULT_UMAMI_ORIGIN}/script.js`)
     expect(tag?.getAttribute("data-website-id")).toBe(WEBSITE_ID)
-    expect(tag?.getAttribute("data-performance")).toBe("true")
+    expect(tag?.getAttribute("data-performance")).toBeNull()
+    expect(tag?.getAttribute("data-auto-track")).toBe("false")
+    expect(tag?.getAttribute("data-before-send")).toBe("weebxBeforeSend")
     expect(tag?.getAttribute("data-domains")).toBeNull()
   })
 
@@ -156,95 +167,173 @@ describe("loadAnalyticsScript", () => {
     expect(document.querySelectorAll(`#${UMAMI_SCRIPT_TAG_ID}`)).toHaveLength(1)
   })
 
-  it("unload убирает трекер из DOM", () => {
+  it("unload выключает отправку, сохраняя singleton", () => {
     loadAnalyticsScript()
     expect(scriptTag()).not.toBeNull()
     unloadAnalyticsScript()
-    expect(scriptTag()).toBeNull()
+    expect(scriptTag()).not.toBeNull()
     expect(isAnalyticsActive()).toBe(false)
   })
 })
 
-describe("trackEvent", () => {
-  it("копит события до загрузки трекера и отправляет их после", () => {
-    const track = vi.fn()
-    window.umami = { track }
-
-    loadAnalyticsScript()
-    expect(isAnalyticsActive()).toBe(false)
-
-    trackEvent("Gacha Roll!", { rarity: "UR", price: 1.234567 })
-    expect(track).not.toHaveBeenCalled()
-
-    markScriptLoaded()
-    expect(isAnalyticsActive()).toBe(true)
-    expect(track).toHaveBeenCalledTimes(1)
-    expect(track).toHaveBeenCalledWith("gacha_roll", { rarity: "UR", price: 1.2346 })
+// Match the real tracker callback contract (object overload does NOT merge defaults).
+function mockTracker() {
+  const payloads: Record<string, unknown>[] = []
+  const track = vi.fn((build: unknown) => {
+    payloads.push((build as (base: Record<string, unknown>) => Record<string, unknown>)({ website: WEBSITE_ID, hostname: "localhost", screen: "1920x1080", language: "ru" }))
+    return Promise.resolve()
   })
+  const identify = vi.fn(() => Promise.resolve())
+  window.umami = { track, identify }
+  return { track, identify, payloads }
+}
+async function drain() {
+  for (let i = 0; i < 50; i++) await Promise.resolve()
+}
 
-  it("шлёт события напрямую, когда трекер уже активен", () => {
-    const track = vi.fn()
-    window.umami = { track }
+describe("delivery lifecycle", () => {
+  it("never buffers before consent or after revocation, even on re-consent", async () => {
+    const { payloads } = mockTracker()
+    trackEvent("before_consent")
     loadAnalyticsScript()
+    trackEvent("allowed")
     markScriptLoaded()
-
-    trackEvent(AnalyticsEvent.MARKET_BUY, { listing_id: "abc" })
-    expect(track).toHaveBeenCalledWith("market_buy", { listing_id: "abc" })
-  })
-
-  it("ничего не делает, если аналитика не настроена", () => {
-    vi.stubEnv("NEXT_PUBLIC_UMAMI_WEBSITE_ID", "")
-    const track = vi.fn()
-    window.umami = { track }
-    loadAnalyticsScript()
-    markScriptLoaded()
-
-    trackEvent(AnalyticsEvent.CLICK, { label: "test" })
-    expect(track).not.toHaveBeenCalled()
-  })
-
-  it("после отзыва согласия события не уходят", () => {
-    const track = vi.fn()
-    window.umami = { track }
-    loadAnalyticsScript()
-    markScriptLoaded()
-
+    await drain()
     unloadAnalyticsScript()
-    trackEvent(AnalyticsEvent.CLICK, { label: "test" })
-    expect(track).not.toHaveBeenCalled()
+    trackEvent("after_revoke")
+    loadAnalyticsScript()
+    trackEvent("allowed_again")
+    await drain()
+    expect(payloads.map(p => p.name)).toEqual(["allowed", "allowed_again"])
+    expect(document.querySelectorAll(`#${UMAMI_SCRIPT_TAG_ID}`)).toHaveLength(1)
   })
 
-  it("переживает трекер без track()", () => {
-    window.umami = {} as never
+  it("queues permitted events and snapshots URLs before navigation", async () => {
+    const { payloads } = mockTracker()
     loadAnalyticsScript()
-    expect(() => trackEvent(AnalyticsEvent.CLICK)).not.toThrow()
+    trackEvent("Gacha Roll!", { price: 1.234567 }, "/gacha")
+    trackPageview("/catalog?token=secret&page=2")
+    expect(payloads).toEqual([])
+    markScriptLoaded()
+    await drain()
+    expect(payloads[0]).toMatchObject({ name: "gacha_roll", data: { price: 1.2346 }, url: "/gacha" })
+    expect(payloads[1]).toMatchObject({ url: "/catalog?page=2", website: WEBSITE_ID, hostname: "localhost", screen: "1920x1080" })
+    expect(payloads[1].name).toBeUndefined()
+  })
+
+  it("pageviews dedupe rerenders, but count query changes and returning to previous routes", async () => {
+    const { payloads } = mockTracker()
+    loadAnalyticsScript()
+    markScriptLoaded()
+    for (const url of ["/", "/", "/catalog", "/catalog?page=2", "/catalog", "/"]) trackPageview(url)
+    await drain()
+    expect(payloads.map(p => p.url)).toEqual(["/", "/catalog", "/catalog?page=2", "/catalog", "/"])
+    expect(payloads[2].referrer).toBe("/catalog")
+  })
+
+  it("serializes identify before events and clears user on logout", async () => {
+    const { payloads, identify } = mockTracker()
+    loadAnalyticsScript()
+    identifyUser("supabase:user-1")
+    trackPageview("/profile")
+    identifyUser("")
+    trackEvent("guest_action")
+    markScriptLoaded()
+    await drain()
+    expect(identify.mock.calls).toEqual([["supabase:user-1", undefined], ["", undefined]])
+    expect(payloads[0].id).toBe("supabase:user-1")
+    expect(payloads[1].id).toBeUndefined()
+  })
+
+  it("does not allow direct SDK sending after consent withdrawal", () => {
+    loadAnalyticsScript()
+    const payload = { url: "/?access_token=secret#private", referrer: "/?code=secret" }
+    expect(window.weebxBeforeSend?.("event", payload)).toEqual({ url: "/", referrer: "/" })
+    unloadAnalyticsScript()
+    expect(window.weebxBeforeSend?.("event", payload)).toBe(false)
+  })
+
+  it("late script load cannot flush a revoked queue", async () => {
+    const { payloads } = mockTracker()
+    loadAnalyticsScript()
+    trackEvent("must_drop")
+    unloadAnalyticsScript()
+    markScriptLoaded()
+    await drain()
+    expect(payloads).toEqual([])
+    expect(isAnalyticsActive()).toBe(false)
+  })
+
+  it("respects domain allowlist and umami.disabled", async () => {
+    const { payloads } = mockTracker()
+    loadAnalyticsScript()
+    markScriptLoaded()
+    vi.stubEnv("NEXT_PUBLIC_UMAMI_DOMAINS", "production.example.com")
+    trackEvent("wrong_domain")
+    vi.stubEnv("NEXT_PUBLIC_UMAMI_DOMAINS", "")
+    localStorage.setItem("umami.disabled", "1")
+    trackEvent("disabled")
+    await drain()
+    expect(payloads).toEqual([])
+  })
+
+  it("survives rejected SDK promises and continues the queue", async () => {
+    const { track, payloads } = mockTracker()
+    track.mockImplementationOnce(() => Promise.reject(new Error("offline")))
+    loadAnalyticsScript()
+    markScriptLoaded()
+    trackEvent("first")
+    trackEvent("second")
+    await drain()
+    expect(payloads.map(p => p.name)).toEqual(["second"])
+  })
+
+  it("bounds a blocked tracker's queue", async () => {
+    const { payloads } = mockTracker()
+    loadAnalyticsScript()
+    for (let i = 0; i < 40; i++) trackEvent(`event_${i}`)
+    markScriptLoaded()
+    for (let i = 0; i < 4; i++) await drain()
+    expect(payloads).toHaveLength(30)
+    expect(payloads[0].name).toBe("event_10")
+  })
+
+  it("re-consent waits for the previous request before resetting the session cache", async () => {
+    const { track, identify, payloads } = mockTracker()
+    let finish!: () => void
+    track.mockImplementationOnce(() => new Promise<void>(resolve => { finish = resolve }))
+    loadAnalyticsScript()
+    markScriptLoaded()
+    trackEvent("in_flight")
+    unloadAnalyticsScript()
+    trackEvent("discarded")
+    loadAnalyticsScript()
+    identifyUser("supabase:new-user")
+    trackEvent("new_visit")
+    expect(identify).not.toHaveBeenCalled()
+    finish()
+    await drain()
+    expect(identify.mock.calls).toEqual([["", undefined], ["supabase:new-user", undefined]])
+    expect(payloads.map(p => p.name)).toEqual(["new_visit"])
+    expect(payloads[0].id).toBe("supabase:new-user")
+  })
+
+  it("allows retry after script load error", () => {
+    loadAnalyticsScript()
+    scriptTag()?.dispatchEvent(new Event("error"))
+    expect(scriptTag()).toBeNull()
+    loadAnalyticsScript()
+    expect(scriptTag()).not.toBeNull()
   })
 })
 
-describe("identifyUser", () => {
-  it("ждёт загрузки трекера и отправляет identify", () => {
-    const identify = vi.fn()
-    window.umami = { track: vi.fn(), identify }
-
-    loadAnalyticsScript()
-    identifyUser("supabase:user-1", { plan: "free" })
-    expect(identify).not.toHaveBeenCalled()
-
-    markScriptLoaded()
-    expect(identify).toHaveBeenCalledWith("supabase:user-1", { plan: "free" })
-  })
-
-  it("no-op без id и без настроенной аналитики", () => {
-    const identify = vi.fn()
-    window.umami = { track: vi.fn(), identify }
-    loadAnalyticsScript()
-    markScriptLoaded()
-
-    identifyUser("")
-    expect(identify).not.toHaveBeenCalled()
-
-    vi.stubEnv("NEXT_PUBLIC_UMAMI_WEBSITE_ID", "")
-    identifyUser("supabase:user-2")
-    expect(identify).not.toHaveBeenCalled()
+describe("URL privacy", () => {
+  it("keeps public filters and UTM, strips secrets and fragments", () => {
+    expect(sanitizeAnalyticsUrl("/catalog?search=naruto&page=2&utm_source=telegram&gift_card=SECRET#access_token=SECRET"))
+      .toBe("/catalog?search=naruto&page=2&utm_source=telegram")
+    expect(sanitizeAnalyticsUrl("https://example.com/callback?code=secret&email=private#token"))
+      .toBe("https://example.com/callback")
+    expect(sanitizeAnalyticsUrl("mailto:private@example.com")).toBe("")
+    expect(sanitizeAnalyticsUrl("javascript:alert(1)")).toBe("")
   })
 })

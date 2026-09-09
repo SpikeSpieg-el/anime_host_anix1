@@ -9,7 +9,7 @@ import { Loader2, Mail, Lock, LogIn, UserPlus, AlertCircle, X, KeyRound, CheckCi
 import { loggers } from "@/lib/logger"
 import { useToast } from "@/hooks/use-toast"
 import { dispatchGiftCardReceived } from "@/lib/gift-card-events"
-import { AnalyticsEvent, trackEvent } from "@/lib/analytics"
+import { AnalyticsEvent, identifyUser, trackEvent } from "@/lib/analytics"
 import type { Card } from "@/app/gacha/types"
 
 function decodeGiftCardToken(token: string | null) {
@@ -163,11 +163,16 @@ export function AuthModal({
           return
         }
 
+        if (data.user && data.session) {
+          identifyUser(`supabase:${data.user.id}`)
+          trackEvent(AnalyticsEvent.AUTH_SIGN_IN, { method: "email" })
+        }
+
         const giftCardToken = getGiftCardToken()
         if (giftCardToken && data.session?.access_token) {
           try {
             const claimResult = await claimGiftCard(giftCardToken, data.session.access_token)
-            trackEvent(AnalyticsEvent.GIFT_CARD_REDEEM, {
+            trackEvent(claimResult.alreadyClaimed ? AnalyticsEvent.GIFT_CARD_ALREADY_CLAIMED : AnalyticsEvent.GIFT_CARD_REDEEM, {
               context: "sign_in",
               already_claimed: Boolean(claimResult.alreadyClaimed),
             })
@@ -224,7 +229,9 @@ export function AuthModal({
         // Если пользователь создан успешно - закрываем модалку
         // Email confirmation handled by Supabase settings
         if (data.user) {
+          if (data.session) identifyUser(`supabase:${data.user.id}`)
           trackEvent(AnalyticsEvent.AUTH_SIGN_UP, {
+            confirmation_required: !data.session,
             method: "email",
             has_referral: Boolean(referralCode),
             has_gift: Boolean(rawGiftCardToken),
@@ -233,7 +240,7 @@ export function AuthModal({
           if (rawGiftCardToken && data.session?.access_token) {
             try {
               const claimResult = await claimGiftCard(rawGiftCardToken, data.session.access_token)
-              trackEvent(AnalyticsEvent.GIFT_CARD_REDEEM, {
+              trackEvent(claimResult.alreadyClaimed ? AnalyticsEvent.GIFT_CARD_ALREADY_CLAIMED : AnalyticsEvent.GIFT_CARD_REDEEM, {
                 context: "sign_up",
                 already_claimed: Boolean(claimResult.alreadyClaimed),
               })
