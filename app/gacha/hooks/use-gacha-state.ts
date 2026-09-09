@@ -33,6 +33,56 @@ import { generateCardUniqueId, calculateCollectionRating, signCard, verifyCard }
 import { AnalyticsEvent, trackEvent } from "@/lib/analytics"
 import { getProxiedSrc } from "@/lib/image-loader"
 
+function createVisibleTimeout(duration: number, message: string) {
+  let remaining = duration
+  let startedAt = Date.now()
+  let timer: ReturnType<typeof setTimeout> | null = null
+  let cleanup = () => {}
+
+  const promise = new Promise<never>((_, reject) => {
+    const schedule = () => {
+      if (remaining <= 0) {
+        cleanup()
+        reject(new Error(message))
+        return
+      }
+      startedAt = Date.now()
+      timer = setTimeout(() => {
+        cleanup()
+        reject(new Error(message))
+      }, remaining)
+    }
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        if (timer !== null) {
+          clearTimeout(timer)
+          timer = null
+          remaining -= Date.now() - startedAt
+        }
+      } else {
+        schedule()
+      }
+    }
+
+    cleanup = () => {
+      if (timer !== null) clearTimeout(timer)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    if (document.hidden) {
+      remaining = 0
+    }
+    schedule()
+  })
+
+  return {
+    promise,
+    cancel: cleanup,
+  }
+}
+
 export function useGachaState() {
   const router = useRouter()
   const pathname = usePathname()
@@ -90,6 +140,7 @@ export function useGachaState() {
 
   // Ref for tracking operation start time
   const operationStartTime = useRef<number | null>(null)
+  const operationHiddenAt = useRef<number | null>(null)
 
   // Ref for tracking if component is mounted
   const isMounted = useRef(true)
@@ -312,21 +363,37 @@ export function useGachaState() {
 
   useEffect(() => {
     const handleVisibilityChange = () => {
-      if (!document.hidden) {
+      if (document.hidden) {
         if ((isRolling || isSavingCard) && operationStartTime.current) {
-          const elapsed = Date.now() - operationStartTime.current
-          if (elapsed > 15000) {
-            console.warn('[Gacha] Операция затянулась в фоне. Сброс состояния.')
-            setIsRolling(false); isRollingRef.current = false
-            setIsSavingCard(false)
-            operationStartTime.current = null
-          }
+          operationHiddenAt.current = Date.now()
+        }
+        return
+      }
+
+      if (operationHiddenAt.current !== null && operationStartTime.current !== null) {
+        operationStartTime.current += Date.now() - operationHiddenAt.current
+        operationHiddenAt.current = null
+      }
+
+      if ((isRolling || isSavingCard) && operationStartTime.current) {
+        const elapsed = Date.now() - operationStartTime.current
+        if (elapsed > 15000) {
+          console.warn('[Gacha] Операция затянулась в фоне. Сброс состояния.')
+          setIsRolling(false); isRollingRef.current = false
+          setIsSavingCard(false)
+          setRevealedCard(null)
+          setShowCard(false)
+          operationStartTime.current = null
+          operationHiddenAt.current = null
         }
       }
     }
 
     document.addEventListener('visibilitychange', handleVisibilityChange)
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      operationHiddenAt.current = null
+    }
   }, [isRolling, isSavingCard])
 
   useEffect(() => {
@@ -578,6 +645,7 @@ export function useGachaState() {
     setViewedCard(null)
     setIsSavingCard(false)
     operationStartTime.current = null
+    operationHiddenAt.current = null
     isRestoredCard.current = false // Сбрасываем флаг при смене набора
     setSearchQuery("")
     setShowPacks(false)
@@ -716,6 +784,7 @@ export function useGachaState() {
     try {
       setIsRolling(true)
       operationStartTime.current = Date.now()
+      operationHiddenAt.current = null
       setRevealedCard(null)
       setShowCard(false)
       setIsSavingCard(false)
@@ -733,6 +802,7 @@ export function useGachaState() {
           setShowErrorPopup(true)
           setIsRolling(false); isRollingRef.current = false
           operationStartTime.current = null
+          operationHiddenAt.current = null
           return
         }
       }
@@ -762,12 +832,11 @@ export function useGachaState() {
           ? rollFromAnimePack(selectedPack, Array.from(usedCharacterIds), blacklistedUrls, Array.from(expandPoolForCharacters), currentBadLuckStreak)
           : rollAnimeCharacter(Array.from(usedCharacterIds), blacklistedUrls, Array.from(expandPoolForCharacters), currentBadLuckStreak)
 
-      const result = await Promise.race([
-        rollPromise,
-        new Promise((_, reject) => setTimeout(() => reject(new Error("TIMEOUT")), 15000))
-      ]) as any
+      const rollTimeout = createVisibleTimeout(15000, "TIMEOUT")
+      try {
+        const result = await Promise.race([rollPromise, rollTimeout.promise]) as any
 
-      if (result) {
+        if (result) {
         try {
           activityRecorder.recordActivity({ eventType: 'gacha_roll', category: 'activity' })
 
@@ -887,12 +956,15 @@ export function useGachaState() {
         }
 
         console.log('[handleRoll] Roll result ready, waiting for animation:', newCard.name)
-      } else {
-        // No result - refund coins
-        if (authUser) {
-          await addCoins(rollCost).catch(e => console.error('[handleRoll] Refund failed:', e))
+        } else {
+          // No result - refund coins
+          if (authUser) {
+            await addCoins(rollCost).catch(e => console.error('[handleRoll] Refund failed:', e))
+          }
+          await handleEmptyResult()
         }
-        await handleEmptyResult() 
+      } finally {
+        rollTimeout.cancel()
       }
 
     } catch (error: any) {
@@ -910,6 +982,7 @@ export function useGachaState() {
       setShowErrorPopup(true)
     } finally {
       operationStartTime.current = null
+      operationHiddenAt.current = null
     }
   }
 
@@ -946,6 +1019,7 @@ export function useGachaState() {
     isRestoredCard.current = false // Сбрасываем флаг, так как карта сохранена
     setIsSavingCard(true)
     operationStartTime.current = Date.now()
+    operationHiddenAt.current = null
 
     try {
       if (authUser) {
@@ -962,6 +1036,7 @@ export function useGachaState() {
     } finally {
       setIsSavingCard(false)
       operationStartTime.current = null
+      operationHiddenAt.current = null
     }
   }
 
