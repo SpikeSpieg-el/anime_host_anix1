@@ -98,6 +98,7 @@ export function useGachaState() {
   const hasRestoredPendingCard = useRef(false)
   const hasPersistedOnce = useRef(false)
   const prevShowCardRef = useRef(false)
+  const isRestoredCard = useRef(false) // Отслеживаем, была ли карта восстановлена после обновления
 
   const ART_BAN_LIMIT = 10
 
@@ -138,6 +139,10 @@ export function useGachaState() {
   const [dismantleCardData, setDismantleCardData] = useState<Card | null>(null)
   const [isDismantling, setIsDismantling] = useState(false)
   const [dismantleReward, setDismantleReward] = useState(0)
+  
+  // Restore card warning state
+  const [showRestoreWarning, setShowRestoreWarning] = useState(false)
+  const [restoredCardCost, setRestoredCardCost] = useState<number>(0)
   
   // Bulk dismantle states
   const [showBulkDismantleFilter, setShowBulkDismantleFilter] = useState(false)
@@ -573,6 +578,7 @@ export function useGachaState() {
     setViewedCard(null)
     setIsSavingCard(false)
     operationStartTime.current = null
+    isRestoredCard.current = false // Сбрасываем флаг при смене набора
     setSearchQuery("")
     setShowPacks(false)
     if (!selectedPack || !selectedPack.id.startsWith('banner:')) {
@@ -587,13 +593,28 @@ export function useGachaState() {
     try {
       const pending = localStorage.getItem('gacha-pending-card')
       if (pending) {
-        const { card, sig } = JSON.parse(pending) as { card: Card; sig: string }
+        const { card, sig, rollCost, coinsDeducted, packId, packName } = JSON.parse(pending) as { 
+          card: Card; 
+          sig: string; 
+          rollCost?: number; 
+          coinsDeducted?: boolean;
+          packId?: string; 
+          packName?: string 
+        }
         if (card && sig && verifyCard(card, sig)) {
-          console.log('[restorePendingCard] Found valid pending card:', card.name)
+          console.log('[restorePendingCard] Found valid pending card:', card.name, 'cost:', rollCost, 'pack:', packName)
           setRevealedCard(card)
           setShowCard(true)
           setIsRolling(false); isRollingRef.current = false
           prevShowCardRef.current = true
+          isRestoredCard.current = true // Помечаем, что карта была восстановлена после обновления
+          setRestoredCardCost(rollCost || 50)
+          if (coinsDeducted) {
+            setShowRestoreWarning(true)
+          }
+          
+          // Информация о наборе сохранена в localStorage для отладки, но не восстанавливаем автоматически
+          // чтобы избежать проблем с состоянием
         } else {
           console.warn('[restorePendingCard] Card signature mismatch, discarding tampered card')
           localStorage.removeItem('gacha-pending-card')
@@ -623,14 +644,23 @@ export function useGachaState() {
     // Save card to localStorage whenever it's set (even during animation)
     if (revealedCard) {
       try {
-        const payload = JSON.stringify({ card: revealedCard, sig: signCard(revealedCard) })
+        const rollCost = selectedPack ? selectedPack.price : 50
+        const payload = JSON.stringify({ 
+          card: revealedCard, 
+          sig: signCard(revealedCard), 
+          rollCost,
+          coinsDeducted: Boolean(authUser),
+          packId: selectedPack?.id,
+          packName: selectedPack?.name
+        })
         localStorage.setItem('gacha-pending-card', payload)
+        console.log('[persistPendingCard] Saved card with cost:', rollCost, 'for pack:', selectedPack?.name)
       } catch (e) { console.error(e) }
     }
 
     hasPersistedOnce.current = true
     prevShowCardRef.current = showCard
-  }, [showCard, revealedCard])
+  }, [authUser, selectedPack, showCard, revealedCard])
 
   const handleEmptyResult = async () => {
     setIsRolling(false); isRollingRef.current = false
@@ -689,6 +719,7 @@ export function useGachaState() {
       setRevealedCard(null)
       setShowCard(false)
       setIsSavingCard(false)
+      isRestoredCard.current = false // Сбрасываем флаг при новой крутке
 
       // SECURE: Spend coins BEFORE rolling to prevent getting cards without paying
       if (authUser) {
@@ -889,6 +920,7 @@ export function useGachaState() {
     if (isAlreadyIn) {
       setShowCard(false)
       setRevealedCard(null)
+      isRestoredCard.current = false // Сбрасываем флаг, так как карта сохранена
       return
     }
     
@@ -911,6 +943,7 @@ export function useGachaState() {
 
     setShowCard(false)
     setRevealedCard(null)
+    isRestoredCard.current = false // Сбрасываем флаг, так как карта сохранена
     setIsSavingCard(true)
     operationStartTime.current = Date.now()
 
@@ -933,8 +966,11 @@ export function useGachaState() {
   }
 
   const discardRevealedCard = useCallback(() => {
+    // Просто скрываем карту без возврата монет - это осознанный выбор пользователя
     setShowCard(false)
     setRevealedCard(null)
+    setShowRestoreWarning(false)
+    isRestoredCard.current = false // Сбрасываем флаг после обработки
   }, [])
 
   const handlePackSelect = async (pack: AnimePack) => {
@@ -1491,6 +1527,9 @@ export function useGachaState() {
     setShowArtLimitWarning,
     cardForArtLimitWarning,
     setCardForArtLimitWarning,
+    showRestoreWarning,
+    setShowRestoreWarning,
+    restoredCardCost,
     isFixingCoins,
     isSavingCard,
     isLoaded,

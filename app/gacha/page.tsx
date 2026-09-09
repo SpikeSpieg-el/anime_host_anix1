@@ -187,6 +187,9 @@ export default function GachaPage() {
     setShowArtLimitWarning,
     cardForArtLimitWarning,
     setCardForArtLimitWarning,
+    showRestoreWarning,
+    setShowRestoreWarning,
+    restoredCardCost,
     isFixingCoins,
     isSavingCard,
     setIsRolling,
@@ -749,6 +752,45 @@ export default function GachaPage() {
                 </button>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Art Warning Modal */}
+      {showRestoreWarning && revealedCard && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 sm:p-6 bg-slate-950/85 backdrop-blur-xl animate-in fade-in duration-200">
+          <div
+            className="bg-slate-900 rounded-2xl sm:rounded-3xl p-6 sm:p-8 max-w-md w-full border border-amber-500/30 shadow-2xl shadow-amber-500/10"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="text-center space-y-6">
+              <div className="w-16 h-16 sm:w-20 sm:h-20 mx-auto rounded-full bg-amber-500/10 border border-amber-500/30 flex items-center justify-center">
+                <Coins className="w-8 h-8 sm:w-10 sm:h-10 text-amber-400" />
+              </div>
+              <div>
+                <h3 className="text-xl sm:text-2xl font-black text-white mb-3">Карта восстановлена</h3>
+                <p className="text-slate-400 text-sm sm:text-base leading-relaxed">
+                  Эта карта была восстановлена после обновления страницы. <span className="text-amber-300 font-bold">{restoredCardCost} монет</span> уже списаны за призыв.
+                </p>
+                <p className="text-slate-500 text-xs sm:text-sm mt-3">
+                  Если вы нажмёте «Отбросить», монеты не будут возвращены — это осознанный выбор пользователя.
+                </p>
+              </div>
+              <div className="flex flex-col gap-3">
+                <button
+                  onClick={() => setShowRestoreWarning(false)}
+                  className="w-full py-3.5 sm:py-4 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl transition-all"
+                >
+                  Понятно, показать карту
+                </button>
+                <button
+                  onClick={discardRevealedCard}
+                  className="w-full py-3.5 sm:py-4 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl transition-all border border-slate-600"
+                >
+                  Отбросить карту
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
