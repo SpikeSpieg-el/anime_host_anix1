@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react"
 import { useAuth } from "@/components/auth/auth-provider"
 import { supabase } from "@/lib/supabase"
+import { AnalyticsEvent, trackEvent } from "@/lib/analytics"
 import { Loader2, Tv, CheckCircle2, XCircle, ShieldCheck } from "lucide-react"
 
 export default function ActivatePage() {
@@ -40,11 +41,13 @@ export default function ActivatePage() {
       const data = await res.json()
 
       if (!res.ok) {
+        trackEvent(AnalyticsEvent.LAMPA_ACTIVATE, { success: false })
         setStatus("error")
         setMessage(data.message || "Ошибка активации")
         return
       }
 
+      trackEvent(AnalyticsEvent.LAMPA_ACTIVATE, { success: true })
       setStatus("success")
       setMessage("Устройство Lampa успешно привязано к вашему аккаунту!")
     } catch (err) {

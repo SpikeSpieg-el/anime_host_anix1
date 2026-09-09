@@ -39,7 +39,11 @@ const SECURITY_HEADERS: Record<string, string> = {
   "X-Content-Type-Options": "nosniff",
   "X-Frame-Options": "DENY",
   "X-XSS-Protection": "1; mode=block",
-  "Referrer-Policy": "no-referrer",
+  // strict-origin-when-cross-origin вместо no-referrer: Umami берёт referrer
+  // из document.referrer, а no-referrer всегда отдаёт пустую строку —
+  // отчёт «Источники» в аналитике был бы пустым. Внешним сайтам при этом
+  // уходит только origin (https://weeb-x.com), без полного URL.
+  "Referrer-Policy": "strict-origin-when-cross-origin",
   "Permissions-Policy": "camera=(), microphone=(), geolocation=(), browsing-topics=()",
   "Content-Security-Policy": [
     "default-src 'self'",

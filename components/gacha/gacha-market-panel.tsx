@@ -659,7 +659,7 @@ export function GachaMarketPanel({
         }
         throw new Error(data.error || "Покупка не удалась")
       }
-      trackEvent(AnalyticsEvent.MARKET_BUY, { listing_id: listingId })
+      trackEvent(AnalyticsEvent.MARKET_BUY, { listing_id: listingId, price, card: name })
       onNotify("Маркет", "Карта добавлена в коллекцию.", "info")
       setListings(prev => prev.filter(l => l.listingId !== listingId))
       void onTradeComplete()
@@ -795,6 +795,7 @@ export function GachaMarketPanel({
       if (!res.ok) {
         throw new Error(data.error || "Не удалось снять лот")
       }
+      trackEvent(AnalyticsEvent.MARKET_CANCEL, { listing_id: listingId, card: name })
       onNotify("Маркет", "Лот снят, карта снова у вас в коллекции.", "info")
       setListings(prev => prev.filter(l => l.listingId !== listingId))
       void onTradeComplete()

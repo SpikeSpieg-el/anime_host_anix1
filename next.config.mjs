@@ -114,8 +114,11 @@ const nextConfig = {
         source: '/(.*)',
         headers: [
           {
+            // strict-origin-when-cross-origin: Umami берёт referrer из
+            // document.referrer, no-referrer обнулял бы отчёт «Источники».
+            // Внешним сайтам уходит только origin, без полного URL.
             key: 'Referrer-Policy',
-            value: 'no-referrer'
+            value: 'strict-origin-when-cross-origin'
           },
           {
             key: 'X-Content-Type-Options',

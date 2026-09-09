@@ -15,6 +15,7 @@ import { toast } from "sonner"
 import { rarityConfig } from "@/types/gacha"
 import type { Rarity } from "@/app/gacha/types"
 import { getProxiedSrc } from "@/lib/image-loader"
+import { AnalyticsEvent, trackEvent } from "@/lib/analytics"
 
 interface MailItem {
   id: string
@@ -137,6 +138,11 @@ export function InboxPanel({ open, onOpenChange, session, onClaimed }: InboxPane
             : m
         )
       )
+
+      trackEvent(AnalyticsEvent.INBOX_CLAIM, {
+        claimed_type: data.claimedType ?? "unknown",
+        mail_id: mailId,
+      })
 
       if (data.claimedType === "card_gift") {
         toast.success("Карта добавлена в коллекцию!")

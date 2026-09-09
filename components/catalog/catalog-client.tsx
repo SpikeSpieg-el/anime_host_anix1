@@ -231,7 +231,7 @@ export function CatalogClient({ initialFilters }: { initialFilters: CatalogFilte
         const q = Array.isArray(value) ? '' : String(value).trim()
         if (q && q !== lastRecordedSearch.current) {
           lastRecordedSearch.current = q
-          activityRecorder.recordActivity({ eventType: 'search_query', category: 'activity', payload: { query: q } })
+          activityRecorder.recordActivity({ eventType: 'search_query', category: 'activity', payload: { query: q, source: 'catalog' } })
 
           // Обновляем статистику аккаунта (только для авторизованных)
           const { data: { session } } = supabase.auth.getSession()

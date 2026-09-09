@@ -21,6 +21,12 @@
  *   - все события внутреннего `activityRecorder` (gacha_roll, battle_started,
  *     watch_start, search_query, bookmark_add ...) — см. `account-stats-recorder.ts`.
  *
+ * Точечные события в компонентах (см. `AnalyticsEvent` в `lib/analytics.ts`):
+ * auth (sign_in/sign_up/sign_out/password_reset), episode_play/episode_change,
+ * manga_chapter_open, gacha_card_revealed/gacha_dismantle/gacha_bulk_dismantle,
+ * market_buy/market_list/market_cancel, inbox_claim, battle_end/pvp_end,
+ * gift_card_redeem, referral_copy, lampa_activate, history_clear/history_remove.
+ *
  * Отключить автотрек конкретного элемента можно атрибутом `data-track="off"`,
  * а задать своё имя/данные — атрибутами Umami:
  *   <button data-umami-event="gacha_pack_open" data-umami-event-pack="2024">
@@ -127,13 +133,17 @@ export function AnalyticsWrapper() {
 
   /* 1. Загружаем / выгружаем трекер по согласию пользователя. */
   useEffect(() => {
-    if (!isAnalyticsConfigured() || !hasConsent) return
+    if (!isAnalyticsConfigured()) return
 
-    if (analyticsGranted) {
-      loadAnalyticsScript()
-    } else {
+    // Пока согласия нет (баннер не закрыт) или аналитика отклонена —
+    // трекер убираем ВМЕСТЕ с очередью: события, случившиеся до согласия,
+    // не должны «догонять» пользователя после нажатия «Принять».
+    if (!hasConsent || !analyticsGranted) {
       unloadAnalyticsScript()
+      return
     }
+
+    loadAnalyticsScript()
   }, [analyticsGranted, hasConsent])
 
   /* 2. Вовлечённость: время на странице + глубина скролла. */

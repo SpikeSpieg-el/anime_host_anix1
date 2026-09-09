@@ -5,6 +5,7 @@ import type { Anime } from "@/lib/shikimori"
 import { supabase, updateAccountStats } from "@/lib/supabase"
 import { useAuth } from "@/components/auth/auth-provider"
 import { activityRecorder } from "./account-stats-recorder"
+import { AnalyticsEvent } from "@/lib/analytics"
 import { loggers } from "@/lib/logger"
 
 type BookmarkAnime = Anime & {
@@ -221,17 +222,25 @@ export function BookmarksProvider({ children }: { children: React.ReactNode }) {
         await updateAccountStats(user.id, { bookmarksAdded: currentCount + 1 })
         window.dispatchEvent(new CustomEvent('account-stats-updated'))
       }
+    }
 
-      try {
-        activityRecorder.recordActivity({ eventType: 'bookmark_add', category: 'viewing' })
-      } catch (e) {
-        console.error("Error recording bookmark_add:", e)
-      }
+    // Трекаем и для гостей: в Umami событие уходит анонимно,
+    // запись в Supabase внутри recordActivity сама проверит userId.
+    try {
+      activityRecorder.recordActivity({ eventType: AnalyticsEvent.BOOKMARK_ADD, category: 'viewing', payload: { anime_id: anime.id } })
+    } catch (e) {
+      console.error("Error recording bookmark_add:", e)
     }
   }, [user?.id])
 
   const remove = useCallback(async (id: string) => {
     setItems((prev) => prev.filter((a) => a.id !== id))
+
+    try {
+      activityRecorder.recordActivity({ eventType: AnalyticsEvent.BOOKMARK_REMOVE, category: 'viewing', payload: { anime_id: id } })
+    } catch (e) {
+      console.error("Error recording bookmark_remove:", e)
+    }
 
     if (user) {
       try {
@@ -259,22 +268,28 @@ export function BookmarksProvider({ children }: { children: React.ReactNode }) {
   }, [user?.id])
 
   const toggle = useCallback(async (anime: BookmarkAnime) => {
-    let isAdded = false
+    // ВАЖНО: флаг считаем синхронно из текущего стейта, а не внутри
+    // setItems-апдейтера (апдейтер выполняется позже, во время рендера,
+    // поэтому старый `isAdded` всегда был false: добавление через toggle
+    // писало DELETE в БД и не трекалось в аналитике).
+    const alreadySaved = items.some((a) => a.id === anime.id)
+    const isAdded = !alreadySaved
     setItems((prev) => {
-      const exists = prev.some((a) => a.id === anime.id)
-      if (exists) {
+      if (alreadySaved) {
         return prev.filter((a) => a.id !== anime.id)
       }
-      isAdded = true
+      if (prev.some((a) => a.id === anime.id)) return prev
       return [anime, ...prev]
     })
 
-    if (isAdded) {
-      try {
-        activityRecorder.recordActivity({ eventType: 'bookmark_add', category: 'viewing' })
-      } catch (e) {
-        console.error("Error recording bookmark_add:", e)
-      }
+    try {
+      activityRecorder.recordActivity({
+        eventType: isAdded ? AnalyticsEvent.BOOKMARK_ADD : AnalyticsEvent.BOOKMARK_REMOVE,
+        category: 'viewing',
+        payload: { anime_id: anime.id },
+      })
+    } catch (e) {
+      console.error("Error recording bookmark toggle:", e)
     }
 
     if (user) {
@@ -315,7 +330,14 @@ export function BookmarksProvider({ children }: { children: React.ReactNode }) {
         }
       }
     }
-  }, [user?.id])
+
+    if (!isAdded) {
+      // Trigger episode updates recheck after bookmark removal
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('episode-updates-check-needed'))
+      }, 500)
+    }
+  }, [user?.id, items])
 
   const toggleCompleted = useCallback(async (id: string) => {
     setItems((prev) => 

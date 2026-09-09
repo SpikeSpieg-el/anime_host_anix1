@@ -16,9 +16,10 @@ title: string
 originalTitle: string
 episode: number
 isActive: boolean
+onStart?: () => void
 }
 
-export function HentaiPlayer({ title, originalTitle, episode, isActive }: HentaiPlayerProps) {
+export function HentaiPlayer({ title, originalTitle, episode, isActive, onStart }: HentaiPlayerProps) {
 const { profile } = useAuth()
 const [playlist, setPlaylist] = useState<{name: string, url: string}[]>([])
 const [currentIndex, setCurrentIndex] = useState<number | null>(null)
@@ -192,8 +193,8 @@ style={{ background: 'radial-gradient(circle at center, #fb923c 0%, transparent 
             Confirm your biometric signature for <span className="text-zinc-300 font-mono italic">EP_{episode}</span>.
           </p>
 
-          <button 
-            onClick={() => setIsStarted(true)}
+          <button
+            onClick={() => { onStart?.(); setIsStarted(true) }}
             className="group relative flex h-10 xs:h-11 sm:h-12 md:h-14 w-full items-center justify-center overflow-hidden rounded-full bg-orange-600 transition-all hover:bg-orange-500 active:scale-95"
           >
             <span className="relative flex items-center gap-2 xs:gap-3 text-[8px] xs:text-[9px] sm:text-[10px] md:text-xs font-black uppercase tracking-[0.15em] xs:tracking-[0.2em] text-white">

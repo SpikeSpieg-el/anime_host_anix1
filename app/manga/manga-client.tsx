@@ -8,6 +8,7 @@ import { MultiSelect } from '@/components/ui/multi-select';
 import { MANGADEX_TAGS_MAP } from '@/lib/mangadex/api';
 import { Footer } from '@/components/layout/footer';
 import { getProxiedSrc } from '@/lib/image-loader';
+import { AnalyticsEvent, trackEvent } from '@/lib/analytics';
 
 interface Manga {
   id: string;
@@ -145,6 +146,7 @@ export default function MangaClient() {
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (searchQuery.trim()) {
+      trackEvent(AnalyticsEvent.SEARCH_QUERY, { query: searchQuery.trim(), source: 'manga' });
       setActiveTab('search');
       setSelectedTags([]);
       fetchManga(searchQuery, 1);
