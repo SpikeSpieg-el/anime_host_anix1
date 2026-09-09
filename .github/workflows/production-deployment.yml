@@ -1,0 +1,16 @@
+name: Production Deployment
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://coolify.weebx.duckdns.org
+    steps:
+      - name: Acknowledge deployment
+        run: echo "Code pushed to main, Coolify is deploying via GitHub App."
