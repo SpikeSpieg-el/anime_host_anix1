@@ -50,7 +50,8 @@ try {
   })
   // A fresh context has no consent. Wait for the actual banner (hydration).
   await page.goto(base.href, { waitUntil: 'domcontentloaded', timeout: 60_000 })
-  const accept = page.getByRole('button', { name: 'Принять все', exact: true })
+  // Try both button text options: "Принять" (collapsed) or "Принять все" (expanded)
+  const accept = page.getByRole('button').filter({ hasText: /^(Принять|Принять все)$/ }).first()
   await expect(accept).toBeVisible({ timeout: 30_000 })
   expect(requests, 'No collection before consent').toBe(0)
   await expect(page.locator('#umami-script')).toHaveCount(0)

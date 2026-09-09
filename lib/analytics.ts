@@ -97,6 +97,10 @@ export function getUmamiTag(): string {
 
 /** Полный URL трекера, который вставляется в `<script src>`. */
 export function getUmamiScriptUrl(): string {
+  // Используем проксированный путь для обхода блокировщиков рекламы
+  if (process.env.NODE_ENV === 'production') {
+    return '/stats/tracker.js'
+  }
   return `${getUmamiOrigin()}${getUmamiScriptPath()}`
 }
 
@@ -296,6 +300,10 @@ export function loadAnalyticsScript(options: LoadAnalyticsOptions = {}): void {
   script.setAttribute("data-website-id", getUmamiWebsiteId())
   script.setAttribute("data-auto-track", "false")
   script.setAttribute("data-before-send", "weebxBeforeSend")
+  // При использовании проксированного пути указываем локальный хост для API запросов
+  if (process.env.NODE_ENV === 'production') {
+    script.setAttribute("data-host-url", "/stats")
+  }
   const domains = options.domains ?? getUmamiDomains()
   if (domains) script.setAttribute("data-domains", domains)
   const tag = options.tag ?? getUmamiTag()

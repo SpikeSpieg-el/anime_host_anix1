@@ -18,6 +18,18 @@ const UMAMI_ORIGIN = (() => {
 const nextConfig = {
   staticPageGenerationTimeout: 300,
   poweredByHeader: false,
+  async rewrites() {
+    return [
+      {
+        source: '/stats/tracker.js',
+        destination: 'https://analytics.weeb-x.com/script.js',
+      },
+      {
+        source: '/stats/api/send',
+        destination: 'https://analytics.weeb-x.com/api/send',
+      },
+    ];
+  },
   images: {
     remotePatterns: [
       // Development uses direct external image URLs from many artwork providers.
@@ -136,11 +148,11 @@ const nextConfig = {
             key: 'Content-Security-Policy',
             value: [
               "default-src 'self'",
-              `script-src 'self' 'unsafe-inline' 'unsafe-eval' https://vercel.live https://assets.vercel.com ${UMAMI_ORIGIN}`,
+              `script-src 'self' 'unsafe-inline' 'unsafe-eval' ${UMAMI_ORIGIN}`,
               "style-src 'self' 'unsafe-inline'",
               "img-src 'self' data: blob: https: http:",
               "font-src 'self' data:",
-              `connect-src 'self' https: http: wss: ${UMAMI_ORIGIN}`,
+              `connect-src 'self' https: http: wss: ${UMAMI_ORIGIN} /stats`,
               "frame-src 'self' https: http:",
               "media-src 'self' https: http: blob:",
               "object-src 'none'",
