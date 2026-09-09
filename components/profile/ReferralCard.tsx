@@ -5,6 +5,7 @@ import { Check, Copy, Gift } from "lucide-react"
 import { QRCodeSVG } from "qrcode.react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { AnalyticsEvent, trackEvent } from "@/lib/analytics"
 
 export function ReferralCard({ referralCode, referralCount }: { referralCode: string; referralCount: number }) {
   const [copied, setCopied] = useState(false)
@@ -16,6 +17,7 @@ export function ReferralCard({ referralCode, referralCount }: { referralCode: st
 
   const handleCopy = async () => {
     await navigator.clipboard.writeText(referralLink)
+    trackEvent(AnalyticsEvent.REFERRAL_COPY)
     setCopied(true)
     window.setTimeout(() => setCopied(false), 2000)
   }

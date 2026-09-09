@@ -130,6 +130,7 @@ export function Navbar() {
 
       const result = await response.json()
       trackEvent(AnalyticsEvent.GIFT_CARD_REDEEM, {
+        context: "gift_link",
         already_claimed: Boolean(result.alreadyClaimed),
       })
       if (!result.alreadyClaimed) {
@@ -185,6 +186,17 @@ export function Navbar() {
   const handleSearchSelect = (query: string) => {
     if (!query.trim()) return
     saveSearchHistory(query)
+    // Главный поиск сайта: catalog-client трекает только ввод в своём поле,
+    // поэтому поиск из навбара (переход по URL) фиксируем здесь явно.
+    try {
+      activityRecorder.recordActivity({
+        eventType: AnalyticsEvent.SEARCH_QUERY,
+        category: 'activity',
+        payload: { query: query.trim(), source: 'navbar' },
+      })
+    } catch (e) {
+      console.error("[navbar] search_query error:", e)
+    }
     router.push(`/catalog?search=${encodeURIComponent(query)}`)
     setIsMobileSearchOpen(false) 
   }

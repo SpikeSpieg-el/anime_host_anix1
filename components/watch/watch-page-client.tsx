@@ -457,6 +457,15 @@ export function WatchPageClient({ anime, initialEpisode }: WatchPageClientProps)
               originalTitle={anime.originalTitle}
               episode={selectedEpisode}
               isActive={true}
+              onStart={() => {
+                trackEvent(AnalyticsEvent.EPISODE_PLAY, {
+                  shikimori_id: anime.shikimoriId,
+                  title: anime.title,
+                  episode: selectedEpisode,
+                  player: "hentai",
+                })
+                setIsStarted(true)
+              }}
             />
           ) : activePlayer === 'main' ? (
             <KodikPlayer
@@ -483,6 +492,15 @@ export function WatchPageClient({ anime, initialEpisode }: WatchPageClientProps)
               title={anime.title}
               episode={selectedEpisode}
               isActive={true}
+              onStart={() => {
+                trackEvent(AnalyticsEvent.EPISODE_PLAY, {
+                  shikimori_id: anime.shikimoriId,
+                  title: anime.title,
+                  episode: selectedEpisode,
+                  player: "backup",
+                })
+                setIsStarted(true)
+              }}
             />
           )}
         </div>

@@ -23,6 +23,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
+import { AnalyticsEvent, trackEvent } from "@/lib/analytics"
 
 function normalizePosterUrl(value: string): string {
   const raw = (value ?? "").trim()
@@ -101,6 +102,7 @@ export default function HistoryPage() {
   }, [])
 
   const handleConfirmClear = () => {
+    trackEvent(AnalyticsEvent.HISTORY_CLEAR, { count: history.length })
     clear()
     setShowClearDialog(false)
   }
@@ -136,6 +138,7 @@ export default function HistoryPage() {
   }
 
   const handleConfirmDeleteSelected = () => {
+    trackEvent(AnalyticsEvent.HISTORY_REMOVE, { count: selectedIds.size })
     remove([...selectedIds])
     setSelectedIds(new Set())
     setShowDeleteSelectedDialog(false)

@@ -285,6 +285,16 @@ export function unloadAnalyticsScript(): void {
   queue.length = 0
   if (typeof document === "undefined") return
   document.getElementById(UMAMI_SCRIPT_TAG_ID)?.remove()
+  // Удаляем и сам объект трекера: иначе уже навешанные им слушатели
+  // (авто-pageview на history API) продолжат слать данные, а повторная
+  // загрузка скрипта задвоит pageview.
+  if (typeof window !== "undefined") {
+    try {
+      delete window.umami
+    } catch {
+      /* ignore */
+    }
+  }
 }
 
 /* -------------------------------------------------------------------------- */
@@ -369,23 +379,37 @@ export const AnalyticsEvent = {
   CLICK: "click",
   FORM_SUBMIT: "form_submit",
   ENGAGEMENT: "engagement",
-  SEARCH: "search",
+  SEARCH: "search_query",
+  /** Алиас: весь поиск (каталог, навбар, манга) шлётся как `search_query`
+   *  с полем `source`. Старое имя SEARCH оставлено для совместимости. */
+  SEARCH_QUERY: "search_query",
   BOOKMARK_ADD: "bookmark_add",
   BOOKMARK_REMOVE: "bookmark_remove",
+  HISTORY_CLEAR: "history_clear",
+  HISTORY_REMOVE: "history_remove",
   EPISODE_PLAY: "episode_play",
   EPISODE_CHANGE: "episode_change",
   GACHA_ROLL: "gacha_roll",
   GACHA_CARD_REVEALED: "gacha_card_revealed",
   GACHA_DISMANTLE: "gacha_dismantle",
+  GACHA_BULK_DISMANTLE: "gacha_bulk_dismantle",
   GACHA_PACK_OPEN: "gacha_pack_open",
   MARKET_BUY: "market_buy",
   MARKET_LIST: "market_list",
+  MARKET_CANCEL: "market_cancel",
+  INBOX_CLAIM: "inbox_claim",
   BATTLE_START: "battle_started",
+  BATTLE_END: "battle_end",
   PVP_START: "pvp_started",
+  PVP_END: "pvp_end",
   AUTH_SIGN_IN: "auth_sign_in",
+  AUTH_SIGN_UP: "auth_sign_up",
   AUTH_SIGN_OUT: "auth_sign_out",
+  AUTH_PASSWORD_RESET: "auth_password_reset",
   MANGA_CHAPTER_OPEN: "manga_chapter_open",
   GIFT_CARD_REDEEM: "gift_card_redeem",
+  REFERRAL_COPY: "referral_copy",
+  LAMPA_ACTIVATE: "lampa_activate",
 } as const
 
 export type AnalyticsEventName = (typeof AnalyticsEvent)[keyof typeof AnalyticsEvent]

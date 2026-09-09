@@ -1272,6 +1272,12 @@ export function useGachaState() {
       setBulkDismantleProgress({ processed: 0, total: 0 })
       setBulkDismantleReward(totalDust)
       
+      trackEvent(AnalyticsEvent.GACHA_BULK_DISMANTLE, {
+        count: cardsToDismantle.length,
+        dust: totalDust,
+        rarity: selectedBulkRarity,
+      })
+
       console.log('[confirmBulkDismantle] Closing confirmation modal and opening success modal')
       setShowBulkDismantleConfirm(false)
       setShowBulkDismantleSuccess(true)

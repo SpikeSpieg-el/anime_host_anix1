@@ -587,7 +587,12 @@ export function useBattleData() {
     if (!user) return
     const isWinner = winnerId === user.id
     console.log('[Battle] Resolving PvP match end, winner:', winnerId, 'isUserWinner:', isWinner, 'reason:', reason)
-    
+
+    trackEvent(AnalyticsEvent.PVP_END, {
+      result: isWinner ? "win" : "loss",
+      reason: reason ?? "normal",
+    })
+
     // Set victory flag and transition to finalizing phase.
     setCcgState(prev => {
       if (!prev) return null
@@ -760,25 +765,6 @@ export function useBattleData() {
   }
 
   const startBattle = async () => {
-    try {
-      activityRecorder.recordActivity({ eventType: 'battle_started', category: 'activity' })
-
-      // Обновляем статистику аккаунта
-      if (user) {
-        const { updateAccountStats } = await import('@/lib/supabase')
-        const { data: currentStats } = await supabase
-          .from('account_stats')
-          .select('battles_started')
-          .eq('user_id', user.id)
-          .single()
-        const currentCount = currentStats?.battles_started ?? 0
-        await updateAccountStats(user.id, { battlesStarted: currentCount + 1 })
-        window.dispatchEvent(new CustomEvent('account-stats-updated'))
-      }
-    } catch (e) {
-      console.error("Error recording battle_started:", e)
-    }
-
     console.log('[Battle] startBattle called')
     console.log('[Battle] selectedCards length:', selectedCards.length)
     console.log('[Battle] selectedDungeon:', selectedDungeon?.id)
@@ -808,6 +794,32 @@ export function useBattleData() {
     }
 
     console.log('[Battle] All validations passed, setting battleState to loading')
+
+    // Трекаем старт только после валидаций: раньше сюда попадали и
+    // несостоявшиеся бои (нет колоды/подземелья/энергии), раздувая воронку.
+    try {
+      activityRecorder.recordActivity({
+        eventType: AnalyticsEvent.BATTLE_START,
+        category: 'activity',
+        payload: { dungeon_id: selectedDungeon?.id ?? null, mode: 'pve' },
+      })
+
+      // Обновляем статистику аккаунта
+      if (user) {
+        const { updateAccountStats } = await import('@/lib/supabase')
+        const { data: currentStats } = await supabase
+          .from('account_stats')
+          .select('battles_started')
+          .eq('user_id', user.id)
+          .single()
+        const currentCount = currentStats?.battles_started ?? 0
+        await updateAccountStats(user.id, { battlesStarted: currentCount + 1 })
+        window.dispatchEvent(new CustomEvent('account-stats-updated'))
+      }
+    } catch (e) {
+      console.error("Error recording battle_started:", e)
+    }
+
     setError(null)
     setBattleState("loading")
     setPlacedPlacedThisRound([])
@@ -1729,7 +1741,17 @@ export function useBattleData() {
     // Use provided data or fallback to state
     const dungeonIdToFinish = overrideDungeonId || selectedDungeon?.id
     const resultToFinish = overrideResult || (ccgState?.victory ? 'win' : 'loss')
-    
+
+    // PvE-финал. PvP-финал трекается в resolvePvPMatchEnd (там авторитетный
+    // результат от сервера), чтобы не задвоить событие кнопкой «Итоги».
+    if (!isPvPMode) {
+      trackEvent(AnalyticsEvent.BATTLE_END, {
+        result: resultToFinish,
+        dungeon_id: dungeonIdToFinish ?? null,
+        mode: "pve",
+      })
+    }
+
     try {
       // Transition from finalizing to ended phase to show results modal
       if (ccgState) {
