@@ -35,6 +35,9 @@
   --radius-lg: var(--radius);
   --radius-md: calc(var(--radius) - 2px);
   --radius-sm: calc(var(--radius) - 4px);
+
+  --font-family-sans: 'Geist', sans-serif;
+  --font-family-mono: 'Geist Mono', monospace;
 }
 
 /* Базовые стили и цвета (Темная тема по умолчанию) */
@@ -276,6 +279,16 @@
   /* Unbounded font for logos */
   .font-unbounded {
     font-family: 'Unbounded', sans-serif;
+  }
+  
+  /* Geist font family */
+  .font-geist {
+    font-family: 'Geist', sans-serif;
+  }
+  
+  /* Geist Mono font family */
+  .font-geist-mono {
+    font-family: 'Geist Mono', monospace;
   }
   
   /* 3D perspective utilities */
