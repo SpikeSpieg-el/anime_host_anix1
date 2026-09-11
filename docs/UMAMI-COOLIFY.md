@@ -119,6 +119,7 @@ Supabase UUID — **псевдонимный персональный идент
 | Бои | `battle_started`, `battle_end`, `pvp_started`, `pvp_end` |
 | Приглашения/подарки | `referral_copy`, `gift_card_redeem`; повторное получение — `gift_card_already_claimed` |
 | Lampa | `lampa_activate` — успех; `lampa_activate_error` — отказ/сетевая ошибка, без PIN |
+| Крючки гостей (конверсия) | `guest_hook_view`, `guest_hook_cta`, `guest_hook_dismiss`, `guest_hook_auth_open` — см. §4.1 |
 
 `recordWatchEnd` существует как неиспользуемый helper: считать `watch_end`
 покрытым событием нельзя. Для фактического завершения native video есть `video_complete`.
@@ -126,6 +127,41 @@ Milestones позиции не равны проценту реально про
 Чужие iframe (Kodik/backup/TV) не раскрывают все свои клики, паузы, рекламу и завершения
 родительскому сайту. Полное покрытие возможно только через подтверждённый API провайдера.
 Мобильные/TV/Lampa-клиенты вне DOM сайта не получают автоматически весь этот автотрек.
+
+### 4.1 Контекстные крючки гостей → регистрация
+
+Система `lib/guest-hooks.ts` + UI (`GuestHookBanner`, `GuestArenaGate`, Chibi).
+Цель — связать просмотр/навигацию с уникальными фичами Weebx, а не с «сохраните прогресс».
+
+| `hook_id` | Точка контакта | CTA |
+| --- | --- | --- |
+| `starter_pack` | После 1-й серии / `/gacha` / лимит гостевых круток | «Забрать» (10 000 монет) |
+| `chibi_rewards` | ChibiGuide на каталоге/watch | «Начать копить награды» |
+| `title_deck` | Exit intent после просмотра | «Собрать колоду» |
+| `ongoing_bell` | Закладка онгоинга | «Включить уведомления» |
+| `arena_market` | Gate `/battle`, `/pvp`, маркет | «Создать профиль игрока» |
+
+**События (payload всегда содержит `hook_id`, часто `trigger`, `surface`, `action`):**
+
+| Событие | Когда |
+| --- | --- |
+| `guest_hook_view` | Показ баннера / gate / chibi-сообщения |
+| `guest_hook_cta` | Клик по основной CTA (регистрация) или secondary («Войти») |
+| `guest_hook_auth_open` | Дубль при открытии AuthModal из крючка (для воронки) |
+| `guest_hook_dismiss` | Закрытие крестиком / cooldown 24ч |
+
+**Атрибуция регистрации:** при CTA пишется `sessionStorage` → `auth_sign_up` / `auth_sign_in`
+получают `hook_id` + `hook_trigger`. Воронка в Umami:
+
+1. `guest_hook_view` (filter `hook_id=starter_pack` …)
+2. `guest_hook_cta`
+3. `auth_sign_up` (filter `hook_id=…`)
+
+Frequency: max 3 разных крючка за сессию вкладки; dismiss → 24ч cooldown.
+Баннеры **не** перекрывают активный плеер (только under-player / fixed bottom / gate).
+
+Рекомендуемые Goals: `guest_hook_view`, `guest_hook_cta`, `guest_hook_auth_open`,
+плюс отдельные goals с property filter по `hook_id` если Umami-сборка это поддерживает.
 
 ## 5. Behavior: настройка для данного website ID
 
@@ -149,6 +185,10 @@ Milestones позиции не равны проценту реально про
 | Получение награды | `inbox_claim` |
 | Получение нового подарка | `gift_card_redeem` |
 | Привязка Lampa | `lampa_activate` |
+| Показ крючка гостю | `guest_hook_view` |
+| Клик CTA крючка | `guest_hook_cta` |
+| Открытие Auth из крючка | `guest_hook_auth_open` |
+| Закрытие крючка | `guest_hook_dismiss` |
 
 Не используйте общий `click`/`form_submit` как подтверждение успеха операции.
 Не включайте `*_error`/`gift_card_already_claimed` в успешные конверсии.
@@ -166,6 +206,10 @@ Milestones позиции не равны проценту реально про
    Для покупки используйте Path `/gacha` → Event `market_buy` (если рынок открыт там).
    Не делайте `market_list → market_buy` общей воронкой продавец→покупатель: это разные люди.
 4. Авторизованная активация: Event `auth_sign_in` → Event `gacha_roll`.
+5. Крючок → регистрация: Event `guest_hook_view` → Event `guest_hook_cta` → Event `auth_sign_up`.
+   Для сравнения креативов фильтруйте/смотрите property `hook_id` в Events
+   (`starter_pack`, `chibi_rewards`, `title_deck`, `ongoing_bell`, `arena_market`).
+6. Gate арены: Path `/battle` или `/pvp` → Event `guest_hook_view` (`hook_id=arena_market`) → Event `auth_sign_up`.
 
 Не вставляйте необязательный выбор пака в обязательную воронку всех круток.
 Umami сопоставляет шаги по session ID. При переходе guest → identified user

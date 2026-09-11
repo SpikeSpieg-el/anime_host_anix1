@@ -40,6 +40,7 @@ import { cn } from "@/lib/utils"
 import { Eye } from "lucide-react"
 import { AnalyticsEvent, trackEvent } from "@/lib/analytics"
 import { useExitIntent } from "@/hooks/use-exit-intent"
+import { GuestHookId, canShowGuestHook } from "@/lib/guest-hooks"
 
 interface WatchPageClientProps {
   anime: Anime
@@ -108,11 +109,39 @@ export function WatchPageClient({ anime, initialEpisode }: WatchPageClientProps)
     minWatchTime: 30 // Show prompt after 30 seconds of watching
   })
 
+  // Крючок «Гача / стартовый пак» — после старта 1-й серии (не перекрывает плеер)
+  const [showStarterHook, setShowStarterHook] = useState(false)
+  // Крючок «Колода тайтла» — после просмотра / exit intent
+  const [showDeckHook, setShowDeckHook] = useState(false)
+  const starterHookArmed = useRef(false)
+
   const playerRef = useRef<HTMLDivElement>(null)
   const lastRecordedEpisode = useRef("")
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
+
+  // После начала просмотра (гость) — через ~45с показываем стартовый бонус под плеером
+  useEffect(() => {
+    if (user || !isStarted || starterHookArmed.current) return
+    if (!canShowGuestHook(GuestHookId.STARTER_PACK)) return
+
+    starterHookArmed.current = true
+    const timer = window.setTimeout(() => {
+      if (document.visibilityState === "hidden") return
+      setShowStarterHook(true)
+    }, 45_000)
+
+    return () => window.clearTimeout(timer)
+  }, [user, isStarted])
+
+  // Exit intent → колода по тайтлу (ценность CCG, не «сохраните прогресс»)
+  useEffect(() => {
+    if (showExitPrompt && !user && canShowGuestHook(GuestHookId.TITLE_DECK)) {
+      setShowStarterHook(false) // один баннер за раз — не спамим
+      setShowDeckHook(true)
+    }
+  }, [showExitPrompt, user])
 
   // Загрузка сохранённого прогресса из localStorage
   useEffect(() => {
@@ -529,14 +558,30 @@ export function WatchPageClient({ anime, initialEpisode }: WatchPageClientProps)
         </div>
       </div>
 
-      {/* Auth Prompt Banner - shown to non-logged users */}
-      <AuthPromptBanner variant="under-player" />
-
-      {/* Exit Intent Prompt - shown when user tries to leave after watching */}
-      {showExitPrompt && (
+      {/* Крючок: стартовый пак / 10 000 монет — после начала просмотра */}
+      {showStarterHook && !user && (
         <AuthPromptBanner
-          variant="exit"
-          onDismiss={dismissExitPrompt}
+          variant="starter-pack"
+          animeId={anime.id}
+          animeTitle={anime.title}
+          animeStatus={anime.status}
+          trigger="watch_first_episode"
+          onDismiss={() => setShowStarterHook(false)}
+        />
+      )}
+
+      {/* Крючок: колода по тайтлу — exit intent / после серии */}
+      {showDeckHook && !user && (
+        <AuthPromptBanner
+          variant="title-deck"
+          animeId={anime.id}
+          animeTitle={anime.title}
+          animeStatus={anime.status}
+          trigger="exit_intent"
+          onDismiss={() => {
+            setShowDeckHook(false)
+            dismissExitPrompt()
+          }}
         />
       )}
 

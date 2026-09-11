@@ -39,6 +39,8 @@ import { InteractiveCard } from "./components/interactive-card"
 import { statLabels } from "./config"
 import { getOptimizedThumbSrc } from "./utils"
 import { Card, Rarity } from "./types"
+import { GuestHookBanner } from "@/components/shared/guest-hook-banner"
+import { GuestHookId, canShowGuestHook } from "@/lib/guest-hooks"
 
 const StatBar = ({ label, value, color }: { label: string; value: number; color: string }) => (
   <div className="w-full space-y-1">
@@ -231,6 +233,18 @@ export default function GachaPage() {
   const dustAnim = useSpendAnimation(dust)
 
   const router = useRouter()
+
+  // Крючок «Стартовый бонус» для гостей на /gacha
+  const [showGuestStarter, setShowGuestStarter] = useState(false)
+  useEffect(() => {
+    if (session?.user) {
+      setShowGuestStarter(false)
+      return
+    }
+    if (!canShowGuestHook(GuestHookId.STARTER_PACK)) return
+    const t = window.setTimeout(() => setShowGuestStarter(true), 1200)
+    return () => window.clearTimeout(t)
+  }, [session?.user])
 
   const [showTutorial, setShowTutorial] = useState(false)
   const [showMarketTutorial, setShowMarketTutorial] = useState(false)
@@ -459,6 +473,20 @@ export default function GachaPage() {
       <div className="fixed bottom-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-purple-900/10 blur-[120px] pointer-events-none" />
       
       <Navbar />
+
+      {/* Гостевой крючок: 10 000 монет + стартовый пак */}
+      {showGuestStarter && !session?.user && (
+        <div className="relative z-20 mx-auto max-w-3xl px-4 pt-4">
+          <GuestHookBanner
+            hookId={GuestHookId.STARTER_PACK}
+            trigger="gacha_page"
+            surface="banner"
+            respectFrequency={false}
+            onDismiss={() => setShowGuestStarter(false)}
+            className="border-amber-500/40 shadow-2xl shadow-amber-900/20"
+          />
+        </div>
+      )}
 
       {/* Pack Selection Modal */}
       {showPacks && (

@@ -405,6 +405,11 @@ export const AnalyticsEvent = {
   LAMPA_ACTIVATE: "lampa_activate",
   LAMPA_ACTIVATE_ERROR: "lampa_activate_error",
   GIFT_CARD_ALREADY_CLAIMED: "gift_card_already_claimed",
+  /** Контекстные крючки конверсии гостей (см. lib/guest-hooks.ts). */
+  GUEST_HOOK_VIEW: "guest_hook_view",
+  GUEST_HOOK_CTA: "guest_hook_cta",
+  GUEST_HOOK_DISMISS: "guest_hook_dismiss",
+  GUEST_HOOK_AUTH_OPEN: "guest_hook_auth_open",
 } as const
 
 export type AnalyticsEventName = (typeof AnalyticsEvent)[keyof typeof AnalyticsEvent]

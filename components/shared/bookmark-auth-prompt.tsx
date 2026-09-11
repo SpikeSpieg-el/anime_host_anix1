@@ -1,81 +1,109 @@
 "use client"
 
-import { useEffect, useState, useRef } from "react"
-import { motion, AnimatePresence } from "framer-motion"
+import { useEffect, useState } from "react"
 import { useAuth } from "@/components/auth/auth-provider"
-import { AuthPromptBanner } from "@/components/watch/auth-prompt-banner"
+import { GuestHookToast } from "@/components/shared/guest-hook-banner"
+import {
+  GuestHookId,
+  canShowGuestHook,
+  isOngoingStatus,
+  type GuestHookIdValue,
+} from "@/lib/guest-hooks"
 
-const BOOKMARK_COUNT_KEY = "weebx_bookmark_count"
+interface BookmarkDetail {
+  anime?: {
+    id?: string
+    title?: string
+    status?: string
+  }
+}
 
+/**
+ * При добавлении закладки гостем:
+ *  - ongoing → крючок «Колокольчик онгоингов»
+ *  - иначе → стартовый пак (реже, каждые 2 закладки)
+ */
 export function BookmarkAuthPrompt() {
   const { user } = useAuth()
-  const [showPrompt, setShowPrompt] = useState(false)
-  const bookmarkCountRef = useRef(0)
+  const [open, setOpen] = useState(false)
+  const [hookId, setHookId] = useState<GuestHookIdValue>(GuestHookId.STARTER_PACK)
+  const [animeMeta, setAnimeMeta] = useState<{
+    id?: string
+    title?: string
+    status?: string
+  }>({})
+  const [trigger, setTrigger] = useState("bookmark")
 
   useEffect(() => {
     if (user) {
-      setShowPrompt(false)
+      setOpen(false)
       return
     }
 
-    // Загружаем текущий счетчик из localStorage
-    if (typeof window !== "undefined") {
-      const savedCount = localStorage.getItem(BOOKMARK_COUNT_KEY)
-      if (savedCount) {
-        bookmarkCountRef.current = parseInt(savedCount, 10)
-      }
+    let nonOngoingCount = 0
+    try {
+      nonOngoingCount = parseInt(localStorage.getItem("weebx_bookmark_count") || "0", 10) || 0
+    } catch {
+      nonOngoingCount = 0
     }
 
-    const handleBookmarkAdded = () => {
+    const handleBookmarkAdded = (event: Event) => {
       if (user) return
 
-      bookmarkCountRef.current += 1
+      const detail = (event as CustomEvent<BookmarkDetail>).detail
+      const anime = detail?.anime
+      const status = anime?.status
+      const ongoing = isOngoingStatus(status)
 
-      // Сохраняем новый счетчик
-      try {
-        localStorage.setItem(BOOKMARK_COUNT_KEY, String(bookmarkCountRef.current))
-      } catch {
-        // Игнорируем в incognito/private mode
+      setAnimeMeta({
+        id: anime?.id,
+        title: anime?.title,
+        status,
+      })
+
+      if (ongoing) {
+        const id = GuestHookId.ONGOING_BELL
+        if (!canShowGuestHook(id)) return
+        setHookId(id)
+        setTrigger("bookmark_ongoing")
+        setOpen(true)
+        return
       }
 
-      // Показываем плашку каждые 2 добавления
-      if (bookmarkCountRef.current % 2 === 0) {
-        setShowPrompt(true)
+      nonOngoingCount += 1
+      try {
+        localStorage.setItem("weebx_bookmark_count", String(nonOngoingCount))
+      } catch {
+        /* ignore */
+      }
+
+      // Каждые 2 обычные закладки — стартовый пак
+      if (nonOngoingCount % 2 === 0) {
+        const id = GuestHookId.STARTER_PACK
+        if (!canShowGuestHook(id)) return
+        setHookId(id)
+        setTrigger("bookmark_batch")
+        setOpen(true)
       }
     }
 
     window.addEventListener("bookmark-added", handleBookmarkAdded)
-
-    return () => {
-      window.removeEventListener("bookmark-added", handleBookmarkAdded)
-    }
+    return () => window.removeEventListener("bookmark-added", handleBookmarkAdded)
   }, [user])
-
-  const handleDismiss = () => {
-    setShowPrompt(false)
-  }
 
   if (user) return null
 
   return (
-    <AnimatePresence>
-      {showPrompt && (
-        <motion.aside
-          initial={{ opacity: 0, y: 30, scale: 0.96 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: 20, scale: 0.96 }}
-          transition={{ duration: 0.22, ease: "easeOut" }}
-          role="region"
-          aria-label="Уведомление о синхронизации закладок"
-          className="fixed bottom-4 left-4 right-4 sm:left-auto sm:right-6 sm:bottom-6 z-40 max-w-md pointer-events-auto"
-        >
-          <AuthPromptBanner
-            variant="bookmarks"
-            onDismiss={handleDismiss}
-            className="shadow-2xl shadow-black/40 border-primary/30"
-          />
-        </motion.aside>
-      )}
-    </AnimatePresence>
+    <GuestHookToast
+      open={open}
+      hookId={hookId}
+      trigger={trigger}
+      surface="banner"
+      animeId={animeMeta.id}
+      animeTitle={animeMeta.title}
+      animeStatus={animeMeta.status}
+      respectFrequency={false}
+      onDismiss={() => setOpen(false)}
+    />
   )
 }

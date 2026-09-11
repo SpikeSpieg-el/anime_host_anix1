@@ -8,6 +8,7 @@ import { Swords, AlertCircle, X, RefreshCcw, Star, Crown, Lock, LogIn, Share, Sp
 import { useBattleData } from "@/app/battle/hooks/use-battle-data"
 import { useAuth } from "@/components/auth/auth-provider"
 import { AuthModal } from "@/components/auth/auth-modal"
+import { GuestArenaGate } from "@/components/shared/guest-arena-gate"
 import { GachaTutorial } from "@/components/gacha/gacha-tutorial"
 import { StatsPanel, StatsPanelSkeleton } from "@/app/battle/components/StatsPanel"
 import { SelectedTeamPanel, SelectedTeamPanelSkeleton } from "@/app/battle/components/SelectedTeamPanel"
@@ -281,17 +282,7 @@ export default function PvPPage() {
       </div>
 
       {!sessionLoading && !user && battleState === "idle" && (
-        <div className="fixed inset-0 z-20 flex items-center justify-center p-4 bg-[#05050A]">
-          <div className="max-w-md w-full text-center space-y-6 animate-in fade-in zoom-in-95">
-            <div className="relative w-24 h-24 mx-auto mb-4">
-              <div className="absolute inset-0 rounded-full bg-orange-500/20 blur-xl animate-pulse" />
-              <div className="relative w-full h-full rounded-full bg-white/5 border border-white/10 flex items-center justify-center"><Lock className="w-10 h-10 text-orange-500" /></div>
-            </div>
-            <h1 className="text-3xl md:text-4xl font-black tracking-tighter text-white uppercase">Требуется <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-rose-500">Авторизация</span></h1>
-            <p className="text-slate-400 text-sm md:text-base max-w-sm mx-auto">Для доступа к PvP арене необходимо войти в аккаунт</p>
-            <button onClick={() => setShowAuthModal(true)} className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-white text-black hover:bg-zinc-200 font-bold text-lg rounded-xl shadow-lg shadow-white/10 transition-all hover:scale-[1.02] active:scale-[0.98]"><LogIn className="w-5 h-5" />Войти в аккаунт</button>
-          </div>
-        </div>
+        <GuestArenaGate variant="pvp" />
       )}
 
       {!sessionLoading && !user && <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} />}

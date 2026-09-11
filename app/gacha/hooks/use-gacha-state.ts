@@ -32,6 +32,7 @@ import { rarityConfig, getDismantleValue, Rarity } from "@/types/gacha"
 import { generateCardUniqueId, calculateCollectionRating, signCard, verifyCard } from "../utils"
 import { AnalyticsEvent, trackEvent } from "@/lib/analytics"
 import { getProxiedSrc } from "@/lib/image-loader"
+import { GuestHookId, openAuthFromGuestHook } from "@/lib/guest-hooks"
 
 function createVisibleTimeout(duration: number, message: string) {
   let remaining = duration
@@ -758,12 +759,16 @@ export function useGachaState() {
       const guestRolls = parseInt(localStorage.getItem('gacha-guest-rolls') || '0', 10)
       if (guestRolls >= GUEST_ROLL_LIMIT) {
         setErrorPopupConfig({
-          title: "Время войти в аккаунт",
-          message: `Вы использовали все ${GUEST_ROLL_LIMIT} бесплатных круток. Войдите в аккаунт, чтобы продолжить играть и сохранить свою коллекцию!`,
+          title: "Стартовый бонус ждёт",
+          message: `Вы использовали все ${GUEST_ROLL_LIMIT} бесплатных круток. Создай профиль и получи 10 000 монет — хватит, чтобы выбить Legendary или Omnipotent!`,
           type: "warning"
         })
         setShowErrorPopup(true)
-        window.dispatchEvent(new Event('open-auth-modal'))
+        openAuthFromGuestHook(GuestHookId.STARTER_PACK, {
+          mode: "register",
+          trigger: "gacha_guest_limit",
+          surface: "modal",
+        })
         isRollingRef.current = false
         return
       }
