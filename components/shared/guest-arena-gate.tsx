@@ -92,14 +92,14 @@ export function GuestArenaGate({ variant = "pvp", className }: GuestArenaGatePro
     <>
       <div
         className={cn(
-          "fixed inset-0 z-20 flex items-center justify-center p-4 bg-[#05050A]",
+          "fixed inset-0 z-20 flex p-4 bg-[#05050A] overflow-y-auto",
           className,
         )}
         data-guest-hook={GuestHookId.ARENA_MARKET}
         data-umami-event="guest_hook_view"
         data-umami-event-hook_id={GuestHookId.ARENA_MARKET}
       >
-        <div className="max-w-md w-full text-center space-y-5 animate-in fade-in zoom-in-95">
+        <div className="max-w-md w-full text-center space-y-5 m-auto py-6 animate-in fade-in zoom-in-95">
           <div className="relative w-24 h-24 mx-auto mb-2">
             <div
               className={cn(

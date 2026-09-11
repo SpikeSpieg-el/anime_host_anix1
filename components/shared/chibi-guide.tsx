@@ -12,6 +12,7 @@ import { loadCatalogFilters } from "@/lib/catalog-preferences"
 import { useAuth } from "@/components/auth/auth-provider"
 import {
   GUEST_HOOK_COPY,
+  GUEST_HOOK_EVENTS,
   GuestHookId,
   canShowGuestHook,
   markGuestHookShown,
@@ -378,6 +379,8 @@ export function ChibiGuide() {
   /** Крючок «смотришь без наград» для гостя — приоритет над обычными фразами. */
   const [guestRewardHook, setGuestRewardHook] = useState(false)
   const guestHookTracked = useRef(false)
+  /** Виден fixed-тост крючка — уступаем место на мобильном (тост справа внизу). */
+  const [hookToastVisible, setHookToastVisible] = useState(false)
 
   // Режим реплик ('auto' | 'click')
   const [speechMode, setSpeechMode] = useState<'auto' | 'click'>('click')
@@ -1048,6 +1051,16 @@ export function ChibiGuide() {
     return () => window.removeEventListener("resize", checkMobile)
   }, [])
 
+  // Контроллер крючков сообщает о видимости тоста — уезжаем вниз, чтобы не наслаиваться
+  useEffect(() => {
+    const onVisibility = (e: Event) => {
+      const visible = Boolean((e as CustomEvent<{ visible?: boolean }>).detail?.visible)
+      setHookToastVisible(visible)
+    }
+    window.addEventListener(GUEST_HOOK_EVENTS.TOAST_VISIBILITY, onVisibility)
+    return () => window.removeEventListener(GUEST_HOOK_EVENTS.TOAST_VISIBILITY, onVisibility)
+  }, [])
+
   // Клик по маскоту (Прямой клик)
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation()
@@ -1088,6 +1101,8 @@ export function ChibiGuide() {
   const isHidden = hideFraction > 0.5
   const slideX = hideFraction * (isMobile ? 38 : -38)
   const slideY = hideFraction * 14
+  // На мобильном тост крючка занимает низ экрана — маскот плавно уходит вниз.
+  const tuckedForHook = isMobile && hookToastVisible
 
   if (pathname === "/battle" || pathname === "/pvp") {
     return null
@@ -1097,11 +1112,14 @@ export function ChibiGuide() {
     <div
       style={{
         bottom: dynamicBottom,
-        transform: `translate(${slideX}px, ${slideY}px)`
+        transform: tuckedForHook
+          ? "translateY(calc(100% + 40px))"
+          : `translate(${slideX}px, ${slideY}px)`
       }}
       className={cn(
-        "fixed right-3 sm:left-4 sm:right-auto z-40 flex flex-col items-end sm:items-start select-none transition-transform duration-500 ease-out",
-        isHidden && "opacity-75 hover:opacity-100"
+        "fixed right-3 sm:left-4 sm:right-auto z-40 flex flex-col items-end sm:items-start select-none transition-[transform,opacity] duration-500 ease-out",
+        isHidden && !tuckedForHook && "opacity-75 hover:opacity-100",
+        tuckedForHook && "opacity-0"
       )}
     >
       {/* 💬 Диалоговое облачко */}

@@ -5,7 +5,7 @@ import { useRouter, usePathname } from "next/navigation"
 import { useState, useEffect, useMemo, useRef } from "react"
 import {
   Flame, Tv, Compass, Home, BookMarked, History, Calendar,
-  Settings, GraduationCap, LogOut, Search, MoreHorizontal, X, ArrowUp,
+  Settings, GraduationCap, LogIn, LogOut, Search, MoreHorizontal, X, ArrowUp,
   Sparkles, Swords, Wrench, MessageCircle, BarChart3
 } from "lucide-react"
 import { SearchSuggestions } from "@/components/catalog/search-suggestions"
@@ -457,7 +457,20 @@ export function Navbar() {
                 isOpen={authModalOpen}
                 onClose={handleAuthModalChange}
                 initialMode={authInitialMode}
-              />
+              >
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAuthInitialMode("login")
+                    setAuthModalOpen(true)
+                  }}
+                  className="w-9 h-9 md:w-10 md:h-10 gap-2 text-zinc-400 hover:text-white transition-colors rounded-full inline-flex items-center justify-center"
+                  aria-label="Войти"
+                >
+                  <LogIn className="w-4 h-4" />
+                  <span className="hidden sm:inline font-medium">Войти</span>
+                </button>
+              </AuthModal>
             )}
           </div>
         </div>
