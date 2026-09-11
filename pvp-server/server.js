@@ -376,20 +376,75 @@ function calculateCardPowerOnZone(
 
 dotenv.config()
 
-const PORT = process.env.PORT || 3001
+const PORT = Number(process.env.PORT || 3001)
+const HOST = process.env.HOST || '0.0.0.0'
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY
-const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000']
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || 'http://localhost:3000')
+  .split(',')
+  .map((o) => o.trim())
+  .filter(Boolean)
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+// Путь socket.io. Нужен, когда PvP-сервис висит на том же домене, что и сайт,
+// но на своём пути (Traefik: https://weeb-x.com:3001/pvp-ws, Strip Prefixes = выключен).
+// Тогда: SOCKET_PATH=/pvp-ws/socket.io
+const SOCKET_PATH = process.env.SOCKET_PATH || '/socket.io'
+// '/pvp-ws/socket.io' -> '/pvp-ws'; '/socket.io' -> ''
+const ROUTE_PREFIX = SOCKET_PATH.endsWith('/socket.io')
+  ? SOCKET_PATH.slice(0, -'/socket.io'.length)
+  : ''
 
-const httpServer = createServer()
+if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
+  console.error(
+    '[PvP Server] FATAL: не заданы SUPABASE_URL и SUPABASE_SERVICE_KEY.\n' +
+    '         В Coolify -> Variables добавь обе переменные и передеплой сервис.'
+  )
+  process.exit(1)
+}
+
+const startedAt = Date.now()
+const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
+  auth: { persistSession: false, autoRefreshToken: false },
+})
+
+const httpServer = createServer((req, res) => {
+  // Healthcheck endpoint — нужен Coolify/Traefik и curl-проверке.
+  // Принимаем и /health, и /<prefix>/health: при роутинге по пути прокси может
+  // как резать префикс, так и не резать.
+  const path = (req.url || '/').split('?')[0]
+  const isHealth =
+    path === '/health' ||
+    path === '/healthz' ||
+    (!!ROUTE_PREFIX && (path === `${ROUTE_PREFIX}/health` || path === `${ROUTE_PREFIX}/healthz`))
+  if (isHealth) {
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' })
+    res.end(
+      JSON.stringify({
+        status: 'ok',
+        uptime_seconds: Math.round((Date.now() - startedAt) / 1000),
+        queue_size: matchmakingQueue.size,
+        active_matches: activeMatches.size,
+        connected_users: userSockets.size,
+        db_cache: { rules: dbRules.length, locations: dbLocations.length, refreshed_at: lastDbUpdate },
+      })
+    )
+    return
+  }
+  res.writeHead(200, { 'Content-Type': 'text/plain' })
+  res.end('WEEB-X PvP Server (socket.io). See /health\n')
+})
 const io = new Server(httpServer, {
+  path: SOCKET_PATH,
   cors: {
     origin: ALLOWED_ORIGINS,
     methods: ['GET', 'POST'],
-    credentials: true
-  }
+    credentials: true,
+  },
+  // 10с — запас на холодный старт/медленный сеть; иначе сокеты рвутся на плохом соединении
+  pingTimeout: 30000,
+  pingInterval: 25000,
+  maxHttpBufferSize: 1e6,
+  serveClient: false,
 })
 
 // In-memory state
@@ -1029,7 +1084,24 @@ async function endMatch(matchId, winnerId, reason) {
   activeMatches.delete(matchId)
 }
 
-httpServer.listen(PORT, '0.0.0.0', () => {
-  console.log(`[PvP Server] Running on port ${PORT}`)
+httpServer.listen(PORT, HOST, () => {
+  console.log(`[PvP Server] Running on http://${HOST}:${PORT}`)
+  console.log(`[PvP Server] socket.io path: ${SOCKET_PATH}`)
   console.log(`[PvP Server] Allowed origins:`, ALLOWED_ORIGINS)
+  console.log(`[PvP Server] Supabase:`, SUPABASE_URL)
+})
+
+// Грейсфул-шатдаун: Coolify шлёт SIGTERM при рестарте/деплое
+for (const signal of ['SIGTERM', 'SIGINT']) {
+  process.on(signal, () => {
+    console.log(`[PvP Server] ${signal} received, closing...`)
+    io.close(() => {
+      httpServer.close(() => process.exit(0))
+    })
+    setTimeout(() => process.exit(0), 5000)
+  })
+}
+
+process.on('unhandledRejection', (err) => {
+  console.error('[PvP Server] Unhandled rejection:', err)
 })

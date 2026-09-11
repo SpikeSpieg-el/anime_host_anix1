@@ -1,0 +1,25 @@
+# Локальный запуск и запасной вариант деплоя.
+# В Coolify достаточно этого файла (Service -> Docker Compose), домен и Traefik-лейблы
+# навешивает Coolify во вкладке Domains — не дублируй их здесь.
+services:
+  pvp-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: weebx-pvp-server:latest
+    container_name: weebx-pvp
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      PORT: 3001
+      HOST: 0.0.0.0
+      SUPABASE_URL: ${SUPABASE_URL}
+      SUPABASE_SERVICE_KEY: ${SUPABASE_SERVICE_KEY}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:3000}
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3001/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
