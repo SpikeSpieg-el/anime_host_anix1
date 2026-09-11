@@ -172,7 +172,11 @@ export function Navbar() {
       activityRecorder.startSession()
       const handleVisibilityChange = () => {
         if (document.visibilityState === "visible") {
-          activityRecorder.recordActivity({ eventType: "page_view", category: "time" })
+          // Маршруты считаются в AnalyticsWrapper; здесь только возобновляем
+          // таймер сессии, чтобы возвращение на вкладку не дублировало page view.
+          activityRecorder.startSession()
+        } else {
+          activityRecorder.flushSession()
         }
       }
       const handlePageHide = () => {

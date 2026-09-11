@@ -2,7 +2,7 @@
 
 import { useHistory } from "@/components/providers/history-provider"
 import { activityRecorder } from "./account-stats-recorder"
-import { supabase, updateAccountStats } from "@/lib/supabase"
+import { supabase, incrementAccountStats } from "@/lib/supabase"
 import { useAuth } from "@/components/auth/auth-provider"
 
 type WatchHistoryItem = {
@@ -32,25 +32,22 @@ export function recordWatchStart(
     window.dispatchEvent(new CustomEvent('add-to-history', { detail: newItem }))
 
     try {
-      activityRecorder.recordActivity({ eventType: 'watch_start', category: 'viewing', payload: { anime_id: anime.id } })
+      void activityRecorder.recordActivity({
+        eventType: 'watch_start',
+        category: 'viewing',
+        payload: { anime_id: anime.id, episode: options?.episode ?? null },
+      })
 
-      // Обновляем статистику аккаунта (только для авторизованных)
-      if (typeof window !== 'undefined') {
-        const { data: { session } } = supabase.auth.getSession()
-        if (session?.user) {
-          supabase
-            .from('account_stats')
-            .select('watch_events')
-            .eq('user_id', session.user.id)
-            .single()
-            .then(({ data: currentStats }: any) => {
-              const currentCount = currentStats?.watch_events ?? 0
-              updateAccountStats(session.user.id, { watchEvents: currentCount + 1 })
-              window.dispatchEvent(new CustomEvent('account-stats-updated'))
-            })
-            .catch(() => {})
-        }
-      }
+      // В старой версии здесь был синхронный destructuring Promise:
+      // `const { data } = supabase.auth.getSession()`, поэтому счётчик почти
+      // никогда не обновлялся. Теперь используем атомарный increment RPC.
+      void supabase.auth.getSession()
+        .then(async ({ data: { session } }: any) => {
+          if (!session?.user) return
+          await incrementAccountStats(session.user.id, { watchEvents: 1 })
+          window.dispatchEvent(new CustomEvent('account-stats-updated'))
+        })
+        .catch(() => {})
     } catch (e) {
       console.error("Error recording watch_start:", e)
     }
@@ -63,7 +60,7 @@ export function recordWatchStart(
 
 export function recordWatchEnd(animeId: string) {
   try {
-    activityRecorder.recordActivity({ eventType: 'watch_end', category: 'viewing', payload: { anime_id: animeId } })
+    void activityRecorder.recordActivity({ eventType: 'watch_end', category: 'viewing', payload: { anime_id: animeId } })
   } catch (e) {
     console.error("Error recording watch_end:", e)
   }
@@ -71,6 +68,12 @@ export function recordWatchEnd(animeId: string) {
 
 export function HistoryTracker({ anime }: { anime: any }) {
   const { add } = useHistory()
-  
-  return null // Этот компонент ничего не рисует, только логика
+  const { user } = useAuth()
+
+  // Компонент оставлен для обратной совместимости: запись истории происходит
+  // через событие add-to-history в recordWatchStart.
+  void add
+  void user
+  void anime
+  return null
 }

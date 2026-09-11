@@ -9,6 +9,8 @@ import { activityRecorder } from "./account-stats-recorder"
 export type AccountStats = Record<string, any> & {
   totalSessions?: number
   totalTimeMs?: number
+  /** Approximate active time spent watching a player page. */
+  watchTimeMs?: number
   pageViews?: number
   watchEvents?: number
   gachaRolls?: number
@@ -62,6 +64,7 @@ function buildGuestStats(): Record<string, any> {
   return {
     isGuest: true,
     totalTimeMs: totalMs,
+    watchTimeMs: activityRecorder.getWatchTimeMs(),
     totalSessions,
     // Best-effort прокси: нет прямого ключа для pageViews, берем суммарное число взаимодействий.
     pageViews: safeGetLen("bookmarks_v1") + safeGetLen("watch-history"),
@@ -81,6 +84,7 @@ export function AccountStatsProvider({ children }: { children: React.ReactNode }
   const [stats, setStats] = useState<AccountStatsContextValue["stats"]>({
     isGuest: true,
     totalTimeMs: 0,
+    watchTimeMs: 0,
     totalSessions: 0,
     pageViews: 0,
     watchEvents: 0,
@@ -98,6 +102,13 @@ export function AccountStatsProvider({ children }: { children: React.ReactNode }
   const abortControllerRef = useRef<AbortController | null>(null)
   const isMountedRef = useRef(false)
   const { user } = useAuth()
+
+  // Recorder должен знать аккаунт до первого события. Раньше этот идентификатор
+  // нигде не устанавливался, поэтому события и время часто оставались только в
+  // localStorage и попадали не в тот профиль.
+  useEffect(() => {
+    activityRecorder.setUserId(user?.id ?? null)
+  }, [user?.id])
 
   // Перезагружаем статистику: auth-synced / anime-data-refreshed / mount.
   const refresh = useCallback(async () => {
@@ -138,6 +149,13 @@ export function AccountStatsProvider({ children }: { children: React.ReactNode }
         if (refreshedStats) {
           merged = { ...(refreshedStats ?? {}) } as Record<string, any>
         }
+
+        // Пока запрос на запись ещё не успел завершиться, показываем локально
+        // накопленное время просмотра, но никогда не уменьшаем значение из БД.
+        merged.watchTimeMs = Math.max(
+          Number(merged.watchTimeMs) || 0,
+          activityRecorder.getWatchTimeMs(),
+        )
       } else {
         isGuestRef.current = true
         // Гостевой fallback: время на сайте из recorder, остальное — из localStorage.
@@ -186,7 +204,22 @@ export function AccountStatsProvider({ children }: { children: React.ReactNode }
     }
     document.addEventListener("visibilitychange", handleVisibilityChange)
 
+    // Без heartbeat длительность считалась только в момент клика или перехода
+    // между вкладками, поэтому обычный просмотр страницы почти всегда был 0м.
+    const heartbeatId = window.setInterval(() => {
+      if (document.visibilityState === "visible") {
+        activityRecorder.beat()
+      }
+    }, 15_000)
+    const handlePageHide = () => {
+      activityRecorder.flushSession()
+      activityRecorder.flushWatchTime()
+    }
+    window.addEventListener("pagehide", handlePageHide)
+
     return () => {
+      window.clearInterval(heartbeatId)
+      window.removeEventListener("pagehide", handlePageHide)
       isMounted = false
       isMountedRef.current = false
       if (abortControllerRef.current) {

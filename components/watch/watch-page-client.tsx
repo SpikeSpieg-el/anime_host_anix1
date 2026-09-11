@@ -20,6 +20,7 @@ import { HentaiPlayer } from "@/components/watch/hentai-player"
 import { EpisodeSelector } from "@/components/watch/episode-selector"
 import { RegionWarning } from "@/components/shared/region-warning"
 import { recordWatchStart } from "@/components/providers/history-tracker"
+import { activityRecorder } from "@/components/providers/account-stats-recorder"
 import { Button } from "@/components/ui/button"
 import { useBookmarks } from "@/components/providers/bookmarks-provider"
 import { useAuth } from "@/components/auth/auth-provider"
@@ -262,6 +263,38 @@ export function WatchPageClient({ anime, initialEpisode }: WatchPageClientProps)
       localStorage.setItem(`last-watched-${anime.id}`, JSON.stringify(info))
     }
   }
+
+  // Kodik и запасной плеер работают внутри iframe, поэтому их реальное
+  // currentTime недоступно странице. Считаем только видимое активное время
+  // после старта серии, отдельное от общего времени на сайте.
+  useEffect(() => {
+    if (!isStarted) return
+
+    let lastTick = Date.now()
+    const tick = () => {
+      const now = Date.now()
+      const elapsed = Math.min(Math.max(0, now - lastTick), 30_000)
+      lastTick = now
+      if (document.visibilityState === "visible" && elapsed > 0) {
+        activityRecorder.recordWatchTime(elapsed, {
+          anime_id: anime.id,
+          episode: selectedEpisode,
+        })
+      }
+    }
+
+    const handleVisibility = () => {
+      lastTick = Date.now()
+    }
+    const timer = window.setInterval(tick, 15_000)
+    document.addEventListener("visibilitychange", handleVisibility)
+
+    return () => {
+      window.clearInterval(timer)
+      document.removeEventListener("visibilitychange", handleVisibility)
+      activityRecorder.flushWatchTime()
+    }
+  }, [anime.id, isStarted, selectedEpisode])
 
   return (
     <div className="flex flex-col gap-6 pt-4 mx-auto">

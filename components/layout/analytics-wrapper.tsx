@@ -11,6 +11,7 @@ import {
 import { installAnalyticsDomTracking } from "@/lib/analytics-dom"
 import { installNativeVideoTracking } from "@/lib/analytics-video"
 import { installEngagementTracking } from "@/lib/analytics-engagement"
+import { activityRecorder } from "@/components/providers/account-stats-recorder"
 
 export function AnalyticsWrapper() {
   const { consent, hasConsent } = useConsent()
@@ -29,6 +30,15 @@ export function AnalyticsWrapper() {
   useEffect(() => {
     if (granted && !sessionLoading) identifyUser(user?.id ? `supabase:${user.id}` : "")
   }, [granted, user?.id, sessionLoading])
+
+  useEffect(() => {
+    if (sessionLoading) return
+    void activityRecorder.recordActivity({
+      eventType: "page_view",
+      category: "time",
+      payload: { path: pathname },
+    })
+  }, [pathname, url, user?.id, sessionLoading])
 
   useEffect(() => {
     if (!granted || sessionLoading) return

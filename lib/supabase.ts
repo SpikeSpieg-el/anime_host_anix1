@@ -29,6 +29,7 @@ const createMockClient = () => {
       }),
       insert: () => Promise.resolve({ data: null, error: null }),
       upsert: () => Promise.resolve({ data: null, error: null }),
+      rpc: () => Promise.resolve({ data: null, error: null }),
       delete: () => ({
         match: () => Promise.resolve({ data: null, error: null }),
         eq: () => Promise.resolve({ data: null, error: null })
@@ -380,6 +381,7 @@ export async function getAccountStats(userId: string) {
         user_id: data.user_id,
         totalSessions: data.total_sessions,
         totalTimeMs: data.total_time_ms,
+        watchTimeMs: data.watch_time_ms ?? 0,
         lastVisitAt: data.last_visit_at,
         firstVisitAt: data.first_visit_at,
         pageViews: data.page_views,
@@ -401,7 +403,7 @@ export async function getAccountStats(userId: string) {
 }
 
 /** UPSERT a partial patch into account_stats, always refreshing last_updated_at. */
-export async function updateAccountStats(userId: string, patch: Record<string, any>) {
+export async function updateAccountStats(userId: string, patch: Record<string, any>): Promise<boolean> {
   try {
     // Преобразуем camelCase в snake_case для БД
     const dbPatch: Record<string, any> = {
@@ -410,6 +412,7 @@ export async function updateAccountStats(userId: string, patch: Record<string, a
     
     if (patch.totalSessions !== undefined) dbPatch.total_sessions = patch.totalSessions
     if (patch.totalTimeMs !== undefined) dbPatch.total_time_ms = patch.totalTimeMs
+    if (patch.watchTimeMs !== undefined) dbPatch.watch_time_ms = patch.watchTimeMs
     if (patch.lastVisitAt !== undefined) dbPatch.last_visit_at = patch.lastVisitAt
     if (patch.firstVisitAt !== undefined) dbPatch.first_visit_at = patch.firstVisitAt
     if (patch.pageViews !== undefined) dbPatch.page_views = patch.pageViews
@@ -424,9 +427,91 @@ export async function updateAccountStats(userId: string, patch: Record<string, a
     const { error } = await supabase
       .from('account_stats')
       .upsert({ user_id: userId, ...dbPatch }, { onConflict: 'user_id' })
-    if (error) console.error('[supabase] updateAccountStats error:', error)
+    if (error) {
+      console.error('[supabase] updateAccountStats error:', error)
+      return false
+    }
+    return true
   } catch (e) {
     console.error('[supabase] updateAccountStats exception:', e)
+    return false
+  }
+}
+
+export type AccountStatsIncrements = {
+  totalSessions?: number
+  totalTimeMs?: number
+  pageViews?: number
+  watchEvents?: number
+  watchTimeMs?: number
+  gachaRolls?: number
+  battlesStarted?: number
+  bookmarksAdded?: number
+  marketActions?: number
+  searches?: number
+}
+
+/**
+ * Atomically increments counters in account_stats when the deployed migration
+ * provides the RPC. The fallback keeps older installations usable until the
+ * migration is applied.
+ */
+export async function incrementAccountStats(userId: string, increments: AccountStatsIncrements): Promise<boolean> {
+  const values = {
+    totalSessions: Math.max(0, Math.round(increments.totalSessions ?? 0)),
+    totalTimeMs: Math.max(0, Math.round(increments.totalTimeMs ?? 0)),
+    pageViews: Math.max(0, Math.round(increments.pageViews ?? 0)),
+    watchEvents: Math.max(0, Math.round(increments.watchEvents ?? 0)),
+    watchTimeMs: Math.max(0, Math.round(increments.watchTimeMs ?? 0)),
+    gachaRolls: Math.max(0, Math.round(increments.gachaRolls ?? 0)),
+    battlesStarted: Math.max(0, Math.round(increments.battlesStarted ?? 0)),
+    bookmarksAdded: Math.max(0, Math.round(increments.bookmarksAdded ?? 0)),
+    marketActions: Math.max(0, Math.round(increments.marketActions ?? 0)),
+    searches: Math.max(0, Math.round(increments.searches ?? 0)),
+  }
+
+  if (Object.values(values).every((value) => value === 0)) return true
+
+  try {
+    if (typeof supabase.rpc === 'function') {
+      const { error } = await supabase.rpc('increment_account_stats', {
+        p_user_id: userId,
+        p_total_sessions: values.totalSessions,
+        p_total_time_ms: values.totalTimeMs,
+        p_page_views: values.pageViews,
+        p_watch_events: values.watchEvents,
+        p_watch_time_ms: values.watchTimeMs,
+        p_gacha_rolls: values.gachaRolls,
+        p_battles_started: values.battlesStarted,
+        p_bookmarks_added: values.bookmarksAdded,
+        p_market_actions: values.marketActions,
+        p_searches: values.searches,
+      })
+      if (!error) return true
+    }
+
+    // Fallback для старых баз без RPC. Он не так устойчив к параллельным
+    // запросам, но не ломает сбор данных во время постепенного обновления БД.
+    const current = await getAccountStats(userId)
+    const fallbackPatch: Record<string, any> = {
+      totalSessions: (current?.totalSessions ?? 0) + values.totalSessions,
+      totalTimeMs: (current?.totalTimeMs ?? 0) + values.totalTimeMs,
+      pageViews: (current?.pageViews ?? 0) + values.pageViews,
+      watchEvents: (current?.watchEvents ?? 0) + values.watchEvents,
+      gachaRolls: (current?.gachaRolls ?? 0) + values.gachaRolls,
+      battlesStarted: (current?.battlesStarted ?? 0) + values.battlesStarted,
+      bookmarksAdded: (current?.bookmarksAdded ?? 0) + values.bookmarksAdded,
+      marketActions: (current?.marketActions ?? 0) + values.marketActions,
+      searches: (current?.searches ?? 0) + values.searches,
+    }
+    // Не отправляем новое поле в старую БД, пока миграция ещё не применена.
+    if (values.watchTimeMs > 0) {
+      fallbackPatch.watchTimeMs = (current?.watchTimeMs ?? 0) + values.watchTimeMs
+    }
+    return await updateAccountStats(userId, fallbackPatch)
+  } catch (e) {
+    console.error('[supabase] incrementAccountStats error:', e)
+    return false
   }
 }
 
@@ -437,7 +522,7 @@ export async function recordActivityEvent(userId: string, eventType: string, cat
       user_id: userId,
       event_type: eventType,
       category: category ?? undefined,
-      payload: JSON.stringify(payload)
+      payload: payload ?? {}
     })
     if (error) console.error('[supabase] recordActivityEvent error:', error)
   } catch (e) {
@@ -453,7 +538,7 @@ export async function recordActivityEvents(userId: string, events: Array<{ event
       user_id: userId,
       event_type: e.eventType,
       category: e.category ?? undefined,
-      payload: JSON.stringify(e.payload ?? {})
+      payload: e.payload ?? {}
     }))
     const { error } = await supabase.from('user_activity_events').insert(rows)
     if (error) console.error('[supabase] recordActivityEvents error:', error)

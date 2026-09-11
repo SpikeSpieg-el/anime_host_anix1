@@ -50,6 +50,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const { toast } = useToast()
 
+  // Account-stats recorder can receive events from components that render before
+  // its provider effect. Keep the current user available globally as a small
+  // bridge until the recorder switches to the per-user storage namespace.
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      ;(window as any).__accountStatsUserId = user?.id ?? null
+    }
+  }, [user?.id])
+
   const forceClearSupabaseAuthStorage = () => {
     if (typeof window === "undefined") return
     try {
