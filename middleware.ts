@@ -35,6 +35,18 @@ const UMAMI_ORIGIN = (() => {
   }
 })()
 
+const PVP_SERVER_ORIGIN = (() => {
+  const raw = process.env.NEXT_PUBLIC_PVP_SERVER_URL
+  if (!raw) return ''
+  try {
+    const url = new URL(raw)
+    // Add both https and wss for WebSocket connections
+    return `${url.origin} wss://${url.host}`
+  } catch {
+    return ''
+  }
+})()
+
 const SECURITY_HEADERS: Record<string, string> = {
   "X-Content-Type-Options": "nosniff",
   "X-Frame-Options": "DENY",
@@ -51,7 +63,7 @@ const SECURITY_HEADERS: Record<string, string> = {
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob: https: http:",
     "font-src 'self' data:",
-    `connect-src 'self' https://*.supabase.co https://nhost.weebx.duckdns.org:8443 wss://nhost.weebx.duckdns.org:8443 ${UMAMI_ORIGIN} /stats https://shikimori.one https://shikimori.io https://*.shikimori.one https://*.shikimori.io`,
+    `connect-src 'self' https://*.supabase.co https://nhost.weebx.duckdns.org:8443 wss://nhost.weebx.duckdns.org:8443 ${UMAMI_ORIGIN} /stats https://shikimori.one https://shikimori.io https://*.shikimori.one https://*.shikimori.io ${PVP_SERVER_ORIGIN}`,
     "frame-src 'self' https: http:",
     "media-src 'self' https: http: blob:",
     "object-src 'none'",

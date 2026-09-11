@@ -10,6 +10,7 @@ const ALLOWED_HOSTS = [
   'yande.re',
   'files.yande.re',
   'shikimori.one',
+  'shikimori.io',
   'mixlib.me',
   'mangalib.me',
   'remanga.org',
@@ -46,7 +47,7 @@ const ALLOWED_HOSTS = [
   'transparenttextures.com'
 ];
 
-export const maxDuration = 15;
+export const maxDuration = 30;
 
 const IMAGE_SERVER_URL = process.env.IMAGE_SERVER_URL || '';
 
@@ -85,7 +86,7 @@ export async function GET(req: NextRequest) {
       referer = 'https://www.zerochan.net/'
     } else if (parsed.hostname.includes('mixlib.me') || parsed.hostname.includes('mangalib.me')) {
       referer = 'https://mangalib.me/'
-    } else if (parsed.hostname.includes('shikimori.one')) {
+    } else if (parsed.hostname.includes('shikimori.one') || parsed.hostname.includes('shikimori.io')) {
       referer = 'https://shikimori.one/'
     } else if (parsed.hostname.includes('remanga.org') || parsed.hostname.includes('reimg2.org') || parsed.hostname.includes('img.reimg.org')) {
       referer = 'https://remanga.org/'
@@ -129,20 +130,42 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 14000);
-
-    let res: Response;
-    try {
-      res = await fetch(url, { headers, signal: controller.signal });
-    } catch (err: any) {
-      if (err.name === 'AbortError') {
-        console.error('[image-proxy] Timeout fetching:', url);
-        return NextResponse.json({ error: 'Upstream timeout' }, { status: 504 });
+    // Add retry logic for transient network failures
+    let res: Response | null = null;
+    const maxRetries = 3;
+    
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000);
+        
+        try {
+          res = await fetch(url, { headers, signal: controller.signal });
+          break; // Success, exit retry loop
+        } catch (err: any) {
+          if (err.name === 'AbortError') {
+            console.warn(`[image-proxy] Timeout attempt ${attempt + 1}/${maxRetries} for ${url}`);
+          } else {
+            console.warn(`[image-proxy] Fetch attempt ${attempt + 1}/${maxRetries} failed for ${url}:`, err.message);
+          }
+          if (attempt < maxRetries - 1) {
+            // Exponential backoff: 1s, 2s, 4s
+            await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000));
+          }
+        } finally {
+          clearTimeout(timeoutId);
+        }
+      } catch (err: any) {
+        console.warn(`[image-proxy] Attempt ${attempt + 1}/${maxRetries} error:`, err.message);
+        if (attempt < maxRetries - 1) {
+          await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000));
+        }
       }
-      throw err;
-    } finally {
-      clearTimeout(timeoutId);
+    }
+    
+    if (!res) {
+      console.error('[image-proxy] All retries failed for:', url);
+      return NextResponse.json({ error: 'Fetch failed after retries' }, { status: 502 });
     }
 
     if (!res.ok) {
