@@ -1,0 +1,23 @@
+# Keep the Docker/Nixpacks build context small and avoid leaking local state
+# or secrets into the image. (Nixpacks `COPY .` respects .dockerignore.)
+.git
+.github
+node_modules
+.next
+out
+build
+coverage
+playwright-report
+test-results
+blob-report
+playwright/.cache
+*.tsbuildinfo
+next-env.d.ts
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+.env*
+!.env.example
+.vercel
+ai-server/checkpoints/
