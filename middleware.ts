@@ -60,9 +60,13 @@ const SECURITY_HEADERS: Record<string, string> = {
   "Content-Security-Policy": [
     "default-src 'self'",
     `script-src 'self' 'unsafe-inline' 'unsafe-eval' ${UMAMI_ORIGIN}`,
-    "style-src 'self' 'unsafe-inline'",
+    // Google Fonts are declared in app/layout.tsx. Keep the source in both
+    // style-src and style-src-elem because some browsers do not treat the
+    // fallback from style-src consistently for <link rel="stylesheet">.
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    "style-src-elem 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "img-src 'self' data: blob: https: http:",
-    "font-src 'self' data:",
+    "font-src 'self' data: https://fonts.gstatic.com",
     `connect-src 'self' https://*.supabase.co https://nhost.weebx.duckdns.org:8443 wss://nhost.weebx.duckdns.org:8443 ${UMAMI_ORIGIN} /stats https://shikimori.one https://shikimori.io https://*.shikimori.one https://*.shikimori.io ${PVP_SERVER_ORIGIN}`,
     "frame-src 'self' https: http:",
     "media-src 'self' https: http: blob:",
