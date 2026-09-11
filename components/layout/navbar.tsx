@@ -97,8 +97,17 @@ export function Navbar() {
   }, [])
 
   // Слушаем запросы на открытие модалки авторизации из других компонентов
+  // (в т.ч. контекстные крючки гостей — detail.mode / detail.hookId)
   useEffect(() => {
-    const handleOpenAuth = () => setAuthModalOpen(true)
+    const handleOpenAuth = (event: Event) => {
+      const detail = (event as CustomEvent<{ mode?: "login" | "register"; hookId?: string }>).detail
+      if (detail?.mode === "login" || detail?.mode === "register") {
+        setAuthInitialMode(detail.mode)
+      } else {
+        setAuthInitialMode("register")
+      }
+      setAuthModalOpen(true)
+    }
     window.addEventListener("open-auth-modal", handleOpenAuth)
     return () => window.removeEventListener("open-auth-modal", handleOpenAuth)
   }, [])

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { supabase } from "@/lib/supabase"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
@@ -10,6 +10,7 @@ import { loggers } from "@/lib/logger"
 import { useToast } from "@/hooks/use-toast"
 import { dispatchGiftCardReceived } from "@/lib/gift-card-events"
 import { AnalyticsEvent, identifyUser, trackEvent } from "@/lib/analytics"
+import { consumeGuestHookAuthSource } from "@/lib/guest-hooks"
 import type { Card } from "@/app/gacha/types"
 
 function decodeGiftCardToken(token: string | null) {
@@ -110,6 +111,14 @@ export function AuthModal({
   const isOpen = externalIsOpen !== undefined ? externalIsOpen : internalIsOpen
   const setIsOpen = onClose || setInternalIsOpen
 
+  // Синхронизация режима при открытии из крючков / navbar (register vs login)
+  useEffect(() => {
+    if (isOpen) {
+      setIsLogin(initialMode === "login")
+      setIsForgot(false)
+    }
+  }, [isOpen, initialMode])
+
   const resetForm = () => {
     setEmail("")
     setPassword("")
@@ -165,7 +174,13 @@ export function AuthModal({
 
         if (data.user && data.session) {
           identifyUser(`supabase:${data.user.id}`)
-          trackEvent(AnalyticsEvent.AUTH_SIGN_IN, { method: "email" })
+          const hookSource = consumeGuestHookAuthSource()
+          trackEvent(AnalyticsEvent.AUTH_SIGN_IN, {
+            method: "email",
+            ...(hookSource
+              ? { hook_id: hookSource.hook_id, hook_trigger: hookSource.trigger ?? null }
+              : {}),
+          })
         }
 
         const giftCardToken = getGiftCardToken()
@@ -230,11 +245,15 @@ export function AuthModal({
         // Email confirmation handled by Supabase settings
         if (data.user) {
           if (data.session) identifyUser(`supabase:${data.user.id}`)
+          const hookSource = consumeGuestHookAuthSource()
           trackEvent(AnalyticsEvent.AUTH_SIGN_UP, {
             confirmation_required: !data.session,
             method: "email",
             has_referral: Boolean(referralCode),
             has_gift: Boolean(rawGiftCardToken),
+            ...(hookSource
+              ? { hook_id: hookSource.hook_id, hook_trigger: hookSource.trigger ?? null }
+              : {}),
           })
           let giftCardClaimed = false
           if (rawGiftCardToken && data.session?.access_token) {

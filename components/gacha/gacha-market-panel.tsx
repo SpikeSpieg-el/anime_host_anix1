@@ -15,6 +15,7 @@ import { getProxiedSrc } from "@/lib/image-loader"
 import { CanvasImage } from "@/components/gacha/canvas-image"
 import { MarketCardSkeleton } from "@/components/gacha/market-card-skeleton"
 import { AnalyticsEvent, trackEvent } from "@/lib/analytics"
+import { GuestHookId, openAuthFromGuestHook } from "@/lib/guest-hooks"
 
 type MarketListingApi = {
   listingId: string
@@ -611,7 +612,12 @@ export function GachaMarketPanel({
 
   const buy = async (listingId: string, price: number, name: string) => {
     if (!user) {
-      onNotify("Маркет", "Войдите в аккаунт, чтобы покупать карты.", "warning")
+      onNotify("Маркет", "Создай профиль игрока, чтобы покупать и продавать карты на маркете.", "warning")
+      openAuthFromGuestHook(GuestHookId.ARENA_MARKET, {
+        mode: "register",
+        trigger: "market_buy",
+        surface: "modal",
+      })
       return
     }
 
@@ -1005,9 +1011,25 @@ export function GachaMarketPanel({
       )}
 
       {!user && tab === "vitrine" && (
-        <p className="text-sm text-slate-400">
-          Войдите в аккаунт, чтобы покупать. Просмотр витрины доступен всем.
-        </p>
+        <div className="rounded-2xl border border-rose-500/25 bg-rose-500/5 p-4 flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
+          <p className="text-sm text-slate-300">
+            <span className="font-semibold text-rose-300">Сезонная Арена · </span>
+            Смотри лоты свободно. Чтобы покупать, продавать и подниматься в рейтинге — создай профиль игрока.
+          </p>
+          <button
+            type="button"
+            onClick={() =>
+              openAuthFromGuestHook(GuestHookId.ARENA_MARKET, {
+                mode: "register",
+                trigger: "market_vitrine",
+                surface: "banner",
+              })
+            }
+            className="shrink-0 px-4 py-2 rounded-xl bg-white text-black text-sm font-bold hover:bg-zinc-200 transition-colors"
+          >
+            Создать профиль игрока
+          </button>
+        </div>
       )}
       {tab === "mine" && !user && (
         <p className="text-sm text-amber-300/90">Войдите, чтобы видеть свои лоты.</p>

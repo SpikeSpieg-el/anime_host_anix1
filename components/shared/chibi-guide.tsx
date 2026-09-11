@@ -9,6 +9,15 @@ import type { Anime, CatalogFilters } from "@/lib/shikimori"
 import { AnimeCard } from "@/components/shared/anime-card"
 import { fetchRandomAnime } from "@/app/catalog/actions/get-random-anime"
 import { loadCatalogFilters } from "@/lib/catalog-preferences"
+import { useAuth } from "@/components/auth/auth-provider"
+import {
+  GUEST_HOOK_COPY,
+  GuestHookId,
+  canShowGuestHook,
+  markGuestHookShown,
+  openAuthFromGuestHook,
+  trackGuestHook,
+} from "@/lib/guest-hooks"
 
 export const CHIBI_STORAGE_KEY = "chibi-guide-enabled"
 export const CHIBI_SPEECH_MODE_KEY = "chibi-speech-mode"
@@ -357,6 +366,7 @@ function FluidWisp({
 // Основной контроллер
 // ====================================================================
 export function ChibiGuide() {
+  const { user } = useAuth()
   const [isEnabled, setIsEnabled] = useState<boolean>(true)
   const [isBubbleOpen, setIsBubbleOpen] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
@@ -365,6 +375,9 @@ export function ChibiGuide() {
   const [isPettedActive, setIsPettedActive] = useState(false)
   const [isOffline, setIsOffline] = useState(false)
   const [atBottom, setAtBottom] = useState(false)
+  /** Крючок «смотришь без наград» для гостя — приоритет над обычными фразами. */
+  const [guestRewardHook, setGuestRewardHook] = useState(false)
+  const guestHookTracked = useRef(false)
 
   // Режим реплик ('auto' | 'click')
   const [speechMode, setSpeechMode] = useState<'auto' | 'click'>('click')
@@ -618,9 +631,89 @@ export function ChibiGuide() {
     triggerAutoBubble()
   }, [pathname, isEnabled, triggerAction, handleUserActivity, triggerAutoBubble])
 
+  // Гостевой крючок наград: каталог / watch / после скролла
+  useEffect(() => {
+    if (user || !isEnabled) {
+      setGuestRewardHook(false)
+      return
+    }
+
+    const path = pathname.toLowerCase()
+    const onContentPath =
+      path.includes("/watch") ||
+      path.includes("/catalog") ||
+      path.includes("/manga") ||
+      path === "/" ||
+      path.includes("/history")
+
+    if (!onContentPath) {
+      setGuestRewardHook(false)
+      return
+    }
+
+    if (!canShowGuestHook(GuestHookId.CHIBI_REWARDS)) {
+      setGuestRewardHook(false)
+      return
+    }
+
+    // Не сразу — даём поскроллить / начать смотреть (~25с или после scroll)
+    let armed = false
+    const arm = () => {
+      if (armed) return
+      armed = true
+      setGuestRewardHook(true)
+      markGuestHookShown(GuestHookId.CHIBI_REWARDS)
+      if (!guestHookTracked.current) {
+        guestHookTracked.current = true
+        trackGuestHook({
+          hookId: GuestHookId.CHIBI_REWARDS,
+          action: "view",
+          surface: "chibi",
+          trigger: path.includes("/watch") ? "chibi_watch" : "chibi_catalog",
+        })
+      }
+      // Авто-открытие пузыря в auto-режиме или один раз
+      if (speechMode === "auto" || path.includes("/watch")) {
+        setIsBubbleOpen(true)
+        setActiveTab("main")
+        if (autoBubbleTimeout.current) clearTimeout(autoBubbleTimeout.current)
+        autoBubbleTimeout.current = setTimeout(() => setIsBubbleOpen(false), 8000)
+      }
+    }
+
+    const timer = window.setTimeout(arm, path.includes("/watch") ? 35_000 : 28_000)
+    const onScroll = () => {
+      if (window.scrollY > 480) arm()
+    }
+    window.addEventListener("scroll", onScroll, { passive: true })
+
+    return () => {
+      window.clearTimeout(timer)
+      window.removeEventListener("scroll", onScroll)
+    }
+  }, [user, isEnabled, pathname, speechMode])
+
   // Контекстные подсказки
   const contextualMessage = useMemo(() => {
     const hour = new Date().getHours()
+
+    // 🎁 Крючок «смотришь без наград» — амбассадор регистрации
+    if (guestRewardHook && !user) {
+      const copy = GUEST_HOOK_COPY[GuestHookId.CHIBI_REWARDS]
+      return {
+        text: `${copy.title} ${copy.description}`,
+        action: {
+          label: copy.cta,
+          onClick: () => {
+            openAuthFromGuestHook(GuestHookId.CHIBI_REWARDS, {
+              mode: "register",
+              trigger: "chibi_cta",
+              surface: "chibi",
+            })
+          },
+        },
+      }
+    }
 
     if (isOffline) {
       return { text: "Кажется, связь с космосом пропала! Проверь интернет 📡" }
@@ -925,7 +1018,7 @@ export function ChibiGuide() {
       text: greetingMessages[Math.floor(Math.random() * greetingMessages.length)],
       action: { label: "В Каталог", href: "/catalog" }
     }
-  }, [pathname, atBottom, isOffline])
+  }, [pathname, atBottom, isOffline, guestRewardHook, user])
 
   // Загрузка настроек
   useEffect(() => {
