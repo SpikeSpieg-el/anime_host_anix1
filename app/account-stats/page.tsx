@@ -21,7 +21,13 @@ import {
   Film,
   Sparkles,
   Flame,
-  CheckCircle2
+  CheckCircle2,
+  Award,
+  Users,
+  Building2,
+  CalendarDays,
+  Star,
+  UserRound
 } from "lucide-react"
 import { Navbar } from "@/components/layout/navbar"
 import { ScrollToTop } from "@/components/layout/scroll-to-top"
@@ -96,6 +102,58 @@ function pluralize(n: number, one: string, few: string, many: string): string {
   if (rem > 1 && rem < 5) return few
   if (rem === 1) return one
   return many
+}
+
+type AnimePreferenceMetadata = {
+  id: string
+  genres: string[]
+  studios: string[]
+  year?: number | null
+  kind?: string | null
+}
+
+type CharacterPreference = {
+  name: string
+  count: number
+  imageUrl?: string
+}
+
+function localDateKey(timestamp: number | string | undefined | null): string | null {
+  const value = typeof timestamp === "number" ? timestamp : Date.parse(String(timestamp ?? ""))
+  if (!Number.isFinite(value)) return null
+  const date = new Date(value)
+  const month = String(date.getMonth() + 1).padStart(2, "0")
+  const day = String(date.getDate()).padStart(2, "0")
+  return `${date.getFullYear()}-${month}-${day}`
+}
+
+function calculateCurrentStreak(timestamps: Array<number | string | undefined | null>): number {
+  const uniqueDays = new Set(timestamps.map(localDateKey).filter(Boolean) as string[])
+  if (uniqueDays.size === 0) return 0
+
+  const cursor = new Date()
+  cursor.setHours(0, 0, 0, 0)
+  const todayKey = localDateKey(cursor.getTime())
+  const yesterday = new Date(cursor)
+  yesterday.setDate(yesterday.getDate() - 1)
+  const yesterdayKey = localDateKey(yesterday.getTime())
+
+  // Серия не обрывается, если последнее действие было вчера.
+  if (!uniqueDays.has(todayKey!) && !uniqueDays.has(yesterdayKey!)) return 0
+  if (!uniqueDays.has(todayKey!)) cursor.setDate(cursor.getDate() - 1)
+
+  let streak = 0
+  while (uniqueDays.has(localDateKey(cursor.getTime())!)) {
+    streak += 1
+    cursor.setDate(cursor.getDate() - 1)
+  }
+  return streak
+}
+
+function getInitials(value: string): string {
+  const parts = value.trim().split(/\s+/).filter(Boolean)
+  if (parts.length === 0) return "W"
+  return parts.slice(0, 2).map((part) => part[0]).join("").toUpperCase()
 }
 
 // ---------- Компоненты ----------
@@ -174,11 +232,89 @@ function StatCardSkeleton() {
   )
 }
 
+function PreferenceList({
+  title,
+  icon: Icon,
+  items,
+  emptyText,
+}: {
+  title: string
+  icon: any
+  items: Array<{ label: string; value: number }>
+  emptyText: string
+}) {
+  const max = Math.max(...items.map((item) => item.value), 1)
+
+  return (
+    <div className="rounded-2xl bg-secondary/25 dark:bg-zinc-900/40 border border-border/40 dark:border-zinc-800/70 p-4 sm:p-5">
+      <h3 className="flex items-center gap-2 text-sm sm:text-base font-bold text-foreground dark:text-zinc-100 mb-4">
+        <Icon className="w-4 h-4 text-orange-500" aria-hidden="true" />
+        {title}
+      </h3>
+      {items.length === 0 ? (
+        <p className="text-xs text-muted-foreground leading-relaxed">{emptyText}</p>
+      ) : (
+        <div className="space-y-3">
+          {items.slice(0, 5).map((item) => (
+            <div key={item.label} className="space-y-1.5">
+              <div className="flex items-center justify-between gap-3 text-xs">
+                <span className="truncate text-foreground/90 dark:text-zinc-300">{item.label}</span>
+                <span className="shrink-0 font-bold text-muted-foreground">{item.value}</span>
+              </div>
+              <div className="h-1.5 rounded-full bg-secondary dark:bg-zinc-800 overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-orange-500 to-amber-400"
+                  style={{ width: `${Math.max(8, Math.round((item.value / max) * 100))}%` }}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ViewerBadge({
+  icon: Icon,
+  title,
+  description,
+  unlocked,
+}: {
+  icon: any
+  title: string
+  description: string
+  unlocked: boolean
+}) {
+  return (
+    <div className={cn(
+      "flex items-center gap-3 rounded-2xl border p-3 transition-colors",
+      unlocked
+        ? "border-orange-500/30 bg-orange-500/10"
+        : "border-border/40 bg-secondary/20 opacity-55 dark:border-zinc-800/70 dark:bg-zinc-900/30",
+    )}>
+      <div className={cn(
+        "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border",
+        unlocked
+          ? "border-orange-500/30 bg-orange-500/15 text-orange-400"
+          : "border-border/40 bg-secondary text-muted-foreground dark:border-zinc-800 dark:bg-zinc-900",
+      )}>
+        <Icon className="h-5 w-5" aria-hidden="true" />
+      </div>
+      <div className="min-w-0">
+        <p className="truncate text-xs font-bold text-foreground dark:text-zinc-200">{title}</p>
+        <p className="mt-0.5 text-[11px] leading-snug text-muted-foreground">{description}</p>
+      </div>
+      {unlocked && <CheckCircle2 className="ml-auto h-4 w-4 shrink-0 text-emerald-500" aria-label="Получено" />}
+    </div>
+  )
+}
+
 // ---------- Главный компонент ----------
 
 export default function AccountStatsPage() {
   const { stats, isLoading, refresh } = useAccountStats()
-  const { user } = useAuth()
+  const { user, session, profile } = useAuth()
   const { items: historyItems } = useHistory()
 
   const [mounted, setMounted] = useState(false)
@@ -192,6 +328,10 @@ export default function AccountStatsPage() {
   const HISTORY_PAGE_SIZE = 6
   const [visibleHistoryCount, setVisibleHistoryCount] = useState(HISTORY_PAGE_SIZE)
   const [isLoadingMoreHistory, setIsLoadingMoreHistory] = useState(false)
+  const [animeMetadata, setAnimeMetadata] = useState<Record<string, AnimePreferenceMetadata>>({})
+  const [characterPreferences, setCharacterPreferences] = useState<CharacterPreference[]>([])
+  const [characterCollectionCount, setCharacterCollectionCount] = useState(0)
+  const [isLoadingPreferences, setIsLoadingPreferences] = useState(false)
 
   useEffect(() => {
     setMounted(true)
@@ -220,6 +360,88 @@ export default function AccountStatsPage() {
   const visibleHistoryItems = useMemo(() => {
     return sortedHistoryItems.slice(0, visibleHistoryCount)
   }, [sortedHistoryItems, visibleHistoryCount])
+
+  const historyIdsKey = useMemo(
+    () => Array.from(new Set(sortedHistoryItems.map((item: any) => String(item.id)).filter(Boolean))).join(","),
+    [sortedHistoryItems],
+  )
+
+  // Жанры и студии берём из актуальной карточки Shikimori, а не из текста
+  // истории. Это позволяет строить предпочтения даже для старых записей.
+  useEffect(() => {
+    if (!historyIdsKey) {
+      setAnimeMetadata({})
+      return
+    }
+
+    const controller = new AbortController()
+    setIsLoadingPreferences(true)
+    fetch(`/api/anime-batch?ids=${encodeURIComponent(historyIdsKey)}`, { signal: controller.signal })
+      .then((response) => response.ok ? response.json() : { anime: [] })
+      .then((result) => {
+        if (controller.signal.aborted) return
+        const next: Record<string, AnimePreferenceMetadata> = {}
+        for (const item of Array.isArray(result?.anime) ? result.anime : []) {
+          next[String(item.id)] = {
+            id: String(item.id),
+            genres: Array.isArray(item.genres) ? item.genres.filter(Boolean) : [],
+            studios: Array.isArray(item.studios) ? item.studios.filter(Boolean) : [],
+            year: item.year,
+            kind: item.kind,
+          }
+        }
+        setAnimeMetadata(next)
+      })
+      .catch((error) => {
+        if (error?.name !== "AbortError") console.error("Failed to load viewer preferences:", error)
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setIsLoadingPreferences(false)
+      })
+
+    return () => controller.abort()
+  }, [historyIdsKey])
+
+  // В гача-коллекции уже есть персонаж, которого пользователь реально выбрал
+  // или собирал. Используем её как прозрачный источник «любимых персонажей».
+  useEffect(() => {
+    if (!session?.access_token) {
+      setCharacterPreferences([])
+      setCharacterCollectionCount(0)
+      return
+    }
+
+    const controller = new AbortController()
+    fetch("/api/cards", {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+      signal: controller.signal,
+    })
+      .then((response) => response.ok ? response.json() : { cards: [] })
+      .then((result) => {
+        if (controller.signal.aborted) return
+        const cards = Array.isArray(result?.cards) ? result.cards : []
+        setCharacterCollectionCount(cards.length)
+        const counts = new Map<string, CharacterPreference>()
+        for (const card of cards) {
+          const name = String(card?.name || "").trim()
+          if (!name) continue
+          const current = counts.get(name) ?? {
+            name,
+            count: 0,
+            imageUrl: card?.imageUrl || undefined,
+          }
+          current.count += 1
+          if (!current.imageUrl && card?.imageUrl) current.imageUrl = card.imageUrl
+          counts.set(name, current)
+        }
+        setCharacterPreferences(Array.from(counts.values()).sort((a, b) => b.count - a.count).slice(0, 5))
+      })
+      .catch((error) => {
+        if (error?.name !== "AbortError") console.error("Failed to load character preferences:", error)
+      })
+
+    return () => controller.abort()
+  }, [session?.access_token])
 
   const loadMoreHistory = useCallback(() => {
     if (isLoadingMoreHistory || !hasMoreHistory) return
@@ -303,12 +525,70 @@ export default function AccountStatsPage() {
       .sort((a, b) => b.progress - a.progress || b.count - a.count)
   }, [sortedHistoryItems])
 
+  const viewerMetrics = useMemo(() => {
+    const uniqueById = new Map<string, any>()
+    for (const item of sortedHistoryItems) {
+      const id = String(item.id)
+      const current = uniqueById.get(id)
+      if (!current || Number(item.episode || 0) > Number(current.episode || 0)) {
+        uniqueById.set(id, item)
+      }
+    }
+
+    const genreCounts = new Map<string, number>()
+    const studioCounts = new Map<string, number>()
+    for (const item of uniqueById.values()) {
+      const metadata = animeMetadata[String(item.id)]
+      for (const genre of metadata?.genres ?? []) genreCounts.set(genre, (genreCounts.get(genre) ?? 0) + 1)
+      for (const studio of metadata?.studios ?? []) studioCounts.set(studio, (studioCounts.get(studio) ?? 0) + 1)
+    }
+
+    const sortPreferences = (values: Map<string, number>) => Array.from(values.entries())
+      .map(([label, value]) => ({ label, value }))
+      .sort((a, b) => b.value - a.value || a.label.localeCompare(b.label, "ru"))
+
+    const progressEpisodes = Array.from(uniqueById.values()).reduce(
+      (sum, item) => sum + Math.max(0, Number(item.episode) || 0),
+      0,
+    )
+    const completedTitles = Array.from(uniqueById.values()).filter((item) => {
+      const episode = Number(item.episode) || 0
+      const total = Number(item.episodesTotal) || 0
+      return total > 0 && episode >= total
+    }).length
+    const activeDays = new Set(
+      sortedHistoryItems.map((item: any) => localDateKey(item.timestamp || item.updatedAt || item.createdAt)).filter(Boolean),
+    ).size
+    const streak = calculateCurrentStreak(
+      sortedHistoryItems.map((item: any) => item.timestamp || item.updatedAt || item.createdAt),
+    )
+
+    return {
+      watchedTitles: uniqueById.size,
+      progressEpisodes,
+      completedTitles,
+      activeDays,
+      streak,
+      favoriteGenres: sortPreferences(genreCounts),
+      favoriteStudios: sortPreferences(studioCounts),
+    }
+  }, [animeMetadata, sortedHistoryItems])
+
+  const viewerBadges = useMemo(() => [
+    { icon: Film, title: "Первый кадр", description: "Начните смотреть первое аниме", unlocked: viewerMetrics.watchedTitles >= 1 },
+    { icon: PlayCircle, title: "Марафонец", description: "Наберите 10 серий в прогрессе", unlocked: viewerMetrics.progressEpisodes >= 10 },
+    { icon: CheckCircle2, title: "Финальные титры", description: "Завершите хотя бы один тайтл", unlocked: viewerMetrics.completedTitles >= 1 },
+    { icon: CalendarDays, title: "На связи", description: "Заходите 7 дней подряд", unlocked: viewerMetrics.streak >= 7 },
+    { icon: Award, title: "Коллекционер", description: "Соберите 10 карт персонажей", unlocked: characterCollectionCount >= 10 },
+    { icon: Star, title: "Постоянный зритель", description: "Проведите на сайте 5 часов", unlocked: (Number(stats.totalTimeMs) || 0) >= 5 * 60 * 60 * 1000 },
+  ], [characterCollectionCount, stats.totalTimeMs, viewerMetrics])
+
   const eventBreakdown = useMemo(() => {
     const s = (stats || {}) as AccountStats & { searches?: number }
     return [
       { key: "sessions", label: "Всего сессий", value: s.totalSessions ?? 0, icon: Activity },
       { key: "views", label: "Просмотры страниц", value: s.pageViews ?? 0, icon: Eye },
-      { key: "watch", label: "Просмотры серий", value: s.watchEvents ?? 0, icon: PlayCircle },
+      { key: "watch", label: "Запуски серий", value: s.watchEvents ?? 0, icon: PlayCircle },
       { key: "searches", label: "Поисковые запросы", value: s.searches ?? 0, icon: Search },
       { key: "gacha", label: "Прокрутки гачи", value: s.gachaRolls ?? 0, icon: Dices },
       { key: "battles", label: "Битвы персонажей", value: s.battlesStarted ?? 0, icon: Trophy },
@@ -382,10 +662,15 @@ export default function AccountStatsPage() {
     )
   }
 
-  const totalMs = stats.totalTimeMs ?? 0
-  const avgSessionMs = stats.avgSessionMs ?? 0
+  // Показываем максимум локального и серверного значения: это защищает UI от
+  // задержки синхронизации, но не позволяет старым данными уменьшить счётчик.
+  const localSessionSummary = activityRecorder.getSessionSummary()
+  const totalMs = Math.max(Number(stats.totalTimeMs) || 0, localSessionSummary.totalTimeMs)
+  const totalSessionsCount = Math.max(Number(stats.totalSessions) || 0, localSessionSummary.totalSessions)
+  const avgSessionMs = Number(stats.avgSessionMs) || (totalSessionsCount > 0 ? Math.round(totalMs / totalSessionsCount) : 0)
+  const watchTimeMs = Math.max(Number(stats.watchTimeMs) || 0, activityRecorder.getWatchTimeMs())
   const longestSessionMs = sessions.length > 0 ? Math.max(...sessions.map((s) => s.end - s.start)) : 0
-  const totalSessionsCount = stats.totalSessions ?? sessions.length
+  const displayName = profile?.username || user.email?.split("@")[0] || "Зритель"
 
   return (
     <main className="min-h-screen bg-background text-foreground pb-20 md:pb-24 relative">
@@ -410,10 +695,10 @@ export default function AccountStatsPage() {
             </div>
             <div>
               <h1 className="text-xl sm:text-2xl md:text-3xl font-black text-foreground dark:text-white tracking-tight">
-                Статистика аккаунта
+                Профиль зрителя
               </h1>
               <p className="text-xs sm:text-sm text-muted-foreground dark:text-zinc-400 mt-0.5">
-                {totalSessionsCount} {pluralize(totalSessionsCount, "сессия", "сессии", "сессий")} • {formatDuration(totalMs)} суммарно на сайте
+                {displayName} • {totalSessionsCount} {pluralize(totalSessionsCount, "сессия", "сессии", "сессий")} • {formatDuration(totalMs)} на сайте
               </p>
             </div>
           </div>
@@ -432,7 +717,7 @@ export default function AccountStatsPage() {
         {/* Табы */}
         <div className="flex items-center gap-1.5 p-1.5 bg-secondary/40 dark:bg-zinc-900/60 backdrop-blur-xl border border-border/50 dark:border-zinc-800/80 rounded-2xl mb-6 sm:mb-8 overflow-x-auto no-scrollbar" role="tablist">
           {[
-            { id: "overview", label: "Обзор", icon: BarChart3 },
+            { id: "overview", label: "Профиль", icon: UserRound },
             { id: "time", label: "Время", icon: Clock },
             { id: "history", label: "История", icon: History },
             { id: "progress", label: "Прогресс", icon: PlayCircle },
@@ -470,13 +755,72 @@ export default function AccountStatsPage() {
             <div className="space-y-6 sm:space-y-8 animate-in fade-in duration-300">
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
                 <StatCard icon={Activity} label="Всего сессий" value={formatNumber(totalSessionsCount)} sub="сессий" badge="Общее" />
-                <StatCard icon={Clock} label="Время на сайте" value={formatDuration(totalMs)} sub="всего" badge="Время" />
+                <StatCard icon={Clock} label="Время на сайте" value={formatDuration(totalMs)} sub="активность" badge="Время" />
+                <StatCard icon={PlayCircle} label="Время просмотра" value={formatDuration(watchTimeMs)} sub="в плеере" badge="Новое" />
+                <StatCard icon={Film} label="Тайтлы в истории" value={formatNumber(viewerMetrics.watchedTitles)} sub="тайтлов" />
                 <StatCard icon={Eye} label="Просмотры страниц" value={formatNumber(stats.pageViews)} sub="просмотров" />
-                <StatCard icon={PlayCircle} label="События просмотра" value={formatNumber(stats.watchEvents)} sub="событий" />
+                <StatCard icon={PlayCircle} label="Запуски серий" value={formatNumber(stats.watchEvents)} sub="запусков" />
                 <StatCard icon={Dices} label="Прокрутки гача" value={formatNumber(stats.gachaRolls)} sub="прокруток" />
                 <StatCard icon={Trophy} label="Битвы персонажей" value={formatNumber(stats.battlesStarted)} sub="битв" />
                 <StatCard icon={Bookmark} label="В закладках" value={formatNumber(stats.bookmarksAdded)} sub="тайтлов" />
+                <StatCard icon={CheckCircle2} label="Завершено" value={formatNumber(viewerMetrics.completedTitles)} sub="тайтлов" />
+                <StatCard icon={CalendarDays} label="Дней активности" value={formatNumber(viewerMetrics.activeDays)} sub="дней" />
                 <StatCard icon={BarChart3} label="Средняя сессия" value={formatDuration(avgSessionMs)} sub="в среднем" />
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-5">
+                <PreferenceList
+                  title="Любимые жанры"
+                  icon={Star}
+                  items={viewerMetrics.favoriteGenres}
+                  emptyText={isLoadingPreferences ? "Загружаем жанры просмотренных тайтлов…" : "Посмотрите несколько тайтлов — здесь появится ваш топ жанров."}
+                />
+                <PreferenceList
+                  title="Любимые студии"
+                  icon={Building2}
+                  items={viewerMetrics.favoriteStudios}
+                  emptyText={isLoadingPreferences ? "Загружаем студии…" : "Студии появятся после загрузки данных просмотренных тайтлов."}
+                />
+                <div className="rounded-2xl bg-secondary/25 dark:bg-zinc-900/40 border border-border/40 dark:border-zinc-800/70 p-4 sm:p-5">
+                  <h3 className="flex items-center gap-2 text-sm sm:text-base font-bold text-foreground dark:text-zinc-100 mb-4">
+                    <Users className="w-4 h-4 text-orange-500" aria-hidden="true" />
+                    Любимые персонажи
+                  </h3>
+                  {characterPreferences.length === 0 ? (
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      Персонажи строятся по собранным картам. Откройте несколько карт в гаче — и профиль покажет ваш топ.
+                    </p>
+                  ) : (
+                    <div className="space-y-2.5">
+                      {characterPreferences.map((character) => (
+                        <div key={character.name} className="flex items-center gap-2.5">
+                          <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded-full bg-zinc-800 border border-border/50">
+                            {character.imageUrl ? (
+                              <Image src={character.imageUrl} alt="" fill sizes="36px" className="object-cover" />
+                            ) : (
+                              <div className="flex h-full items-center justify-center text-[10px] font-bold text-orange-400">{getInitials(character.name)}</div>
+                            )}
+                          </div>
+                          <span className="min-w-0 flex-1 truncate text-xs text-foreground/90 dark:text-zinc-300">{character.name}</span>
+                          <span className="text-xs font-bold text-muted-foreground">{character.count}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="rounded-3xl bg-card/40 dark:bg-zinc-900/30 backdrop-blur-xl border border-border/50 dark:border-zinc-800/80 p-4 sm:p-6">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+                  <h2 className="text-base sm:text-lg font-bold text-foreground dark:text-white flex items-center gap-2">
+                    <Award className="w-5 h-5 text-orange-500" aria-hidden="true" />
+                    Достижения зрителя
+                  </h2>
+                  <span className="text-xs text-muted-foreground">{viewerBadges.filter((badge) => badge.unlocked).length} из {viewerBadges.length} получено</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {viewerBadges.map((badge) => <ViewerBadge key={badge.title} {...badge} />)}
+                </div>
               </div>
 
               <div className="bg-card/40 dark:bg-zinc-900/30 backdrop-blur-xl border border-border/50 dark:border-zinc-800/80 rounded-3xl p-4 sm:p-6">
@@ -506,17 +850,21 @@ export default function AccountStatsPage() {
         {/* ВКЛАДКА: ВРЕМЯ (Пагинация журнала сессий + скрытые детали по клику) */}
         {activeTab === "time" && (
           <div className="space-y-6 animate-in fade-in duration-300">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
-              <StatCard icon={Clock} label="Всего времени" value={formatDuration(totalMs)} sub="за всё время" />
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+              <StatCard icon={Clock} label="Всего времени" value={formatDuration(totalMs)} sub="на сайте" />
+              <StatCard icon={PlayCircle} label="Время просмотра" value={formatDuration(watchTimeMs)} sub="в плеере" />
               <StatCard icon={Activity} label="Средняя сессия" value={formatDuration(avgSessionMs)} sub="в среднем" />
               <StatCard icon={History} label="Самая долгая сессия" value={formatDuration(longestSessionMs)} sub="рекорд" />
             </div>
+            <p className="text-xs text-muted-foreground -mt-2 px-1">
+              «Время на сайте» считает активную вкладку, а «время просмотра» — активную страницу плеера. Для внешних плееров это приблизительная оценка.
+            </p>
 
             <div className="bg-card/40 dark:bg-zinc-900/30 backdrop-blur-xl border border-border/50 dark:border-zinc-800/80 rounded-3xl p-4 sm:p-6">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-base sm:text-lg font-bold text-foreground dark:text-white flex items-center gap-2">
                   <Clock className="w-5 h-5 text-orange-500" />
-                  Журнал последних сессий ({sessions.length})
+                  Журнал сессий на этом устройстве ({sessions.length})
                 </h2>
                 {sessions.length > 0 && (
                   <span className="text-xs text-muted-foreground font-medium">

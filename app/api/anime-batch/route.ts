@@ -9,34 +9,51 @@ export async function GET(request: Request) {
       return NextResponse.json({ anime: [] })
     }
 
-    const ids = idsParam.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id))
+    const ids = Array.from(new Set(
+      idsParam
+        .split(',')
+        .map((id) => Number.parseInt(id.trim(), 10))
+        .filter((id) => Number.isInteger(id) && id > 0),
+    )).slice(0, 50)
 
     if (ids.length === 0) {
       return NextResponse.json({ anime: [] })
     }
 
-    const results: { id: number; name: string; russian: string | null; imageUrl: string | null }[] = []
+    // Один batch-запрос вместо N отдельных запросов. Помимо названия и постера
+    // отдаём минимальные данные для профиля зрителя: жанры и студии.
+    const response = await fetch(
+      `https://shikimori.one/api/animes?ids=${ids.join(',')}&limit=${ids.length}`,
+      {
+        headers: { 'User-Agent': 'Weebx/1.0' },
+        next: { revalidate: 3600 },
+        signal: AbortSignal.timeout(8000),
+      },
+    )
 
-    await Promise.all(ids.map(async (id) => {
-      try {
-        const res = await fetch(`https://shikimori.one/api/animes/${id}`, {
-          signal: AbortSignal.timeout(5000),
-        })
-        if (res.ok) {
-          const data = await res.json()
-          results.push({
-            id,
-            name: data.name || '',
-            russian: data.russian || null,
-            imageUrl: data.image?.original ? `https://shikimori.one${data.image.original}` : null,
-          })
-        }
-      } catch {
-        // skip failed fetches
-      }
-    }))
+    if (!response.ok) {
+      return NextResponse.json({ anime: [] })
+    }
 
-    return NextResponse.json({ anime: results })
+    const data = await response.json()
+    const anime = Array.isArray(data)
+      ? data.map((item: any) => ({
+          id: Number(item.id),
+          name: item.name || '',
+          russian: item.russian || null,
+          imageUrl: item.image?.original ? `https://shikimori.one${item.image.original}` : null,
+          genres: Array.isArray(item.genres)
+            ? item.genres.map((genre: any) => genre.russian || genre.name).filter(Boolean)
+            : [],
+          studios: Array.isArray(item.studios)
+            ? item.studios.map((studio: any) => studio.name).filter(Boolean)
+            : [],
+          year: item.aired_on ? Number.parseInt(String(item.aired_on).slice(0, 4), 10) || null : null,
+          kind: item.kind || null,
+        }))
+      : []
+
+    return NextResponse.json({ anime })
   } catch (error) {
     console.error('[anime-batch] Error:', error)
     return NextResponse.json({ anime: [] })
