@@ -202,6 +202,11 @@ export function BookmarksProvider({ children }: { children: React.ReactNode }) {
       return [anime, ...prev]
     })
 
+    // Dispatch event for auth prompt (for guests)
+    if (!user) {
+      window.dispatchEvent(new CustomEvent('bookmark-added', { detail: { anime } }))
+    }
+
     if (user) {
       const { error } = await supabase.from('bookmarks').insert({
         user_id: user.id,
@@ -281,6 +286,11 @@ export function BookmarksProvider({ children }: { children: React.ReactNode }) {
       if (prev.some((a) => a.id === anime.id)) return prev
       return [anime, ...prev]
     })
+
+    // Dispatch event for auth prompt (for guests when adding)
+    if (isAdded && !user) {
+      window.dispatchEvent(new CustomEvent('bookmark-added', { detail: { anime } }))
+    }
 
     try {
       activityRecorder.recordActivity({

@@ -22,6 +22,7 @@ import { RegionWarning } from "@/components/shared/region-warning"
 import { recordWatchStart } from "@/components/providers/history-tracker"
 import { Button } from "@/components/ui/button"
 import { useBookmarks } from "@/components/providers/bookmarks-provider"
+import { useAuth } from "@/components/auth/auth-provider"
 import {
   Dialog,
   DialogContent,
@@ -34,9 +35,11 @@ import { isHentaiContent } from "@/lib/hentai-detector"
 import { WatchPageGallery } from "@/components/watch/watch-page-gallery"
 import { CoverModal } from "@/components/watch/cover-modal"
 import { FloatingNav } from "@/components/layout/floating-nav"
+import { AuthPromptBanner } from "@/components/watch/auth-prompt-banner"
 import { cn } from "@/lib/utils"
 import { Eye } from "lucide-react"
 import { AnalyticsEvent, trackEvent } from "@/lib/analytics"
+import { useExitIntent } from "@/hooks/use-exit-intent"
 
 interface WatchPageClientProps {
   anime: Anime
@@ -76,6 +79,7 @@ export function WatchPageClient({ anime, initialEpisode }: WatchPageClientProps)
 
   const totalPlannedEpisodes = anime.episodesTotal || availableEpisodes
 
+  const { user } = useAuth()
   const { isSaved, toggle } = useBookmarks()
   const saved = isSaved(anime.id)
 
@@ -98,6 +102,11 @@ export function WatchPageClient({ anime, initialEpisode }: WatchPageClientProps)
     time?: string
     translation?: string
   } | null>(null)
+
+  const { showExitPrompt, dismissPrompt: dismissExitPrompt } = useExitIntent({
+    enabled: isStarted, // Only track after user starts watching
+    minWatchTime: 30 // Show prompt after 30 seconds of watching
+  })
 
   const playerRef = useRef<HTMLDivElement>(null)
   const lastRecordedEpisode = useRef("")
@@ -519,6 +528,17 @@ export function WatchPageClient({ anime, initialEpisode }: WatchPageClientProps)
           )}
         </div>
       </div>
+
+      {/* Auth Prompt Banner - shown to non-logged users */}
+      <AuthPromptBanner variant="under-player" />
+
+      {/* Exit Intent Prompt - shown when user tries to leave after watching */}
+      {showExitPrompt && (
+        <AuthPromptBanner
+          variant="exit"
+          onDismiss={dismissExitPrompt}
+        />
+      )}
 
       {/* Episode Selector */}
       <div id="episodes" className="bg-card/20 border border-border rounded-2xl p-4 md:p-6 backdrop-blur-sm">

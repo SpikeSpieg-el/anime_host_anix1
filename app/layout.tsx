@@ -24,6 +24,7 @@ import NextTopLoader from "nextjs-toploader"
 import { Navbar } from "@/components/layout/navbar" 
 import { ChibiGuide } from "@/components/shared/chibi-guide"
 import { GiftCardReceivedModal } from "@/components/gacha/gift-card-received-modal"
+import { BookmarkAuthPrompt } from "@/components/shared/bookmark-auth-prompt"
 
 const siteUrl = "https://weeb-x.com"
 
@@ -156,6 +157,7 @@ export default function RootLayout({
                         <Navbar/>
                         {/* Персонаж-гид размещен внутри провайдеров, чтобы карточка случайного аниме могла использовать useBookmarks */}
                         <ChibiGuide/>
+                        <BookmarkAuthPrompt />
                         <ErrorBoundary name="Main App">{children}</ErrorBoundary>
                       </EpisodeUpdatesProvider>
                     </BookmarksProvider>
