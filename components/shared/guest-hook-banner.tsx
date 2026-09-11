@@ -72,6 +72,9 @@ const HOOK_STYLES: Record<
   },
 }
 
+/** Длительность CSS-исчезновения inline-баннера перед анмаунтом. */
+const INLINE_DISMISS_MS = 190
+
 export interface GuestHookBannerProps {
   hookId: GuestHookIdValue
   /** Точка контакта для Umami. */
@@ -110,9 +113,13 @@ export function GuestHookBanner({
 }: GuestHookBannerProps) {
   const { user } = useAuth()
   const [visible, setVisible] = useState(false)
+  const [closing, setClosing] = useState(false)
   const [authOpen, setAuthOpen] = useState(false)
   const [authMode, setAuthMode] = useState<"login" | "register">("register")
+  /** CTA нажат — прячем плашку под модалкой авторизации, но держим её смонтированной. */
+  const [ctaEngaged, setCtaEngaged] = useState(false)
   const trackedView = useRef(false)
+  const dismissTimer = useRef<number | null>(null)
 
   useEffect(() => {
     if (user || !open) {
@@ -139,13 +146,19 @@ export function GuestHookBanner({
     }
   }, [user, open, hookId, respectFrequency, surface, trigger, animeId, animeTitle, animeStatus])
 
+  useEffect(() => {
+    return () => {
+      if (dismissTimer.current) window.clearTimeout(dismissTimer.current)
+    }
+  }, [])
+
   if (user || !visible) return null
 
   const copy = GUEST_HOOK_COPY[hookId]
   const styles = HOOK_STYLES[hookId]
   const Icon = HOOK_ICONS[hookId]
 
-  const handleDismiss = () => {
+  const trackDismiss = () => {
     dismissGuestHook(hookId)
     trackGuestHook({
       hookId,
@@ -155,128 +168,165 @@ export function GuestHookBanner({
       animeId,
       animeTitle,
     })
-    setVisible(false)
-    onDismiss?.()
+  }
+
+  const handleDismiss = () => {
+    trackDismiss()
+    if (density === "compact") {
+      // Тост: контейнер (framer-motion) сам проиграет exit — контент не трогаем,
+      // иначе карточка пропадёт до анимации. Родитель флипнет open и уберёт нас.
+      setClosing(true)
+      onDismiss?.()
+      return
+    }
+    // Inline: мягкое CSS-исчезновение карточки, затем анмаунт через родителя.
+    setClosing(true)
+    if (dismissTimer.current) window.clearTimeout(dismissTimer.current)
+    dismissTimer.current = window.setTimeout(() => {
+      setVisible(false)
+      onDismiss?.()
+    }, INLINE_DISMISS_MS)
   }
 
   const openAuth = (mode: "login" | "register") => {
     openAuthFromGuestHook(hookId, { mode, trigger, surface, openGlobalModal: false })
     setAuthMode(mode)
     setAuthOpen(true)
+    // Плашку прячем визуально, но НЕ анмаунтим компонент — внутри живёт AuthModal.
+    setCtaEngaged(true)
+  }
+
+  const handleAuthOpenChange = (next: boolean) => {
+    setAuthOpen(next)
+    if (!next) {
+      // Крючок конвертировал (пользователь дошёл до формы) — плашку убираем без cooldown dismiss.
+      setVisible(false)
+      onDismiss?.()
+    }
   }
 
   return (
     <>
-      <div
-        role="region"
-        aria-label={copy.title}
-        data-umami-event="guest_hook_view"
-        data-umami-event-hook_id={hookId}
-        data-guest-hook={hookId}
-        className={cn(
-          "relative overflow-hidden rounded-2xl border bg-card/90 backdrop-blur-xl shadow-xl transition-all",
-          styles.border,
-          density === "compact" ? "p-3.5 sm:p-4" : "p-4 sm:p-5",
-          className,
-        )}
-      >
+      {!ctaEngaged && (
         <div
+          role="region"
+          aria-label={copy.title}
+          data-umami-event="guest_hook_view"
+          data-umami-event-hook_id={hookId}
+          data-guest-hook={hookId}
           className={cn(
-            "pointer-events-none absolute inset-0 bg-gradient-to-r opacity-90",
-            styles.gradient,
+            "relative overflow-hidden rounded-2xl border bg-card/90 backdrop-blur-xl shadow-xl transition-all duration-200",
+            density === "full" &&
+              "animate-in fade-in slide-in-from-bottom-2 duration-300",
+            styles.border,
+            density === "compact" ? "p-3.5 sm:p-4" : "p-4 sm:p-5",
+            closing && "opacity-0 translate-y-1 scale-[0.98] pointer-events-none",
+            className,
           )}
-        />
-
-        <button
-          type="button"
-          onClick={handleDismiss}
-          className="absolute top-3 right-3 p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-white/10 transition-colors z-10"
-          aria-label="Закрыть"
         >
-          <X className="w-4 h-4" />
-        </button>
-
-        <div className="relative z-10 flex flex-col sm:flex-row items-start gap-3.5 sm:gap-4">
           <div
             className={cn(
-              "flex-shrink-0 w-11 h-11 rounded-xl border flex items-center justify-center shadow-inner",
-              styles.iconBg,
+              "pointer-events-none absolute inset-0 bg-gradient-to-r opacity-90",
+              styles.gradient,
             )}
-          >
-            <Icon className="w-5 h-5" />
-          </div>
+          />
 
-          <div className="flex-1 min-w-0 pr-6">
-            <span
+          <button
+            type="button"
+            onClick={handleDismiss}
+            className="group absolute top-3 right-3 p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-white/10 transition-colors z-10"
+            aria-label="Закрыть"
+          >
+            <X className="w-4 h-4 transition-transform duration-200 group-hover:rotate-90" />
+          </button>
+
+          <div className="relative z-10 flex flex-col sm:flex-row items-start gap-3.5 sm:gap-4">
+            <div
               className={cn(
-                "inline-block text-[11px] font-semibold uppercase tracking-wider mb-1",
-                styles.badge,
+                "flex-shrink-0 w-11 h-11 rounded-xl border flex items-center justify-center shadow-inner",
+                styles.iconBg,
               )}
             >
-              {copy.badge}
-            </span>
-            <h3 className="font-semibold text-foreground text-sm sm:text-base leading-tight">
-              {copy.title}
-            </h3>
-            <p className="text-xs sm:text-sm text-muted-foreground mt-1 mb-3.5 line-clamp-3">
-              {copy.description}
-            </p>
+              <Icon className="w-5 h-5" />
+            </div>
 
-            <div className="flex flex-wrap items-center gap-2">
-              <Button
-                size="sm"
-                onClick={() => openAuth("register")}
-                data-umami-event="guest_hook_cta"
-                data-umami-event-hook_id={hookId}
-                className="h-8 sm:h-9 px-4 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground font-medium text-xs sm:text-sm shadow-md shadow-primary/20 transition-all hover:scale-[1.02] active:scale-[0.98] gap-1.5"
+            <div className="flex-1 min-w-0 pr-6">
+              <span
+                className={cn(
+                  "inline-block text-[11px] font-semibold uppercase tracking-wider mb-1",
+                  styles.badge,
+                )}
               >
-                <span>{copy.cta}</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </Button>
+                {copy.badge}
+              </span>
+              <h3 className="font-semibold text-foreground text-sm sm:text-base leading-tight">
+                {copy.title}
+              </h3>
+              <p className="text-xs sm:text-sm text-muted-foreground mt-1 mb-3.5 line-clamp-3">
+                {copy.description}
+              </p>
 
-              {copy.secondaryCta && (
+              <div className="flex flex-wrap items-center gap-2">
                 <Button
                   size="sm"
-                  variant="ghost"
-                  onClick={() => openAuth("login")}
-                  className="h-8 sm:h-9 px-3 rounded-lg text-muted-foreground hover:text-foreground font-medium text-xs sm:text-sm"
+                  onClick={() => openAuth("register")}
+                  data-umami-event="guest_hook_cta"
+                  data-umami-event-hook_id={hookId}
+                  className="group h-8 sm:h-9 px-4 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground font-medium text-xs sm:text-sm shadow-md shadow-primary/20 transition-all hover:scale-[1.02] active:scale-[0.98] gap-1.5"
                 >
-                  {copy.secondaryCta}
+                  <span>{copy.cta}</span>
+                  <ArrowRight className="w-3.5 h-3.5 transition-transform duration-200 group-hover:translate-x-0.5" />
                 </Button>
-              )}
+
+                {copy.secondaryCta && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => openAuth("login")}
+                    className="h-8 sm:h-9 px-3 rounded-lg text-muted-foreground hover:text-foreground font-medium text-xs sm:text-sm"
+                  >
+                    {copy.secondaryCta}
+                  </Button>
+                )}
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
 
       <AuthModal
         isOpen={authOpen}
-        onClose={(open) => setAuthOpen(open)}
+        onClose={handleAuthOpenChange}
         initialMode={authMode}
       />
     </>
   )
 }
 
-/** Анимированная обёртка для fixed toast-позиции. */
+/**
+ * Анимированная обёртка для fixed toast-позиции.
+ * Позиция: правый нижний угол на десктопе, над плавающим доком на мобильном
+ * (--bottom-nav-height задаётся в globals.css), выше Chibi (z-40), но ниже
+ * навбара/диалогов (z-50) — модалка авторизации всегда перекроет тост.
+ */
 export function GuestHookToast({
   open,
   onDismiss,
+  onExitComplete,
   ...props
-}: GuestHookBannerProps & { open: boolean }) {
+}: GuestHookBannerProps & { open: boolean; onExitComplete?: () => void }) {
   return (
-    <AnimatePresence>
+    <AnimatePresence onExitComplete={onExitComplete}>
       {open && (
         <motion.aside
           initial={{ opacity: 0, y: 28, scale: 0.96 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: 16, scale: 0.96 }}
           transition={{ duration: 0.22, ease: "easeOut" }}
-          role="region"
           aria-label="Мотивация регистрации"
-          className="fixed bottom-4 left-4 right-4 sm:left-auto sm:right-6 sm:bottom-6 z-40 max-w-md pointer-events-auto"
+          className="fixed left-4 right-4 sm:left-auto sm:right-6 z-[45] max-w-md pointer-events-auto"
           style={{
-            bottom: "max(1rem, calc(var(--bottom-nav-height, 0px) + 12px))",
+            bottom: "calc(var(--bottom-nav-height, 0px) + 1rem)",
           }}
         >
           <GuestHookBanner

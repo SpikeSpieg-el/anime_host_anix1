@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react"
 import { Cookie, Check, ChevronDown } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useConsent } from "@/components/providers/consent-provider"
+import { COOKIE_CONSENT_RESOLVED_EVENT } from "@/lib/guest-hooks"
 
 type CookiePreferences = {
   necessary: boolean
@@ -35,6 +36,8 @@ export function CookieConsent() {
 
   const close = () => {
     setClosing(true)
+    // Гостевые крючки ждут этого события — баннер больше их не перекрывает
+    window.dispatchEvent(new CustomEvent(COOKIE_CONSENT_RESOLVED_EVENT))
     setTimeout(() => {
       setIsVisible(false)
       setClosing(false)

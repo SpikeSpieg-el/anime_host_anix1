@@ -1,16 +1,20 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import {
   GUEST_HOOK_COPY,
+  GUEST_HOOK_EVENTS,
   GUEST_HOOK_SESSION_CAP,
   GuestHookId,
   canShowGuestHook,
   consumeGuestHookAuthSource,
   dismissGuestHook,
+  isCookieConsentDecided,
   isOngoingStatus,
   markGuestHookShown,
   openAuthFromGuestHook,
+  requestGuestHook,
   resetGuestHookState,
   setGuestHookAuthSource,
+  setGuestHookToastVisibility,
   trackGuestHook,
 } from "@/lib/guest-hooks"
 import { AnalyticsEvent, loadAnalyticsScript, unloadAnalyticsScript, UMAMI_SCRIPT_TAG_ID } from "@/lib/analytics"
@@ -193,5 +197,44 @@ describe("Umami tracking", () => {
     // source всё равно записан
     expect(consumeGuestHookAuthSource()?.hook_id).toBe(GuestHookId.STARTER_PACK)
     window.removeEventListener("open-auth-modal", handler)
+  })
+})
+
+describe("UI coordination bus", () => {
+  it("requestGuestHook диспатчит SHOW с detail", () => {
+    const handler = vi.fn()
+    window.addEventListener(GUEST_HOOK_EVENTS.SHOW, handler)
+    requestGuestHook({
+      hookId: GuestHookId.ONGOING_BELL,
+      surface: "banner",
+      trigger: "bookmark_ongoing",
+      animeId: "42",
+    })
+    expect(handler).toHaveBeenCalledTimes(1)
+    const evt = handler.mock.calls[0][0] as CustomEvent
+    expect(evt.detail).toMatchObject({
+      hookId: GuestHookId.ONGOING_BELL,
+      surface: "banner",
+      trigger: "bookmark_ongoing",
+      animeId: "42",
+    })
+    window.removeEventListener(GUEST_HOOK_EVENTS.SHOW, handler)
+  })
+
+  it("setGuestHookToastVisibility шлёт TOAST_VISIBILITY с флагом", () => {
+    const handler = vi.fn()
+    window.addEventListener(GUEST_HOOK_EVENTS.TOAST_VISIBILITY, handler)
+    setGuestHookToastVisibility(true)
+    setGuestHookToastVisibility(false)
+    expect(handler).toHaveBeenCalledTimes(2)
+    expect((handler.mock.calls[0][0] as CustomEvent).detail).toEqual({ visible: true })
+    expect((handler.mock.calls[1][0] as CustomEvent).detail).toEqual({ visible: false })
+    window.removeEventListener(GUEST_HOOK_EVENTS.TOAST_VISIBILITY, handler)
+  })
+
+  it("isCookieConsentDecided: false без ключа, true после выбора", () => {
+    expect(isCookieConsentDecided()).toBe(false)
+    localStorage.setItem("cookie-consent-v1", JSON.stringify({ necessary: true }))
+    expect(isCookieConsentDecided()).toBe(true)
   })
 })

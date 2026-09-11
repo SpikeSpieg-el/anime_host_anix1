@@ -260,8 +260,32 @@ export function isOngoingStatus(status?: string | null): boolean {
 /** CustomEvent имена для глобальной шины крючков. */
 export const GUEST_HOOK_EVENTS = {
   SHOW: "weebx-guest-hook-show",
+  /**
+   * Реальная видимость fixed-тоста крючка (detail: { visible: boolean }).
+   * Диспатчит только контроллер — по ней Chibi и другие нижние элементы
+   * освобождают место и возвращаются.
+   */
+  TOAST_VISIBILITY: "weebx-guest-hook-toast-visibility",
   OPEN_AUTH: "open-auth-modal",
 } as const
+
+/** Событие, которое диспатчит CookieConsent после выбора пользователя. */
+export const COOKIE_CONSENT_RESOLVED_EVENT = "cookie-consent-resolved"
+const COOKIE_CONSENT_STORAGE_KEY = "cookie-consent-v1"
+
+/**
+ * Решил ли пользователь вопрос cookie-согласия.
+ * Пока баннер согласия висит (z-9999, внизу), крючки не показываем —
+ * иначе баннер согласия перекрывает их кнопки.
+ */
+export function isCookieConsentDecided(): boolean {
+  if (typeof window === "undefined") return true
+  try {
+    return Boolean(localStorage.getItem(COOKIE_CONSENT_STORAGE_KEY))
+  } catch {
+    return true
+  }
+}
 
 export interface GuestHookShowDetail {
   hookId: GuestHookIdValue
@@ -278,6 +302,14 @@ export interface GuestHookShowDetail {
 export function requestGuestHook(detail: GuestHookShowDetail): void {
   if (typeof window === "undefined") return
   window.dispatchEvent(new CustomEvent(GUEST_HOOK_EVENTS.SHOW, { detail }))
+}
+
+/** Сообщить UI о фактической видимости тоста крючка (только из контроллера). */
+export function setGuestHookToastVisibility(visible: boolean): void {
+  if (typeof window === "undefined") return
+  window.dispatchEvent(
+    new CustomEvent(GUEST_HOOK_EVENTS.TOAST_VISIBILITY, { detail: { visible } }),
+  )
 }
 
 /**

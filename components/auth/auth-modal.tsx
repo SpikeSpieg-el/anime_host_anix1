@@ -111,6 +111,13 @@ export function AuthModal({
   const isOpen = externalIsOpen !== undefined ? externalIsOpen : internalIsOpen
   const setIsOpen = onClose || setInternalIsOpen
 
+  /**
+   * Дефолтная кнопка-триггер «Войти» нужна только в неконтролируемом режиме.
+   * В управляемом (isOpen/onClose) родитель сам решает, как открыть модалку —
+   * иначе рядом с крючками/страницами появляется «лишняя» кнопка входа.
+   */
+  const isControlled = externalIsOpen !== undefined || onClose !== undefined
+
   // Синхронизация режима при открытии из крючков / navbar (register vs login)
   useEffect(() => {
     if (isOpen) {
@@ -341,14 +348,15 @@ export function AuthModal({
       setIsOpen(open)
       if (!open) resetForm()
     }}>
-      {children || (
-        <DialogTrigger asChild>
-          <Button variant="ghost" className="w-9 h-9 md:w-10 md:h-10 gap-2 text-zinc-400 hover:text-white transition-colors rounded-full">
-            <LogIn className="w-4 h-4" />
-            <span className="hidden sm:inline font-medium">Войти</span>
-          </Button>
-        </DialogTrigger>
-      )}
+      {children ??
+        (!isControlled && (
+          <DialogTrigger asChild>
+            <Button variant="ghost" className="w-9 h-9 md:w-10 md:h-10 gap-2 text-zinc-400 hover:text-white transition-colors rounded-full">
+              <LogIn className="w-4 h-4" />
+              <span className="hidden sm:inline font-medium">Войти</span>
+            </Button>
+          </DialogTrigger>
+        ))}
 
       <DialogContent className="overflow-hidden p-0 bg-[#09090b] border border-white/10 text-white sm:max-w-[420px] shadow-2xl shadow-orange-500/5">
         <DialogDescription className="sr-only">

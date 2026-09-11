@@ -89,6 +89,8 @@ export function GuestHookModal({
   const [authOpen, setAuthOpen] = useState(false)
   const [authMode, setAuthMode] = useState<"login" | "register">("register")
   const [allowed, setAllowed] = useState(true)
+  /** CTA нажат — hook-диалог скрыт, поверх только модалка авторизации. */
+  const [ctaEngaged, setCtaEngaged] = useState(false)
   const trackedView = useRef(false)
 
   useEffect(() => {
@@ -141,10 +143,20 @@ export function GuestHookModal({
     openAuthFromGuestHook(hookId, { mode, trigger, surface: "modal", openGlobalModal: false })
     setAuthMode(mode)
     setAuthOpen(true)
+    // Прячем hook-диалог (без dismiss-cooldown), чтобы не было двойных оверлеев.
+    setCtaEngaged(true)
+  }
+
+  const handleAuthOpenChange = (next: boolean) => {
+    setAuthOpen(next)
+    if (!next) {
+      // Крючок отработал — после закрытия формы модалку крючка не возвращаем.
+      onOpenChange(false)
+    }
   }
 
   // Gate-модалки battle/pvp: всегда показываем, frequency только влияет на analytics cap
-  const show = open && (allowed || !respectFrequency)
+  const show = open && (allowed || !respectFrequency) && !ctaEngaged
 
   return (
     <>
@@ -264,7 +276,7 @@ export function GuestHookModal({
 
       <AuthModal
         isOpen={authOpen}
-        onClose={(open) => setAuthOpen(open)}
+        onClose={handleAuthOpenChange}
         initialMode={authMode}
       />
     </>
