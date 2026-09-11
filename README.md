@@ -94,6 +94,9 @@ NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
 
+# PvP (онлайн-бои). Для локальной разработки подними сервер из pvp-server/ на 3001
+# NEXT_PUBLIC_PVP_SERVER_URL=http://localhost:3001
+
 # Umami (self-hosted аналитика). Обязателен только website id —
 # без него аналитика выключена, остальное опционально.
 NEXT_PUBLIC_UMAMI_WEBSITE_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
@@ -236,6 +239,7 @@ npm start
 │   ├── supabase.ts            # Клиент Supabase
 │   └── utils.ts               # Вспомогательные функции
 ├── public/                     # Статические файлы
+├── pvp-server/                 # Socket.io сервер PvP (отдельный сервис, порт 3001)
 ├── scripts/                    # Скрипты для БД
 ├── supabase/                   # Миграции Supabase (37 SQL-файлов)
 │   └── migrations/            # SQL миграции
@@ -340,8 +344,34 @@ npm run test:coverage    # отчёт coverage/
 
 > Полный пошаговый гайд — см. [`docs/UMAMI-COOLIFY.md`](docs/UMAMI-COOLIFY.md).
 
-### PvP-сервер (опционально)
-Для онлайн-PvP требуется отдельный Socket.io сервер. См. `pvp-server/` (если присутствует) для инструкций по запуску.
+### PvP-сервер (онлайн-бои)
+
+PvP — это **отдельный сервис**, а не часть Next.js-приложения: `pvp-server/` (Node 20 + Socket.io, порт 3001).
+
+Локально:
+
+```bash
+cd pvp-server && npm install
+SUPABASE_URL=https://<project>.supabase.co \
+SUPABASE_SERVICE_KEY=<service_role> \
+ALLOWED_ORIGINS=http://localhost:80 \
+npm run dev        # http://localhost:3001/health
+```
+
+Coolify (self-hosted) — полный пошаговый гайд: **[docs/PVP-COOLIFY.md](docs/PVP-COOLIFY.md)**. Коротко:
+
+1. Новый **Application** из этого же репозитория: Build Pack `Dockerfile`, Dockerfile Location `/pvp-server/Dockerfile`, Build Context Directory `/pvp-server`, Ports Exposes `3001`.
+2. Домен сервиса: `https://pvp.weeb-x.com:3001` **или** тот же домен сайта через путь —
+   `https://weeb-x.com:3001/pvp-ws` + `SOCKET_PATH=/pvp-ws/socket.io` + выключенный **Strip Prefixes**
+   (порт в домене нужен Traefik’у; наружу 3001 не открывать).
+3. Переменные сервиса: `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `ALLOWED_ORIGINS=https://weeb-x.com`.
+4. В **приложении сайта**: `NEXT_PUBLIC_PVP_SERVER_URL=https://pvp.weeb-x.com` и обязательный **Redeploy с пересборкой** — `NEXT_PUBLIC_*` вшиваются в бандл на билде.
+5. Проверка: `curl https://pvp.weeb-x.com/health` (или `https://weeb-x.com/pvp-ws/health`) и
+   `[PvP] Connected to server` в консоли на `/pvp`.
+
+PvP-сервер обязан быть доступен из браузера — адрес вида `http://pvp-server:3001` (внутренняя сеть
+Coolify) не работает: сокет открывает клиент, а не Next.js. Обходной путь без нового домена — роут по пути
+на основном домене, см. пункт 2 и раздел «1b» в [`docs/PVP-COOLIFY.md`](docs/PVP-COOLIFY.md).
 
 ## 📄 Лицензия
 

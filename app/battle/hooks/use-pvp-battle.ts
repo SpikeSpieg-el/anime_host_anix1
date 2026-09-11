@@ -4,6 +4,9 @@ import { useAuth } from '@/components/auth/auth-provider'
 import { Card } from '../types'
 
 const PVP_SERVER_URL = process.env.NEXT_PUBLIC_PVP_SERVER_URL || 'http://localhost:3001'
+// Путь socket.io на PvP-сервере. По умолчанию '/socket.io'; меняется на '/<prefix>/socket.io',
+// если PvP-сервис роутится через путь основного домена (Coolify: https://weeb-x.com:3001/pvp-ws).
+const PVP_SOCKET_PATH = process.env.NEXT_PUBLIC_PVP_SOCKET_PATH || '/socket.io'
 
 interface MatchData {
   matchId: string
@@ -66,9 +69,10 @@ export function usePvPBattle(options?: {
   useEffect(() => {
     if (!session?.access_token) return
 
-    console.log('[PvP] Connecting to server:', PVP_SERVER_URL)
-    
+    console.log('[PvP] Connecting to server:', PVP_SERVER_URL, PVP_SOCKET_PATH)
+
     const socket = io(PVP_SERVER_URL, {
+      path: PVP_SOCKET_PATH,
       auth: {
         token: session.access_token
       },
