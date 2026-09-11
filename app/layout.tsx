@@ -1,6 +1,5 @@
 import type React from "react"
 import type { Metadata, Viewport } from "next"
-import { Geist, Geist_Mono, Unbounded } from "next/font/google"
 import { AnalyticsWrapper } from "@/components/layout/analytics-wrapper"
 import { Suspense } from "react"
 import { GlobalLoading } from "@/components/layout/global-loading"
@@ -25,10 +24,6 @@ import NextTopLoader from "nextjs-toploader"
 import { Navbar } from "@/components/layout/navbar" 
 import { ChibiGuide } from "@/components/shared/chibi-guide"
 import { GiftCardReceivedModal } from "@/components/gacha/gift-card-received-modal"
-
-const _geist = Geist({ subsets: ["latin"] })
-const _geistMono = Geist_Mono({ subsets: ["latin"] })
-const _unbounded = Unbounded({ subsets: ["latin"] })
 
 const siteUrl = "https://weeb-x.com"
 

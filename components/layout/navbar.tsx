@@ -30,7 +30,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Charm } from "next/font/google"
 import { activityRecorder } from "@/components/providers/account-stats-recorder"
 import { AnalyticsEvent, trackEvent } from "@/lib/analytics"
 
