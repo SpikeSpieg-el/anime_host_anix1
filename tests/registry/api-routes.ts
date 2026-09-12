@@ -19,6 +19,11 @@ export interface ApiRegistryEntry {
 export const API_ROUTES: ApiRegistryEntry[] = [
   { path: "/api/admin/test", methods: ["GET"], auth: "admin" },
   { path: "/api/admin/users", methods: ["GET"], auth: "admin" },
+  { path: "/api/animdl/download", methods: ["GET"], auth: "public", notes: "варианты скачивания серии (animdl)" },
+  { path: "/api/animdl/file", methods: ["GET"], auth: "public", notes: "подписанный прокси файлов, HMAC" },
+  { path: "/api/animdl/hls", methods: ["GET"], auth: "public", notes: "подписанный HLS-прокси, HMAC" },
+  { path: "/api/animdl/stream", methods: ["GET"], auth: "public", notes: "резолв источников запасного плеера" },
+  { path: "/api/animdl/torrent", methods: ["GET"], auth: "public", notes: "подписанный прокси .torrent, HMAC" },
   { path: "/api/anime-batch", methods: ["GET"], auth: "public" },
   { path: "/api/anime/:id", methods: ["GET"], auth: "public" },
   { path: "/api/anime/catalog", methods: ["GET"], auth: "public" },
