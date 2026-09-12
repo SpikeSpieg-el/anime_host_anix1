@@ -12,11 +12,27 @@
  *      и субтитры.
  */
 
-const ALLANIME_SITE = process.env.ALLANIME_SITE_URL || "https://allanime.to/"
+// С 2025-2026 сайт AllAnime живёт на allmanga.to; API прежний.
+const ALLANIME_SITE = process.env.ALLANIME_SITE_URL || "https://allmanga.to/"
 const ALLANIME_API_ENDPOINT = process.env.ALLANIME_API_URL || "https://api.allanime.day/api"
 
 const BROWSER_UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+
+/**
+ * Заголовки по спецификации AllManga (2026): без браузерных client-hints
+ * API отвечает 200 с null-data или 403, что выглядит как «ничего не нашли».
+ */
+function gqlHeaders(): Record<string, string> {
+  return {
+    Referer: ALLANIME_SITE,
+    "User-Agent": BROWSER_UA,
+    Accept: "application/json",
+    "sec-ch-ua": '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
+    "sec-ch-ua-mobile": "?0",
+    "sec-ch-ua-platform": '"Windows"',
+  }
+}
 
 /** XOR-ключ из animdl (one_digit_symmetric_xor(56, ...)). */
 export const ALLANIME_XOR_KEY = 56
@@ -92,17 +108,13 @@ query ($showId: String!, $translationType: VaildTranslationTypeEnumType!, $episo
     }
 }`
 
-/** Хэш persisted-запроса из animdl (fallback при rate-limit обычного запроса). */
+/** Хэш persisted-запроса эпизода из animdl (fallback при rate-limit). */
 const EPISODE_PERSISTED_HASH =
   "0ac09728ee9d556967c1a60bbcf55a9f58b4112006d09a258356aeafe1c33889"
 
-function gqlHeaders(): Record<string, string> {
-  return {
-    Referer: ALLANIME_SITE,
-    "User-Agent": BROWSER_UA,
-    Accept: "application/json",
-  }
-}
+/** Хэш persisted-запроса поиска из актуальной спецификации AllManga (2026). */
+const SEARCH_PERSISTED_HASH =
+  "2d48e19fb67ddcac42fbb885204b6abb0a84f406f15ef83f36de4a66f49f651a"
 
 interface GqlEnvelope {
   data?: Record<string, unknown> | null
@@ -146,14 +158,24 @@ async function fetchEpisodeGql(
   try {
     const response = await fetchGqlRaw(EPISODE_GQL, variables)
     if (!response.errors && response.data) return response.data
-  } catch {
-    // падаем на persisted-запрос
+    console.warn(
+      "[animdl/allanime] episode query rejected, trying persisted:",
+      JSON.stringify(response.errors ?? "empty data").slice(0, 300),
+    )
+  } catch (error) {
+    console.warn("[animdl/allanime] episode query failed, trying persisted:", error)
   }
 
   const response = await fetchGqlRaw(EPISODE_GQL, variables, {
     persistedQuery: { version: 1, sha256Hash: EPISODE_PERSISTED_HASH },
   })
-  if (response.errors || !response.data) return {}
+  if (response.errors || !response.data) {
+    console.warn(
+      "[animdl/allanime] persisted episode query also failed:",
+      JSON.stringify(response.errors ?? "empty data").slice(0, 300),
+    )
+    return {}
+  }
   return response.data
 }
 
@@ -167,23 +189,46 @@ export async function searchAllAnime(
 ): Promise<AllAnimeShow[]> {
   const limit = Math.min(Math.max(options.limit ?? 8, 1), 40)
 
+  const variables = {
+    search: {
+      allowAdult: options.allowAdult ?? false,
+      allowUnknown: false,
+      query,
+    },
+    limit,
+    page: 1,
+    ...(options.translationType ? { translationType: options.translationType } : {}),
+    countryOrigin: "ALL",
+  }
+
+  // Обычный GQL-запрос (как в animdl), при отказе — persisted-запрос из
+  // актуальной спецификации AllManga.
   const data = await (async () => {
-    const response = await fetchGqlRaw(
-      SEARCH_GQL,
-      {
-        search: {
-          allowAdult: options.allowAdult ?? false,
-          allowUnknown: false,
-          query,
-        },
-        limit,
-        page: 1,
-        ...(options.translationType ? { translationType: options.translationType } : {}),
-        countryOrigin: "ALL",
-      },
-    )
-    if (response.errors || !response.data) return {}
-    return response.data
+    try {
+      const response = await fetchGqlRaw(SEARCH_GQL, variables)
+      if (!response.errors && response.data?.shows) return response.data
+      console.warn(
+        "[animdl/allanime] search query rejected, trying persisted:",
+        JSON.stringify(response.errors ?? "empty data").slice(0, 300),
+      )
+    } catch (error) {
+      console.warn("[animdl/allanime] search query failed, trying persisted:", error)
+    }
+
+    try {
+      const response = await fetchGqlRaw(SEARCH_GQL, variables, {
+        persistedQuery: { version: 1, sha256Hash: SEARCH_PERSISTED_HASH },
+      })
+      if (!response.errors && response.data?.shows) return response.data
+      console.warn(
+        "[animdl/allanime] persisted search also failed:",
+        JSON.stringify(response.errors ?? "empty data").slice(0, 300),
+      )
+    } catch (error) {
+      console.warn("[animdl/allanime] persisted search failed:", error)
+    }
+
+    return {}
   })()
 
   const edges =
@@ -432,8 +477,12 @@ export async function findShowForEpisode(
             show.availableEpisodesDetail?.[translationType]?.includes(String(episode)),
         ) ?? null
       if (match) return match
-    } catch {
+      console.warn(
+        `[animdl/allanime] поиск "${query}" (${translationType}): совпадений с серией ${episode} нет (найдено тайтлов: ${shows.length})`,
+      )
+    } catch (error) {
       // источник может быть недоступен — пробуем следующий запрос
+      console.warn(`[animdl/allanime] поиск "${query}" (${translationType}) упал:`, error)
     }
   }
   return null

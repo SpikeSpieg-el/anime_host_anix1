@@ -19,6 +19,7 @@ import {
   buildAnimdlCliCommand,
   formatBytes,
   resolveEpisodeSources,
+  resolveEpisodeSourcesDetailed,
   sanitizeFilename,
 } from "@/lib/animdl/resolve"
 
@@ -121,6 +122,26 @@ describe("цепочка источников", () => {
     expect(first).toBeNull()
     expect(second).toBeNull()
     expect(mockFindShow).toHaveBeenCalledTimes(2) // dub+sub один раз, из кеша второй
+  })
+
+  it("refresh обходит негативный кеш, attempts показывает все промахи", async () => {
+    const title = `Диагностика ${testRun}-d`
+    mockPlayback.mockResolvedValue(null)
+    mockFindShow.mockResolvedValue(null)
+
+    const first = await resolveEpisodeSourcesDetailed({ title, episode: 1 })
+    const second = await resolveEpisodeSourcesDetailed({ title, episode: 1, refresh: true })
+
+    expect(first.sources).toBeNull()
+    // anilibria + allanime/dub + allanime/sub
+    expect(first.attempts.map(a => a.provider)).toEqual([
+      "anilibria", "allanime", "allanime",
+    ])
+    expect(first.attempts.every(a => !a.ok)).toBe(true)
+
+    // refresh: кеш проигнорирован — источники опрошены заново
+    expect(second.attempts).toHaveLength(first.attempts.length)
+    expect(mockFindShow).toHaveBeenCalledTimes(4)
   })
 })
 

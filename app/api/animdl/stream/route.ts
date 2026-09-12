@@ -1,12 +1,11 @@
 import { NextResponse } from "next/server"
 import { getClientIP, rateLimiters, createRateLimitResponse, addRateLimitHeaders } from "@/lib/rate-limit"
-import { resolveEpisodeSources } from "@/lib/animdl/resolve"
+import { buildAnimdlCliCommand, resolveEpisodeSourcesDetailed } from "@/lib/animdl/resolve"
 import {
   buildApiQualities,
   buildApiSubtitles,
   buildApiTorrents,
 } from "@/lib/animdl/serve"
-import { buildAnimdlCliCommand } from "@/lib/animdl/resolve"
 
 export const dynamic = "force-dynamic"
 
@@ -28,6 +27,7 @@ export async function GET(request: Request) {
   const title = (searchParams.get("title") || "").trim()
   const originalTitle = (searchParams.get("original") || "").trim() || null
   const episode = Number(searchParams.get("episode") || "1")
+  const refresh = searchParams.get("refresh") === "1"
 
   if (!title && !originalTitle) {
     return NextResponse.json({ ok: false, reason: "title-required" }, { status: 400 })
@@ -37,7 +37,12 @@ export async function GET(request: Request) {
   }
 
   try {
-    const sources = await resolveEpisodeSources({ title, originalTitle, episode })
+    const { sources, attempts } = await resolveEpisodeSourcesDetailed({
+      title,
+      originalTitle,
+      episode,
+      refresh,
+    })
 
     if (!sources) {
       return addRateLimitHeaders(
@@ -46,6 +51,8 @@ export async function GET(request: Request) {
           reason: "not-found",
           message:
             "Русский источник для этой серии не найден. Попробуйте основной плеер.",
+          // Диагностика по шагам цепочки: видно, кто именно промахнулся и почему.
+          attempts,
         }),
         limit,
       )

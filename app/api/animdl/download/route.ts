@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { getClientIP, rateLimiters, createRateLimitResponse, addRateLimitHeaders } from "@/lib/rate-limit"
-import { buildAnimdlCliCommand, resolveEpisodeSources } from "@/lib/animdl/resolve"
+import { buildAnimdlCliCommand, resolveEpisodeSourcesDetailed } from "@/lib/animdl/resolve"
 import {
   buildApiQualities,
   buildApiTorrents,
@@ -28,6 +28,7 @@ export async function GET(request: Request) {
   const title = (searchParams.get("title") || "").trim()
   const originalTitle = (searchParams.get("original") || "").trim() || null
   const episode = Number(searchParams.get("episode") || "1")
+  const refresh = searchParams.get("refresh") === "1"
 
   if (!title && !originalTitle) {
     return NextResponse.json({ ok: false, reason: "title-required" }, { status: 400 })
@@ -37,13 +38,19 @@ export async function GET(request: Request) {
   }
 
   try {
-    const sources = await resolveEpisodeSources({ title, originalTitle, episode })
+    const { sources, attempts } = await resolveEpisodeSourcesDetailed({
+      title,
+      originalTitle,
+      episode,
+      refresh,
+    })
 
     if (!sources) {
       return addRateLimitHeaders(
         NextResponse.json({
           ok: false,
           reason: "not-found",
+          attempts,
           cli: buildAnimdlCliCommand({ title, originalTitle, episode }),
         }),
         limit,

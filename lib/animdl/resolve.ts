@@ -90,11 +90,12 @@ async function resolveFromAnilibria(
   originalTitle: string | null,
   episode: number,
 ): Promise<EpisodeSources | null> {
-  let playback: AniLibriaPlayback | null = null
+  let playback: AniLibriaPlayback | null
   try {
     playback = await findAniLibriaPlayback([title, originalTitle || ""], episode)
-  } catch {
-    return null
+  } catch (error) {
+    console.warn("[animdl] AniLibria lookup failed:", error)
+    throw error instanceof Error ? error : new Error(String(error))
   }
   if (!playback || playback.qualities.length === 0) return null
 
@@ -201,17 +202,46 @@ function pickBestSources(sources: AllAnimeSource[]): AllAnimeSource[] {
   return [...hls, ...mp4]
 }
 
-export async function resolveEpisodeSources(params: {
+/** Диагностика одного шага цепочки (попадает в логи и в not-found ответ API). */
+export interface ResolveAttempt {
+  provider: EpisodeProvider
+  translationType?: string
+  query?: string
+  ok: boolean
+  /** "no-match" — источник жив, но тайтла/серии нет; иначе текст ошибки. */
+  reason?: string
+}
+
+export interface ResolveResult {
+  sources: EpisodeSources | null
+  attempts: ResolveAttempt[]
+}
+
+export async function resolveEpisodeSourcesDetailed(params: {
   title: string
   originalTitle?: string | null
   episode: number
-}): Promise<EpisodeSources | null> {
+  /** true — игнорировать негативный кеш (кнопка «Обновить»). */
+  refresh?: boolean
+}): Promise<ResolveResult> {
   const episode = Math.max(1, Math.floor(params.episode))
   const key = cacheKey({ ...params, episode })
+  const attempts: ResolveAttempt[] = []
 
-  const cached = sourcesCache.get(key)
-  if (cached) {
-    return cached.providerLabel ? cached : null
+  if (!params.refresh) {
+    const cached = sourcesCache.get(key)
+    if (cached) {
+      return { sources: cached.providerLabel ? cached : null, attempts: [] }
+    }
+  }
+
+  const cache = (sources: EpisodeSources | null) => {
+    if (sources) {
+      sourcesCache.set(key, sources)
+    } else {
+      // Негативный результат кешируем ненадолго, чтобы не долбить источники.
+      sourcesCache.set(key, NEGATIVE_CACHE_PLACEHOLDER, { ttl: 60_000 })
+    }
   }
 
   // 1. AniLibria — русская озвучка.
@@ -222,11 +252,23 @@ export async function resolveEpisodeSources(params: {
       episode,
     )
     if (fromAnilibria) {
-      sourcesCache.set(key, fromAnilibria)
-      return fromAnilibria
+      attempts.push({ provider: "anilibria", query: params.title, ok: true })
+      cache(fromAnilibria)
+      return { sources: fromAnilibria, attempts }
     }
-  } catch {
-    // падаем дальше по цепочке
+    attempts.push({
+      provider: "anilibria",
+      query: params.title,
+      ok: false,
+      reason: "no-match",
+    })
+  } catch (error) {
+    attempts.push({
+      provider: "anilibria",
+      query: params.title,
+      ok: false,
+      reason: error instanceof Error ? error.message : String(error),
+    })
   }
 
   // 2. AllAnime dub → 3. AllAnime sub.
@@ -239,18 +281,49 @@ export async function resolveEpisodeSources(params: {
         translationType,
       )
       if (fromAllAnime) {
-        sourcesCache.set(key, fromAllAnime)
-        return fromAllAnime
+        attempts.push({
+          provider: "allanime",
+          translationType,
+          query: fromAllAnime.matchedTitle,
+          ok: true,
+        })
+        cache(fromAllAnime)
+        return { sources: fromAllAnime, attempts }
       }
-    } catch {
-      // пробуем следующий вариант перевода
+      attempts.push({
+        provider: "allanime",
+        translationType,
+        query: params.originalTitle || params.title,
+        ok: false,
+        reason: "no-match",
+      })
+    } catch (error) {
+      attempts.push({
+        provider: "allanime",
+        translationType,
+        query: params.originalTitle || params.title,
+        ok: false,
+        reason: error instanceof Error ? error.message : String(error),
+      })
     }
   }
 
-  // Ничего не нашли — кешируем негативный результат ненадолго,
-  // чтобы не долбить источники на каждый клик.
-  sourcesCache.set(key, NEGATIVE_CACHE_PLACEHOLDER, { ttl: 60_000 })
-  return null
+  console.warn(
+    "[animdl] цепочка источников пуста:",
+    attempts.map(a => `${a.provider}${a.translationType ? `/${a.translationType}` : ""}: ${a.reason}`).join("; "),
+  )
+  cache(null)
+  return { sources: null, attempts }
+}
+
+export async function resolveEpisodeSources(params: {
+  title: string
+  originalTitle?: string | null
+  episode: number
+  refresh?: boolean
+}): Promise<EpisodeSources | null> {
+  const { sources } = await resolveEpisodeSourcesDetailed(params)
+  return sources
 }
 
 const NEGATIVE_CACHE_PLACEHOLDER: EpisodeSources = {

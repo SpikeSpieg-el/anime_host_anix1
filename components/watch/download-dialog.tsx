@@ -101,7 +101,7 @@ export function DownloadDialog({ title, originalTitle, episode, trackerQuery }: 
 
   const query = trackerQuery || title
 
-  const loadOptions = useCallback(async () => {
+  const loadOptions = useCallback(async (options?: { refresh?: boolean }) => {
     if (!title) return
     setIsLoading(true)
     setData(null)
@@ -110,6 +110,7 @@ export function DownloadDialog({ title, originalTitle, episode, trackerQuery }: 
       url.searchParams.set("title", title)
       if (originalTitle) url.searchParams.set("original", originalTitle)
       url.searchParams.set("episode", String(episode))
+      if (options?.refresh) url.searchParams.set("refresh", "1")
 
       const response = await fetch(url.toString(), { cache: "no-store" })
       setData((await response.json()) as DownloadResponse)
@@ -321,7 +322,7 @@ export function DownloadDialog({ title, originalTitle, episode, trackerQuery }: 
             variant="outline"
             size="sm"
             className="gap-2 border-border text-muted-foreground hover:text-foreground"
-            onClick={loadOptions}
+            onClick={() => loadOptions({ refresh: true })}
             disabled={isLoading}
           >
             {isLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}

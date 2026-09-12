@@ -448,7 +448,8 @@ export async function findAniLibriaPlayback(
         filter: 'id,code,names,player,type',
       });
       list = response.list ?? [];
-    } catch {
+    } catch (error) {
+      console.warn('[AniLibria] поиск недоступен для "' + variant + '":', error);
       continue;
     }
 
@@ -476,7 +477,8 @@ export async function findAniLibriaPlayback(
         qualities,
         torrents: full.torrents?.list ?? [],
       };
-    } catch {
+    } catch (error) {
+      console.warn('[AniLibria] не удалось получить плеер для "' + match.code + '":', error);
       continue;
     }
   }

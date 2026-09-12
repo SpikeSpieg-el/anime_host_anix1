@@ -76,6 +76,8 @@ export function BackupPlayer({
   const lastProgressSecondRef = useRef(-1)
   const resumeTimeRef = useRef(0)
   const retryCountRef = useRef(0)
+  // Кнопка «Обновить»: инкремент заставляет резолв игнорировать негативный кеш.
+  const [refreshNonce, setRefreshNonce] = useState(0)
 
   const resetForEpisode = useCallback(() => {
     hlsRef.current?.destroy()
@@ -106,6 +108,7 @@ export function BackupPlayer({
         url.searchParams.set("title", title)
         if (originalTitle) url.searchParams.set("original", originalTitle)
         url.searchParams.set("episode", String(episode))
+        if (refreshNonce > 0) url.searchParams.set("refresh", "1")
 
         const response = await fetch(url.toString(), { cache: "no-store" })
         const data = (await response.json()) as StreamResponse
@@ -135,7 +138,7 @@ export function BackupPlayer({
       cancelled = true
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isActive, phase, episode, title, originalTitle])
+  }, [isActive, phase, episode, title, originalTitle, refreshNonce])
 
   // Подключение видео-потока (hls.js или нативный HLS в Safari).
   useEffect(() => {
@@ -320,8 +323,9 @@ export function BackupPlayer({
                 className="gap-2 border-zinc-700 text-zinc-400 hover:text-white hover:border-zinc-600"
                 onClick={() => {
                   setErrorMessage(null)
+                  setStatusText("Пробуем ещё раз, минуя кеш…")
+                  setRefreshNonce(n => n + 1)
                   setPhase("resolving")
-                  setStatusText("Пробуем ещё раз…")
                 }}
               >
                 <RefreshCw className="w-4 h-4" />
