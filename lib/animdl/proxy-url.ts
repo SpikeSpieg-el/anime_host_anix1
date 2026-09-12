@@ -7,7 +7,7 @@
  * наши же API-роуты (`stream`/`download`), браузер лишь воспроизводит её.
  */
 
-import { createHmac, randomUUID, timingSafeEqual } from "node:crypto"
+import { createHash, createHmac, randomUUID, timingSafeEqual } from "node:crypto"
 
 export type AnimdlProxyKind = "hls" | "file" | "torrent"
 
@@ -17,13 +17,30 @@ const KIND_TO_ROUTE: Record<AnimdlProxyKind, string> = {
   torrent: "/api/animdl/torrent",
 }
 
-// Секрет живёт в памяти процесса: перезапуск инвалидирует старые ссылки,
-// что не страшно — они генерируются заново при каждом открытии плеера/диалога.
+// Секрет прокси. Приоритет: явный ANIMDL_PROXY_SECRET → стабильная производная
+// от существующего серверного секрета (чтобы ссылки не умирали при рестарте
+// контейнера и работали между репликами) → случайный (только локальный dev).
 let proxySecret: string | null = null
+
+/**
+ * Чистая функция резолва секрета из окружения (покрыта юнит-тестом).
+ */
+export function resolveProxySecret(
+  env: Record<string, string | undefined>,
+): string {
+  if (env.ANIMDL_PROXY_SECRET) return env.ANIMDL_PROXY_SECRET
+
+  const base = env.SUPABASE_SERVICE_ROLE_KEY || env.VK_SERVICE_KEY
+  if (base) {
+    return createHash("sha256").update(`animdl-proxy:${base}`).digest("hex")
+  }
+
+  return randomUUID()
+}
 
 function getProxySecret(): string {
   if (!proxySecret) {
-    proxySecret = process.env.ANIMDL_PROXY_SECRET || randomUUID()
+    proxySecret = resolveProxySecret(process.env)
   }
   return proxySecret
 }

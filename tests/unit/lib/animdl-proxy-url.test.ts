@@ -3,8 +3,31 @@ import {
   createSignedProxyUrl,
   decodeProxyParam,
   encodeProxyParam,
+  resolveProxySecret,
   verifyProxyRequest,
 } from "@/lib/animdl/proxy-url"
+
+describe("resolveProxySecret (стабильность в деплое)", () => {
+  it("явный ANIMDL_PROXY_SECRET имеет приоритет", () => {
+    expect(
+      resolveProxySecret({ ANIMDL_PROXY_SECRET: "explicit" }),
+    ).toBe("explicit")
+  })
+
+  it("без явного — стабильная производная от серверного секрета", () => {
+    const a = resolveProxySecret({ SUPABASE_SERVICE_ROLE_KEY: "svc-key" })
+    const b = resolveProxySecret({ SUPABASE_SERVICE_ROLE_KEY: "svc-key" })
+    expect(a).toBe(b)
+    expect(a).not.toContain("svc-key") // секрет не утекает в само значение
+    expect(a).toHaveLength(64) // sha256 hex
+  })
+
+  it("производная не зависит от ротации другого секрета", () => {
+    const fromSupabase = resolveProxySecret({ SUPABASE_SERVICE_ROLE_KEY: "k1" })
+    const fromVk = resolveProxySecret({ VK_SERVICE_KEY: "k2" })
+    expect(fromSupabase).not.toBe(fromVk)
+  })
+})
 
 describe("animdl proxy-url", () => {
   it("кодирует и декодирует параметры туда-обратно", () => {
