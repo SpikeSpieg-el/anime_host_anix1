@@ -33,17 +33,25 @@ interface AniLibriaSeason {
   week_day: number;
 }
 
+interface AniLibriaHlsQualities {
+  fhd?: string;
+  hd?: string;
+  sd?: string;
+}
+
 interface AniLibriaPlayer {
   episode?: number;
   last?: number;
+  /** Хост для построения ссылок на поток (api v3), напр. "cache.libria.fun". */
+  host?: string;
   list?: Record<string, {
     episode: number;
-    hls?: Record<string, string>;
+    hls?: AniLibriaHlsQualities;
     host?: string;
   }>;
 }
 
-interface AniLibriaTorrent {
+export interface AniLibriaTorrent {
   torrent_id: number;
   hash: string;
   leechers: number;
@@ -58,6 +66,9 @@ interface AniLibriaTorrent {
     string: string;
   };
   uploaded_timestamp: number;
+  /** Путь для скачивания .torrent из api v3: "/public/torrent/download.php?id=...". */
+  url?: string;
+  magnet?: string;
 }
 
 interface AniLibriaTorrents {
@@ -327,19 +338,148 @@ export async function getAniLibriaEpisodeStream(animeId: string, episodeId: stri
     const response = await fetchAniLibria<AniLibriaTitle>('/title', {
       id: animeId,
       filter: 'player',
-      playlist_type: 'array',
     });
 
-    const episode = response.player?.list?.[episodeId];
+    const player = response.player;
+    const episode = player?.list?.[episodeId] ?? player?.list?.[String(Number(episodeId))];
     if (!episode?.hls) {
       return null;
     }
 
-    // Return highest quality available
-    const hls = episode.hls as Record<string, string>;
-    return hls['1080p'] || hls['720p'] || hls['480p'] || hls['360p'] || null;
+    // В api v3 ссылки относительные, домен лежит в player.host
+    // (пример из документации: https://cache.libria.fun/videos/media/ts/...)
+    const host = player?.host || episode.host;
+    if (!host) return null;
+
+    const hls = episode.hls;
+    const path = hls.fhd || hls.hd || hls.sd || null;
+    if (!path) return null;
+
+    return `https://${host}${path}`;
   } catch (error) {
     console.error('[AniLibria] Error fetching episode stream:', error);
     return null;
   }
+}
+
+/** Обёртка над одним качеством серии AniLibria. */
+export interface AniLibriaEpisodeQuality {
+  /** Человекочитаемая метка качества: "1080p", "720p", "480p". */
+  label: string;
+  /** Абсолютная ссылка на HLS-плейлист. */
+  url: string;
+}
+
+export interface AniLibriaPlayback {
+  titleId: number;
+  code: string;
+  /** Русское название релиза. */
+  title: string;
+  /** Все доступные качества для запрошенной серии. */
+  qualities: AniLibriaEpisodeQuality[];
+  torrents: AniLibriaTorrent[];
+}
+
+/** Абсолютная ссылка на .torrent-файл AniLibria. */
+export function getAniLibriaTorrentDownloadUrl(torrent: AniLibriaTorrent): string {
+  const base = 'https://www.anilibria.tv';
+  if (torrent.url) {
+    return torrent.url.startsWith('http') ? torrent.url : `${base}${torrent.url}`;
+  }
+  return `${base}/public/torrent/download.php?id=${torrent.torrent_id}`;
+}
+
+/**
+ * Нормализация названия для нечувствительного к регистру/пунктуации сопоставления.
+ */
+export function normalizeTitleForMatch(value: string): string {
+  return value
+    .toLowerCase()
+    .replaceAll('ё', 'е')
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .trim();
+}
+
+function titleMatches(needle: string, haystack: string): boolean {
+  const a = normalizeTitleForMatch(needle);
+  const b = normalizeTitleForMatch(haystack);
+  if (!a || !b) return false;
+  return a === b || (a.length >= 4 && b.includes(a)) || (b.length >= 4 && a.includes(b));
+}
+
+function mapAniLibriaHls(
+  player: AniLibriaPlayer,
+  episodeId: number | string,
+): AniLibriaEpisodeQuality[] {
+  const host = player.host;
+  const episode = player.list?.[String(episodeId)] ?? player.list?.[String(Number(episodeId))];
+  if (!host || !episode?.hls) return [];
+
+  const hls = episode.hls;
+  const qualityLabels: Array<[string, string | undefined]> = [
+    ['1080p', hls.fhd],
+    ['720p', hls.hd],
+    ['480p', hls.sd],
+  ];
+
+  return qualityLabels
+    .filter(([, path]) => Boolean(path))
+    .map(([label, path]) => ({ label, url: `https://${host}${path}` }));
+}
+
+/**
+ * Ищет релиз AniLibria по любому из вариантов названия и возвращает
+ * HLS-качества и торренты для запрошенной серии. AniLibria — полностью
+ * русскоязычный стриминг, поэтому это первый источник в цепочке запасного плеера.
+ */
+export async function findAniLibriaPlayback(
+  titleVariants: string[],
+  episode: number,
+): Promise<AniLibriaPlayback | null> {
+  const variants = titleVariants.filter((value) => value && value.trim().length > 0);
+  if (variants.length === 0) return null;
+
+  for (const variant of variants) {
+    let list: AniLibriaTitle[];
+    try {
+      const response = await fetchAniLibria<{ list: AniLibriaTitle[] }>('/title/search', {
+        search: variant,
+        limit: '8',
+        filter: 'id,code,names,player,type',
+      });
+      list = response.list ?? [];
+    } catch {
+      continue;
+    }
+
+    const match = list.find((release) =>
+      titleMatches(variant, release.names?.ru || '') ||
+      titleMatches(variant, release.names?.en || '') ||
+      (release.names?.alternative ?? []).some((alt) => titleMatches(variant, alt)),
+    );
+
+    if (!match) continue;
+
+    try {
+      const full = await fetchAniLibria<AniLibriaTitle>('/title', {
+        id: String(match.id),
+        filter: 'id,code,names,player,torrents',
+      });
+
+      const qualities = full.player ? mapAniLibriaHls(full.player, episode) : [];
+      if (qualities.length === 0) continue;
+
+      return {
+        titleId: full.id,
+        code: full.code,
+        title: full.names?.ru || full.names?.en || variant,
+        qualities,
+        torrents: full.torrents?.list ?? [],
+      };
+    } catch {
+      continue;
+    }
+  }
+
+  return null;
 }
