@@ -9,6 +9,8 @@
 ### 📺 Аниме и Манга
 - **Каталог аниме** — обширная база с фильтрацией по жанрам, годам, статусам и рейтингам
 - **Просмотр в хорошем качестве** — интеграция с Kodik API, VK Video и прокси-плеерами
+- **Запасной плеер на animdl** — прямой стрим AniLibria (русская озвучка) / AllAnime без VK-iframe
+- **Скачивание серий** — mp4 / HLS-плейлист / торренты AniLibria + команда animdl CLI
 - **Чтение манги** — агрегатор MangaDex, Comick, MangaLib, Remanga, MangaEden
 - **Умные рекомендации** — персональные рекомендации на основе истории просмотров
 - **Закладки и история** — сохранение тайтлов, отслеживание прогресса, архивация
@@ -104,6 +106,13 @@ NEXT_PUBLIC_UMAMI_URL=https://analytics.weeb-x.com
 # NEXT_PUBLIC_UMAMI_SCRIPT_PATH=/script.js   # если в Umami задан TRACKER_SCRIPT_NAME
 # NEXT_PUBLIC_UMAMI_DOMAINS=weeb-x.com       # сбор только с этих хостов
 # NEXT_PUBLIC_UMAMI_TAG=production
+
+# animdl (запасной плеер / скачивание). Всё опционально:
+# секрет подписи прокси-ссылок (по умолчанию — случайный на процесс)
+# ANIMDL_PROXY_SECRET=change-me-in-production
+# endpoints AllAnime, если сайт переехал
+# ALLANIME_SITE_URL=https://allanime.to/
+# ALLANIME_API_URL=https://api.allanime.day/api
 ```
 
 ### Запуск разработки
@@ -127,6 +136,7 @@ npm start
 │   ├── admin/                 # Админ-панель
 │   ├── anime/                 # Страницы аниме
 │   ├── api/                   # API Routes (50+ эндпоинтов)
+│   │   ├── animdl/            # Запасной плеер и скачивание (animdl: stream/download/hls/file/torrent)
 │   │   ├── anime/             # API аниме
 │   │   ├── backdrops/         # Фоновые изображения
 │   │   ├── battle/            # API боевой системы

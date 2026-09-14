@@ -7,15 +7,12 @@ import Link from "next/link"
 import { 
   ArrowLeft, 
   Bookmark, 
-  Download, 
-  ExternalLink, 
-  HardDrive, 
-  FileVideo, 
   PlayCircle
 } from "lucide-react"
 import type { Anime } from "@/lib/shikimori"
 import { KodikPlayer } from "@/components/watch/kodik-player"
 import { BackupPlayer } from "@/components/watch/backup-player"
+import { DownloadDialog } from "@/components/watch/download-dialog"
 import { HentaiPlayer } from "@/components/watch/hentai-player"
 import { EpisodeSelector } from "@/components/watch/episode-selector"
 import { RegionWarning } from "@/components/shared/region-warning"
@@ -24,14 +21,6 @@ import { activityRecorder } from "@/components/providers/account-stats-recorder"
 import { Button } from "@/components/ui/button"
 import { useBookmarks } from "@/components/providers/bookmarks-provider"
 import { useAuth } from "@/components/auth/auth-provider"
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-  DialogDescription
-} from "@/components/ui/dialog"
 import { isHentaiContent } from "@/lib/hentai-detector"
 import { WatchPageGallery } from "@/components/watch/watch-page-gallery"
 import { CoverModal } from "@/components/watch/cover-modal"
@@ -46,13 +35,6 @@ import { GuestHookId, canShowGuestHook } from "@/lib/guest-hooks"
 interface WatchPageClientProps {
   anime: Anime
   initialEpisode?: number
-}
-
-const getTrackerLink = (tracker: 'rutracker' | 'rutor', query: string) => {
-  const term = encodeURIComponent(query)
-  if (tracker === 'rutracker') return `https://rutracker.org/forum/tracker.php?nm=${term}`
-  if (tracker === 'rutor') return `https://rutor.info/search/0/0/0/0/${term}`
-  return '#'
 }
 
 const getEpisodeText = (count: number): string => {
@@ -361,71 +343,12 @@ export function WatchPageClient({ anime, initialEpisode }: WatchPageClientProps)
             <span>{saved ? "Сохранено" : "В закладки"}</span>
           </Button>
 
-          <Dialog>
-            <DialogTrigger asChild>
-              <Button
-                size="sm"
-                variant="ghost"
-                className="gap-2 bg-card border border-border text-muted-foreground hover:text-foreground hover:bg-card/80 transition-all"
-              >
-                <Download className="w-4 h-4" />
-                <span className="hidden sm:inline">Скачать</span>
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="bg-card border-border text-foreground w-[90vw] max-w-md rounded-2xl">
-              <DialogHeader>
-                <DialogTitle className="text-xl">Скачать аниме</DialogTitle>
-                <DialogDescription className="text-muted-foreground">
-                  Поиск торрентов на внешних ресурсах.
-                </DialogDescription>
-              </DialogHeader>
-
-              <div className="flex flex-col gap-5 py-2">
-                <div className="space-y-3">
-                  <h3 className="text-xs uppercase tracking-wider font-bold text-muted-foreground flex items-center gap-2">
-                    <HardDrive className="w-3 h-3" />
-                    Весь сезон
-                  </h3>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <a
-                      href={getTrackerLink('rutracker', anime.title)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center justify-between px-4 py-3 rounded-xl bg-card/50 border border-border hover:border-primary/40 hover:bg-card/80 transition-all group"
-                    >
-                      <span className="font-medium text-sm">RuTracker</span>
-                      <ExternalLink className="w-3 h-3 text-muted-foreground group-hover:text-primary transition-colors" />
-                    </a>
-                    <a
-                      href={getTrackerLink('rutor', anime.title)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center justify-between px-4 py-3 rounded-xl bg-card/50 border border-border hover:border-primary/40 hover:bg-card/80 transition-all group"
-                    >
-                      <span className="font-medium text-sm">Rutor</span>
-                      <ExternalLink className="w-3 h-3 text-muted-foreground group-hover:text-primary transition-colors" />
-                    </a>
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  <h3 className="text-xs uppercase tracking-wider font-bold text-muted-foreground flex items-center gap-2">
-                    <FileVideo className="w-3 h-3" />
-                    Текущая серия ({selectedEpisode})
-                  </h3>
-                  <a
-                    href={getTrackerLink('rutor', `${anime.title} ${selectedEpisode} серия`)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center justify-center gap-2 w-full p-3 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground font-medium transition-colors shadow-lg shadow-primary/20"
-                  >
-                    <Download className="w-4 h-4" />
-                    Найти серию на Rutor
-                  </a>
-                </div>
-              </div>
-            </DialogContent>
-          </Dialog>
+          <DownloadDialog
+            title={anime.title}
+            originalTitle={anime.originalTitle}
+            episode={selectedEpisode}
+            trackerQuery={anime.originalTitle || anime.title}
+          />
         </div>
       </div>
 
@@ -575,8 +498,10 @@ export function WatchPageClient({ anime, initialEpisode }: WatchPageClientProps)
           ) : (
             <BackupPlayer
               title={anime.title}
+              originalTitle={anime.originalTitle}
               episode={selectedEpisode}
               isActive={true}
+              poster={anime.poster}
               onStart={() => {
                 trackEvent(AnalyticsEvent.EPISODE_PLAY, {
                   shikimori_id: anime.shikimoriId,
@@ -586,6 +511,7 @@ export function WatchPageClient({ anime, initialEpisode }: WatchPageClientProps)
                 })
                 setIsStarted(true)
               }}
+              onProgressUpdate={handleProgressUpdate}
             />
           )}
         </div>

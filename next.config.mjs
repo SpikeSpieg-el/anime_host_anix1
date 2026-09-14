@@ -167,6 +167,8 @@ const nextConfig = {
               "font-src 'self' data: https://fonts.gstatic.com",
               `connect-src 'self' https://*.supabase.co https://nhost.weebx.duckdns.org:8443 wss://nhost.weebx.duckdns.org:8443 ${UMAMI_ORIGIN} /stats https://shikimori.one https://shikimori.io https://*.shikimori.one https://*.shikimori.io ${PVP_SERVER_ORIGIN}`,
               "frame-src 'self' https: http:",
+              // worker-src: hls.js (запасной плеер) создаёт Worker из blob:
+              "worker-src 'self' blob:",
               "media-src 'self' https: http: blob:",
               "object-src 'none'",
               "base-uri 'self'",
