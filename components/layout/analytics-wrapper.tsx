@@ -5,7 +5,8 @@ import { usePathname, useSearchParams } from "next/navigation"
 import { useConsent } from "@/components/providers/consent-provider"
 import { useAuth } from "@/components/auth/auth-provider"
 import {
-  identifyUser, isAnalyticsEnabled, loadAnalyticsScript, sanitizeAnalyticsUrl,
+  buildGuestProperties, buildUserProperties, getGuestIdentity, identifyUser,
+  isAnalyticsEnabled, loadAnalyticsScript, sanitizeAnalyticsUrl,
   trackPageview, unloadAnalyticsScript,
 } from "@/lib/analytics"
 import { installAnalyticsDomTracking } from "@/lib/analytics-dom"
@@ -15,7 +16,7 @@ import { activityRecorder } from "@/components/providers/account-stats-recorder"
 
 export function AnalyticsWrapper() {
   const { consent, hasConsent } = useConsent()
-  const { user, sessionLoading } = useAuth()
+  const { user, sessionLoading, profile } = useAuth()
   const pathname = usePathname()
   const search = useSearchParams().toString()
   const granted = hasConsent && Boolean(consent?.analytics)
@@ -26,10 +27,20 @@ export function AnalyticsWrapper() {
     else unloadAnalyticsScript()
   }, [granted])
 
-  // Identify before this route's pageview. Clear identity on logout/account switch.
+  // Identify before this route's pageview.
+  // Авторизованный — `supabase:<uuid>` + свойства профиля (повторный identify,
+  // когда профиль догрузился: Umami обновляет свойства по ключу).
+  // Гость — стабильный `guest:<uuid>` + свойства, чтобы в Umami его можно было
+  // отличить, профилировать и фильтровать, а не потерять как анонима.
   useEffect(() => {
-    if (granted && !sessionLoading) identifyUser(user?.id ? `supabase:${user.id}` : "")
-  }, [granted, user?.id, sessionLoading])
+    if (!granted || sessionLoading) return
+    if (user?.id) {
+      identifyUser(`supabase:${user.id}`, buildUserProperties(profile))
+    } else {
+      const visitor = getGuestIdentity()
+      identifyUser(visitor.id, buildGuestProperties(visitor))
+    }
+  }, [granted, user?.id, sessionLoading, profile])
 
   useEffect(() => {
     if (sessionLoading) return
