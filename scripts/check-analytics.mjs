@@ -31,7 +31,7 @@ try {
     if (!body?.payload?.website) return route.continue()
     requests++
     body.payload.tag = runId
-    const record = { type: body.type, event: body.payload.name || 'pageview', url: body.payload.url, website: body.payload.website }
+    const record = { type: body.type, event: body.payload.name || (body.type === 'identify' ? 'identify' : 'pageview'), url: body.payload.url, website: body.payload.website }
     if (!values.live) {
       deliveries.push({ ...record, mocked: true })
       return route.fulfill({ status: 200, contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' }, body: JSON.stringify({ cache: 'audit-mock', sessionId: 'audit-mock', visitId: 'audit-mock' }) })

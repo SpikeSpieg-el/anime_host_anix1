@@ -3,6 +3,9 @@ import {
   AnalyticsEvent,
   DEFAULT_UMAMI_ORIGIN,
   UMAMI_SCRIPT_TAG_ID,
+  buildGuestProperties,
+  buildUserProperties,
+  getGuestIdentity,
   getUmamiDomains,
   getUmamiOrigin,
   getUmamiScriptUrl,
@@ -183,7 +186,7 @@ function mockTracker() {
     payloads.push((build as (base: Record<string, unknown>) => Record<string, unknown>)({ website: WEBSITE_ID, hostname: "localhost", screen: "1920x1080", language: "ru" }))
     return Promise.resolve()
   })
-  const identify = vi.fn(() => Promise.resolve())
+  const identify = vi.fn((_id?: unknown, _data?: unknown) => Promise.resolve())
   window.umami = { track, identify }
   return { track, identify, payloads }
 }
@@ -324,6 +327,87 @@ describe("delivery lifecycle", () => {
     expect(scriptTag()).toBeNull()
     loadAnalyticsScript()
     expect(scriptTag()).not.toBeNull()
+  })
+})
+
+describe("идентичность и свойства посетителей (вкладка «Свойства» Umami)", () => {
+  it("создаёт стабильный гостевой id в localStorage и переиспользует его", () => {
+    localStorage.clear()
+    const a = getGuestIdentity()
+    const b = getGuestIdentity()
+    expect(a.id).toMatch(/^guest:/)
+    expect(a.id).toBe(b.id)
+    expect(localStorage.getItem("weebx-guest-id")).toBeTruthy()
+    expect(a.firstVisit).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+    expect(a.landingPage).toBe(window.location.pathname)
+    expect(a.referrerDomain).toBe("direct") // jsdom не имеет document.referrer
+  })
+
+  it("фиксирует landing и рефerrer только первого визита", () => {
+    localStorage.clear()
+    const first = getGuestIdentity()
+    window.history.pushState({}, "", "/gacha")
+    const second = getGuestIdentity()
+    expect(second.id).toBe(first.id)
+    expect(second.landingPage).toBe(first.landingPage)
+    expect(second.firstVisit).toBe(first.firstVisit)
+  })
+
+  it("свойства гостя: user_type, прогресс гачи, устройство", () => {
+    localStorage.clear()
+    const fresh = buildGuestProperties(getGuestIdentity())
+    expect(fresh.user_type).toBe("guest")
+    expect(fresh.guest_cards).toBe(0)
+    expect(fresh.guest_dust).toBe(0)
+    expect(fresh.guest_gacha_active).toBe(false)
+    expect(fresh.device).toBe("desktop") // jsdom: UA без мобильных маркеров
+
+    localStorage.setItem("gacha-collection", JSON.stringify([{ id: 1 }, { id: 2 }]))
+    localStorage.setItem("gacha-dust", "150")
+    const engaged = buildGuestProperties(getGuestIdentity())
+    expect(engaged.guest_cards).toBe(2)
+    expect(engaged.guest_dust).toBe(150)
+    expect(engaged.guest_gacha_active).toBe(true)
+  })
+
+  it("свойства пользователя: user_type и username без email", () => {
+    expect(buildUserProperties(null)).toEqual({ user_type: "registered", referred: false })
+    expect(buildUserProperties({ username: "weeb" })).toEqual({
+      user_type: "registered", referred: false, username: "weeb",
+    })
+    // username-из-email — персональные данные, в Umami не отправляем
+    expect(buildUserProperties({ username: "user@example.com" })).not.toHaveProperty("username")
+    expect(buildUserProperties({ username: "weeb", referred_by: "code" }).referred).toBe(true)
+  })
+
+  it("identify шлёт свойства и дублирует только при их изменении", async () => {
+    localStorage.clear()
+    const { identify } = mockTracker()
+    loadAnalyticsScript()
+    markScriptLoaded()
+    identifyUser("supabase:user-1", { user_type: "registered" })
+    identifyUser("supabase:user-1", { user_type: "registered" }) // те же свойства → не дублируем
+    identifyUser("supabase:user-1", { user_type: "registered", username: "weeb" }) // изменились → шлём
+    await drain()
+    expect(identify.mock.calls).toEqual([
+      ["supabase:user-1", { user_type: "registered" }],
+      ["supabase:user-1", { user_type: "registered", username: "weeb" }],
+    ])
+  })
+
+  it("pageview гостя несёт его id, identify уходит с properties первым", async () => {
+    localStorage.clear()
+    const { payloads, identify } = mockTracker()
+    loadAnalyticsScript()
+    markScriptLoaded()
+    const visitor = getGuestIdentity()
+    identifyUser(visitor.id, buildGuestProperties(visitor))
+    trackPageview("/gacha")
+    await drain()
+    expect(identify).toHaveBeenCalledTimes(1)
+    expect(identify.mock.calls[0][0]).toBe(visitor.id)
+    expect(identify.mock.calls[0][1]).toMatchObject({ user_type: "guest", guest_cards: 0 })
+    expect(payloads[0].id).toBe(visitor.id)
   })
 })
 

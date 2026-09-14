@@ -50,6 +50,7 @@ const queue: QueuedEvent[] = []
 let scriptLoaded = false
 let consentGranted = false
 let identity = ""
+let identityDataKey: string | null = null
 let lastPageUrl = ""
 let previousPageUrl = ""
 let sending = false
@@ -325,6 +326,7 @@ export function unloadAnalyticsScript(): void {
   consentGranted = false
   queue.length = 0
   identity = ""
+  identityDataKey = null
   lastPageUrl = ""
   previousPageUrl = ""
   // Keep the singleton in manual mode. Removing a script cannot undo executed JS.
@@ -350,11 +352,197 @@ export function trackPageview(url?: string, title?: string): void {
   enqueue({ kind: "event", context: context(nextUrl, title) })
 }
 
-/** Supabase UUID is pseudonymous personal data, never email/password. Empty id resets logout. */
+/**
+ * Supabase UUID is pseudonymous personal data, never email/password.
+ * Empty id resets identity (logout/account switch).
+ *
+ * Повторный identify с тем же id отправляется, если изменились свойства:
+ * Umami хранит Session Data в `session_data` и обновляет значения по ключу
+ * (ключ из нового identify перезаписывает старый, остальные сохраняются).
+ * Так профиль успевает «дополниться» данными, пришедшими позже (например,
+ * username после загрузки профиля).
+ */
 export function identifyUser(id: string, data?: UmamiEventData): void {
-  if (!isAnalyticsEnabled() || id === identity) return
+  if (!isAnalyticsEnabled()) return
+  const sanitized = sanitizeEventData(data)
+  const dataKey = sanitized ? JSON.stringify(sanitized) : null
+  if (id === identity && dataKey === identityDataKey) return
   identity = id
-  enqueue({ kind: "identify", id, data: sanitizeEventData(data) })
+  identityDataKey = dataKey
+  enqueue({ kind: "identify", id, data: sanitized })
+}
+
+/* -------------------------------------------------------------------------- */
+/* Идентичность и свойства посетителей (вкладка «Свойства» профиля Umami)     */
+/* -------------------------------------------------------------------------- */
+
+/** Случайный UUID гостя без аккаунта (псевдоним, не персональные данные). */
+export const GUEST_ID_STORAGE_KEY = "weebx-guest-id"
+/** Момент первого визита на этом устройстве (ISO). */
+export const GUEST_FIRST_VISIT_STORAGE_KEY = "weebx-guest-first-visit"
+/** Путь посадочной страницы первого визита. */
+export const GUEST_LANDING_STORAGE_KEY = "weebx-guest-landing"
+/** Домен источника (referral) первого визита. */
+export const GUEST_REFERRER_STORAGE_KEY = "weebx-guest-referrer"
+
+export interface VisitorIdentity {
+  /** Distinct ID для Umami: `guest:<uuid>`. */
+  id: string
+  /** Дата первого визита на этом устройстве (YYYY-MM-DD). */
+  firstVisit: string
+  /** Путь посадочной страницы первого визита. */
+  landingPage: string
+  /** Домен внешнего источника (referrer) первого визита или "direct". */
+  referrerDomain: string
+}
+
+function randomGuestId(): string {
+  try {
+    if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+      return crypto.randomUUID()
+    }
+  } catch { /* ниже — fallback */ }
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`
+}
+
+function firstVisitDate(now: number): string {
+  return new Date(now).toISOString().slice(0, 10)
+}
+
+/** Домен внешнего источника (referrer) текущего визита; "direct" — визит без referrer. */
+export function getReferrerDomain(): string {
+  try {
+    const referrer = document.referrer
+    if (!referrer) return "direct"
+    const host = new URL(referrer).hostname.toLowerCase().replace(/^www\./, "")
+    return host.slice(0, MAX_STRING_LENGTH) || "direct"
+  } catch {
+    return "direct"
+  }
+}
+
+/**
+ * Стабильная идентичность гостя. UUID создаётся один раз **после согласия**
+ * и живёт в localStorage: у посетителя без аккаунта появляется постоянный
+ * профиль в Umami (стабильный Distinct ID и сессия между визитами), а не
+ * анонимная смена IP/UA/месячной соли.
+ */
+export function getGuestIdentity(): VisitorIdentity {
+  const now = Date.now()
+  let guestId = ""
+  let firstVisit = ""
+  let landingPage = ""
+  let referrerDomain = ""
+  try {
+    guestId = window.localStorage.getItem(GUEST_ID_STORAGE_KEY) || ""
+    firstVisit = window.localStorage.getItem(GUEST_FIRST_VISIT_STORAGE_KEY) || ""
+    landingPage = window.localStorage.getItem(GUEST_LANDING_STORAGE_KEY) || ""
+    referrerDomain = window.localStorage.getItem(GUEST_REFERRER_STORAGE_KEY) || ""
+    if (!guestId) {
+      // Первый визит с согласием: фиксируем профиль привлечения устройства.
+      guestId = randomGuestId()
+      window.localStorage.setItem(GUEST_ID_STORAGE_KEY, guestId)
+      window.localStorage.setItem(GUEST_FIRST_VISIT_STORAGE_KEY, new Date(now).toISOString())
+      firstVisit = firstVisitDate(now)
+      try {
+        landingPage = window.location.pathname.slice(0, MAX_STRING_LENGTH) || "/"
+      } catch {
+        landingPage = "/"
+      }
+      referrerDomain = getReferrerDomain()
+      window.localStorage.setItem(GUEST_LANDING_STORAGE_KEY, landingPage)
+      window.localStorage.setItem(GUEST_REFERRER_STORAGE_KEY, referrerDomain)
+    }
+  } catch { /* без storage идентичность живёт один визит */ }
+  if (!guestId) guestId = randomGuestId()
+  if (!firstVisit) firstVisit = firstVisitDate(now)
+  else if (!/^\d{4}-\d{2}-\d{2}$/.test(firstVisit)) {
+    const parsed = Date.parse(firstVisit)
+    firstVisit = firstVisitDate(Number.isNaN(parsed) ? now : parsed)
+  }
+  return {
+    id: `guest:${guestId}`,
+    firstVisit,
+    landingPage: landingPage || "/",
+    referrerDomain: referrerDomain || "direct",
+  }
+}
+
+function detectDeviceType(): "mobile" | "tablet" | "desktop" {
+  if (typeof navigator === "undefined") return "desktop"
+  const ua = navigator.userAgent || ""
+  if (/ipad|tablet|kindle|silk|playbook/i.test(ua)) return "tablet"
+  if (/mobile|iphone|ipod|android|blackberry|opera mini|iemobile/i.test(ua)) return "mobile"
+  return "desktop"
+}
+
+function readLocalNumber(key: string): number {
+  try {
+    const raw = window.localStorage.getItem(key)
+    if (!raw) return 0
+    const value = Number(raw)
+    return Number.isFinite(value) && value > 0 ? value : 0
+  } catch {
+    return 0
+  }
+}
+
+function readLocalArrayLength(key: string): number {
+  try {
+    const raw = window.localStorage.getItem(key)
+    if (!raw) return 0
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed.length : 0
+  } catch {
+    return 0
+  }
+}
+
+/**
+ * Свойства гостя: кто это (без аккаунта), откуда пришёл, чем успел
+ * увлечься до регистрации. Их видно во вкладке «Свойства» профиля
+ * посетителя и можно использовать в глобальных фильтрах дашборда
+ * (`user_type=guest`, `guest_gacha_active=true` и т.д.).
+ * Снимок на визит: `guest_cards`/`guest_dust` читаются в момент identify.
+ */
+export function buildGuestProperties(identity: VisitorIdentity): UmamiEventData {
+  const cards = readLocalArrayLength("gacha-collection")
+  const dust = readLocalNumber("gacha-dust")
+  return {
+    user_type: "guest",
+    first_visit: identity.firstVisit,
+    landing_page: identity.landingPage,
+    referrer_domain: identity.referrerDomain,
+    device: detectDeviceType(),
+    guest_cards: cards,
+    guest_dust: dust,
+    guest_gacha_active: cards > 0 || dust > 0,
+  }
+}
+
+/** Минимальная форма профиля для свойств Umami (без персональных полей). */
+export interface UserAnalyticsProfile {
+  username?: string | null
+  referred_by?: string | null
+}
+
+/**
+ * Свойства зарегистрированного пользователя. Профиль может ещё грузиться —
+ * тогда уходят только стабильные поля, а после загрузки профиля
+ * AnalyticsWrapper шлёт identify повторно (Umami слепляет свойства по ключу).
+ */
+export function buildUserProperties(profile?: UserAnalyticsProfile | null): UmamiEventData {
+  const data: UmamiEventData = {
+    user_type: "registered",
+    referred: Boolean(profile?.referred_by),
+  }
+  // username может быть email (профиль создаётся из email при регистрации) —
+  // персональные данные в Umami не отправляем.
+  const username = typeof profile?.username === "string" ? profile.username.trim() : ""
+  if (username && !username.includes("@")) {
+    data.username = username
+  }
+  return data
 }
 
 /**
