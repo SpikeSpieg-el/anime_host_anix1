@@ -11,6 +11,7 @@
  */
 
 import { LRUCache } from "lru-cache"
+import { grabStreamsFromLocalAnimdl } from "@/lib/animdl/local-cli"
 import {
   fetchAllAnimeEpisodeSources,
   findShowForEpisode,
@@ -271,7 +272,40 @@ export async function resolveEpisodeSourcesDetailed(params: {
     })
   }
 
-  // 2. AllAnime dub → 3. AllAnime sub.
+  // 2. Локальный CLI animdl (запуск через python/yt-dlp на домашней машине)
+  const searchQuery = params.originalTitle || params.title
+  try {
+    const cliStreams = await grabStreamsFromLocalAnimdl(searchQuery, episode)
+    if (cliStreams && cliStreams.length > 0) {
+      const qualities: RawQualitySource[] = cliStreams.map((s, idx) => ({
+        label: s.quality || `Поток ${idx + 1}`,
+        kind: s.kind,
+        url: s.url,
+        referer: s.referer || "https://allmanga.to/",
+      }))
+
+      const animdlSource: EpisodeSources = {
+        provider: "allanime",
+        providerLabel: "AnimDL Core",
+        ruDub: false,
+        matchedTitle: searchQuery,
+        qualities,
+        subtitles: [],
+        torrents: [],
+        notes: "Захвачено через локальный движок animdl",
+        showId: null,
+        translationType: "sub",
+      }
+
+      attempts.push({ provider: "allanime", query: searchQuery, ok: true })
+      sourcesCache.set(key, animdlSource)
+      return { sources: animdlSource, attempts }
+    }
+  } catch (err) {
+    console.warn("[animdl/local] Не удалось захватить поток:", err)
+  }
+
+  // 3. AllAnime dub → 4. AllAnime sub.
   for (const translationType of ["dub", "sub"] as const) {
     try {
       const fromAllAnime = await resolveFromAllAnime(
