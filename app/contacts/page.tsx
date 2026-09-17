@@ -15,6 +15,7 @@ import {
 import { Navbar } from "@/components/layout/navbar"
 import { Footer } from "@/components/layout/footer"
 import { Button } from "@/components/ui/button"
+import { VkIcon, YoutubeIcon, InstagramIcon, TiktokIcon } from "@/components/shared/social-icons"
 
 export const metadata: Metadata = {
   title: "Контакты — Weebx",
@@ -45,6 +46,13 @@ const contactsJsonLd = {
     "url": "https://weeb-x.com",
     "logo": "https://weeb-x.com/icon.svg",
     "email": "support@weeb-x.com",
+    "sameAs": [
+      "https://t.me/Weebix",
+      "https://vk.ru/WeebX_official",
+      "https://www.youtube.com/@WeebX_official",
+      "https://www.instagram.com/weebx_official/",
+      "https://www.tiktok.com/@weebx_official"
+    ],
     "contactPoint": [
       {
         "@type": "ContactPoint",
@@ -227,6 +235,36 @@ export default function ContactsPage() {
             <p className="text-xs text-muted-foreground leading-relaxed">
               <strong className="text-foreground font-semibold">Примечание:</strong> При обращении по техническим вопросам (не грузится плеер, пропал звук) укажите устройство, браузер и название аниме.
             </p>
+          </div>
+        </div>
+
+        {/* Социальные сети */}
+        <div className="mt-6 p-5 sm:p-6 bg-card/40 border border-border/80 rounded-2xl">
+          <h2 className="text-base font-bold text-foreground mb-2">Мы в социальных сетях</h2>
+          <p className="text-sm text-muted-foreground leading-relaxed mb-4">
+            Подпишитесь на наши официальные аккаунты, чтобы следить за новостями, обновлениями каталога и анонсами:
+          </p>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+            <a href="https://t.me/Weebix" target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 p-3 rounded-xl border border-border/80 bg-background/50 hover:bg-[#229ED9]/10 hover:border-[#229ED9]/40 hover:text-[#229ED9] transition-colors">
+              <MessageCircle className="w-5 h-5" />
+              <span className="text-sm font-semibold">Telegram</span>
+            </a>
+            <a href="https://vk.ru/WeebX_official" target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 p-3 rounded-xl border border-border/80 bg-background/50 hover:bg-[#0077FF]/10 hover:border-[#0077FF]/40 hover:text-[#0077FF] transition-colors">
+              <VkIcon className="w-5 h-5" />
+              <span className="text-sm font-semibold">ВКонтакте</span>
+            </a>
+            <a href="https://www.youtube.com/@WeebX_official" target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 p-3 rounded-xl border border-border/80 bg-background/50 hover:bg-[#FF0000]/10 hover:border-[#FF0000]/40 hover:text-[#FF0000] transition-colors">
+              <YoutubeIcon className="w-5 h-5" />
+              <span className="text-sm font-semibold">YouTube</span>
+            </a>
+            <a href="https://www.instagram.com/weebx_official/" target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 p-3 rounded-xl border border-border/80 bg-background/50 hover:bg-[#E4405F]/10 hover:border-[#E4405F]/40 hover:text-[#E4405F] transition-colors">
+              <InstagramIcon className="w-5 h-5" />
+              <span className="text-sm font-semibold">Instagram</span>
+            </a>
+            <a href="https://www.tiktok.com/@weebx_official" target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 p-3 rounded-xl border border-border/80 bg-background/50 hover:bg-foreground/5 hover:border-foreground/30 hover:text-foreground transition-colors">
+              <TiktokIcon className="w-5 h-5" />
+              <span className="text-sm font-semibold">TikTok</span>
+            </a>
           </div>
         </div>
 
