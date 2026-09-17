@@ -38,6 +38,10 @@ export function OrganizationStructuredData() {
     ],
     sameAs: [
       'https://t.me/Weebix',
+      'https://vk.ru/WeebX_official',
+      'https://www.youtube.com/@WeebX_official',
+      'https://www.instagram.com/weebx_official/',
+      'https://www.tiktok.com/@weebx_official',
     ],
   }
 

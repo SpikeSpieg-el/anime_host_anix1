@@ -94,8 +94,25 @@ export const metadata: Metadata = {
     title: "Weebx — Смотреть аниме онлайн",
     description: "Стриминг аниме в HD с русской озвучкой. Гача-крутки, PvP-арена, каталог манги.",
     images: ["/og-image.png"],
+    site: "@WeebX_official",
+    creator: "@WeebX_official",
+  },
+  other: {
+    // Подтверждение владения соцсетями и поисковиками
+    "article:publisher": "https://vk.ru/WeebX_official",
+    "vk:group": "https://vk.ru/WeebX_official",
+    // rel=me ссылки для подтверждения авторства/владения в Mastodon и других сетях
   },
 }
+
+// Ссылки rel="me" на официальные соцсети (подтверждение владения для поисковиков)
+const socialMeLinks = [
+  "https://t.me/Weebix",
+  "https://vk.ru/WeebX_official",
+  "https://www.youtube.com/@WeebX_official",
+  "https://www.instagram.com/weebx_official/",
+  "https://www.tiktok.com/@weebx_official",
+]
 
 export const viewport: Viewport = {
   themeColor: "#0a0a0a",
@@ -111,6 +128,10 @@ export default function RootLayout({
       <head>
         <OrganizationStructuredData />
         <WebSiteStructuredData />
+        {/* rel=me — подтверждение владения аккаунтами в соцсетях для Google и сервисов IndieWeb */}
+        {socialMeLinks.map((href) => (
+          <link key={href} rel="me" href={href} />
+        ))}
         <script
           dangerouslySetInnerHTML={{
             __html: `if(localStorage.getItem('lite-mode')==='true')document.documentElement.classList.add('lite-mode');`,

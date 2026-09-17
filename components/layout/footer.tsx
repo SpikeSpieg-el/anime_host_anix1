@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import Link from "next/link"
 import { MessageCircle, Image as ImageIcon } from "lucide-react"
 import { Dialog, DialogContent, DialogTrigger, DialogTitle, DialogDescription } from "@/components/ui/dialog"
+import { socialLinks, VkIcon, YoutubeIcon, InstagramIcon, TiktokIcon } from "@/components/shared/social-icons"
 
 const animeQuotes = [
   "Ты сильнее, чем думаешь - Аниме учит нас",
@@ -96,7 +97,33 @@ export function Footer() {
               </p>
             </div>
             
-            <div className="flex items-center gap-4"></div>
+            {/* Социальные сети */}
+            <div className="space-y-3">
+              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest dark:text-zinc-600">Мы в соцсетях</p>
+              <div className="flex items-center gap-3 flex-wrap">
+                <a
+                  href="https://t.me/Weebix"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="Telegram"
+                  className="w-9 h-9 rounded-lg border border-border bg-background/50 flex items-center justify-center text-muted-foreground hover:text-[#229ED9] hover:border-[#229ED9] transition-colors dark:bg-zinc-900/50 dark:border-white/5 dark:text-zinc-500"
+                >
+                  <MessageCircle className="w-[18px] h-[18px]" />
+                </a>
+                {socialLinks.map((s) => (
+                  <a
+                    key={s.name}
+                    href={s.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={s.name}
+                    className={`w-9 h-9 rounded-lg border border-border bg-background/50 flex items-center justify-center text-muted-foreground transition-colors ${s.hoverClass} hover:border-current dark:bg-zinc-900/50 dark:border-white/5 dark:text-zinc-500`}
+                  >
+                    <s.icon className="w-[18px] h-[18px]" />
+                  </a>
+                ))}
+              </div>
+            </div>
           </div>
 
           <div>
@@ -122,6 +149,10 @@ export function Footer() {
               <li><a className="text-zinc-500 hover:text-white transition-colors text-sm sm:text-[15px] font-bold" href="/terms">Пользовательское соглашение</a></li>
               <li><a className="text-zinc-500 hover:text-white transition-colors text-sm sm:text-[15px] font-bold" href="/contacts">Контакты</a></li>
               <li><a href="https://t.me/Weebix" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-blue-500 hover:text-blue-600 transition-colors text-sm sm:text-[15px] font-bold"><MessageCircle className="w-4 h-4" /> Telegram</a></li>
+              <li><a href="https://vk.ru/WeebX_official" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-zinc-500 hover:text-[#0077FF] transition-colors text-sm sm:text-[15px] font-bold"><VkIcon className="w-4 h-4" /> ВКонтакте</a></li>
+              <li><a href="https://www.youtube.com/@WeebX_official" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-zinc-500 hover:text-[#FF0000] transition-colors text-sm sm:text-[15px] font-bold"><YoutubeIcon className="w-4 h-4" /> YouTube</a></li>
+              <li><a href="https://www.instagram.com/weebx_official/" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-zinc-500 hover:text-[#E4405F] transition-colors text-sm sm:text-[15px] font-bold"><InstagramIcon className="w-4 h-4" /> Instagram</a></li>
+              <li><a href="https://www.tiktok.com/@weebx_official" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-zinc-500 hover:text-foreground dark:hover:text-white transition-colors text-sm sm:text-[15px] font-bold"><TiktokIcon className="w-4 h-4" /> TikTok</a></li>
             </ul>
           </div>
 
