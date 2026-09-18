@@ -748,6 +748,29 @@ export function useGachaState() {
   }
 
   const GUEST_ROLL_LIMIT = 10
+  
+  // Состояние для отслеживания гостевых круток (для реального обновления UI)
+  const [guestRollsCount, setGuestRollsCount] = useState(() => {
+    if (typeof window === 'undefined') return 0
+    return parseInt(localStorage.getItem('gacha-guest-rolls') || '0', 10)
+  })
+  
+  // Вычисляем оставшиеся демо крутки для гостей
+  const remainingGuestRolls = useMemo(() => {
+    if (authUser) return 0
+    return Math.max(0, GUEST_ROLL_LIMIT - guestRollsCount)
+  }, [authUser, guestRollsCount])
+  
+  // Сбрасываем счётчик при входе в аккаунт и синхронизируем при загрузке
+  useEffect(() => {
+    if (authUser) {
+      setGuestRollsCount(0)
+    } else {
+      // Для гостей синхронизируем с localStorage при загрузке
+      const currentGuestRolls = parseInt(localStorage.getItem('gacha-guest-rolls') || '0', 10)
+      setGuestRollsCount(currentGuestRolls)
+    }
+  }, [authUser])
 
   const handleRoll = async () => {
     console.log('[handleRoll] Called, isRollingRef:', isRollingRef.current)
@@ -760,7 +783,7 @@ export function useGachaState() {
       if (guestRolls >= GUEST_ROLL_LIMIT) {
         setErrorPopupConfig({
           title: "Стартовый бонус ждёт",
-          message: `Вы использовали все ${GUEST_ROLL_LIMIT} бесплатных круток. Создай профиль и получи 10 000 монет — хватит, чтобы выбить Legendary или Omnipotent!`,
+          message: `Вы использовали все ${GUEST_ROLL_LIMIT} бесплатных круток. Создай профиль и получи 10 000 монет — хватит, чтобы выбить Легендарную или Всемогущая!`,
           type: "warning"
         })
         setShowErrorPopup(true)
@@ -958,6 +981,7 @@ export function useGachaState() {
         if (!authUser) {
           const currentGuestRolls = parseInt(localStorage.getItem('gacha-guest-rolls') || '0', 10)
           localStorage.setItem('gacha-guest-rolls', String(currentGuestRolls + 1))
+          setGuestRollsCount(currentGuestRolls + 1) // Обновляем состояние для UI
         }
 
         console.log('[handleRoll] Roll result ready, waiting for animation:', newCard.name)
@@ -1548,6 +1572,7 @@ export function useGachaState() {
     isRolling,
     setIsRolling: wrappedSetIsRolling,
     isPackLoading,
+    remainingGuestRolls,
     isCustomPackLoading,
     revealedCard,
     setRevealedCard,

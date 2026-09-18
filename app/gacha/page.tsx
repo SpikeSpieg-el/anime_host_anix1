@@ -92,11 +92,13 @@ export default function GachaPage() {
     viewedCard,
     setViewedCard,
     session,
+    authUser,
     userCoins,
     coinsLoading,
     isDev,
     dust,
     dustLoading,
+    remainingGuestRolls,
     refreshDust,
     refreshCoins,
     refreshCollectionMerge,
@@ -1196,19 +1198,26 @@ export default function GachaPage() {
           </p>
           
           <div className="flex flex-wrap justify-center items-center gap-2 sm:gap-4 mt-6 sm:mt-8 px-2 sm:px-0">
-            <div data-tutorial="coins" className={`relative flex items-center gap-2 px-3 py-2 sm:px-5 sm:py-2.5 rounded-xl sm:rounded-2xl bg-slate-900/80 backdrop-blur-md border border-slate-800 shadow-xl shadow-yellow-500/5 transition-all duration-200 ${coinsAnim.flash ? 'ring-2 ring-red-500/70 ring-offset-2 ring-offset-slate-900' : ''}`}>
-              <Coins className="w-4 h-4 sm:w-6 sm:h-6 text-yellow-400" />
-              {coinsLoading ? (
-                <Loader2 className="w-4 h-4 sm:w-6 sm:h-6 text-yellow-400 animate-spin" />
-              ) : (
-                <span className={`text-lg sm:text-2xl font-black tracking-tight transition-colors duration-200 ${coinsAnim.flash ? 'text-red-500 animate-spend' : 'text-yellow-400'}`}>{userCoins.toLocaleString()}</span>
-              )}
-              {coinsAnim.delta !== null && (
-                <span className="absolute -top-5 left-1/2 text-red-400 font-black text-xs animate-float-minus whitespace-nowrap pointer-events-none">
-                  -{coinsAnim.delta.toLocaleString()}
-                </span>
-              )}
-            </div>
+            {!authUser ? (
+              <div className="relative flex items-center gap-2 px-3 py-2 sm:px-5 sm:py-2.5 rounded-xl sm:rounded-2xl bg-slate-900/80 backdrop-blur-md border border-blue-500/30 shadow-xl shadow-blue-500/10 transition-all duration-200">
+                <Star className="w-4 h-4 sm:w-6 sm:h-6 text-blue-400" />
+                <span className="text-lg sm:text-2xl font-black tracking-tight text-blue-400">{remainingGuestRolls} круток!</span>
+              </div>
+            ) : (
+              <div data-tutorial="coins" className={`relative flex items-center gap-2 px-3 py-2 sm:px-5 sm:py-2.5 rounded-xl sm:rounded-2xl bg-slate-900/80 backdrop-blur-md border border-slate-800 shadow-xl shadow-yellow-500/5 transition-all duration-200 ${coinsAnim.flash ? 'ring-2 ring-red-500/70 ring-offset-2 ring-offset-slate-900' : ''}`}>
+                <Coins className="w-4 h-4 sm:w-6 sm:h-6 text-yellow-400" />
+                {coinsLoading ? (
+                  <Loader2 className="w-4 h-4 sm:w-6 sm:h-6 text-yellow-400 animate-spin" />
+                ) : (
+                  <span className={`text-lg sm:text-2xl font-black tracking-tight transition-colors duration-200 ${coinsAnim.flash ? 'text-red-500 animate-spend' : 'text-yellow-400'}`}>{userCoins.toLocaleString()}</span>
+                )}
+                {coinsAnim.delta !== null && (
+                  <span className="absolute -top-5 left-1/2 text-red-400 font-black text-xs animate-float-minus whitespace-nowrap pointer-events-none">
+                    -{coinsAnim.delta.toLocaleString()}
+                  </span>
+                )}
+              </div>
+            )}
 
             <div data-tutorial="dust" className={`relative flex items-center gap-2 px-3 py-2 sm:px-5 sm:py-2.5 rounded-xl sm:rounded-2xl bg-slate-900/80 backdrop-blur-md border border-slate-800 shadow-xl shadow-amber-500/5 transition-all duration-200 ${dustAnim.flash ? 'ring-2 ring-red-500/70 ring-offset-2 ring-offset-slate-900' : ''}`}>
               <Sparkles className="w-4 h-4 sm:w-6 sm:h-6 text-amber-400" />

@@ -336,19 +336,79 @@ export async function syncLocalDataToAccount(userId: string) {
     }
   }
 
-  // 4. Очищаем гача-данные, чтобы избежать переноса между пользователями
+  // 4. Синхронизация карт из гачи
+  const rawCollection = localStorage.getItem("gacha-collection")
+  if (rawCollection) {
+    try {
+      const collection = JSON.parse(rawCollection)
+      if (Array.isArray(collection) && collection.length > 0) {
+        console.log(`Syncing ${collection.length} gacha cards to database...`)
+        
+        let syncedCount = 0
+        for (const card of collection) {
+          try {
+            // Импортируем функцию для сохранения карт
+            const { saveCardToDatabase } = await import('@/app/gacha/client-actions')
+            const result = await saveCardToDatabase(card)
+            if (result.success) {
+              syncedCount++
+            }
+          } catch (error) {
+            console.error('Failed to sync card:', card.uniqueId, error)
+          }
+        }
+        
+        console.log(`Synced ${syncedCount}/${collection.length} gacha cards to database`)
+      }
+    } catch (error) {
+      console.error('Error syncing gacha collection:', error)
+    }
+  }
+
+  // 5. Синхронизация pity данных
+  const rawPity = localStorage.getItem("gacha-pity")
+  if (rawPity) {
+    try {
+      const pityData = JSON.parse(rawPity)
+      if (pityData && typeof pityData === 'object') {
+        console.log('Syncing pity data to database...')
+        
+        const { error } = await supabase
+          .from('user_pity')
+          .upsert({ 
+            id: userId,
+            bad_luck_streak: pityData.bad_luck_streak || 0,
+            last_rare_roll: pityData.last_rare_roll || null,
+            updated_at: new Date().toISOString()
+          }, {
+            onConflict: 'id'
+          })
+
+        if (!error) {
+          console.log('Pity data synced successfully')
+        } else {
+          console.error('Pity sync error:', error)
+        }
+      }
+    } catch (error) {
+      console.error('Error syncing pity data:', error)
+    }
+  }
+
+  // 6. Очищаем гача-данные, чтобы избежать переноса между пользователями
   try {
     localStorage.removeItem("gacha-collection")
     localStorage.removeItem("gacha-sync-queue")
     localStorage.removeItem("gacha-prioritize-main-characters")
     localStorage.removeItem("gacha-coins")
     localStorage.removeItem("gacha-dust")
+    localStorage.removeItem("gacha-pity")
     console.log('Gacha local data cleared to prevent cross-user contamination')
   } catch (error) {
     console.error('Error clearing gacha local data:', error)
   }
 
-  // 5. Синхронизация статистики аккаунта (DB -> localStorage-состояние)
+  // 7. Синхронизация статистики аккаунта (DB -> localStorage-состояние)
   try {
     const stats = await getAccountStats(userId)
     if (stats && (stats.total_time_ms !== undefined || stats.last_visit_at !== undefined)) {
