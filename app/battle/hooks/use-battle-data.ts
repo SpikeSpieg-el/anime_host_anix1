@@ -621,6 +621,14 @@ export function useBattleData() {
       return
     }
 
+    // Проверка на дубликаты карт (защита от багов сборки)
+    const uniqueIds = new Set(deck.map(c => c.uniqueId))
+    if (uniqueIds.size !== deck.length) {
+      setError("Ошибка: обнаружены дубликаты карт в колоде. Попробуйте собрать колоду заново.")
+      console.error('[autoBuildDeck] Duplicate cards detected in auto-built deck')
+      return
+    }
+
     // Ensure roles and provision costs are set
     deck.forEach((c: Card) => {
       c.provisionCost = getCardProvision(c)
@@ -669,6 +677,19 @@ export function useBattleData() {
         return next
       }
       if (prev.length >= DECK_SIZE) return prev
+
+      // Проверка: не добавляем ли мы дубликат той же карты (по template_id/card_id)
+      // Для PvP важно, чтобы в колоде не было двух копий одного персонажа
+      const cardTemplateId = (card as any).card_id || (card as any).template_id || card.name
+      const hasSameTemplate = prev.some(c => {
+        const existingTemplateId = (c as any).card_id || (c as any).template_id || c.name
+        return existingTemplateId === cardTemplateId
+      })
+      
+      if (hasSameTemplate) {
+        setError(`В колоде уже есть карта \"${card.name}\". В PvP нельзя использовать дубликаты одного персонажа.`)
+        return prev // Не добавляем дубликат
+      }
 
       const next = [...prev, card]
       const totalProv = next.reduce((acc: number, c: Card) => acc + (c.provisionCost || getCardProvision(c)), 0)

@@ -514,9 +514,35 @@ io.on('connection', (socket) => {
     try {
       let { deck, leaderId, formation } = data
 
-      // Validate deck
+      // Validate deck size
       if (!deck || deck.length !== 8) {
         return socket.emit('error', { message: 'Неверная колода: требуется ровно 8 карт' })
+      }
+
+      // Validate deck for duplicates and provision cost
+      const uniqueInstanceIds = new Set(deck.map(c => c.uniqueId))
+      if (uniqueInstanceIds.size !== deck.length) {
+        return socket.emit('error', { message: 'Обнаружены повторяющиеся экземпляры карт в колоде' })
+      }
+
+      // Check for duplicate card templates (same card_id/character)
+      const uniqueCardTemplates = new Set(deck.map(c => c.id || c.card_id || c.name))
+      if (uniqueCardTemplates.size !== deck.length) {
+        return socket.emit('error', { message: 'В колоде не может быть нескольких копий одного персонажа' })
+      }
+
+      // Validate provision cost (max 30 for 8 cards in PvP)
+      const totalProvision = deck.reduce((sum, card) => {
+        const provisionMap = {
+          omnipotent: 15, transcendent: 13, divine: 11, ancient: 10,
+          legendary: 9, mythic: 8, epic: 6, super_rare: 5,
+          rare: 4, uncommon: 3, common: 2, trash: 0
+        }
+        return sum + (card.provisionCost || provisionMap[card.rarity] || 2)
+      }, 0)
+      
+      if (totalProvision > 30) {
+        return socket.emit('error', { message: `Превышен лимит провизии (${totalProvision}/30)` })
       }
 
       // Ensure all cards have role assigned

@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useMemo } from 'react'
 import { Swords, Users, Trophy, Loader2, X, AlertCircle, Crown, Medal, TrendingUp, TrendingDown, ChevronLeft, ChevronRight, ChevronDown, User } from 'lucide-react'
 import { Card } from '../types'
-import { glassCard, DECK_SIZE } from '../config'
+import { glassCard, DECK_SIZE, PROVISION_LIMIT } from '../config'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/components/auth/auth-provider'
 import { getProxiedSrc } from '@/lib/image-loader'
+import { getCardProvision } from '../utils'
 
 interface PvPArenaProps {
   selectedCards: Card[]
@@ -118,8 +119,48 @@ export const PvPArena: React.FC<PvPArenaProps> = ({
       alert(`Необходимо выбрать ровно ${DECK_SIZE} карт для PvP битвы`)
       return
     }
+
+    // Проверка на дубликаты уникальных идентификаторов карт
+    const uniqueIds = new Set(selectedCards.map(c => c.uniqueId))
+    if (uniqueIds.size !== selectedCards.length) {
+      alert('Ошибка: обнаружены дубликаты карт в колоде. Удалите повторяющиеся карты.')
+      return
+    }
+
+    // Проверка на дубликаты шаблонов карт (один персонаж не может встречаться дважды)
+    const cardTemplates = selectedCards.map(c => (c as any).card_id || (c as any).template_id || c.name)
+    const uniqueTemplates = new Set(cardTemplates)
+    if (uniqueTemplates.size !== selectedCards.length) {
+      alert('В колоде не может быть нескольких копий одного персонажа')
+      return
+    }
+
+    // Проверка лимита провизии с использованием актуальных значений
+    const totalProvision = selectedCards.reduce((sum, c) => sum + (c.provisionCost ?? getCardProvision(c)), 0)
+    if (totalProvision > PROVISION_LIMIT) {
+      alert(`Превышен лимит провизии (${totalProvision}/${PROVISION_LIMIT}). Замените тяжёлые карты на более лёгкие.`)
+      return
+    }
+
     joinQueue(selectedCards, leaderId, formation)
   }
+
+  // Вычисляем валидность колоды для блокировки кнопки
+  const isDeckValid = useMemo(() => {
+    if (selectedCards.length !== DECK_SIZE) return false
+    
+    const uniqueIds = new Set(selectedCards.map(c => c.uniqueId))
+    if (uniqueIds.size !== selectedCards.length) return false
+    
+    const cardTemplates = selectedCards.map(c => (c as any).card_id || (c as any).template_id || c.name)
+    const uniqueTemplates = new Set(cardTemplates)
+    if (uniqueTemplates.size !== selectedCards.length) return false
+    
+    const totalProvision = selectedCards.reduce((sum, c) => sum + (c.provisionCost ?? getCardProvision(c)), 0)
+    if (totalProvision > PROVISION_LIMIT) return false
+    
+    return true
+  }, [selectedCards])
 
   const handleLeaveQueue = () => {
     leaveQueue()
@@ -468,7 +509,7 @@ export const PvPArena: React.FC<PvPArenaProps> = ({
             {pvpState.status === 'idle' && (
               <button
                 onClick={handleJoinQueue}
-                disabled={!isConnected || selectedCards.length !== DECK_SIZE}
+                disabled={!isConnected || !isDeckValid}
                 className="w-full py-3.5 px-4 bg-white text-zinc-950 disabled:bg-zinc-800 disabled:text-zinc-500 disabled:cursor-not-allowed hover:bg-zinc-100 font-extrabold text-xs uppercase tracking-wider rounded-xl transition-all active:scale-[0.98] shadow-md flex items-center justify-center gap-2"
               >
                 <Swords className="w-4 h-4" />
