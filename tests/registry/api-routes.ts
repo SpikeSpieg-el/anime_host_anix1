@@ -29,6 +29,7 @@ export const API_ROUTES: ApiRegistryEntry[] = [
   { path: "/api/anime/catalog", methods: ["GET"], auth: "public" },
   { path: "/api/anime/search", methods: ["GET"], auth: "public" },
   { path: "/api/auth/forgot-password", methods: ["POST"], auth: "public" },
+  { path: "/api/auth/captcha/puzzle", methods: ["GET", "POST"], auth: "public", notes: "интерактивный аниме-пазл (HMAC-SHA256, биометрия траектории)" },
   { path: "/api/backdrops", methods: ["GET"], auth: "public" },
   { path: "/api/banners", methods: ["GET"], auth: "public" },
   { path: "/api/banners/pulls", methods: ["GET"], auth: "bearer" },

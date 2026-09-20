@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { AnimeSliderCaptcha } from "@/components/auth/anime-slider-captcha"
 import { Loader2, Mail, Lock, LogIn, UserPlus, AlertCircle, X, KeyRound, CheckCircle2, ArrowLeft } from "lucide-react"
 import { loggers } from "@/lib/logger"
 import { useToast } from "@/hooks/use-toast"
@@ -103,6 +104,7 @@ export function AuthModal({
   const [isForgot, setIsForgot] = useState(false)
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [resetSent, setResetSent] = useState(false)
@@ -129,6 +131,7 @@ export function AuthModal({
   const resetForm = () => {
     setEmail("")
     setPassword("")
+    setCaptchaToken(null)
     setError(null)
     setLoading(false)
     setResetSent(false)
@@ -158,6 +161,13 @@ export function AuthModal({
 
     if (passwordTrim.length < 6) {
       setError("Пароль должен содержать минимум 6 символов")
+      setLoading(false)
+      return
+    }
+
+    // Проверка: пазл-капча должен быть собран (токен получен от компонента).
+    if (!captchaToken) {
+      setError("Соберите пазл для защиты от ботов, прежде чем продолжить.")
       setLoading(false)
       return
     }
@@ -226,6 +236,9 @@ export function AuthModal({
         const giftCardValue = rawGiftCardToken && /^[A-Za-z0-9]{32}$/.test(rawGiftCardToken)
           ? rawGiftCardToken
           : decodeGiftCardToken(rawGiftCardToken)
+
+        // Проверка HMAC уже выполняется на сервере в POST /api/auth/captcha/puzzle.
+        // Клиенту достаточно наличия токена (проверка выше).
 
         const { data, error } = await supabase.auth.signUp({
           email: emailTrim,
@@ -512,6 +525,10 @@ export function AuthModal({
                     />
                   </div>
                 </div>
+
+                {!isLogin && (
+                  <AnimeSliderCaptcha onSuccess={(token) => setCaptchaToken(token)} disabled={loading} />
+                )}
 
                 {isLogin && (
                   <div className="text-right">
