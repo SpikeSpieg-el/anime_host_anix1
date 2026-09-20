@@ -9,7 +9,7 @@ const CAPTCHA_SECRET = process.env.CAPTCHA_SECRET || "anime-gacha-ultra-secret-k
 /**
  * TTL жизни токена капчи — 5 минут.
  */
-export const MAX_CAPTCHA_TTL_MS = 5 * 60 * 1000
+const MAX_CAPTCHA_TTL_MS = 5 * 60 * 1000
 
 // Символы без неоднозначных (исключены 0, O, I, l, 1)
 const CHARS = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ"
