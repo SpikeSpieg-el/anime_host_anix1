@@ -13,7 +13,9 @@ function makeHumanPoints(n: number, baseX: number, durationMs: number): ReturnTy
   for (let i = 0; i < n; i++) {
     // Человек имеет микро-дрожание по Y и неравномерное время.
     const yJitter = Math.sin(i * 1.7) * 2 + (Math.random() - 0.5)
-    points.push({ x: baseX + i, y: 50 + yJitter, t: i * durationMs })
+    // Добавляем вариацию во времени для реалистичности (человек движется неравномерно)
+    const timeJitter = Math.random() * 20 - 10
+    points.push({ x: baseX + i, y: 50 + yJitter, t: i * durationMs + timeJitter })
   }
   return points
 }
@@ -44,8 +46,11 @@ describe("analyzeTrajectory", () => {
   })
 
   it("отклоняет идеальную линейную скорость (скрипт)", () => {
-    // 8 точек с абсолютно одинаковым шагом по времени и X.
-    const points = makeHumanPoints(8, 0, 100).map((p, i) => ({ x: i * 5, y: p.y, t: p.t }))
+    // 8 точек с абсолютно одинаковым шагом по времени и X — без джиттера.
+    const points = []
+    for (let i = 0; i < 8; i++) {
+      points.push({ x: i * 5, y: 50, t: i * 100 })
+    }
     // Скорость на каждом отрезке одинакова (dx=5, dt=100).
     expect(analyzeTrajectory(points)).toBe(false)
   })

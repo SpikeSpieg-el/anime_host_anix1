@@ -25,7 +25,7 @@ export const MATCH_TOLERANCE_PX = 5
 const MIN_POINTS = 5
 
 // Минимальное время прохождения в мс — человек физически не способен среагировать быстрее.
-const MIN_DURATION_MS = 180
+const MIN_DURATION_MS = 280
 
 // Максимальное время прохождения в мс.
 const MAX_DURATION_MS = 20_000
