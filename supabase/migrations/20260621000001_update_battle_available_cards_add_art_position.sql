@@ -1,4 +1,4 @@
--- Migration: Update get_battle_available_cards to include art_position column
+-- Migration: Update get_battle_available_cards to include art_position column and deduplicate by unique_id
 
 DROP FUNCTION IF EXISTS public.get_battle_available_cards(uuid);
 
@@ -26,7 +26,7 @@ SET search_path = public
 AS $$
 BEGIN
   RETURN QUERY
-  SELECT 
+  SELECT DISTINCT ON (uc.unique_id)
     uc.unique_id,
     uc.name,
     uc.anime,
@@ -46,10 +46,13 @@ BEGIN
       SELECT 1 
       FROM public.market_listings ml 
       WHERE ml.unique_id = uc.unique_id
-    );
+    )
+  ORDER BY uc.unique_id, uc.created_at DESC;
 END;
 $$;
 
 REVOKE ALL ON FUNCTION public.get_battle_available_cards(uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.get_battle_available_cards(uuid) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.get_battle_available_cards(uuid) TO service_role;
+
+COMMENT ON FUNCTION public.get_battle_available_cards(uuid) IS 'Get user cards that are not listed on market for battle selection (deduplicated by unique_id)';

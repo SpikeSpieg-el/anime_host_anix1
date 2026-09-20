@@ -435,7 +435,13 @@ export interface AutoDeckResult {
 export const buildAutoDeck = (cards: Card[], keepCards?: Card[]): AutoDeckResult => {
   if (cards.length === 0) return { deck: [], leaderId: null, totalProvision: 0 }
 
+  // Предварительно убираем дубликаты из входного пула (по уникальному id экземпляра)
+  const uniquePool = Array.from(
+    new Map(cards.map(card => [card.uniqueId, card])).values()
+  )
+
   const keepUniqueIds = new Set<string>()
+  const keptCardIds = new Set<string>() // Добавляем проверку по card_id для предотвращения дубликатов персонажей
   let deck: Card[] = []
   let totalProv = 0
   const rolesPresent = new Set<CardRole>()
@@ -443,18 +449,23 @@ export const buildAutoDeck = (cards: Card[], keepCards?: Card[]): AutoDeckResult
   // Phase 0: start with cards the player wants to keep
   if (keepCards) {
     for (const c of keepCards) {
+      // Проверка на дубликаты по uniqueId
       if (deck.some(d => d.uniqueId === c.uniqueId)) continue
       const card = { ...c }
       card.provisionCost = card.provisionCost || getCardProvision(card)
       card.role = card.role || getCardRole(card)
       deck.push(card)
       keepUniqueIds.add(card.uniqueId)
+      // Также отслеживаем card_id если он есть (для предотвращения дубликатов одного персонажа)
+      if ((card as any).card_id) {
+        keptCardIds.add((card as any).card_id)
+      }
       totalProv += card.provisionCost
       rolesPresent.add(card.role)
     }
   }
 
-  const sorted = cards
+  const sorted = uniquePool
     .filter(c => !keepUniqueIds.has(c.uniqueId))
     .sort((a, b) => getCardBasePower(b) - getCardBasePower(a))
 
@@ -502,7 +513,9 @@ export const buildAutoDeck = (cards: Card[], keepCards?: Card[]): AutoDeckResult
   // Phase 2: Fill remaining slots with highest power cards that fit
   for (const card of sorted) {
     if (deck.length >= DECK_SIZE) break
-    if (deck.some(d => d.uniqueId === card.uniqueId)) continue
+    // Проверка на дубликаты по uniqueId и по card_id (если есть)
+    const cardId = (card as any).card_id
+    if (deck.some(d => d.uniqueId === card.uniqueId || (cardId && (d as any).card_id === cardId))) continue
     const prov = card.provisionCost || getCardProvision(card)
     if (totalProv + prov <= PROVISION_LIMIT) {
       deck.push(card)
@@ -513,7 +526,10 @@ export const buildAutoDeck = (cards: Card[], keepCards?: Card[]): AutoDeckResult
   // Phase 3: If not full, swap expensive auto-picked deck cards for cheaper alternatives
   if (deck.length < DECK_SIZE) {
     const remaining = sorted
-      .filter(c => !deck.some(d => d.uniqueId === c.uniqueId))
+      .filter(c => {
+        const cardId = (c as any).card_id
+        return !deck.some(d => d.uniqueId === c.uniqueId || (cardId && (d as any).card_id === cardId))
+      })
       .sort((a, b) => (a.provisionCost || getCardProvision(a)) - (b.provisionCost || getCardProvision(b)))
 
     for (const cheap of remaining) {
@@ -550,7 +566,10 @@ export const buildAutoDeck = (cards: Card[], keepCards?: Card[]): AutoDeckResult
   // Phase 4: Last resort — fill with cheapest remaining cards even if over provision
   if (deck.length < DECK_SIZE) {
     const remaining = sorted
-      .filter(c => !deck.some(d => d.uniqueId === c.uniqueId))
+      .filter(c => {
+        const cardId = (c as any).card_id
+        return !deck.some(d => d.uniqueId === c.uniqueId || (cardId && (d as any).card_id === cardId))
+      })
       .sort((a, b) => (a.provisionCost || getCardProvision(a)) - (b.provisionCost || getCardProvision(b)))
     for (const card of remaining) {
       if (deck.length >= DECK_SIZE) break

@@ -14,7 +14,8 @@ RETURNS TABLE (
   stats_spd integer,
   stats_luck integer,
   is_main_character boolean,
-  score decimal
+  score decimal,
+  art_position jsonb
 )
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -22,7 +23,7 @@ SET search_path = public
 AS $$
 BEGIN
   RETURN QUERY
-  SELECT 
+  SELECT DISTINCT ON (uc.unique_id)
     uc.unique_id,
     uc.name,
     uc.anime,
@@ -34,14 +35,16 @@ BEGIN
     uc.stats_spd,
     uc.stats_luck,
     uc.is_main_character,
-    uc.score
+    uc.score,
+    uc.art_position
   FROM public.user_cards uc
   WHERE uc.user_id = p_user_id
     AND NOT EXISTS (
       SELECT 1 
       FROM public.market_listings ml 
       WHERE ml.unique_id = uc.unique_id
-    );
+    )
+  ORDER BY uc.unique_id, uc.created_at DESC;
 END;
 $$;
 
@@ -49,4 +52,4 @@ REVOKE ALL ON FUNCTION public.get_battle_available_cards(uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.get_battle_available_cards(uuid) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.get_battle_available_cards(uuid) TO service_role;
 
-COMMENT ON FUNCTION public.get_battle_available_cards(uuid) IS 'Get user cards that are not listed on market for battle selection';
+COMMENT ON FUNCTION public.get_battle_available_cards(uuid) IS 'Get user cards that are not listed on market for battle selection (deduplicated by unique_id)';
