@@ -38,8 +38,8 @@
 
   /* Google Fonts are an enhancement, never a requirement. The remaining
      stacks cover macOS, Windows, Linux and Android if the CDN is blocked. */
-  --font-sans: 'Geist', 'Inter', 'SF Pro Display', 'SF Pro Text', 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
-  --font-mono: 'Geist Mono', 'SFMono-Regular', 'Cascadia Code', 'Roboto Mono', 'Liberation Mono', 'Courier New', monospace;
+  --font-sans: 'Inter', 'SF Pro Display', 'SF Pro Text', 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: 'JetBrains Mono', 'SFMono-Regular', 'Cascadia Code', 'Roboto Mono', 'Liberation Mono', 'Courier New', monospace;
   --font-family-sans: var(--font-sans);
   --font-family-mono: var(--font-mono);
 }
@@ -297,16 +297,84 @@
   /* Brand font with safe fallbacks when Google Fonts is unavailable. */
   .font-unbounded {
     font-family: 'Unbounded', 'Arial Black', 'Segoe UI', Arial, sans-serif;
+    font-display: swap;
   }
   
-  /* Geist font family with 3+ system fallbacks. */
+  /* Inter font family (замена Geist) with 3+ system fallbacks. */
   .font-geist {
-    font-family: 'Geist', 'Inter', 'SF Pro Display', 'Segoe UI', Roboto, Arial, sans-serif;
+    font-family: 'Inter', 'SF Pro Display', 'Segoe UI', Roboto, Arial, sans-serif;
+    font-display: swap;
   }
   
-  /* Geist Mono font family with 3+ system fallbacks. */
+  /* JetBrains Mono font family (замена Geist Mono) with 3+ system fallbacks. */
   .font-geist-mono {
-    font-family: 'Geist Mono', 'SFMono-Regular', 'Cascadia Code', 'Roboto Mono', Consolas, 'Liberation Mono', 'Courier New', monospace;
+    font-family: 'JetBrains Mono', 'SFMono-Regular', 'Cascadia Code', 'Roboto Mono', Consolas, 'Liberation Mono', 'Courier New', monospace;
+    font-display: swap;
+  }
+
+  /* Локальные шрифты (если скачаны в public/fonts/) */
+  @font-face {
+    font-family: 'Inter';
+    src: url('/fonts/inter/Inter-Regular.woff2') format('woff2');
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+  }
+  
+  @font-face {
+    font-family: 'Inter';
+    src: url('/fonts/inter/Inter-Medium.woff2') format('woff2');
+    font-weight: 500;
+    font-style: normal;
+    font-display: swap;
+  }
+  
+  @font-face {
+    font-family: 'Inter';
+    src: url('/fonts/inter/Inter-Bold.woff2') format('woff2');
+    font-weight: 700;
+    font-style: normal;
+    font-display: swap;
+  }
+  
+  @font-face {
+    font-family: 'JetBrains Mono';
+    src: url('/fonts/jetbrains-mono/JetBrainsMono-Regular.woff2') format('woff2');
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+  }
+  
+  @font-face {
+    font-family: 'JetBrains Mono';
+    src: url('/fonts/jetbrains-mono/JetBrainsMono-Medium.woff2') format('woff2');
+    font-weight: 500;
+    font-style: normal;
+    font-display: swap;
+  }
+  
+  @font-face {
+    font-family: 'Unbounded';
+    src: url('/fonts/unbounded/Unbounded-Regular.woff2') format('woff2');
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+  }
+  
+  @font-face {
+    font-family: 'Unbounded';
+    src: url('/fonts/unbounded/Unbounded-Medium.woff2') format('woff2');
+    font-weight: 500;
+    font-style: normal;
+    font-display: swap;
+  }
+  
+  @font-face {
+    font-family: 'Unbounded';
+    src: url('/fonts/unbounded/Unbounded-Bold.woff2') format('woff2');
+    font-weight: 700;
+    font-style: normal;
+    font-display: swap;
   }
   
   /* 3D perspective utilities */

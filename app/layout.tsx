@@ -137,9 +137,29 @@ export default function RootLayout({
             __html: `if(localStorage.getItem('lite-mode')==='true')document.documentElement.classList.add('lite-mode');`,
           }}
         />
+        {/* Google Fonts с улучшенной конфигурацией */}
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=Geist+Mono:wght@100..900&family=Unbounded:wght@100..900&display=swap" rel="stylesheet" />
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Unbounded:wght@400;500;600;700&display=swap" rel="stylesheet" />
+        
+        {/* Системные фоллбеки для когда Google Fonts недоступен */}
+        <style>{`
+          @font-face {
+            font-family: 'Inter';
+            src: local('SF Pro Display'), local('Segoe UI'), local('Roboto'), local('Arial');
+            font-display: swap;
+          }
+          @font-face {
+            font-family: 'JetBrains Mono';
+            src: local('SFMono-Regular'), local('Cascadia Code'), local('Roboto Mono'), local('Consolas'), local('Courier New');
+            font-display: swap;
+          }
+          @font-face {
+            font-family: 'Unbounded';
+            src: local('Arial Black'), local('Segoe UI Black'), local('Arial');
+            font-display: swap;
+          }
+        `}</style>
       </head>
       
       <body className={`font-sans antialiased min-h-screen`}>

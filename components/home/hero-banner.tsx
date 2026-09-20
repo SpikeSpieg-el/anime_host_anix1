@@ -104,7 +104,14 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime, recommendationRea
         if (!anime.description || anime.description === "Описание отсутствует...") {
           setLoadingDescription(true)
           try {
-            const response = await fetch(`/api/anime/${anime.id}`)
+            const controller = new AbortController()
+            const timeout = setTimeout(() => controller.abort(), 5000) // 5 second timeout
+            
+            const response = await fetch(`/api/anime/${anime.id}`, {
+              signal: controller.signal
+            })
+            clearTimeout(timeout)
+            
             if (response.ok) {
               const data = await response.json()
               if (data.description && data.description !== "Описание отсутствует...") {
@@ -168,7 +175,7 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime, recommendationRea
     if (mode === 'recommended' && !isRecommendationLoading && !recommendedAnime && topOfWeekAnime) {
       setMode('top')
     }
-  }, [mode, isRecommendationLoading, recommendedAnime, topOfWeekAnime])
+  }, [isRecommendationLoading, recommendedAnime, topOfWeekAnime]) // Removed 'mode' to prevent infinite loop
 
   const posterImage = posterImageError ? generateFallbackPoster(anime?.title || 'Anime') : anime?.poster;
 

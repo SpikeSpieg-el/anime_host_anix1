@@ -6,7 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { AnimeSliderCaptcha } from "@/components/auth/anime-slider-captcha"
-import { Loader2, Mail, Lock, LogIn, UserPlus, AlertCircle, X, KeyRound, CheckCircle2, ArrowLeft } from "lucide-react"
+import { Loader2, Mail, Lock, LogIn, UserPlus, AlertCircle, KeyRound, CheckCircle2, ArrowLeft } from "lucide-react"
 import { loggers } from "@/lib/logger"
 import { useToast } from "@/hooks/use-toast"
 import { dispatchGiftCardReceived } from "@/lib/gift-card-events"
@@ -113,14 +113,8 @@ export function AuthModal({
   const isOpen = externalIsOpen !== undefined ? externalIsOpen : internalIsOpen
   const setIsOpen = onClose || setInternalIsOpen
 
-  /**
-   * Дефолтная кнопка-триггер «Войти» нужна только в неконтролируемом режиме.
-   * В управляемом (isOpen/onClose) родитель сам решает, как открыть модалку —
-   * иначе рядом с крючками/страницами появляется «лишняя» кнопка входа.
-   */
   const isControlled = externalIsOpen !== undefined || onClose !== undefined
 
-  // Синхронизация режима при открытии из крючков / navbar (register vs login)
   useEffect(() => {
     if (isOpen) {
       setIsLogin(initialMode === "login")
@@ -146,14 +140,13 @@ export function AuthModal({
     const emailTrim = email.trim()
     const passwordTrim = password.trim()
 
-    // Basic validation
     if (!emailTrim || !passwordTrim) {
       setError("Email и пароль обязательны")
       setLoading(false)
       return
     }
 
-    if (!emailTrim.includes('@') || !emailTrim.includes('.')) {
+    if (!emailTrim.includes("@") || !emailTrim.includes(".")) {
       setError("Введите корректный email адрес")
       setLoading(false)
       return
@@ -165,7 +158,6 @@ export function AuthModal({
       return
     }
 
-    // Проверка: пазл-капча должен быть собран (токен получен от компонента).
     if (!captchaToken) {
       setError("Соберите пазл для защиты от ботов, прежде чем продолжить.")
       setLoading(false)
@@ -204,10 +196,15 @@ export function AuthModal({
         if (giftCardToken && data.session?.access_token) {
           try {
             const claimResult = await claimGiftCard(giftCardToken, data.session.access_token)
-            trackEvent(claimResult.alreadyClaimed ? AnalyticsEvent.GIFT_CARD_ALREADY_CLAIMED : AnalyticsEvent.GIFT_CARD_REDEEM, {
-              context: "sign_in",
-              already_claimed: Boolean(claimResult.alreadyClaimed),
-            })
+            trackEvent(
+              claimResult.alreadyClaimed
+                ? AnalyticsEvent.GIFT_CARD_ALREADY_CLAIMED
+                : AnalyticsEvent.GIFT_CARD_REDEEM,
+              {
+                context: "sign_in",
+                already_claimed: Boolean(claimResult.alreadyClaimed),
+              }
+            )
             if (!claimResult.alreadyClaimed) {
               if (claimResult.card) dispatchGiftCardReceived(claimResult.card)
               toast({
@@ -218,7 +215,9 @@ export function AuthModal({
             document.cookie = "gift_card=; path=/; max-age=0"
           } catch (claimError) {
             loggers.auth.warn("claimGiftCard after sign in", claimError)
-            setError("Вход выполнен, но подарочную карту не удалось добавить. Откройте ссылку ещё раз после входа.")
+            setError(
+              "Вход выполнен, но подарочную карту не удалось добавить. Откройте ссылку ещё раз после входа."
+            )
             return
           }
         }
@@ -233,12 +232,10 @@ export function AuthModal({
           : null
 
         const rawGiftCardToken = getGiftCardToken()
-        const giftCardValue = rawGiftCardToken && /^[A-Za-z0-9]{32}$/.test(rawGiftCardToken)
-          ? rawGiftCardToken
-          : decodeGiftCardToken(rawGiftCardToken)
-
-        // Проверка HMAC уже выполняется на сервере в POST /api/auth/captcha/puzzle.
-        // Клиенту достаточно наличия токена (проверка выше).
+        const giftCardValue =
+          rawGiftCardToken && /^[A-Za-z0-9]{32}$/.test(rawGiftCardToken)
+            ? rawGiftCardToken
+            : decodeGiftCardToken(rawGiftCardToken)
 
         const { data, error } = await supabase.auth.signUp({
           email: emailTrim,
@@ -261,8 +258,6 @@ export function AuthModal({
           return
         }
 
-        // Если пользователь создан успешно - закрываем модалку
-        // Email confirmation handled by Supabase settings
         if (data.user) {
           if (data.session) identifyUser(`supabase:${data.user.id}`)
           const hookSource = consumeGuestHookAuthSource()
@@ -279,10 +274,15 @@ export function AuthModal({
           if (rawGiftCardToken && data.session?.access_token) {
             try {
               const claimResult = await claimGiftCard(rawGiftCardToken, data.session.access_token)
-              trackEvent(claimResult.alreadyClaimed ? AnalyticsEvent.GIFT_CARD_ALREADY_CLAIMED : AnalyticsEvent.GIFT_CARD_REDEEM, {
-                context: "sign_up",
-                already_claimed: Boolean(claimResult.alreadyClaimed),
-              })
+              trackEvent(
+                claimResult.alreadyClaimed
+                  ? AnalyticsEvent.GIFT_CARD_ALREADY_CLAIMED
+                  : AnalyticsEvent.GIFT_CARD_REDEEM,
+                {
+                  context: "sign_up",
+                  already_claimed: Boolean(claimResult.alreadyClaimed),
+                }
+              )
               if (claimResult.card) dispatchGiftCardReceived(claimResult.card)
               toast({
                 title: "Подарок получен!",
@@ -291,19 +291,20 @@ export function AuthModal({
               giftCardClaimed = true
             } catch (claimError) {
               loggers.auth.warn("claimGiftCard after sign up", claimError)
-              setError("Аккаунт создан, но подарочную карту не удалось добавить. Откройте ссылку ещё раз после входа.")
+              setError(
+                "Аккаунт создан, но подарочную карту не удалось добавить. Откройте ссылку ещё раз после входа."
+              )
               return
             }
           }
 
           document.cookie = "referral_code=; path=/; max-age=0"
-          // Keep the token when email confirmation is required and no session exists yet.
           if (!rawGiftCardToken || giftCardClaimed) {
             document.cookie = "gift_card=; path=/; max-age=0"
           }
           setIsOpen(false)
         } else {
-          setError('Не удалось создать аккаунт. Попробуйте снова.')
+          setError("Не удалось создать аккаунт. Попробуйте снова.")
         }
       }
     } catch (err: any) {
@@ -326,7 +327,7 @@ export function AuthModal({
     setError(null)
 
     const emailTrim = email.trim()
-    if (!emailTrim || !emailTrim.includes('@') || !emailTrim.includes('.')) {
+    if (!emailTrim || !emailTrim.includes("@") || !emailTrim.includes(".")) {
       setError("Введите корректный email адрес")
       setLoading(false)
       return
@@ -357,81 +358,94 @@ export function AuthModal({
   }
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => {
-      setIsOpen(open)
-      if (!open) resetForm()
-    }}>
+    <Dialog
+      open={isOpen}
+      onOpenChange={(open) => {
+        setIsOpen(open)
+        if (!open) resetForm()
+      }}
+    >
       {children ??
         (!isControlled && (
           <DialogTrigger asChild>
-            <Button variant="ghost" className="w-9 h-9 md:w-10 md:h-10 gap-2 text-zinc-400 hover:text-white transition-colors rounded-full">
+            <Button
+              variant="ghost"
+              className="w-9 h-9 md:w-10 md:h-10 gap-2 text-zinc-400 hover:text-white transition-colors rounded-full"
+            >
               <LogIn className="w-4 h-4" />
               <span className="hidden sm:inline font-medium">Войти</span>
             </Button>
           </DialogTrigger>
         ))}
 
-      <DialogContent className="overflow-hidden p-0 bg-[#09090b] border border-white/10 text-white sm:max-w-[420px] shadow-2xl shadow-orange-500/5">
+      {/* Адаптивная высота: max-h с автоскроллом и корректными отступами */}
+      <DialogContent className="max-h-[calc(100dvh-2rem)] sm:max-h-[92dvh] overflow-y-auto overscroll-contain p-0 bg-[#09090b] border border-white/10 text-white w-[calc(100%-2rem)] sm:max-w-[420px] shadow-2xl shadow-orange-500/5 [scrollbar-width:thin] [scrollbar-color:rgba(255,255,255,0.1)_transparent]">
         <DialogDescription className="sr-only">
           {isLogin ? "Форма входа в систему" : "Форма регистрации нового пользователя"}
         </DialogDescription>
-        
+
         {/* Декоративный градиент на фоне */}
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-32 bg-gradient-to-b from-orange-500/10 to-transparent pointer-events-none" />
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-28 sm:h-32 bg-gradient-to-b from-orange-500/10 to-transparent pointer-events-none" />
 
-        <div className="relative p-8">
-
+        <div className="relative p-5 sm:p-7">
           {isForgot ? (
             <>
-              <DialogHeader className="mb-8 text-center">
-                <div className="mx-auto w-12 h-12 rounded-full bg-white/5 flex items-center justify-center mb-4 border border-white/10 ring-1 ring-white/5">
-                  <KeyRound className="w-6 h-6 text-orange-500" />
+              <DialogHeader className="mb-4 sm:mb-6 text-center">
+                <div className="mx-auto w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-white/5 flex items-center justify-center mb-2.5 sm:mb-3 border border-white/10 ring-1 ring-white/5">
+                  <KeyRound className="w-5 h-5 sm:w-6 sm:h-6 text-orange-500" />
                 </div>
-                <DialogTitle className="text-2xl font-bold tracking-tight text-white">
+                <DialogTitle className="text-xl sm:text-2xl font-bold tracking-tight text-white">
                   Восстановление пароля
                 </DialogTitle>
-                <p className="text-zinc-400 text-sm mt-2">
+                <p className="text-zinc-400 text-xs sm:text-sm mt-1 sm:mt-2">
                   Введите email — мы отправим ссылку для сброса пароля
                 </p>
               </DialogHeader>
 
               {resetSent ? (
-                <div className="space-y-6">
-                  <div className="p-4 bg-green-500/10 border border-green-500/20 rounded-lg flex items-start gap-3 text-green-400 text-sm">
+                <div className="space-y-4 sm:space-y-5">
+                  <div className="p-3.5 sm:p-4 bg-green-500/10 border border-green-500/20 rounded-lg flex items-start gap-3 text-green-400 text-sm">
                     <CheckCircle2 className="w-5 h-5 mt-0.5 flex-shrink-0" />
                     <div>
                       <p className="font-medium">Письмо отправлено!</p>
-                      <p className="text-zinc-400 mt-1">Проверьте почту <span className="text-white font-medium">{email}</span> и перейдите по ссылке для сброса пароля.</p>
+                      <p className="text-zinc-400 mt-1 text-xs sm:text-sm">
+                        Проверьте почту <span className="text-white font-medium">{email}</span> и перейдите по ссылке для сброса пароля.
+                      </p>
                     </div>
                   </div>
                   <Button
                     type="button"
-                    onClick={() => { setIsForgot(false); setResetSent(false); }}
-                    className="w-full h-12 bg-white/5 border border-white/10 text-white hover:bg-white/10 font-medium rounded-xl transition-all"
+                    onClick={() => {
+                      setIsForgot(false)
+                      setResetSent(false)
+                    }}
+                    className="w-full h-11 sm:h-12 bg-white/5 border border-white/10 text-white hover:bg-white/10 font-medium rounded-xl transition-all text-sm sm:text-base"
                   >
                     <ArrowLeft className="w-4 h-4 mr-2" />
                     Вернуться ко входу
                   </Button>
                 </div>
               ) : (
-                <form onSubmit={handleResetPassword} className="space-y-5">
+                <form onSubmit={handleResetPassword} className="space-y-3.5 sm:space-y-4">
                   {error && (
-                    <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg flex items-start gap-3 text-red-400 text-sm animate-in fade-in slide-in-from-top-2">
+                    <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg flex items-start gap-3 text-red-400 text-xs sm:text-sm animate-in fade-in slide-in-from-top-2">
                       <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
                       <span>{error}</span>
                     </div>
                   )}
 
                   <div className="space-y-1 group">
-                    <label className="text-xs font-medium text-zinc-500 ml-1 group-focus-within:text-orange-500 transition-colors">Email</label>
+                    <label className="text-xs font-medium text-zinc-500 ml-1 group-focus-within:text-orange-500 transition-colors">
+                      Email
+                    </label>
                     <div className="relative">
-                      <Mail className="absolute left-3 top-3 h-5 w-5 text-zinc-500 group-focus-within:text-orange-500 transition-colors" />
+                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 sm:h-5 sm:w-5 text-zinc-500 group-focus-within:text-orange-500 transition-colors" />
                       <Input
                         type="email"
                         placeholder="name@example.com"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
-                        className="pl-10 h-12 bg-white/5 border-white/10 text-white placeholder:text-zinc-600 focus:bg-white/10 focus:border-orange-500/50 focus:ring-orange-500/20 transition-all rounded-xl"
+                        className="pl-10 h-11 sm:h-12 bg-white/5 border-white/10 text-white placeholder:text-zinc-600 focus:bg-white/10 focus:border-orange-500/50 focus:ring-orange-500/20 transition-all rounded-xl text-sm sm:text-base"
                         required
                         autoFocus
                       />
@@ -440,7 +454,7 @@ export function AuthModal({
 
                   <Button
                     type="submit"
-                    className="w-full h-12 bg-orange-500 text-white hover:bg-orange-600 font-semibold text-base rounded-xl shadow-lg shadow-orange-500/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
+                    className="w-full h-11 sm:h-12 bg-orange-500 text-white hover:bg-orange-600 font-semibold text-sm sm:text-base rounded-xl shadow-lg shadow-orange-500/20 transition-all hover:scale-[1.01] active:scale-[0.98]"
                     disabled={loading}
                   >
                     {loading ? (
@@ -453,13 +467,16 @@ export function AuthModal({
                     )}
                   </Button>
 
-                  <div className="text-center">
+                  <div className="text-center pt-1">
                     <button
                       type="button"
-                      onClick={() => { setIsForgot(false); setError(null); }}
-                      className="text-sm text-zinc-400 hover:text-white transition-colors font-medium"
+                      onClick={() => {
+                        setIsForgot(false)
+                        setError(null)
+                      }}
+                      className="text-xs sm:text-sm text-zinc-400 hover:text-white transition-colors font-medium"
                     >
-                      <ArrowLeft className="w-4 h-4 inline mr-1" />
+                      <ArrowLeft className="w-3.5 h-3.5 sm:w-4 sm:h-4 inline mr-1" />
                       Вернуться ко входу
                     </button>
                   </div>
@@ -468,73 +485,82 @@ export function AuthModal({
             </>
           ) : (
             <>
-              <DialogHeader className="mb-8 text-center">
-                <div className="mx-auto w-12 h-12 rounded-full bg-white/5 flex items-center justify-center mb-4 border border-white/10 ring-1 ring-white/5">
+              <DialogHeader className="mb-4 sm:mb-6 text-center">
+                <div className="mx-auto w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-white/5 flex items-center justify-center mb-2.5 sm:mb-3 border border-white/10 ring-1 ring-white/5">
                   {isLogin ? (
-                    <LogIn className="w-6 h-6 text-orange-500" />
+                    <LogIn className="w-5 h-5 sm:w-6 sm:h-6 text-orange-500" />
                   ) : (
-                    <UserPlus className="w-6 h-6 text-orange-500" />
+                    <UserPlus className="w-5 h-5 sm:w-6 sm:h-6 text-orange-500" />
                   )}
                 </div>
-                <DialogTitle className="text-2xl font-bold tracking-tight text-white">
+                <DialogTitle className="text-xl sm:text-2xl font-bold tracking-tight text-white">
                   {isLogin ? "Добро пожаловать" : "Создать аккаунт"}
                 </DialogTitle>
-                <p className="text-zinc-400 text-sm mt-2">
-                  {isLogin 
-                    ? "Введите свои данные для входа в систему" 
-                    : "Зарегистрируйтесь, чтобы получить доступ ко всем функциям"
-                  }
+                <p className="text-zinc-400 text-xs sm:text-sm mt-1 sm:mt-2">
+                  {isLogin
+                    ? "Введите свои данные для входа в систему"
+                    : "Зарегистрируйтесь, чтобы получить доступ ко всем функциям"}
                 </p>
               </DialogHeader>
 
-              <form onSubmit={handleAuth} className="space-y-5">
+              <form onSubmit={handleAuth} className="space-y-3.5 sm:space-y-4">
                 {error && (
-                  <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg flex items-start gap-3 text-red-400 text-sm animate-in fade-in slide-in-from-top-2">
+                  <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg flex items-start gap-3 text-red-400 text-xs sm:text-sm animate-in fade-in slide-in-from-top-2">
                     <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
                     <span>{error}</span>
                   </div>
                 )}
 
                 <div className="space-y-1 group">
-                  <label className="text-xs font-medium text-zinc-500 ml-1 group-focus-within:text-orange-500 transition-colors">Email</label>
+                  <label className="text-xs font-medium text-zinc-500 ml-1 group-focus-within:text-orange-500 transition-colors">
+                    Email
+                  </label>
                   <div className="relative">
-                    <Mail className="absolute left-3 top-3 h-5 w-5 text-zinc-500 group-focus-within:text-orange-500 transition-colors" />
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 sm:h-5 sm:w-5 text-zinc-500 group-focus-within:text-orange-500 transition-colors" />
                     <Input
                       type="email"
                       placeholder="name@example.com"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      className="pl-10 h-12 bg-white/5 border-white/10 text-white placeholder:text-zinc-600 focus:bg-white/10 focus:border-orange-500/50 focus:ring-orange-500/20 transition-all rounded-xl"
+                      className="pl-10 h-11 sm:h-12 bg-white/5 border-white/10 text-white placeholder:text-zinc-600 focus:bg-white/10 focus:border-orange-500/50 focus:ring-orange-500/20 transition-all rounded-xl text-sm sm:text-base"
                       required
                     />
                   </div>
                 </div>
 
                 <div className="space-y-1 group">
-                  <label className="text-xs font-medium text-zinc-500 ml-1 group-focus-within:text-orange-500 transition-colors">Пароль</label>
+                  <label className="text-xs font-medium text-zinc-500 ml-1 group-focus-within:text-orange-500 transition-colors">
+                    Пароль
+                  </label>
                   <div className="relative">
-                    <Lock className="absolute left-3 top-3 h-5 w-5 text-zinc-500 group-focus-within:text-orange-500 transition-colors" />
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 sm:h-5 sm:w-5 text-zinc-500 group-focus-within:text-orange-500 transition-colors" />
                     <Input
                       type="password"
                       placeholder="••••••••"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      className="pl-10 h-12 bg-white/5 border-white/10 text-white placeholder:text-zinc-600 focus:bg-white/10 focus:border-orange-500/50 focus:ring-orange-500/20 transition-all rounded-xl"
+                      className="pl-10 h-11 sm:h-12 bg-white/5 border-white/10 text-white placeholder:text-zinc-600 focus:bg-white/10 focus:border-orange-500/50 focus:ring-orange-500/20 transition-all rounded-xl text-sm sm:text-base"
                       required
                       minLength={6}
                     />
                   </div>
                 </div>
 
+                {/* Блок капчи с центровкой и защитой от переполнения */}
                 {!isForgot && (
-                  <AnimeSliderCaptcha onSuccess={(token) => setCaptchaToken(token)} disabled={loading} />
+                  <div className="w-full flex flex-col items-center justify-center pt-1 overflow-hidden">
+                    <AnimeSliderCaptcha onSuccess={(token) => setCaptchaToken(token)} disabled={loading} />
+                  </div>
                 )}
 
                 {(isLogin || isForgot) && (
                   <div className="text-right">
                     <button
                       type="button"
-                      onClick={() => { setIsForgot(true); setError(null); }}
+                      onClick={() => {
+                        setIsForgot(true)
+                        setError(null)
+                      }}
                       className="text-xs text-zinc-500 hover:text-orange-500 transition-colors font-medium"
                     >
                       Забыли пароль?
@@ -544,7 +570,7 @@ export function AuthModal({
 
                 <Button
                   type="submit"
-                  className="w-full h-12 bg-white text-black hover:bg-zinc-200 font-semibold text-base rounded-xl shadow-lg shadow-white/10 transition-all hover:scale-[1.02] active:scale-[0.98]"
+                  className="w-full h-11 sm:h-12 bg-white text-black hover:bg-zinc-200 font-semibold text-sm sm:text-base rounded-xl shadow-lg shadow-white/10 transition-all hover:scale-[1.01] active:scale-[0.98]"
                   disabled={loading}
                 >
                   {loading ? (
@@ -552,17 +578,19 @@ export function AuthModal({
                       <Loader2 className="w-4 h-4 animate-spin" />
                       Обработка...
                     </span>
+                  ) : isLogin ? (
+                    "Войти"
                   ) : (
-                    isLogin ? "Войти" : "Зарегистрироваться"
+                    "Зарегистрироваться"
                   )}
                 </Button>
               </form>
 
-              <div className="mt-6 text-center">
+              <div className="mt-4 sm:mt-6 text-center">
                 <button
                   type="button"
                   onClick={toggleMode}
-                  className="text-sm text-zinc-400 hover:text-white transition-colors font-medium"
+                  className="text-xs sm:text-sm text-zinc-400 hover:text-white transition-colors font-medium"
                 >
                   {isLogin ? "Нет аккаунта? " : "Уже есть аккаунт? "}
                   <span className="text-orange-500 hover:text-orange-400">
