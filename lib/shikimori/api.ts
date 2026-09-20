@@ -511,99 +511,108 @@ export async function getHeroRecommendation(
   bookmarkIds: string[] = [], 
   popularAnime?: Anime[]
 ): Promise<{ anime: Anime | null; reason?: RecommendationReason }> {
-  // 1. Создаем Set исключений (то, что юзер уже видел/отложил)
-  const excludeSet = new Set([...watchedIds, ...bookmarkIds]);
-  
-  // Объединяем историю — последние взаимодействия наиболее релевантны
-  const historyPool = [...bookmarkIds, ...watchedIds].filter(Boolean);
-  
-  let candidates: Anime[] = [];
-  let usedStrategy: 'similar' | 'trending' = 'trending';
-  let sourceAnimeTitle: string | undefined;
+  try {
+    // 1. Создаем Set исключений (то, что юзер уже видел/отложил)
+    const excludeSet = new Set([...watchedIds, ...bookmarkIds]);
+    
+    // Объединяем историю — последние взаимодействия наиболее релевантны
+    const historyPool = [...bookmarkIds, ...watchedIds].filter(Boolean);
+    
+    let candidates: Anime[] = [];
+    let usedStrategy: 'similar' | 'trending' = 'trending';
+    let sourceAnimeTitle: string | undefined;
 
-  // 2. СТРАТЕГИЯ A: "Похожее на несколько аниме" (если есть история)
-  if (historyPool.length > 0) {
-    try {
-      // Берём до 3 случайных ID из истории (shuffle + slice)
-      const shuffled = [...historyPool].sort(() => Math.random() - 0.5);
-      const selectedIds = shuffled.slice(0, Math.min(3, shuffled.length));
+    // 2. СТРАТЕГИЯ A: "Похожее на несколько аниме" (если есть история)
+    if (historyPool.length > 0) {
+      try {
+        // Берём до 2 случайных ID из истории (reduced from 3 to avoid rate limiting)
+        const shuffled = [...historyPool].sort(() => Math.random() - 0.5);
+        const selectedIds = shuffled.slice(0, Math.min(2, shuffled.length));
 
-      // Параллельно запрашиваем similar для каждого выбранного ID
-      const results = await Promise.allSettled(
-        selectedIds.map(id =>
-          shikimoriJson<ShikimoriAnime[]>(
-            `${BASE_URL}/animes/${id}/similar`,
-            { next: { revalidate: 3600 } },
-            { fallback: [] }
+        // Параллельно запрашиваем similar для каждого выбранного ID
+        const results = await Promise.allSettled(
+          selectedIds.map(id =>
+            shikimoriJson<ShikimoriAnime[]>(
+              `${BASE_URL}/animes/${id}/similar`,
+              { next: { revalidate: 3600 } },
+              { fallback: [] }
+            )
           )
-        )
-      );
+        );
 
-      // Объединяем все результаты, дедуплицируем по ID
-      const merged = new Map<number, ShikimoriAnime>();
-      results.forEach(result => {
-        if (result.status === 'fulfilled') {
-          result.value.filter(isAnimeSafe).forEach(item => {
-            if (!merged.has(item.id)) merged.set(item.id, item);
-          });
+        // Объединяем все результаты, дедуплицируем по ID
+        const merged = new Map<number, ShikimoriAnime>();
+        results.forEach(result => {
+          if (result.status === 'fulfilled') {
+            result.value.filter(isAnimeSafe).forEach(item => {
+              if (!merged.has(item.id)) merged.set(item.id, item);
+            });
+          }
+        });
+
+        if (merged.size > 0) {
+          candidates = await Promise.all(Array.from(merged.values()).map(item => transformAnime(item, false)));
+          usedStrategy = 'similar';
+          // Получаем название источника синхронно чтобы оно попало в reason
+          const firstSuccessId = selectedIds[0];
+          const sourceAnime = await getAnimeById(firstSuccessId).catch(() => null);
+          sourceAnimeTitle = sourceAnime?.title;
         }
-      });
-
-      if (merged.size > 0) {
-        candidates = await Promise.all(Array.from(merged.values()).map(item => transformAnime(item, false)));
-        usedStrategy = 'similar';
-        // Получаем название источника синхронно чтобы оно попало в reason
-        const firstSuccessId = selectedIds[0];
-        const sourceAnime = await getAnimeById(firstSuccessId).catch(() => null);
-        sourceAnimeTitle = sourceAnime?.title;
-      }
-    } catch (e) {
-      console.error("Error fetching similar anime for recommendation:", e);
-    }
-  }
-
-  // 3. СТРАТЕГИЯ B: "Тренды" (фоллбек)
-  if (candidates.length === 0) {
-    candidates = popularAnime && popularAnime.length > 0 ? [...popularAnime] : await getPopularNow(20);
-    usedStrategy = 'trending';
-  }
-
-  // 4. Фильтрация
-  const validCandidates = candidates.filter(anime => {
-    if (excludeSet.has(anime.shikimoriId) || excludeSet.has(anime.id)) return false;
-    if (anime.rating < 6.5) return false;
-    return true;
-  });
-
-  // Сортируем по Hero Score
-  validCandidates.sort((a, b) => calculateHeroScore(b) - calculateHeroScore(a));
-
-  // 5. Выбираем случайно из топ-5 чтобы каждый заход давал разный результат
-  let bestCandidate: Anime | undefined;
-  if (validCandidates.length > 0) {
-    const topN = validCandidates.slice(0, Math.min(5, validCandidates.length));
-    bestCandidate = topN[Math.floor(Math.random() * topN.length)];
-  }
-
-  if (!bestCandidate && candidates.length > 0) {
-    bestCandidate = candidates[Math.floor(Math.random() * Math.min(5, candidates.length))];
-  }
-  
-  if (bestCandidate) {
-    // /similar не возвращает жанры — дозагружаем детали для выбранного кандидата
-    if (!bestCandidate.genres || bestCandidate.genres.length === 0) {
-      const full = await getAnimeById(bestCandidate.id, false).catch(() => null);
-      if (full && full.genres && full.genres.length > 0) {
-        bestCandidate = { ...bestCandidate, genres: full.genres };
+      } catch (e) {
+        console.error("Error fetching similar anime for recommendation:", e);
       }
     }
-    return {
-      anime: bestCandidate,
-      reason: generateRecommendationReason(bestCandidate, usedStrategy, sourceAnimeTitle)
-    };
-  }
 
-  return { anime: null };
+    // 3. СТРАТЕГИЯ B: "Тренды" (фоллбек)
+    if (candidates.length === 0) {
+      candidates = popularAnime && popularAnime.length > 0 ? [...popularAnime] : await getPopularNow(20);
+      usedStrategy = 'trending';
+    }
+
+    // 4. Фильтрация
+    const validCandidates = candidates.filter(anime => {
+      if (excludeSet.has(anime.shikimoriId) || excludeSet.has(anime.id)) return false;
+      if (anime.rating < 6.5) return false;
+      return true;
+    });
+
+    // Сортируем по Hero Score
+    validCandidates.sort((a, b) => calculateHeroScore(b) - calculateHeroScore(a));
+
+    // 5. Выбираем случайно из топ-5 чтобы каждый заход давал разный результат
+    let bestCandidate: Anime | undefined;
+    if (validCandidates.length > 0) {
+      const topN = validCandidates.slice(0, Math.min(5, validCandidates.length));
+      bestCandidate = topN[Math.floor(Math.random() * topN.length)];
+    }
+
+    if (!bestCandidate && candidates.length > 0) {
+      bestCandidate = candidates[Math.floor(Math.random() * Math.min(5, candidates.length))];
+    }
+    
+    if (bestCandidate) {
+      // /similar не возвращает жанры — дозагружаем детали для выбранного кандидата
+      if (!bestCandidate.genres || bestCandidate.genres.length === 0) {
+        try {
+          const full = await getAnimeById(bestCandidate.id, false).catch(() => null);
+          if (full && full.genres && full.genres.length > 0) {
+            bestCandidate = { ...bestCandidate, genres: full.genres };
+          }
+        } catch (e) {
+          console.error("Error fetching anime details for recommendation:", e);
+        }
+      }
+      return {
+        anime: bestCandidate,
+        reason: generateRecommendationReason(bestCandidate, usedStrategy, sourceAnimeTitle)
+      };
+    }
+
+    return { anime: null };
+  } catch (error) {
+    console.error("[getHeroRecommendation] Unexpected error:", error);
+    return { anime: null };
+  }
 }
 
 /**

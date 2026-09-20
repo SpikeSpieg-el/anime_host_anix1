@@ -174,7 +174,17 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime, recommendationRea
 
   if (!anime) {
     if (!topOfWeekAnime && !recommendedAnime) {
-      return <HeroBannerSkeleton />
+      return (
+        <div className="relative w-full min-h-[440px] lg:h-[600px] mb-8 lg:mb-12 overflow-hidden bg-background border-b border-border flex items-center justify-center">
+          <div className="text-center p-8">
+            <Loader2 className="w-12 h-12 text-muted-foreground mx-auto mb-4 animate-spin" />
+            <h3 className="text-xl font-bold text-foreground mb-2">Загрузка данных...</h3>
+            <p className="text-muted-foreground text-sm max-w-md">
+              Пожалуйста, подождите, пока мы загружаем информацию об аниме
+            </p>
+          </div>
+        </div>
+      )
     }
     if (mode === 'recommended' && !recommendedAnime) {
       if (isRecommendationLoading) {

@@ -56,11 +56,20 @@ export function HomePageWrapper({
     params.set('bust', String(Date.now()))
 
     try {
-      const data = await fetch(`/api/hero-recommendation?${params.toString()}`, { cache: 'no-store' }).then(r => r.json())
-      if (data?.anime) {
-        setRecommendedAnime(data.anime)
-        setRecommendationReason(data.reason)
+      const response = await fetch(`/api/hero-recommendation?${params.toString()}`, { cache: 'no-store' })
+      if (!response.ok) {
+        console.error('[HomePageWrapper] Failed to fetch recommendation:', response.status)
+        // Continue anyway - will use topOfWeekHero as fallback
+      } else {
+        const data = await response.json()
+        if (data?.anime) {
+          setRecommendedAnime(data.anime)
+          setRecommendationReason(data.reason)
+        }
       }
+    } catch (error) {
+      console.error('[HomePageWrapper] Error fetching recommendation:', error)
+      // Continue anyway - will use topOfWeekHero as fallback
     } finally {
       setIsRecommendationLoading(false)
     }

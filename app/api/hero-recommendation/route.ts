@@ -14,10 +14,18 @@ export async function GET(request: NextRequest) {
     ? watchedIds.filter((id) => id !== excludeId)
     : watchedIds
 
-  const popularAnime = await getPopularNow(20)
-  const result = await getHeroRecommendation(filteredWatched, bookmarkIds, popularAnime)
+  try {
+    const popularAnime = await getPopularNow(20)
+    const result = await getHeroRecommendation(filteredWatched, bookmarkIds, popularAnime)
 
-  return NextResponse.json(result, {
-    headers: { "Cache-Control": "no-store" },
-  })
+    return NextResponse.json(result, {
+      headers: { "Cache-Control": "no-store" },
+    })
+  } catch (error) {
+    console.error('[HeroRecommendation] Error:', error)
+    // Return fallback with null anime - client will handle this
+    return NextResponse.json({ anime: null }, {
+      headers: { "Cache-Control": "no-store" },
+    })
+  }
 }

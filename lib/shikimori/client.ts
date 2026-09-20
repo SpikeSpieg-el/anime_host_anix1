@@ -8,6 +8,9 @@ type ShikimoriCacheEntry = {
 
 const SHIKIMORI_JSON_CACHE = new Map<string, ShikimoriCacheEntry>();
 
+// Simple rate limiting for individual requests
+let lastRequestTime = 0;
+
 function shikimoriCacheKey(input: string, init?: RequestInit): string {
   const method = (init?.method ?? "GET").toUpperCase();
   const body = typeof init?.body === "string" ? init?.body : "";
@@ -28,11 +31,19 @@ export async function shikimoriFetch(input: string, init?: RequestInit & { next?
     });
 
     console.log(`[Shikimori] Response status: ${res.status} for ${input}`);
-    if (res.status === 429) return res; // Rate limit
+    if (res.status === 429) {
+      console.warn(`[Shikimori] Rate limited for ${input}`);
+      return res; // Rate limit
+    }
     return res;
   } catch (error) {
     console.error(`[Shikimori] Fetch error for ${input}:`, error);
-    if (retries > 0) return shikimoriFetch(input, init, retries - 1);
+    if (retries > 0) {
+      // Exponential backoff: wait 2^retries * 100ms before retry
+      const backoffMs = Math.pow(2, retries) * 100;
+      await new Promise(resolve => setTimeout(resolve, backoffMs));
+      return shikimoriFetch(input, init, retries - 1);
+    }
     throw error;
   } finally {
     clearTimeout(timeout);
@@ -49,12 +60,37 @@ export async function shikimoriJson<T>(
   const key = shikimoriCacheKey(input, init);
 
   const cached = SHIKIMORI_JSON_CACHE.get(key);
-  if (cached && Date.now() <= cached.freshUntil) return cached.value as T;
+  if (cached && Date.now() <= cached.freshUntil) {
+    console.log(`[Shikimori] Cache hit for ${input}`);
+    return cached.value as T;
+  }
+
+  // Add rate limiting delay for non-cached requests
+  const timeSinceLastRequest = Date.now() - lastRequestTime;
+  const MIN_REQUEST_INTERVAL = 200; // 200ms between requests
+
+  if (timeSinceLastRequest < MIN_REQUEST_INTERVAL) {
+    const delay = MIN_REQUEST_INTERVAL - timeSinceLastRequest;
+    console.log(`[Shikimori] Rate limiting: waiting ${delay}ms before request`);
+    await new Promise(resolve => setTimeout(resolve, delay));
+  }
 
   try {
     const res = await shikimoriFetch(input, init);
+    lastRequestTime = Date.now();
 
-    if (res.status === 429 || !res.ok) {
+    if (res.status === 429) {
+      console.warn(`[Shikimori] Rate limit hit for ${input}, using stale cache if available`);
+      if (cached && Date.now() <= cached.staleUntil) {
+        console.log(`[Shikimori] Using stale cache for ${input}`);
+        return cached.value as T;
+      }
+      console.log(`[Shikimori] No cache available, returning fallback for ${input}`);
+      return options!.fallback;
+    }
+
+    if (!res.ok) {
+      console.error(`[Shikimori] Non-OK response ${res.status} for ${input}`);
       if (cached && Date.now() <= cached.staleUntil) return cached.value as T;
       return options!.fallback;
     }
@@ -68,8 +104,13 @@ export async function shikimoriJson<T>(
       });
     }
     return data;
-  } catch {
-    if (cached && Date.now() <= cached.staleUntil) return cached.value as T;
+  } catch (error) {
+    console.error(`[Shikimori] JSON parse or fetch error for ${input}:`, error);
+    if (cached && Date.now() <= cached.staleUntil) {
+      console.log(`[Shikimori] Using stale cache for ${input} after error`);
+      return cached.value as T;
+    }
+    console.log(`[Shikimori] No cache available after error, returning fallback for ${input}`);
     return options!.fallback;
   }
 }
