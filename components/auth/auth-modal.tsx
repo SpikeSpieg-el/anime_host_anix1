@@ -526,11 +526,11 @@ export function AuthModal({
                   </div>
                 </div>
 
-                {!isLogin && (
+                {!isForgot && (
                   <AnimeSliderCaptcha onSuccess={(token) => setCaptchaToken(token)} disabled={loading} />
                 )}
 
-                {isLogin && (
+                {(isLogin || isForgot) && (
                   <div className="text-right">
                     <button
                       type="button"
