@@ -1,0 +1,157 @@
+{
+  "node": {
+    "40bf5fd0b23b54d599166aefd7e9752b7fdf144964": {
+      "workers": {
+        "app/page": {
+          "moduleId": "(action-browser)/./node_modules/next/dist/build/webpack/loaders/next-flight-action-entry-loader.js?actions=%5B%5B%22C%3A%5C%5CUsers%5C%5Cchash%5C%5CDocuments%5C%5CGitHub%5C%5Canime_host_anix1%5C%5Capp%5C%5Cactions%5C%5Cget-fresh-anime-data.ts%22%2C%5B%5B%2240bf5fd0b23b54d599166aefd7e9752b7fdf144964%22%2C%22getFreshAnimeData%22%5D%5D%5D%2C%5B%22C%3A%5C%5CUsers%5C%5Cchash%5C%5CDocuments%5C%5CGitHub%5C%5Canime_host_anix1%5C%5Capp%5C%5Ccatalog%5C%5Cactions%5C%5Cget-random-anime.ts%22%2C%5B%5B%2240559372cf2efd6a168f0b9ef579d32b2b07aac654%22%2C%22fetchRandomAnime%22%5D%5D%5D%5D&__client_imported__=true!",
+          "async": false
+        },
+        "app/gacha/page": {
+          "moduleId": "(action-browser)/./node_modules/next/dist/build/webpack/loaders/next-flight-action-entry-loader.js?actions=%5B%5B%22C%3A%5C%5CUsers%5C%5Cchash%5C%5CDocuments%5C%5CGitHub%5C%5Canime_host_anix1%5C%5Capp%5C%5Cactions%5C%5Cget-fresh-anime-data.ts%22%2C%5B%5B%2240bf5fd0b23b54d599166aefd7e9752b7fdf144964%22%2C%22getFreshAnimeData%22%5D%5D%5D%2C%5B%22C%3A%5C%5CUsers%5C%5Cchash%5C%5CDocuments%5C%5CGitHub%5C%5Canime_host_anix1%5C%5Capp%5C%5Ccatalog%5C%5Cactions%5C%5Cget-random-anime.ts%22%2C%5B%5B%2240559372cf2efd6a168f0b9ef579d32b2b07aac654%22%2C%22fetchRandomAnime%22%5D%5D%5D%2C%5B%22C%3A%5C%5CUsers%5C%5Cchash%5C%5CDocuments%5C%5CGitHub%5C%5Canime_host_anix1%5C%5Capp%5C%5Cgacha%5C%5Cactions.ts%22%2C%5B%5B%22404e9af29472f161dce20649c03ac82c9d9041be48%22%2C%22searchGachaPacks%22%5D%2C%5B%2240bcd0454dc63222701a8768e7050c360db18f49e0%22%2C%22createCustomGachaPack%22%5D%2C%5B%2240fc219138985048092bfd4041722f93ec7dcf91e0%22%2C%22generateStatsForRarity%22%5D%2C%5B%22602cc5b292ac91e11e839a7d8d1520f57be6d26903%22%2C%22checkPackAvailability%22%5D%2C%5B%22606a6f14c8ebe981334c83432955891c232c7b8c11%22%2C%22updateUserPityAfterRoll%22%5D%2C%5B%22783141e214f260916e0b6872c90439d4afc6db9558%22%2C%22rollFromBanner%22%5D%2C%5B%2278327f86b0dde5f63fc000f6b829d4fea51d632ad0%22%2C%22rollAnimeCharacter%22%5D%2C%5B%227c5a9857b9d09c5d92a747f6f40b950a51152a6171%22%2C%22rollFromAnimePack%22%5D%5D%5D%5D&__client_imported__=true!",
+          "async": false
+        },
+        "app/_not-found/page": {
+          "moduleId": "(action-browser)/./node_modules/next/dist/build/webpack/loaders/next-flight-action-entry-loader.js?actions=%5B%5B%22C%3A%5C%5CUsers%5C%5Cchash%5C%5CDocuments%5C%5CGitHub%5C%5Canime_host_anix1%5C%5Capp%5C%5Cactions%5C%5Cget-fresh-anime-data.ts%22%2C%5B%5B%2240bf5fd0b23b54d599166aefd7e9752b7fdf144964%22%2C%22getFreshAnimeData%22%5D%5D%5D%2C%5B%22C%3A%5C%5CUsers%5C%5Cchash%5C%5CDocuments%5C%5CGitHub%5C%5Canime_host_anix1%5C%5Capp%5C%5Ccatalog%5C%5Cactions%5C%5Cget-random-anime.ts%22%2C%5B%5B%2240559372cf2efd6a168f0b9ef579d32b2b07aac654%22%2C%22fetchRandomAnime%22%5D%5D%5D%5D&__client_imported__=true!",
+          "async": false
+        },
+        "app/catalog/page": {
+          "moduleId": "(action-browser)/./node_modules/next/dist/build/webpack/loaders/next-flight-action-entry-loader.js?actions=%5B%5B%22C%3A%5C%5CUsers%5C%5Cchash%5C%5CDocuments%5C%5CGitHub%5C%5Canime_host_anix1%5C%5Capp%5C%5Cactions%5C%5Cget-fresh-anime-data.ts%22%2C%5B%5B%2240bf5fd0b23b54d599166aefd7e9752b7fdf144964%22%2C%22getFreshAnimeData%22%5D%5D%5D%2C%5B%22C%3A%5C%5CUsers%5C%5Cchash%5C%5CDocuments%5C%5CGitHub%5C%5Canime_host_anix1%5C%5Capp%5C%5Ccatalog%5C%5Cactions%5C%5Cget-random-anime.ts%22%2C%5B%5B%2240559372cf2efd6a168f0b9ef579d32b2b07aac654%22%2C%22fetchRandomAnime%22%5D%5D%5D%2C%5B%22C%3A%5C%5CUsers%5C%5Cchash%5C%5CDocuments%5C%5CGitHub%5C%5Canime_host_anix1%5C%5Capp%5C%5Ccatalog%5C%5Cactions.ts%22%2C%5B%5B%224042d30e0c7230f4050a42f109b8037b201a533c9d%22%2C%22fetchAnimeData%22%5D%5D%5D%5D&__client_imported__=true!",
+          "async": false
+        }
+      },
+      "layer": {
+        "app/page": "action-browser",
+        "app/gacha/page": "action-browser",
+        "app/_not-found/page": "action-browser",
+        "app/catalog/page": "action-browser"
+      }
+    },
+    "40559372cf2efd6a168f0b9ef579d32b2b07aac654": {
+      "workers": {
+        "app/page": {
+          "moduleId": "(action-browser)/./node_modules/next/dist/build/webpack/loaders/next-flight-action-entry-loader.js?actions=%5B%5B%22C%3A%5C%5CUsers%5C%5Cchash%5C%5CDocuments%5C%5CGitHub%5C%5Canime_host_anix1%5C%5Capp%5C%5Cactions%5C%5Cget-fresh-anime-data.ts%22%2C%5B%5B%2240bf5fd0b23b54d599166aefd7e9752b7fdf144964%22%2C%22getFreshAnimeData%22%5D%5D%5D%2C%5B%22C%3A%5C%5CUsers%5C%5Cchash%5C%5CDocuments%5C%5CGitHub%5C%5Canime_host_anix1%5C%5Capp%5C%5Ccatalog%5C%5Cactions%5C%5Cget-random-anime.ts%22%2C%5B%5B%2240559372cf2efd6a168f0b9ef579d32b2b07aac654%22%2C%22fetchRandomAnime%22%5D%5D%5D%5D&__client_imported__=true!",
+          "async": false
+        },
+        "app/gacha/page": {
+          "moduleId": "(action-browser)/./node_modules/next/dist/build/webpack/loaders/next-flight-action-entry-loader.js?actions=%5B%5B%22C%3A%5C%5CUsers%5C%5Cchash%5C%5CDocuments%5C%5CGitHub%5C%5Canime_host_anix1%5C%5Capp%5C%5Cactions%5C%5Cget-fresh-anime-data.ts%22%2C%5B%5B%2240bf5fd0b23b54d599166aefd7e9752b7fdf144964%22%2C%22getFreshAnimeData%22%5D%5D%5D%2C%5B%22C%3A%5C%5CUsers%5C%5Cchash%5C%5CDocuments%5C%5CGitHub%5C%5Canime_host_anix1%5C%5Capp%5C%5Ccatalog%5C%5Cactions%5C%5Cget-random-anime.ts%22%2C%5B%5B%2240559372cf2efd6a168f0b9ef579d32b2b07aac654%22%2C%22fetchRandomAnime%22%5D%5D%5D%2C%5B%22C%3A%5C%5CUsers%5C%5Cchash%5C%5CDocuments%5C%5CGitHub%5C%5Canime_host_anix1%5C%5Capp%5C%5Cgacha%5C%5Cactions.ts%22%2C%5B%5B%22404e9af29472f161dce20649c03ac82c9d9041be48%22%2C%22searchGachaPacks%22%5D%2C%5B%2240bcd0454dc63222701a8768e7050c360db18f49e0%22%2C%22createCustomGachaPack%22%5D%2C%5B%2240fc219138985048092bfd4041722f93ec7dcf91e0%22%2C%22generateStatsForRarity%22%5D%2C%5B%22602cc5b292ac91e11e839a7d8d1520f57be6d26903%22%2C%22checkPackAvailability%22%5D%2C%5B%22606a6f14c8ebe981334c83432955891c232c7b8c11%22%2C%22updateUserPityAfterRoll%22%5D%2C%5B%22783141e214f260916e0b6872c90439d4afc6db9558%22%2C%22rollFromBanner%22%5D%2C%5B%2278327f86b0dde5f63fc000f6b829d4fea51d632ad0%22%2C%22rollAnimeCharacter%22%5D%2C%5B%227c5a9857b9d09c5d92a747f6f40b950a51152a6171%22%2C%22rollFromAnimePack%22%5D%5D%5D%5D&__client_imported__=true!",
+          "async": false
+        },
+        "app/_not-found/page": {
+          "moduleId": "(action-browser)/./node_modules/next/dist/build/webpack/loaders/next-flight-action-entry-loader.js?actions=%5B%5B%22C%3A%5C%5CUsers%5C%5Cchash%5C%5CDocuments%5C%5CGitHub%5C%5Canime_host_anix1%5C%5Capp%5C%5Cactions%5C%5Cget-fresh-anime-data.ts%22%2C%5B%5B%2240bf5fd0b23b54d599166aefd7e9752b7fdf144964%22%2C%22getFreshAnimeData%22%5D%5D%5D%2C%5B%22C%3A%5C%5CUsers%5C%5Cchash%5C%5CDocuments%5C%5CGitHub%5C%5Canime_host_anix1%5C%5Capp%5C%5Ccatalog%5C%5Cactions%5C%5Cget-random-anime.ts%22%2C%5B%5B%2240559372cf2efd6a168f0b9ef579d32b2b07aac654%22%2C%22fetchRandomAnime%22%5D%5D%5D%5D&__client_imported__=true!",
+          "async": false
+        },
+        "app/catalog/page": {
+          "moduleId": "(action-browser)/./node_modules/next/dist/build/webpack/loaders/next-flight-action-entry-loader.js?actions=%5B%5B%22C%3A%5C%5CUsers%5C%5Cchash%5C%5CDocuments%5C%5CGitHub%5C%5Canime_host_anix1%5C%5Capp%5C%5Cactions%5C%5Cget-fresh-anime-data.ts%22%2C%5B%5B%2240bf5fd0b23b54d599166aefd7e9752b7fdf144964%22%2C%22getFreshAnimeData%22%5D%5D%5D%2C%5B%22C%3A%5C%5CUsers%5C%5Cchash%5C%5CDocuments%5C%5CGitHub%5C%5Canime_host_anix1%5C%5Capp%5C%5Ccatalog%5C%5Cactions%5C%5Cget-random-anime.ts%22%2C%5B%5B%2240559372cf2efd6a168f0b9ef579d32b2b07aac654%22%2C%22fetchRandomAnime%22%5D%5D%5D%2C%5B%22C%3A%5C%5CUsers%5C%5Cchash%5C%5CDocuments%5C%5CGitHub%5C%5Canime_host_anix1%5C%5Capp%5C%5Ccatalog%5C%5Cactions.ts%22%2C%5B%5B%224042d30e0c7230f4050a42f109b8037b201a533c9d%22%2C%22fetchAnimeData%22%5D%5D%5D%5D&__client_imported__=true!",
+          "async": false
+        }
+      },
+      "layer": {
+        "app/page": "action-browser",
+        "app/gacha/page": "action-browser",
+        "app/_not-found/page": "action-browser",
+        "app/catalog/page": "action-browser"
+      }
+    },
+    "404e9af29472f161dce20649c03ac82c9d9041be48": {
+      "workers": {
+        "app/gacha/page": {
+          "moduleId": "(action-browser)/./node_modules/next/dist/build/webpack/loaders/next-flight-action-entry-loader.js?actions=%5B%5B%22C%3A%5C%5CUsers%5C%5Cchash%5C%5CDocuments%5C%5CGitHub%5C%5Canime_host_anix1%5C%5Capp%5C%5Cactions%5C%5Cget-fresh-anime-data.ts%22%2C%5B%5B%2240bf5fd0b23b54d599166aefd7e9752b7fdf144964%22%2C%22getFreshAnimeData%22%5D%5D%5D%2C%5B%22C%3A%5C%5CUsers%5C%5Cchash%5C%5CDocuments%5C%5CGitHub%5C%5Canime_host_anix1%5C%5Capp%5C%5Ccatalog%5C%5Cactions%5C%5Cget-random-anime.ts%22%2C%5B%5B%2240559372cf2efd6a168f0b9ef579d32b2b07aac654%22%2C%22fetchRandomAnime%22%5D%5D%5D%2C%5B%22C%3A%5C%5CUsers%5C%5Cchash%5C%5CDocuments%5C%5CGitHub%5C%5Canime_host_anix1%5C%5Capp%5C%5Cgacha%5C%5Cactions.ts%22%2C%5B%5B%22404e9af29472f161dce20649c03ac82c9d9041be48%22%2C%22searchGachaPacks%22%5D%2C%5B%2240bcd0454dc63222701a8768e7050c360db18f49e0%22%2C%22createCustomGachaPack%22%5D%2C%5B%2240fc219138985048092bfd4041722f93ec7dcf91e0%22%2C%22generateStatsForRarity%22%5D%2C%5B%22602cc5b292ac91e11e839a7d8d1520f57be6d26903%22%2C%22checkPackAvailability%22%5D%2C%5B%22606a6f14c8ebe981334c83432955891c232c7b8c11%22%2C%22updateUserPityAfterRoll%22%5D%2C%5B%22783141e214f260916e0b6872c90439d4afc6db9558%22%2C%22rollFromBanner%22%5D%2C%5B%2278327f86b0dde5f63fc000f6b829d4fea51d632ad0%22%2C%22rollAnimeCharacter%22%5D%2C%5B%227c5a9857b9d09c5d92a747f6f40b950a51152a6171%22%2C%22rollFromAnimePack%22%5D%5D%5D%5D&__client_imported__=true!",
+          "async": false
+        }
+      },
+      "layer": {
+        "app/gacha/page": "action-browser"
+      }
+    },
+    "40bcd0454dc63222701a8768e7050c360db18f49e0": {
+      "workers": {
+        "app/gacha/page": {
+          "moduleId": "(action-browser)/./node_modules/next/dist/build/webpack/loaders/next-flight-action-entry-loader.js?actions=%5B%5B%22C%3A%5C%5CUsers%5C%5Cchash%5C%5CDocuments%5C%5CGitHub%5C%5Canime_host_anix1%5C%5Capp%5C%5Cactions%5C%5Cget-fresh-anime-data.ts%22%2C%5B%5B%2240bf5fd0b23b54d599166aefd7e9752b7fdf144964%22%2C%22getFreshAnimeData%22%5D%5D%5D%2C%5B%22C%3A%5C%5CUsers%5C%5Cchash%5C%5CDocuments%5C%5CGitHub%5C%5Canime_host_anix1%5C%5Capp%5C%5Ccatalog%5C%5Cactions%5C%5Cget-random-anime.ts%22%2C%5B%5B%2240559372cf2efd6a168f0b9ef579d32b2b07aac654%22%2C%22fetchRandomAnime%22%5D%5D%5D%2C%5B%22C%3A%5C%5CUsers%5C%5Cchash%5C%5CDocuments%5C%5CGitHub%5C%5Canime_host_anix1%5C%5Capp%5C%5Cgacha%5C%5Cactions.ts%22%2C%5B%5B%22404e9af29472f161dce20649c03ac82c9d9041be48%22%2C%22searchGachaPacks%22%5D%2C%5B%2240bcd0454dc63222701a8768e7050c360db18f49e0%22%2C%22createCustomGachaPack%22%5D%2C%5B%2240fc219138985048092bfd4041722f93ec7dcf91e0%22%2C%22generateStatsForRarity%22%5D%2C%5B%22602cc5b292ac91e11e839a7d8d1520f57be6d26903%22%2C%22checkPackAvailability%22%5D%2C%5B%22606a6f14c8ebe981334c83432955891c232c7b8c11%22%2C%22updateUserPityAfterRoll%22%5D%2C%5B%22783141e214f260916e0b6872c90439d4afc6db9558%22%2C%22rollFromBanner%22%5D%2C%5B%2278327f86b0dde5f63fc000f6b829d4fea51d632ad0%22%2C%22rollAnimeCharacter%22%5D%2C%5B%227c5a9857b9d09c5d92a747f6f40b950a51152a6171%22%2C%22rollFromAnimePack%22%5D%5D%5D%5D&__client_imported__=true!",
+          "async": false
+        }
+      },
+      "layer": {
+        "app/gacha/page": "action-browser"
+      }
+    },
+    "40fc219138985048092bfd4041722f93ec7dcf91e0": {
+      "workers": {
+        "app/gacha/page": {
+          "moduleId": "(action-browser)/./node_modules/next/dist/build/webpack/loaders/next-flight-action-entry-loader.js?actions=%5B%5B%22C%3A%5C%5CUsers%5C%5Cchash%5C%5CDocuments%5C%5CGitHub%5C%5Canime_host_anix1%5C%5Capp%5C%5Cactions%5C%5Cget-fresh-anime-data.ts%22%2C%5B%5B%2240bf5fd0b23b54d599166aefd7e9752b7fdf144964%22%2C%22getFreshAnimeData%22%5D%5D%5D%2C%5B%22C%3A%5C%5CUsers%5C%5Cchash%5C%5CDocuments%5C%5CGitHub%5C%5Canime_host_anix1%5C%5Capp%5C%5Ccatalog%5C%5Cactions%5C%5Cget-random-anime.ts%22%2C%5B%5B%2240559372cf2efd6a168f0b9ef579d32b2b07aac654%22%2C%22fetchRandomAnime%22%5D%5D%5D%2C%5B%22C%3A%5C%5CUsers%5C%5Cchash%5C%5CDocuments%5C%5CGitHub%5C%5Canime_host_anix1%5C%5Capp%5C%5Cgacha%5C%5Cactions.ts%22%2C%5B%5B%22404e9af29472f161dce20649c03ac82c9d9041be48%22%2C%22searchGachaPacks%22%5D%2C%5B%2240bcd0454dc63222701a8768e7050c360db18f49e0%22%2C%22createCustomGachaPack%22%5D%2C%5B%2240fc219138985048092bfd4041722f93ec7dcf91e0%22%2C%22generateStatsForRarity%22%5D%2C%5B%22602cc5b292ac91e11e839a7d8d1520f57be6d26903%22%2C%22checkPackAvailability%22%5D%2C%5B%22606a6f14c8ebe981334c83432955891c232c7b8c11%22%2C%22updateUserPityAfterRoll%22%5D%2C%5B%22783141e214f260916e0b6872c90439d4afc6db9558%22%2C%22rollFromBanner%22%5D%2C%5B%2278327f86b0dde5f63fc000f6b829d4fea51d632ad0%22%2C%22rollAnimeCharacter%22%5D%2C%5B%227c5a9857b9d09c5d92a747f6f40b950a51152a6171%22%2C%22rollFromAnimePack%22%5D%5D%5D%5D&__client_imported__=true!",
+          "async": false
+        }
+      },
+      "layer": {
+        "app/gacha/page": "action-browser"
+      }
+    },
+    "602cc5b292ac91e11e839a7d8d1520f57be6d26903": {
+      "workers": {
+        "app/gacha/page": {
+          "moduleId": "(action-browser)/./node_modules/next/dist/build/webpack/loaders/next-flight-action-entry-loader.js?actions=%5B%5B%22C%3A%5C%5CUsers%5C%5Cchash%5C%5CDocuments%5C%5CGitHub%5C%5Canime_host_anix1%5C%5Capp%5C%5Cactions%5C%5Cget-fresh-anime-data.ts%22%2C%5B%5B%2240bf5fd0b23b54d599166aefd7e9752b7fdf144964%22%2C%22getFreshAnimeData%22%5D%5D%5D%2C%5B%22C%3A%5C%5CUsers%5C%5Cchash%5C%5CDocuments%5C%5CGitHub%5C%5Canime_host_anix1%5C%5Capp%5C%5Ccatalog%5C%5Cactions%5C%5Cget-random-anime.ts%22%2C%5B%5B%2240559372cf2efd6a168f0b9ef579d32b2b07aac654%22%2C%22fetchRandomAnime%22%5D%5D%5D%2C%5B%22C%3A%5C%5CUsers%5C%5Cchash%5C%5CDocuments%5C%5CGitHub%5C%5Canime_host_anix1%5C%5Capp%5C%5Cgacha%5C%5Cactions.ts%22%2C%5B%5B%22404e9af29472f161dce20649c03ac82c9d9041be48%22%2C%22searchGachaPacks%22%5D%2C%5B%2240bcd0454dc63222701a8768e7050c360db18f49e0%22%2C%22createCustomGachaPack%22%5D%2C%5B%2240fc219138985048092bfd4041722f93ec7dcf91e0%22%2C%22generateStatsForRarity%22%5D%2C%5B%22602cc5b292ac91e11e839a7d8d1520f57be6d26903%22%2C%22checkPackAvailability%22%5D%2C%5B%22606a6f14c8ebe981334c83432955891c232c7b8c11%22%2C%22updateUserPityAfterRoll%22%5D%2C%5B%22783141e214f260916e0b6872c90439d4afc6db9558%22%2C%22rollFromBanner%22%5D%2C%5B%2278327f86b0dde5f63fc000f6b829d4fea51d632ad0%22%2C%22rollAnimeCharacter%22%5D%2C%5B%227c5a9857b9d09c5d92a747f6f40b950a51152a6171%22%2C%22rollFromAnimePack%22%5D%5D%5D%5D&__client_imported__=true!",
+          "async": false
+        }
+      },
+      "layer": {
+        "app/gacha/page": "action-browser"
+      }
+    },
+    "606a6f14c8ebe981334c83432955891c232c7b8c11": {
+      "workers": {
+        "app/gacha/page": {
+          "moduleId": "(action-browser)/./node_modules/next/dist/build/webpack/loaders/next-flight-action-entry-loader.js?actions=%5B%5B%22C%3A%5C%5CUsers%5C%5Cchash%5C%5CDocuments%5C%5CGitHub%5C%5Canime_host_anix1%5C%5Capp%5C%5Cactions%5C%5Cget-fresh-anime-data.ts%22%2C%5B%5B%2240bf5fd0b23b54d599166aefd7e9752b7fdf144964%22%2C%22getFreshAnimeData%22%5D%5D%5D%2C%5B%22C%3A%5C%5CUsers%5C%5Cchash%5C%5CDocuments%5C%5CGitHub%5C%5Canime_host_anix1%5C%5Capp%5C%5Ccatalog%5C%5Cactions%5C%5Cget-random-anime.ts%22%2C%5B%5B%2240559372cf2efd6a168f0b9ef579d32b2b07aac654%22%2C%22fetchRandomAnime%22%5D%5D%5D%2C%5B%22C%3A%5C%5CUsers%5C%5Cchash%5C%5CDocuments%5C%5CGitHub%5C%5Canime_host_anix1%5C%5Capp%5C%5Cgacha%5C%5Cactions.ts%22%2C%5B%5B%22404e9af29472f161dce20649c03ac82c9d9041be48%22%2C%22searchGachaPacks%22%5D%2C%5B%2240bcd0454dc63222701a8768e7050c360db18f49e0%22%2C%22createCustomGachaPack%22%5D%2C%5B%2240fc219138985048092bfd4041722f93ec7dcf91e0%22%2C%22generateStatsForRarity%22%5D%2C%5B%22602cc5b292ac91e11e839a7d8d1520f57be6d26903%22%2C%22checkPackAvailability%22%5D%2C%5B%22606a6f14c8ebe981334c83432955891c232c7b8c11%22%2C%22updateUserPityAfterRoll%22%5D%2C%5B%22783141e214f260916e0b6872c90439d4afc6db9558%22%2C%22rollFromBanner%22%5D%2C%5B%2278327f86b0dde5f63fc000f6b829d4fea51d632ad0%22%2C%22rollAnimeCharacter%22%5D%2C%5B%227c5a9857b9d09c5d92a747f6f40b950a51152a6171%22%2C%22rollFromAnimePack%22%5D%5D%5D%5D&__client_imported__=true!",
+          "async": false
+        }
+      },
+      "layer": {
+        "app/gacha/page": "action-browser"
+      }
+    },
+    "783141e214f260916e0b6872c90439d4afc6db9558": {
+      "workers": {
+        "app/gacha/page": {
+          "moduleId": "(action-browser)/./node_modules/next/dist/build/webpack/loaders/next-flight-action-entry-loader.js?actions=%5B%5B%22C%3A%5C%5CUsers%5C%5Cchash%5C%5CDocuments%5C%5CGitHub%5C%5Canime_host_anix1%5C%5Capp%5C%5Cactions%5C%5Cget-fresh-anime-data.ts%22%2C%5B%5B%2240bf5fd0b23b54d599166aefd7e9752b7fdf144964%22%2C%22getFreshAnimeData%22%5D%5D%5D%2C%5B%22C%3A%5C%5CUsers%5C%5Cchash%5C%5CDocuments%5C%5CGitHub%5C%5Canime_host_anix1%5C%5Capp%5C%5Ccatalog%5C%5Cactions%5C%5Cget-random-anime.ts%22%2C%5B%5B%2240559372cf2efd6a168f0b9ef579d32b2b07aac654%22%2C%22fetchRandomAnime%22%5D%5D%5D%2C%5B%22C%3A%5C%5CUsers%5C%5Cchash%5C%5CDocuments%5C%5CGitHub%5C%5Canime_host_anix1%5C%5Capp%5C%5Cgacha%5C%5Cactions.ts%22%2C%5B%5B%22404e9af29472f161dce20649c03ac82c9d9041be48%22%2C%22searchGachaPacks%22%5D%2C%5B%2240bcd0454dc63222701a8768e7050c360db18f49e0%22%2C%22createCustomGachaPack%22%5D%2C%5B%2240fc219138985048092bfd4041722f93ec7dcf91e0%22%2C%22generateStatsForRarity%22%5D%2C%5B%22602cc5b292ac91e11e839a7d8d1520f57be6d26903%22%2C%22checkPackAvailability%22%5D%2C%5B%22606a6f14c8ebe981334c83432955891c232c7b8c11%22%2C%22updateUserPityAfterRoll%22%5D%2C%5B%22783141e214f260916e0b6872c90439d4afc6db9558%22%2C%22rollFromBanner%22%5D%2C%5B%2278327f86b0dde5f63fc000f6b829d4fea51d632ad0%22%2C%22rollAnimeCharacter%22%5D%2C%5B%227c5a9857b9d09c5d92a747f6f40b950a51152a6171%22%2C%22rollFromAnimePack%22%5D%5D%5D%5D&__client_imported__=true!",
+          "async": false
+        }
+      },
+      "layer": {
+        "app/gacha/page": "action-browser"
+      }
+    },
+    "78327f86b0dde5f63fc000f6b829d4fea51d632ad0": {
+      "workers": {
+        "app/gacha/page": {
+          "moduleId": "(action-browser)/./node_modules/next/dist/build/webpack/loaders/next-flight-action-entry-loader.js?actions=%5B%5B%22C%3A%5C%5CUsers%5C%5Cchash%5C%5CDocuments%5C%5CGitHub%5C%5Canime_host_anix1%5C%5Capp%5C%5Cactions%5C%5Cget-fresh-anime-data.ts%22%2C%5B%5B%2240bf5fd0b23b54d599166aefd7e9752b7fdf144964%22%2C%22getFreshAnimeData%22%5D%5D%5D%2C%5B%22C%3A%5C%5CUsers%5C%5Cchash%5C%5CDocuments%5C%5CGitHub%5C%5Canime_host_anix1%5C%5Capp%5C%5Ccatalog%5C%5Cactions%5C%5Cget-random-anime.ts%22%2C%5B%5B%2240559372cf2efd6a168f0b9ef579d32b2b07aac654%22%2C%22fetchRandomAnime%22%5D%5D%5D%2C%5B%22C%3A%5C%5CUsers%5C%5Cchash%5C%5CDocuments%5C%5CGitHub%5C%5Canime_host_anix1%5C%5Capp%5C%5Cgacha%5C%5Cactions.ts%22%2C%5B%5B%22404e9af29472f161dce20649c03ac82c9d9041be48%22%2C%22searchGachaPacks%22%5D%2C%5B%2240bcd0454dc63222701a8768e7050c360db18f49e0%22%2C%22createCustomGachaPack%22%5D%2C%5B%2240fc219138985048092bfd4041722f93ec7dcf91e0%22%2C%22generateStatsForRarity%22%5D%2C%5B%22602cc5b292ac91e11e839a7d8d1520f57be6d26903%22%2C%22checkPackAvailability%22%5D%2C%5B%22606a6f14c8ebe981334c83432955891c232c7b8c11%22%2C%22updateUserPityAfterRoll%22%5D%2C%5B%22783141e214f260916e0b6872c90439d4afc6db9558%22%2C%22rollFromBanner%22%5D%2C%5B%2278327f86b0dde5f63fc000f6b829d4fea51d632ad0%22%2C%22rollAnimeCharacter%22%5D%2C%5B%227c5a9857b9d09c5d92a747f6f40b950a51152a6171%22%2C%22rollFromAnimePack%22%5D%5D%5D%5D&__client_imported__=true!",
+          "async": false
+        }
+      },
+      "layer": {
+        "app/gacha/page": "action-browser"
+      }
+    },
+    "7c5a9857b9d09c5d92a747f6f40b950a51152a6171": {
+      "workers": {
+        "app/gacha/page": {
+          "moduleId": "(action-browser)/./node_modules/next/dist/build/webpack/loaders/next-flight-action-entry-loader.js?actions=%5B%5B%22C%3A%5C%5CUsers%5C%5Cchash%5C%5CDocuments%5C%5CGitHub%5C%5Canime_host_anix1%5C%5Capp%5C%5Cactions%5C%5Cget-fresh-anime-data.ts%22%2C%5B%5B%2240bf5fd0b23b54d599166aefd7e9752b7fdf144964%22%2C%22getFreshAnimeData%22%5D%5D%5D%2C%5B%22C%3A%5C%5CUsers%5C%5Cchash%5C%5CDocuments%5C%5CGitHub%5C%5Canime_host_anix1%5C%5Capp%5C%5Ccatalog%5C%5Cactions%5C%5Cget-random-anime.ts%22%2C%5B%5B%2240559372cf2efd6a168f0b9ef579d32b2b07aac654%22%2C%22fetchRandomAnime%22%5D%5D%5D%2C%5B%22C%3A%5C%5CUsers%5C%5Cchash%5C%5CDocuments%5C%5CGitHub%5C%5Canime_host_anix1%5C%5Capp%5C%5Cgacha%5C%5Cactions.ts%22%2C%5B%5B%22404e9af29472f161dce20649c03ac82c9d9041be48%22%2C%22searchGachaPacks%22%5D%2C%5B%2240bcd0454dc63222701a8768e7050c360db18f49e0%22%2C%22createCustomGachaPack%22%5D%2C%5B%2240fc219138985048092bfd4041722f93ec7dcf91e0%22%2C%22generateStatsForRarity%22%5D%2C%5B%22602cc5b292ac91e11e839a7d8d1520f57be6d26903%22%2C%22checkPackAvailability%22%5D%2C%5B%22606a6f14c8ebe981334c83432955891c232c7b8c11%22%2C%22updateUserPityAfterRoll%22%5D%2C%5B%22783141e214f260916e0b6872c90439d4afc6db9558%22%2C%22rollFromBanner%22%5D%2C%5B%2278327f86b0dde5f63fc000f6b829d4fea51d632ad0%22%2C%22rollAnimeCharacter%22%5D%2C%5B%227c5a9857b9d09c5d92a747f6f40b950a51152a6171%22%2C%22rollFromAnimePack%22%5D%5D%5D%5D&__client_imported__=true!",
+          "async": false
+        }
+      },
+      "layer": {
+        "app/gacha/page": "action-browser"
+      }
+    },
+    "4042d30e0c7230f4050a42f109b8037b201a533c9d": {
+      "workers": {
+        "app/catalog/page": {
+          "moduleId": "(action-browser)/./node_modules/next/dist/build/webpack/loaders/next-flight-action-entry-loader.js?actions=%5B%5B%22C%3A%5C%5CUsers%5C%5Cchash%5C%5CDocuments%5C%5CGitHub%5C%5Canime_host_anix1%5C%5Capp%5C%5Cactions%5C%5Cget-fresh-anime-data.ts%22%2C%5B%5B%2240bf5fd0b23b54d599166aefd7e9752b7fdf144964%22%2C%22getFreshAnimeData%22%5D%5D%5D%2C%5B%22C%3A%5C%5CUsers%5C%5Cchash%5C%5CDocuments%5C%5CGitHub%5C%5Canime_host_anix1%5C%5Capp%5C%5Ccatalog%5C%5Cactions%5C%5Cget-random-anime.ts%22%2C%5B%5B%2240559372cf2efd6a168f0b9ef579d32b2b07aac654%22%2C%22fetchRandomAnime%22%5D%5D%5D%2C%5B%22C%3A%5C%5CUsers%5C%5Cchash%5C%5CDocuments%5C%5CGitHub%5C%5Canime_host_anix1%5C%5Capp%5C%5Ccatalog%5C%5Cactions.ts%22%2C%5B%5B%224042d30e0c7230f4050a42f109b8037b201a533c9d%22%2C%22fetchAnimeData%22%5D%5D%5D%5D&__client_imported__=true!",
+          "async": false
+        }
+      },
+      "layer": {
+        "app/catalog/page": "action-browser"
+      }
+    }
+  },
+  "edge": {},
+  "encryptionKey": "5GysdNdQHzl2whY84nMEeGHfM0MCJ4JczmGZQFKhOuY="
+}

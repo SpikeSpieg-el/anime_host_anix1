@@ -1,0 +1,9 @@
+{
+  "/manifest.webmanifest/route": "app/manifest.webmanifest/route.js",
+  "/api/banners/route": "app/api/banners/route.js",
+  "/api/image-proxy/route": "app/api/image-proxy/route.js",
+  "/page": "app/page.js",
+  "/catalog/page": "app/catalog/page.js",
+  "/_not-found/page": "app/_not-found/page.js",
+  "/gacha/page": "app/gacha/page.js"
+}
