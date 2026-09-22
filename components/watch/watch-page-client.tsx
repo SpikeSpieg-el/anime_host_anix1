@@ -436,6 +436,7 @@ export function WatchPageClient({ anime, initialEpisode }: WatchPageClientProps)
               title={anime.title}
               poster={anime.poster}
               episode={selectedEpisode}
+              maxEpisode={availableEpisodes}
               onStart={() => {
                 trackEvent(AnalyticsEvent.EPISODE_PLAY, {
                   shikimori_id: anime.shikimoriId,

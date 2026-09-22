@@ -49,6 +49,12 @@ export default defineConfig({
       ],
     },
   },
+  // В Next.js JSX компилирует SWC (automatic runtime), а vitest по умолчанию
+  // берёт `jsx: preserve` из tsconfig и падает с «React is not defined»
+  // на компонентах. Приводим к тому же runtime, что и в приложении.
+  esbuild: {
+    jsx: "automatic",
+  },
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "."),
