@@ -4,20 +4,41 @@ import { createVideoProgressTracker } from "@/lib/analytics-video"
 import { useState, useEffect, useMemo, useRef, useCallback } from "react"
 import { createPortal } from "react-dom"
 import { PlayerLoading } from "@/components/watch/player-loading"
-import { AlertCircle, ChevronDown, Mic, Subtitles, Check, X, SkipForward, Clock } from "lucide-react"
+import { AlertCircle, ChevronDown, Mic, Subtitles, Check, X, SkipForward, Clock, Info } from "lucide-react"
 import { RegionDetector } from "@/components/providers/region-detector"
 import { getProxiedSrc } from "@/lib/image-loader"
 import { lockOrientation, useFullscreenOrientation } from "@/hooks/use-fullscreen-orientation"
+import {
+  extractEndingTimings,
+  getTranslationMaxEpisode,
+  hasNextEpisode as hasNextEpisodeAvailable,
+  isEndingReached,
+  isEpisodeAvailableInTranslation,
+  isEpisodeMissingFromTranslation,
+  isSeekedBackBeforeEnding,
+  isVideoEndedEvent,
+  parseSeconds,
+  resolveMaxEpisode,
+  type KodikSeasonsMap,
+} from "@/lib/kodik-player-logic"
 
 interface KodikPlayerProps {
   shikimoriId: string
   title: string
   poster: string
   episode: number
+  /**
+   * Сколько серий реально вышло (по Shikimori).
+   * Нужен, чтобы кнопка «Следующая серия» не вела на несуществующую серию:
+   * сайт всё равно зажмёт номер серии этим значением.
+   */
+  maxEpisode?: number
   onStart?: () => void
   onCountryChange?: (country: string) => void
   onRegionDetected?: (isRussia: boolean) => void
   onEpisodeChange?: (episode: number) => void
+  /** Вызывается, когда следующей серии нет ни в одной озвучке. */
+  onEpisodeUnavailable?: (episode: number) => void
   onProgressUpdate?: (info: {
     season?: number
     episode: number
@@ -36,85 +57,14 @@ interface KodikTranslation {
   quality: string
   episodesCount: number
   playerLink: string
+  /** Карта сезонов от Kodik: { "1": { episodes: { "1": "//link", ... } } } */
+  seasons?: KodikSeasonsMap
 }
 
 const STORAGE_KEY_PREFIX = "kodik-translation-"
 const UI_HIDE_DELAY = 3500
-
-function parseSeconds(val: any): number | undefined {
-  if (typeof val === "number" && !isNaN(val)) {
-    if (val < 0 || val > 86400) return undefined
-    return Math.floor(val)
-  }
-  if (typeof val === "string") {
-    const trimmed = val.trim()
-    if (trimmed.includes(":")) {
-      const parts = trimmed.split(":").map(Number)
-      if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
-        const seconds = parts[0] * 60 + parts[1]
-        if (seconds < 0 || seconds > 86400) return undefined
-        return seconds
-      }
-      if (parts.length === 3 && !isNaN(parts[0]) && !isNaN(parts[1]) && !isNaN(parts[2])) {
-        const seconds = parts[0] * 3600 + parts[1] * 60 + parts[2]
-        if (seconds < 0 || seconds > 86400) return undefined
-        return seconds
-      }
-    }
-    const num = parseFloat(trimmed)
-    if (!isNaN(num) && num >= 0 && num <= 86400) return Math.floor(num)
-  }
-  return undefined
-}
-
-function extractEndingTimings(payload: any): { start: number; end?: number } | null {
-  if (!payload || typeof payload !== "object") return null
-
-  // Исключаем события опенинга
-  const typeStr = String(payload.type || payload.title || payload.name || "").toLowerCase()
-  if (typeStr.includes("opening") || typeStr.includes("опенинг")) {
-    return null
-  }
-
-  // 1. Прямые поля ending_start / ending_end
-  const startDirect = parseSeconds(payload.ending_start ?? payload.endingStart)
-  const endDirect = parseSeconds(payload.ending_end ?? payload.endingEnd)
-  if (startDirect && startDirect > 60) {
-    return { start: startDirect, end: endDirect }
-  }
-
-  // 2. Объект skip_buttons или skip (строго секция ending)
-  const skip = payload.skip_buttons || payload.skipButtons || payload.skip
-  if (skip?.ending) {
-    const s = parseSeconds(skip.ending.start ?? skip.ending.time ?? skip.ending.from)
-    const e = parseSeconds(skip.ending.end ?? skip.ending.to)
-    if (s && s > 60) return { start: s, end: e }
-  }
-
-  // 3. Массивы cuepoints / chapters / markers
-  const markers = payload.cuepoints || payload.chapters || payload.markers || payload.timings
-  if (Array.isArray(markers)) {
-    for (const item of markers) {
-      const label = String(item.title || item.name || item.type || item.label || "").toLowerCase()
-      if (label.includes("опенинг") || label.includes("opening")) {
-        continue
-      }
-      if (label.includes("эндинг") || label.includes("ending") || label.includes("титр")) {
-        const s = parseSeconds(item.time ?? item.start ?? item.value)
-        const e = parseSeconds(item.end ?? (item.duration && s ? s + item.duration : undefined))
-        if (s && s > 60) return { start: s, end: e }
-      }
-    }
-  } else if (typeof markers === "object") {
-    if (markers.ending) {
-      const s = parseSeconds(markers.ending.start ?? markers.ending.time)
-      const e = parseSeconds(markers.ending.end)
-      if (s && s > 60) return { start: s, end: e }
-    }
-  }
-
-  return null
-}
+const NOTICE_HIDE_DELAY = 5000
+const NEXT_EPISODE_CONFIRM_TIMEOUT = 9000
 
 function getSavedTranslationId(shikimoriId: string): string | null {
   if (typeof window === "undefined") return null
@@ -139,10 +89,12 @@ export function KodikPlayer({
   title,
   poster,
   episode,
+  maxEpisode,
   onStart,
   onCountryChange,
   onRegionDetected,
   onEpisodeChange,
+  onEpisodeUnavailable,
   onProgressUpdate
 }: KodikPlayerProps) {
   const [isLoading, setIsLoading] = useState(true)
@@ -156,14 +108,20 @@ export function KodikPlayer({
   const [isNearEnd, setIsNearEnd] = useState(false)
   const [isDismissedEnd, setIsDismissedEnd] = useState(false)
   const [timeLeftSeconds, setTimeLeftSeconds] = useState<number | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
 
   // Хранилища таймингов и флагов
   const durationRef = useRef<number>(0)
   const lastSecondsRef = useRef<number>(0)
+  const hasTimeRef = useRef<boolean>(false)
   const videoEndedRef = useRef<boolean>(false)
   const isDomEndingActiveRef = useRef<boolean>(false)
+  const isPlayingRef = useRef<boolean>(true)
+  const playbackStartedAtRef = useRef<number>(0)
   const endingRangeRef = useRef<{ start: number; end?: number } | null>(null)
   const targetEpisodeRef = useRef<number | null>(null)
+  const pendingEpisodeRef = useRef<number | null>(null)
+  const pendingEpisodeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const playerContainerRef = useRef<HTMLDivElement>(null)
   const lastTapRef = useRef<number>(0)
@@ -187,29 +145,97 @@ export function KodikPlayer({
   const [mounted, setMounted] = useState(false)
   const [useProxy, setUseProxy] = useState(false)
 
-  // Проверка наличия следующей серии
-  const hasNextEpisode = useMemo(() => {
-    if (!selectedTranslation?.episodesCount) return true
-    const current = Number(episode)
-    const total = Number(selectedTranslation.episodesCount)
-    if (isNaN(current) || isNaN(total)) return true
-    return current < total
-  }, [selectedTranslation, episode])
+  // Текущий сезон — приходит от плеера, нужен для точной границы серий
+  // (в много сезонных тайтлах Kodik нумерует серии внутри сезона).
+  const [currentSeason, setCurrentSeason] = useState<number | null>(null)
+
+  // --- Проверка наличия следующей серии -------------------------------
+  // Kodik врёт и в `episodes_count`, и Shikimori (там 12 серий,
+  // а в озвучке может быть 5), поэтому берём САМУЮ строгую границу
+  // из известных источников. Если граница неизвестна — кнопки нет.
+  const maxAvailableEpisode = useMemo(
+    () =>
+      resolveMaxEpisode({
+        translationMaxEpisode: getTranslationMaxEpisode(selectedTranslation, currentSeason),
+        siteMaxEpisode: maxEpisode,
+      }),
+    [selectedTranslation, currentSeason, maxEpisode]
+  )
+
+  const nextEpisodeNumber = Number(episode) + 1
+
+  const hasNextEpisode = useMemo(
+    () => hasNextEpisodeAvailable(episode, maxAvailableEpisode),
+    [episode, maxAvailableEpisode]
+  )
+
+  /** Озвучка, где следующая серия есть, хотя в текущей её нет. */
+  const nextEpisodeFallback = useMemo(() => {
+    const nextEp = nextEpisodeNumber
+    if (!Number.isFinite(nextEp) || nextEp < 2) return null
+    return (
+      translations.find(
+        (tr) =>
+          tr.translationId !== selectedTranslation?.translationId &&
+          isEpisodeAvailableInTranslation(tr, nextEp) &&
+          (!maxEpisode || nextEp <= maxEpisode)
+      ) ?? null
+    )
+  }, [translations, selectedTranslation, nextEpisodeNumber, maxEpisode])
 
   const [loadTimeout, setLoadTimeout] = useState<ReturnType<typeof setTimeout> | null>(null)
 
-  // Сброс при смене серии
-  useEffect(() => {
+  /** Сколько секунд реально идёт просмотр (запасной сигнал конца серии). */
+  const watchedWallSeconds = useCallback(() => {
+    if (!playbackStartedAtRef.current) return null
+    return Math.max(0, (Date.now() - playbackStartedAtRef.current) / 1000)
+  }, [])
+
+  // Единый сброс состояния «конец серии» — при смене серии ИЛИ озвучки
+  // (иначе плашка перетекает на новый iframe, где видео ещё в начале).
+  const resetEndingState = useCallback(() => {
     setIsNearEnd(false)
     setIsDismissedEnd(false)
     setTimeLeftSeconds(null)
     durationRef.current = 0
     lastSecondsRef.current = 0
+    hasTimeRef.current = false
     videoEndedRef.current = false
     isDomEndingActiveRef.current = false
+    isPlayingRef.current = true
+    playbackStartedAtRef.current = Date.now()
     endingRangeRef.current = null
     targetEpisodeRef.current = null
-  }, [episode])
+    pendingEpisodeRef.current = null
+    if (pendingEpisodeTimeoutRef.current) {
+      clearTimeout(pendingEpisodeTimeoutRef.current)
+      pendingEpisodeTimeoutRef.current = null
+    }
+  }, [])
+
+  useEffect(() => {
+    // Смена серии (в т.ч. подтверждённый переход на следующую) — сбрасываем всё.
+    resetEndingState()
+  }, [episode, resetEndingState])
+
+  useEffect(() => {
+    // Другая озвучка — другой материал Kodik, сезон и тайминги свои.
+    resetEndingState()
+    setCurrentSeason(null)
+  }, [selectedTranslation?.translationId, resetEndingState])
+
+  useEffect(() => {
+    return () => {
+      if (pendingEpisodeTimeoutRef.current) clearTimeout(pendingEpisodeTimeoutRef.current)
+    }
+  }, [])
+
+  // Автоскрытие служебных подсказок
+  useEffect(() => {
+    if (!notice) return
+    const timer = setTimeout(() => setNotice(null), NOTICE_HIDE_DELAY)
+    return () => clearTimeout(timer)
+  }, [notice])
 
   const loadTranslations = useCallback(async () => {
     if (translations.length > 0) return
@@ -225,8 +251,13 @@ export function KodikPlayer({
 
       const savedId = getSavedTranslationId(shikimoriId)
       const saved = savedId ? list.find((t) => t.translationId === savedId) : null
-      const validSaved = saved && saved.episodesCount >= episode ? saved : null
-      const availableForEpisode = list.find((t) => t.episodesCount >= episode) || list[0] || null
+      // Сохранённую озвучку меняем только если ТОЧНО знаем, что серии в ней нет
+      const validSaved = saved && !isEpisodeMissingFromTranslation(saved, episode) ? saved : null
+      const availableForEpisode =
+        list.find((t) => isEpisodeAvailableInTranslation(t, episode)) ||
+        list.find((t) => !isEpisodeMissingFromTranslation(t, episode)) ||
+        list[0] ||
+        null
 
       setSelectedTranslation(validSaved || availableForEpisode)
     } catch (e) {
@@ -242,11 +273,17 @@ export function KodikPlayer({
 
   useEffect(() => {
     if (!selectedTranslation || translations.length === 0) return
-    if (selectedTranslation.episodesCount < episode) {
-      const validTranslation = translations.find((t) => t.episodesCount >= episode)
-      if (validTranslation && validTranslation.translationId !== selectedTranslation.translationId) {
-        setSelectedTranslation(validTranslation)
-      }
+    // Точно знаем, что в текущей озвучке этой серии нет — ищем другую
+    if (!isEpisodeMissingFromTranslation(selectedTranslation, episode)) return
+
+    const validTranslation = translations.find(
+      (t) =>
+        t.translationId !== selectedTranslation.translationId &&
+        isEpisodeAvailableInTranslation(t, episode)
+    )
+    if (validTranslation) {
+      setNotice(`Серии ${episode} нет в озвучке «${selectedTranslation.title}» — переключаем на «${validTranslation.title}»`)
+      setSelectedTranslation(validTranslation)
     }
   }, [episode, selectedTranslation, translations])
 
@@ -308,62 +345,110 @@ export function KodikPlayer({
     }
   }, [showTranslationsMenu, isMobile, isFullscreen])
 
-  const handleSelectTranslation = (tr: KodikTranslation) => {
-    setShowTranslationsMenu(false)
-    if (selectedTranslation?.translationId === tr.translationId) return
+  const handleSelectTranslation = useCallback(
+    (tr: KodikTranslation) => {
+      setShowTranslationsMenu(false)
+      if (selectedTranslation?.translationId === tr.translationId) return
 
-    setSelectedTranslation(tr)
-    saveTranslationId(shikimoriId, tr.translationId)
+      setSelectedTranslation(tr)
+      saveTranslationId(shikimoriId, tr.translationId)
 
-    if (isStarted) {
+      if (isStarted) {
+        setIsLoading(true)
+        if (loadTimeout) clearTimeout(loadTimeout)
+        const timeout = setTimeout(() => {
+          setIsLoading(false)
+        }, 8000)
+        setLoadTimeout(timeout)
+      }
+    },
+    [selectedTranslation, shikimoriId, isStarted, loadTimeout]
+  )
+
+  /**
+   * Переход на следующую серию.
+   *
+   * Три уровня защиты от «несуществующей» серии:
+   *  1. кнопка вообще не показывается, если серии нет
+   *     (`hasNextEpisode` — минимум из озвучки и данных Shikimori);
+   *  2. на клике проверяем ещё раз и, если в текущей озвучке серии нет,
+   *     пробуем озвучку, где она есть, иначе честно говорим об этом;
+   *  3. если родитель серию не принял (зажал своим лимитом) — откатываем
+   *     загрузку и показываем подсказку вместо бесконечного спиннера.
+   */
+  const handleNextEpisode = useCallback(
+    (e?: React.MouseEvent) => {
+      e?.stopPropagation()
+
+      const nextEp = nextEpisodeNumber
+      if (!Number.isFinite(nextEp) || nextEp < 2) return
+
+      if (!hasNextEpisode) {
+        // В текущей озвучке серии нет — ищем озвучку, где она есть.
+        if (nextEpisodeFallback) {
+          setNotice(`Серии ${nextEp} нет в озвучке «${selectedTranslation?.title || "текущая"}» — переключаем на «${nextEpisodeFallback.title}»`)
+          handleSelectTranslation(nextEpisodeFallback)
+          targetEpisodeRef.current = nextEp
+          pendingEpisodeRef.current = nextEp
+          onEpisodeChange?.(nextEp)
+          return
+        }
+
+        setNotice(
+          maxEpisode && nextEp > maxEpisode
+            ? `Серия ${nextEp} ещё не вышла`
+            : `Серии ${nextEp} пока нет ни в одной озвучке`
+        )
+        setIsDismissedEnd(true)
+        onEpisodeUnavailable?.(nextEp)
+        return
+      }
+
+      targetEpisodeRef.current = nextEp
+      pendingEpisodeRef.current = nextEp
+
+      setIsNearEnd(false)
+      setIsDismissedEnd(false)
+      videoEndedRef.current = false
+      isDomEndingActiveRef.current = false
+      endingRangeRef.current = null
+
       setIsLoading(true)
       if (loadTimeout) clearTimeout(loadTimeout)
       const timeout = setTimeout(() => {
         setIsLoading(false)
       }, 8000)
       setLoadTimeout(timeout)
-    }
-  }
 
-  // Надежное переключение на следующую серию
-  const handleNextEpisode = useCallback((e?: React.MouseEvent) => {
-    e?.stopPropagation()
-    if (!hasNextEpisode) return
+      // Страховка: родитель мог не принять серию (например, зажать своим
+      // лимитом вышедших серий) — тогда iframe не перезагрузится и
+      // спиннер останется навсегда.
+      if (pendingEpisodeTimeoutRef.current) clearTimeout(pendingEpisodeTimeoutRef.current)
+      pendingEpisodeTimeoutRef.current = setTimeout(() => {
+        if (pendingEpisodeRef.current !== nextEp) return
+        pendingEpisodeRef.current = null
+        pendingEpisodeTimeoutRef.current = null
+        setIsLoading(false)
+        targetEpisodeRef.current = null
+        setNotice(`Не удалось открыть серию ${nextEp}. Выберите серию или озвучку вручную.`)
+      }, NEXT_EPISODE_CONFIRM_TIMEOUT)
 
-    const nextEp = Number(episode) + 1
-    targetEpisodeRef.current = nextEp
-
-    setIsNearEnd(false)
-    setIsDismissedEnd(false)
-    videoEndedRef.current = false
-    isDomEndingActiveRef.current = false
-    endingRangeRef.current = null
-
-    setIsLoading(true)
-    if (loadTimeout) clearTimeout(loadTimeout)
-    const timeout = setTimeout(() => {
-      setIsLoading(false)
-    }, 8000)
-    setLoadTimeout(timeout)
-
-    // Отправляем команду в сам плеер Kodik через postMessage
-    try {
-      const frame = playerContainerRef.current?.querySelector("iframe")
-      if (frame?.contentWindow) {
-        const msg = {
-          key: "kodik_player_api",
-          value: { method: "change_episode", episode: nextEp, autoplay: true }
-        }
-        frame.contentWindow.postMessage(msg, "*")
-        frame.contentWindow.postMessage(JSON.stringify(msg), "*")
-      }
-    } catch {
-      // ignore
-    }
-
-    // Сообщаем родительскому компоненту
-    onEpisodeChange?.(nextEp)
-  }, [hasNextEpisode, episode, onEpisodeChange, loadTimeout])
+      // Сообщаем родительскому компоненту — он обновит `episode`,
+      // а iframe перезагрузится уже с нужной серией.
+      onEpisodeChange?.(nextEp)
+    },
+    [
+      nextEpisodeNumber,
+      hasNextEpisode,
+      nextEpisodeFallback,
+      selectedTranslation,
+      maxEpisode,
+      handleSelectTranslation,
+      loadTimeout,
+      onEpisodeChange,
+      onEpisodeUnavailable,
+    ]
+  )
 
   const handleDismissNearEnd = (e: React.MouseEvent) => {
     e.stopPropagation()
@@ -389,7 +474,7 @@ export function KodikPlayer({
           </button>
         </div>
         {translations.map((tr) => {
-          const isAvailable = tr.episodesCount >= episode
+          const isAvailable = !isEpisodeMissingFromTranslation(tr, episode)
           const isSelected = selectedTranslation?.translationId === tr.translationId
 
           return (
@@ -649,6 +734,33 @@ export function KodikPlayer({
         const doc = frame?.contentDocument || frame?.contentWindow?.document
         if (!doc) return
 
+        // Реальный <video> — самый надёжный источник времени/длительности
+        // (работает, когда плеер открыт через наш прокси и DOM доступен).
+        // Рекламные ролики короче серии, поэтому берём видео с максимальной
+        // длительностью и не доверяем ничему короче 2 минут.
+        const videos = Array.from(doc.querySelectorAll<HTMLVideoElement>("video"))
+        let mainVideo: HTMLVideoElement | null = null
+        for (const video of videos) {
+          const dur = Number(video.duration)
+          if (!Number.isFinite(dur) || dur < 120) continue
+          if (!mainVideo || dur > Number(mainVideo.duration)) mainVideo = video
+        }
+        if (mainVideo) {
+          const realDuration = parseSeconds(mainVideo.duration)
+          if (realDuration && realDuration >= 120) durationRef.current = realDuration
+
+          const realCurrent = parseSeconds(mainVideo.currentTime)
+          if (realCurrent !== undefined) {
+            lastSecondsRef.current = realCurrent
+            hasTimeRef.current = true
+            setTimeLeftSeconds((prev) => {
+              const left = Math.max(0, durationRef.current - realCurrent)
+              return prev === left ? prev : left
+            })
+          }
+          isPlayingRef.current = !mainVideo.paused
+        }
+
         // Поиск кнопки: <div id="right-block"><div class="fp-skip-button active" data-seek-to="1436">Пропустить эндинг</div></div>
         const skipButtons = doc.querySelectorAll<HTMLElement>(
           "#right-block .fp-skip-button, .fp-skip-button, [class*='skip-button']"
@@ -717,9 +829,34 @@ export function KodikPlayer({
           } else if (lastSecondsRef.current > 60 && !endingRangeRef.current) {
             endingRangeRef.current = { start: lastSecondsRef.current, end: detectedSeekTo }
           }
-          setIsNearEnd(true)
         } else {
           isDomEndingActiveRef.current = false
+        }
+
+        // Кнопка в DOM сама по себе ничего не значит: она есть в разметке
+        // с самого начала. Решаем по времени воспроизведения.
+        if (
+          isEndingReached({
+            currentSec: hasTimeRef.current ? lastSecondsRef.current : null,
+            watchedWallSec: watchedWallSeconds(),
+            duration: durationRef.current || null,
+            endingRange: endingRangeRef.current,
+            domSkipActive: isDomEndingActiveRef.current,
+            videoEnded: videoEndedRef.current,
+            isPlaying: isPlayingRef.current,
+          })
+        ) {
+          setIsNearEnd(true)
+        } else if (
+          isSeekedBackBeforeEnding({
+            currentSec: hasTimeRef.current ? lastSecondsRef.current : null,
+            duration: durationRef.current || null,
+            endingRange: endingRangeRef.current,
+          })
+        ) {
+          setIsNearEnd(false)
+          setIsDismissedEnd(false)
+          videoEndedRef.current = false
         }
       } catch {
         // Cross-Origin ограничения
@@ -728,7 +865,7 @@ export function KodikPlayer({
 
     const interval = setInterval(checkDom, 400)
     return () => clearInterval(interval)
-  }, [isStarted])
+  }, [isStarted, watchedWallSeconds])
 
   // --- 2. ОБРАБОТЧИК POSTMESSAGE СОБЫТИЙ KODIK ---
   useEffect(() => {
@@ -752,10 +889,35 @@ export function KodikPlayer({
         const key = data.key || data.type || data.event
         const value = data.value !== undefined ? data.value : data.data !== undefined ? data.data : data
 
+        // Пришло ли сообщение из нашего плеера. Посторонние окна
+        // (рекламные фреймы, счётчики, виджеты) тоже шлют postMessage,
+        // и их `ended`/`duration` ломали определение конца серии.
+        const playerWindow =
+          playerContainerRef.current?.querySelector("iframe")?.contentWindow ?? null
+        const isFromPlayerWindow = !playerWindow || event.source === playerWindow
+        const isKodikEvent = typeof key === "string" && key.toLowerCase().startsWith("kodik")
+
+        if (!isFromPlayerWindow && !isKodikEvent) return
+
         // Извлечение меток эндинга из любого пришедшего сообщения
         const detectedEnding = extractEndingTimings(value) || extractEndingTimings(data)
         if (detectedEnding) {
           endingRangeRef.current = detectedEnding
+        }
+
+        // Состояние воспроизведения (нужно, чтобы не показывать плашку на паузе)
+        const keyStr = typeof key === "string" ? key.toLowerCase() : ""
+        if (keyStr.includes("pause")) {
+          isPlayingRef.current = false
+        } else if (keyStr.includes("play") || keyStr.includes("start") || keyStr.includes("resume")) {
+          isPlayingRef.current = true
+        }
+
+        // Текущий сезон — уточняет границу доступных серий
+        const seasonNum = Number(value?.season)
+        if (Number.isFinite(seasonNum) && seasonNum > 0) {
+          const normalizedSeason = Math.floor(seasonNum)
+          setCurrentSeason((prev) => (prev === normalizedSeason ? prev : normalizedSeason))
         }
 
         // Общая длительность видео
@@ -781,64 +943,77 @@ export function KodikPlayer({
         const curDuration = durationRef.current
         const endingRange = endingRangeRef.current
 
-        // Событие окончания видео
-        if (
-          key === "kodik_player_video_ended" ||
-          key === "kodik_player_ended" ||
-          (typeof key === "string" && key.includes("ended"))
-        ) {
+        const promptState = (overrides: Partial<Parameters<typeof isEndingReached>[0]> = {}) => ({
+          currentSec: hasTimeRef.current ? lastSecondsRef.current : null,
+          watchedWallSec: watchedWallSeconds(),
+          duration: curDuration || null,
+          endingRange,
+          domSkipActive: isDomEndingActiveRef.current,
+          videoEnded: videoEndedRef.current,
+          isPlaying: isPlayingRef.current,
+          ...overrides,
+        })
+
+        // Событие окончания серии. Именно серии: ended от преролла
+        // сюда не пропускаем (см. isVideoEndedEvent).
+        if (isVideoEndedEvent(key) && isFromPlayerWindow) {
           videoEndedRef.current = true
-          setIsNearEnd(true)
-          setTimeLeftSeconds(0)
+          if (isEndingReached(promptState({ videoEnded: true }))) {
+            setIsNearEnd(true)
+            setTimeLeftSeconds(0)
+          }
         }
 
         if (typeof currentSec === "number") {
           lastSecondsRef.current = currentSec
+          hasTimeRef.current = true
 
           if (curDuration > 0) {
             const left = Math.max(0, curDuration - currentSec)
             setTimeLeftSeconds(left)
           }
 
-          // Проверка на перемотку назад: сбрасываем плашку, если перемотали назад
-          const resetThreshold = endingRange?.start
-            ? endingRange.start - 5
-            : curDuration >= 300
-            ? curDuration - 110
-            : 0
-
-          if (resetThreshold > 0 && currentSec < resetThreshold) {
+          // Перемотали назад — плашку снимаем
+          if (isSeekedBackBeforeEnding(promptState())) {
             setIsNearEnd(false)
             setIsDismissedEnd(false)
             videoEndedRef.current = false
           }
 
-          // --- ОПРЕДЕЛЕНИЕ ЭНДИНГА: ---
-          // 1. Видео завершилось
-          // 2. В DOM активна кнопка "Пропустить эндинг"
-          // 3. Текущее время достигло расписания эндинга
-          // 4. АВТОМАТИЧЕСКИ: для обычных серий (от 5 мин) за 90 сек до конца всегда эндинг!
-          const isDomActive = isDomEndingActiveRef.current
-          const isTimeInKnownEnding = Boolean(endingRange && endingRange.start > 0 && currentSec >= endingRange.start)
-          const isAutoEnding = curDuration >= 300 && curDuration - currentSec <= 90 && curDuration - currentSec >= 0
-
-          if (videoEndedRef.current || isDomActive || isTimeInKnownEnding || isAutoEnding) {
+          // --- ОПРЕДЕЛЕНИЕ КОНЦА СЕРИИ ---
+          // Плашка показывается ТОЛЬКО если пройдены оба условия:
+          //   1. время воспроизведения уже в зоне, где эндинг возможен
+          //      (не раньше 60-й секунды и не раньше 45% серии);
+          //   2. есть сигнал конца: ended / кнопка в DOM / маркер эндинга /
+          //      последние 90 секунд серии.
+          if (isEndingReached(promptState())) {
             setIsNearEnd(true)
           }
         }
 
-        // Обновление номера серии
+        // Обновление номера серии (Kodik сам может переключить серию
+        // внутри iframe — например, по своему плейлисту после эндинга)
         let newEpisode: number | undefined
         if (key === "kodik_player_current_episode" || key === "episode") {
           newEpisode = typeof value?.episode === "number" ? value.episode : typeof value === "number" ? value : undefined
         }
 
-        // Синхронизация смены серии без двойных вызовов
-        if (newEpisode && newEpisode > 0 && newEpisode !== episode) {
+        // Синхронизация смены серии без двойных вызовов.
+        // Серия, которой нет в выбранной озвучке/на сайте, наружу не уходит —
+        // иначе родитель поставит номер, под которым плеер ничего не найдёт.
+        const isEpisodeKnown =
+          maxAvailableEpisode === undefined || (newEpisode !== undefined && newEpisode <= maxAvailableEpisode)
+
+        if (newEpisode && newEpisode > 0 && newEpisode !== episode && isEpisodeKnown) {
           if (targetEpisodeRef.current !== newEpisode) {
             targetEpisodeRef.current = newEpisode
+            pendingEpisodeRef.current = newEpisode
             onEpisodeChange?.(newEpisode)
           }
+        } else if (newEpisode && newEpisode > 0 && newEpisode !== episode && !isEpisodeKnown) {
+          setNotice(
+            `Серия ${newEpisode} недоступна в озвучке «${selectedTranslation?.title || "текущая"}»`
+          )
         }
 
         // Прогресс
@@ -869,7 +1044,15 @@ export function KodikPlayer({
     return () => {
       window.removeEventListener("message", handleMessage)
     }
-  }, [isStarted, episode, onEpisodeChange, onProgressUpdate, selectedTranslation])
+  }, [
+    isStarted,
+    episode,
+    maxAvailableEpisode,
+    onEpisodeChange,
+    onProgressUpdate,
+    selectedTranslation,
+    watchedWallSeconds,
+  ])
 
   return (
     <div
@@ -1002,40 +1185,106 @@ export function KodikPlayer({
             </div>
           )}
 
-          {/*
-            ПЛАШКА СЛЕДУЮЩЕЙ СЕРИИ:
-            - Срабатывает при обнаружении кнопки «Пропустить эндинг» в DOM,
-              по маркерам эндинга или автоматически за 90 сек до конца.
-            - На ПК приподнята, на смартфонах аккуратно расположена в углу.
-          */}
-          {isStarted && hasNextEpisode && isNearEnd && !isDismissedEnd && (
-            <div className="absolute top-2.5 right-2.5 sm:top-auto sm:bottom-28 md:bottom-32 sm:right-5 z-40 max-w-[calc(100%-4.5rem)] sm:max-w-xs animate-in fade-in zoom-in-95 sm:slide-in-from-bottom-3 duration-300 pointer-events-auto">
-              <div className="flex items-center bg-zinc-950/95 sm:bg-zinc-900/95 backdrop-blur-md border border-white/15 sm:border-white/20 rounded-xl shadow-[0_8px_30px_rgba(0,0,0,0.85)] overflow-hidden transition-all hover:border-orange-500/60 group">
+          {/* Служебная подсказка (серии нет в озвучке, переход не удался) */}
+          {notice && (
+            <div className="absolute top-14 right-2.5 sm:top-3 sm:right-5 z-40 max-w-[calc(100%-1.25rem)] sm:max-w-sm animate-in fade-in zoom-in-95 duration-300 pointer-events-auto">
+              <div className="flex items-start gap-2 bg-zinc-950/95 backdrop-blur-md border border-orange-500/40 rounded-lg px-2.5 py-2 shadow-[0_8px_30px_rgba(0,0,0,0.85)]">
+                <Info className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-orange-400 flex-shrink-0 mt-0.5" />
+                <p className="text-[10px] sm:text-xs text-zinc-200 leading-snug">{notice}</p>
                 <button
-                  onClick={handleNextEpisode}
-                  className="flex items-center gap-2 sm:gap-2.5 px-2.5 py-1.5 sm:px-3.5 sm:py-2.5 hover:bg-white/10 active:bg-white/15 transition-colors text-left flex-1 min-w-0 cursor-pointer"
+                  onClick={() => setNotice(null)}
+                  className="text-zinc-500 hover:text-white transition-colors flex-shrink-0 cursor-pointer"
+                  aria-label="Скрыть уведомление"
                 >
-                  <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-lg bg-orange-600 group-hover:bg-orange-500 flex items-center justify-center text-white shadow-[0_0_12px_rgba(234,88,12,0.5)] transition-transform group-hover:scale-105 flex-shrink-0">
-                    <SkipForward className="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-current" />
-                  </div>
-                  <div className="flex flex-col min-w-0">
-                    <div className="text-[11px] sm:text-xs md:text-sm font-bold text-white flex items-center gap-1.5 truncate">
-                      <span className="truncate">Следующая серия</span>
-                      <span className="text-[10px] sm:text-xs px-1.5 py-0.2 sm:py-0.5 rounded bg-orange-500/20 text-orange-400 border border-orange-500/30 font-mono flex-shrink-0">
-                        {Number(episode) + 1}
-                      </span>
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/*
+            ПЛАШКА СЛЕДУЮЩЕЙ СЕРИИ
+            Показывается только в зоне эндинга: не раньше 60-й секунды
+            и не раньше 45% серии. Сигналы конца: ended именно серии,
+            активная кнопка «Пропустить эндинг» в DOM, маркер эндинга
+            или последние 90 секунд серии. Правила — в lib/kodik-player-logic.ts.
+            Если следующей серии нет — вместо кнопки честно об этом говорим.
+          */}
+          {isStarted && isNearEnd && !isDismissedEnd && (
+            <div className="absolute top-2.5 right-2.5 sm:top-auto sm:bottom-28 md:bottom-32 sm:right-5 z-40 max-w-[calc(100%-4.5rem)] sm:max-w-xs animate-in fade-in zoom-in-95 sm:slide-in-from-bottom-3 duration-300 pointer-events-auto">
+              <div
+                className={`flex items-center bg-zinc-950/95 sm:bg-zinc-900/95 backdrop-blur-md border rounded-xl shadow-[0_8px_30px_rgba(0,0,0,0.85)] overflow-hidden transition-all group ${
+                  hasNextEpisode
+                    ? "border-white/15 sm:border-white/20 hover:border-orange-500/60"
+                    : "border-white/10"
+                }`}
+              >
+                {hasNextEpisode ? (
+                  <button
+                    onClick={handleNextEpisode}
+                    className="flex items-center gap-2 sm:gap-2.5 px-2.5 py-1.5 sm:px-3.5 sm:py-2.5 hover:bg-white/10 active:bg-white/15 transition-colors text-left flex-1 min-w-0 cursor-pointer"
+                  >
+                    <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-lg bg-orange-600 group-hover:bg-orange-500 flex items-center justify-center text-white shadow-[0_0_12px_rgba(234,88,12,0.5)] transition-transform group-hover:scale-105 flex-shrink-0">
+                      <SkipForward className="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-current" />
                     </div>
-                    {typeof timeLeftSeconds === "number" && timeLeftSeconds > 0 && (
-                      <div className="text-[9px] sm:text-[11px] text-zinc-400 flex items-center gap-1 mt-0.5">
-                        <Clock className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-zinc-500 flex-shrink-0" />
-                        <span>
-                          До конца: {Math.floor(timeLeftSeconds / 60)}:
-                          {(timeLeftSeconds % 60).toString().padStart(2, "0")}
+                    <div className="flex flex-col min-w-0">
+                      <div className="text-[11px] sm:text-xs md:text-sm font-bold text-white flex items-center gap-1.5 truncate">
+                        <span className="truncate">Следующая серия</span>
+                        <span className="text-[10px] sm:text-xs px-1.5 py-0.2 sm:py-0.5 rounded bg-orange-500/20 text-orange-400 border border-orange-500/30 font-mono flex-shrink-0">
+                          {nextEpisodeNumber}
                         </span>
                       </div>
-                    )}
+                      {typeof timeLeftSeconds === "number" && timeLeftSeconds > 0 && (
+                        <div className="text-[9px] sm:text-[11px] text-zinc-400 flex items-center gap-1 mt-0.5">
+                          <Clock className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-zinc-500 flex-shrink-0" />
+                          <span>
+                            До конца: {Math.floor(timeLeftSeconds / 60)}:
+                            {(timeLeftSeconds % 60).toString().padStart(2, "0")}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </button>
+                ) : nextEpisodeFallback ? (
+                  /* В этой озвучке серии нет, но есть в другой — предлагаем её */
+                  <button
+                    onClick={handleNextEpisode}
+                    className="flex items-center gap-2 sm:gap-2.5 px-2.5 py-1.5 sm:px-3.5 sm:py-2.5 hover:bg-white/10 active:bg-white/15 transition-colors text-left flex-1 min-w-0 cursor-pointer"
+                  >
+                    <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-lg bg-orange-600 group-hover:bg-orange-500 flex items-center justify-center text-white shadow-[0_0_12px_rgba(234,88,12,0.5)] transition-transform group-hover:scale-105 flex-shrink-0">
+                      <SkipForward className="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-current" />
+                    </div>
+                    <div className="flex flex-col min-w-0">
+                      <div className="text-[11px] sm:text-xs md:text-sm font-bold text-white flex items-center gap-1.5 truncate">
+                        <span className="truncate">Следующая серия</span>
+                        <span className="text-[10px] sm:text-xs px-1.5 py-0.2 sm:py-0.5 rounded bg-orange-500/20 text-orange-400 border border-orange-500/30 font-mono flex-shrink-0">
+                          {nextEpisodeNumber}
+                        </span>
+                      </div>
+                      <div className="text-[9px] sm:text-[11px] text-zinc-400 truncate mt-0.5">
+                        Нет в этой озвучке · есть в «{nextEpisodeFallback.title}»
+                      </div>
+                    </div>
+                  </button>
+                ) : (
+                  <div className="flex items-center gap-2 sm:gap-2.5 px-2.5 py-1.5 sm:px-3.5 sm:py-2.5 text-left flex-1 min-w-0">
+                    <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-lg bg-zinc-700/80 flex items-center justify-center text-zinc-300 flex-shrink-0">
+                      <Check className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                    </div>
+                    <div className="flex flex-col min-w-0">
+                      <div className="text-[11px] sm:text-xs md:text-sm font-bold text-white truncate">
+                        {maxAvailableEpisode && episode >= maxAvailableEpisode
+                          ? `Серия ${episode} — последняя доступная`
+                          : "Дальше серий пока нет"}
+                      </div>
+                      <div className="text-[9px] sm:text-[11px] text-zinc-400 truncate mt-0.5">
+                        {maxAvailableEpisode
+                          ? `Доступно серий: ${maxAvailableEpisode}`
+                          : "Следите за обновлениями"}
+                      </div>
+                    </div>
                   </div>
-                </button>
+                )}
 
                 <div className="w-[1px] h-6 bg-white/10 flex-shrink-0" />
 
