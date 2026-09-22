@@ -4,7 +4,7 @@ import { createVideoProgressTracker } from "@/lib/analytics-video"
 import { useState, useEffect, useMemo, useRef, useCallback } from "react"
 import { createPortal } from "react-dom"
 import { PlayerLoading } from "@/components/watch/player-loading"
-import { AlertCircle, ChevronDown, Mic, Subtitles, Check, X } from "lucide-react"
+import { AlertCircle, ChevronDown, Mic, Subtitles, Check, X, SkipForward } from "lucide-react"
 import { RegionDetector } from "@/components/providers/region-detector"
 import { getProxiedSrc } from "@/lib/image-loader"
 import { lockOrientation, useFullscreenOrientation } from "@/hooks/use-fullscreen-orientation"
@@ -66,6 +66,7 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCo
   const [selectedCountry, setSelectedCountry] = useState<string>('RU')
   const [errorMessage, setErrorMessage] = useState<string>('')
   const [showFullscreenHint, setShowFullscreenHint] = useState(false)
+  const [isNearEnd, setIsNearEnd] = useState(false)
   const playerContainerRef = useRef<HTMLDivElement>(null)
   const lastTapRef = useRef<number>(0)
   const analyticsProgress = useRef(createVideoProgressTracker())
@@ -86,9 +87,21 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCo
   const [isMobile, setIsMobile] = useState(false)
   const [menuPos, setMenuPos] = useState<{ top: number; left: number; width: number } | null>(null)
   const [mounted, setMounted] = useState(false)
+  const [useProxy, setUseProxy] = useState(false)
+
+  // Проверка наличия следующей серии
+  const hasNextEpisode = useMemo(() => {
+    if (!selectedTranslation?.episodesCount) return true
+    return episode < selectedTranslation.episodesCount
+  }, [selectedTranslation, episode])
 
   // Таймаут для загрузки плеера
   const [loadTimeout, setLoadTimeout] = useState<ReturnType<typeof setTimeout> | null>(null)
+
+  // Сброс детектора эндинга при переключении серии
+  useEffect(() => {
+    setIsNearEnd(false)
+  }, [episode])
 
   // Загрузка списка озвучек
   const loadTranslations = useCallback(async () => {
@@ -152,7 +165,6 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCo
   }, [])
 
   // Отслеживание fullscreen режима + автоповорот экрана в landscape
-  // (в PWA без этого экран стоит в портрете даже на полном экране)
   const isFullscreen = useFullscreenOrientation("landscape")
 
   const openMenu = useCallback(() => {
@@ -216,6 +228,21 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCo
       setLoadTimeout(timeout)
     }
   }
+
+  // Переключение на следующую серию
+  const handleNextEpisode = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (!hasNextEpisode) return
+    const nextEp = episode + 1
+    onEpisodeChange?.(nextEp)
+
+    // Дополнительно отправляем сигнал плееру Kodik через postMessage
+    const frame = playerContainerRef.current?.querySelector("iframe")
+    frame?.contentWindow?.postMessage(
+      JSON.stringify({ key: 'kodik_player_api', value: { method: 'change_episode', episode: nextEp } }),
+      '*'
+    )
+  }, [hasNextEpisode, episode, onEpisodeChange])
 
   // Portal-меню озвучек
   const renderTranslationsPortal = () => {
@@ -361,9 +388,11 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCo
     const separator = url.includes("?") ? "&" : "?"
     const directUrl = `${url}${separator}${params.toString()}`
 
-    // ВСЕГДА гоним через наш прокси, чтобы вырезать рекламу
-    return `/api/kodik/player-proxy?url=${encodeURIComponent(directUrl)}`
-  }, [selectedTranslation, episode, selectedCountry])
+    if (useProxy) {
+      return `/api/kodik/player-proxy?url=${encodeURIComponent(directUrl)}`
+    }
+    return directUrl
+  }, [selectedTranslation, episode, selectedCountry, useProxy])
 
   const handleCountryChange = (countryCode: string) => {
     setSelectedCountry(countryCode)
@@ -494,7 +523,7 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCo
     }
   }, [showTranslationsMenu, isStarted, clearUiTimer, showUiAndResetTimer])
 
-  // УНИВЕРСАЛЬНЫЙ СЛУШАТЕЛЬ ТАЙМКОДОВ И ПРОГРЕССА С К О D I K
+  // УНИВЕРСАЛЬНЫЙ СЛУШАТЕЛЬ ТАЙМКОДОВ И ПРОГРЕССА С KODIK
   useEffect(() => {
     if (!isStarted) return
 
@@ -540,8 +569,18 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCo
           else if (typeof data.seconds === 'number') seconds = data.seconds
         }
 
-        // Analytics accepts only the mounted player; do not change the existing
-        // history/progress protocol for proxy/redirected provider frames.
+        // 3. Отслеживание приближения к концу серии (эндинг)
+        const dur = typeof value?.duration === 'number' ? value.duration : undefined
+        if (typeof seconds === 'number' && typeof dur === 'number' && dur > 0) {
+          // Эндинг обычно начинается за ~90-120 секунд до конца серии
+          const nearEnd = (dur - seconds) <= 120 && (dur - seconds) >= 1
+          setIsNearEnd((prev) => (prev !== nearEnd ? nearEnd : prev))
+        }
+
+        if (key === 'kodik_player_video_ended' || key === 'video_ended') {
+          setIsNearEnd(true)
+        }
+
         const frame = playerContainerRef.current?.querySelector("iframe")
         const trustedPlayer = frame && event.source === frame.contentWindow
         if (trustedPlayer && typeof seconds === "number" && typeof value?.duration === "number") {
@@ -704,6 +743,27 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCo
                   {selectedTranslation?.title || "Озвучка"}
                 </span>
                 <ChevronDown className={`w-3.5 h-3.5 flex-shrink-0 transition-transform ${showTranslationsMenu ? "rotate-180" : ""}`} />
+              </button>
+            </div>
+          )}
+
+          {/* Кнопка "Следующая серия" рядом с кнопкой пропуска эндинга */}
+          {isStarted && hasNextEpisode && (
+            <div
+              className={`absolute bottom-14 sm:bottom-16 right-36 sm:right-44 z-30 transition-all duration-300 ${
+                showUi || isNearEnd ? 'opacity-100 pointer-events-auto translate-y-0' : 'opacity-0 pointer-events-none translate-y-2'
+              }`}
+            >
+              <button
+                onClick={handleNextEpisode}
+                className="flex items-center gap-1.5 sm:gap-2 px-3 py-1.5 sm:px-3.5 sm:py-2 bg-zinc-900/90 hover:bg-orange-600 active:bg-orange-700 text-white text-xs sm:text-sm font-semibold rounded-lg sm:rounded-xl border border-white/20 hover:border-orange-500/50 shadow-2xl backdrop-blur-md transition-all duration-200 pointer-events-auto group min-h-[36px]"
+                title={`Перейти к ${episode + 1} серии`}
+              >
+                <span>След. серия</span>
+                <span className="text-orange-400 group-hover:text-white font-mono text-[11px] sm:text-xs">
+                  ({episode + 1})
+                </span>
+                <SkipForward className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-orange-400 group-hover:text-white transition-colors flex-shrink-0" />
               </button>
             </div>
           )}
