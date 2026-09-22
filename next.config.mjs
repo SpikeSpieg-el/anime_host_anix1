@@ -135,6 +135,19 @@ const nextConfig = {
   async headers() {
     return [
       {
+        source: '/api/kodik/player-proxy',
+        headers: [
+          {
+            key: 'X-Frame-Options',
+            value: 'SAMEORIGIN',
+          },
+          {
+            key: 'Content-Security-Policy',
+            value: "frame-ancestors 'self'",
+          },
+        ],
+      },
+      {
         source: '/(.*)',
         headers: [
           {

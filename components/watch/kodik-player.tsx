@@ -66,7 +66,6 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCo
   const [selectedCountry, setSelectedCountry] = useState<string>('RU')
   const [errorMessage, setErrorMessage] = useState<string>('')
   const [showFullscreenHint, setShowFullscreenHint] = useState(false)
-  const [useProxy, setUseProxy] = useState(false)
   const playerContainerRef = useRef<HTMLDivElement>(null)
   const lastTapRef = useRef<number>(0)
   const analyticsProgress = useRef(createVideoProgressTracker())
@@ -206,7 +205,6 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCo
 
     setSelectedTranslation(tr)
     saveTranslationId(shikimoriId, tr.translationId)
-    setUseProxy(false)
 
     if (isStarted) {
       setIsLoading(true)
@@ -363,11 +361,9 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCo
     const separator = url.includes("?") ? "&" : "?"
     const directUrl = `${url}${separator}${params.toString()}`
 
-    if (useProxy) {
-      return `/api/kodik/player-proxy?url=${encodeURIComponent(directUrl)}`
-    }
-    return directUrl
-  }, [selectedTranslation, episode, selectedCountry, useProxy])
+    // ВСЕГДА гоним через наш прокси, чтобы вырезать рекламу
+    return `/api/kodik/player-proxy?url=${encodeURIComponent(directUrl)}`
+  }, [selectedTranslation, episode, selectedCountry])
 
   const handleCountryChange = (countryCode: string) => {
     setSelectedCountry(countryCode)
@@ -547,8 +543,7 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCo
         // Analytics accepts only the mounted player; do not change the existing
         // history/progress protocol for proxy/redirected provider frames.
         const frame = playerContainerRef.current?.querySelector("iframe")
-        const trustedPlayer = frame && event.source === frame.contentWindow &&
-          event.origin === new URL(frame.src, window.location.href).origin
+        const trustedPlayer = frame && event.source === frame.contentWindow
         if (trustedPlayer && typeof seconds === "number" && typeof value?.duration === "number") {
           analyticsProgress.current(`${shikimoriId}:${newEpisode || episode}`, seconds, value.duration, {
             player: "kodik", shikimori_id: shikimoriId, episode: newEpisode || episode,
@@ -756,12 +751,12 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCo
              </div>
           ) : (
             <iframe
-              key={`${selectedTranslation?.translationId || "default"}-${episode}-${useProxy ? "proxy" : "direct"}`}
+              key={`${selectedTranslation?.translationId || "default"}-${episode}`}
               src={playerSrc || undefined}
               className={`h-full w-full transition-opacity duration-700 ${isLoading ? 'opacity-0' : 'opacity-100'}`}
               allow="autoplay; encrypted-media; fullscreen; picture-in-picture; screen-wake-lock"
               allowFullScreen
-              sandbox="allow-scripts allow-same-origin allow-presentation allow-popups allow-forms allow-modals allow-downloads"
+              sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"
               onLoad={() => {
                 setIsLoading(false)
                 if (loadTimeout) {
@@ -770,12 +765,7 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCo
                 }
               }}
               onError={() => {
-                if (useProxy) {
-                  setUseProxy(false)
-                  setIsLoading(true)
-                } else {
-                  setIsLoading(false)
-                }
+                setIsLoading(false)
               }}
             />
           )}

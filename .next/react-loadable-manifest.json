@@ -3,17 +3,15 @@
     "id": "app\\gacha\\client-actions.ts -> @/lib/supabase",
     "files": []
   },
-  "app\\gacha\\hooks\\use-gacha-state.ts -> @/lib/supabase": {
-    "id": "app\\gacha\\hooks\\use-gacha-state.ts -> @/lib/supabase",
-    "files": []
-  },
-  "app\\gacha\\pity-actions.ts -> @/lib/supabase": {
-    "id": "app\\gacha\\pity-actions.ts -> @/lib/supabase",
-    "files": []
-  },
   "components\\providers\\account-stats-recorder.ts -> ../../lib/supabase": {
     "id": "components\\providers\\account-stats-recorder.ts -> ../../lib/supabase",
     "files": []
+  },
+  "components\\watch\\backup-player.tsx -> hls.js": {
+    "id": "components\\watch\\backup-player.tsx -> hls.js",
+    "files": [
+      "static/chunks/_app-pages-browser_node_modules_hls_js_dist_hls_mjs.js"
+    ]
   },
   "lib\\easter-eggs.ts -> sonner": {
     "id": "lib\\easter-eggs.ts -> sonner",

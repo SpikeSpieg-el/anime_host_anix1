@@ -14,6 +14,11 @@ const CSRF_EXEMPT_PATHS = [
   "/api/lampa/",
 ]
 
+// Paths that are exempt from security headers (like X-Frame-Options: DENY)
+const SECURITY_HEADERS_EXEMPT_PATHS = [
+  "/api/kodik/player-proxy",
+]
+
 // Paths that are API routes (for header checks)
 const API_PATH_PREFIX = "/api/"
 
@@ -95,6 +100,12 @@ function applySecurityHeaders(response: NextResponse) {
 export function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname
   const method = request.method
+
+  // Check if path is exempt from security headers (like X-Frame-Options: DENY)
+  const isSecurityHeadersExempt = SECURITY_HEADERS_EXEMPT_PATHS.some((path) => pathname.startsWith(path))
+  if (isSecurityHeadersExempt) {
+    return NextResponse.next()
+  }
 
   // Only protect state-changing HTTP methods
   const isStateChangingMethod = ["POST", "PUT", "DELETE", "PATCH"].includes(method)

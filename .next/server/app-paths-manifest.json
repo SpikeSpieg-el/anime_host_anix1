@@ -1,9 +1,8 @@
 {
   "/manifest.webmanifest/route": "app/manifest.webmanifest/route.js",
-  "/api/banners/route": "app/api/banners/route.js",
-  "/api/image-proxy/route": "app/api/image-proxy/route.js",
-  "/page": "app/page.js",
-  "/catalog/page": "app/catalog/page.js",
-  "/_not-found/page": "app/_not-found/page.js",
-  "/gacha/page": "app/gacha/page.js"
+  "/api/region/route": "app/api/region/route.js",
+  "/api/posters/route": "app/api/posters/route.js",
+  "/api/kodik/player-proxy/route": "app/api/kodik/player-proxy/route.js",
+  "/watch/[id]/page": "app/watch/[id]/page.js",
+  "/_not-found/page": "app/_not-found/page.js"
 }
