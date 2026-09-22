@@ -44,21 +44,6 @@ const nextConfig = {
   },
   images: {
     remotePatterns: [
-      // Development uses direct external image URLs from many artwork providers.
-      ...(process.env.NODE_ENV !== 'production'
-        ? [
-            {
-              protocol: 'http',
-              hostname: '**',
-              pathname: '/**',
-            },
-            {
-              protocol: 'https',
-              hostname: '**',
-              pathname: '/**',
-            },
-          ]
-        : []),
       // 1. MyAnimeList
       {
         protocol: 'https',
@@ -120,10 +105,46 @@ const nextConfig = {
         hostname: 'safebooru.org',
         pathname: '/**',
       },
+      // 7. Kodik
+      {
+        protocol: 'https',
+        hostname: '*.kodik.info',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'kodik.info',
+        pathname: '/**',
+      },
+      // 8. AniLibria
+      {
+        protocol: 'https',
+        hostname: '*.anilibria.tv',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'anilibria.tv',
+        pathname: '/**',
+      },
+      // 9. AllAnime
+      {
+        protocol: 'https',
+        hostname: '*.allanime.site',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'allanime.site',
+        pathname: '/**',
+      },
+      // 10. Supabase Storage
+      {
+        protocol: 'https',
+        hostname: '*.supabase.co',
+        pathname: '/**',
+      },
     ],
-    // Disable the default optimizer in dev so newly added external art hosts work
-    // without requiring a config change for every source.
-    unoptimized: process.env.NODE_ENV !== 'production',
     // Custom loader delegates to Coolify image service (bypasses Vercel transformations)
     ...(process.env.NODE_ENV === 'production' && {
       loader: 'custom',

@@ -11,8 +11,6 @@ import {
 } from "lucide-react"
 import type { Anime } from "@/lib/shikimori"
 import { KodikPlayer } from "@/components/watch/kodik-player"
-import { BackupPlayer } from "@/components/watch/backup-player"
-import { DownloadDialog } from "@/components/watch/download-dialog"
 import { HentaiPlayer } from "@/components/watch/hentai-player"
 import { EpisodeSelector } from "@/components/watch/episode-selector"
 import { RegionWarning } from "@/components/shared/region-warning"
@@ -76,7 +74,6 @@ export function WatchPageClient({ anime, initialEpisode }: WatchPageClientProps)
   const [isStarted, setIsStarted] = useState(false)
   const [selectedCountry, setSelectedCountry] = useState<string>('RU')
   const [isRegionDetected, setIsRegionDetected] = useState(false)
-  const [activePlayer, setActivePlayer] = useState<'main' | 'backup'>('main')
   const [isUpdatingFromPlayer, setIsUpdatingFromPlayer] = useState(false)
   const [posterLoading, setPosterLoading] = useState(true)
   const [isCoverModalOpen, setIsCoverModalOpen] = useState(false)
@@ -246,7 +243,7 @@ export function WatchPageClient({ anime, initialEpisode }: WatchPageClientProps)
     }
   }
 
-  // Kodik и запасной плеер работают внутри iframe, поэтому их реальное
+  // Kodik плеер работает внутри iframe, поэтому его реальное
   // currentTime недоступно странице. Считаем только видимое активное время
   // после старта серии, отдельное от общего времени на сайте.
   useEffect(() => {
@@ -293,41 +290,6 @@ export function WatchPageClient({ anime, initialEpisode }: WatchPageClientProps)
         </Button>
 
         <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1 bg-card border border-border rounded-lg p-1">
-            <Button
-              size="sm"
-              variant={activePlayer === 'main' ? "default" : "ghost"}
-              onClick={() => {
-                if (activePlayer !== 'main') trackEvent(AnalyticsEvent.PLAYER_CHANGE, { player: 'kodik', shikimori_id: anime.shikimoriId })
-                setActivePlayer('main')
-              }}
-              className={cn(
-                "gap-2 text-xs transition-all",
-                activePlayer === 'main' 
-                  ? "bg-primary text-primary-foreground hover:bg-primary/90" 
-                  : "text-muted-foreground hover:text-foreground hover:bg-card/80"
-              )}
-            >
-              Основной
-            </Button>
-            <Button
-              size="sm"
-              variant={activePlayer === 'backup' ? "default" : "ghost"}
-              onClick={() => {
-                if (activePlayer !== 'backup') trackEvent(AnalyticsEvent.PLAYER_CHANGE, { player: 'backup', shikimori_id: anime.shikimoriId })
-                setActivePlayer('backup')
-              }}
-              className={cn(
-                "gap-2 text-xs transition-all",
-                activePlayer === 'backup' 
-                  ? "bg-primary text-primary-foreground hover:bg-primary/90" 
-                  : "text-muted-foreground hover:text-foreground hover:bg-card/80"
-              )}
-            >
-              Запасной
-            </Button>
-          </div>
-
           <Button
             size="sm"
             variant="ghost"
@@ -342,13 +304,6 @@ export function WatchPageClient({ anime, initialEpisode }: WatchPageClientProps)
             <Bookmark className={cn("w-4 h-4", saved && "fill-current")} />
             <span>{saved ? "Сохранено" : "В закладки"}</span>
           </Button>
-
-          <DownloadDialog
-            title={anime.title}
-            originalTitle={anime.originalTitle}
-            episode={selectedEpisode}
-            trackerQuery={anime.originalTitle || anime.title}
-          />
         </div>
       </div>
 
@@ -475,7 +430,7 @@ export function WatchPageClient({ anime, initialEpisode }: WatchPageClientProps)
                 setIsStarted(true)
               }}
             />
-          ) : activePlayer === 'main' ? (
+          ) : (
             <KodikPlayer
               shikimoriId={anime.shikimoriId}
               title={anime.title}
@@ -493,24 +448,6 @@ export function WatchPageClient({ anime, initialEpisode }: WatchPageClientProps)
               onCountryChange={handleCountryChange}
               onRegionDetected={handleRegionDetected}
               onEpisodeChange={handleEpisodeChangeFromPlayer}
-              onProgressUpdate={handleProgressUpdate}
-            />
-          ) : (
-            <BackupPlayer
-              title={anime.title}
-              originalTitle={anime.originalTitle}
-              episode={selectedEpisode}
-              isActive={true}
-              poster={anime.poster}
-              onStart={() => {
-                trackEvent(AnalyticsEvent.EPISODE_PLAY, {
-                  shikimori_id: anime.shikimoriId,
-                  title: anime.title,
-                  episode: selectedEpisode,
-                  player: "backup",
-                })
-                setIsStarted(true)
-              }}
               onProgressUpdate={handleProgressUpdate}
             />
           )}
