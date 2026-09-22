@@ -1,8 +1,0 @@
-{
-  "/manifest.webmanifest/route": "app/manifest.webmanifest/route.js",
-  "/api/anime/[id]/route": "app/api/anime/[id]/route.js",
-  "/api/auth/captcha/puzzle/route": "app/api/auth/captcha/puzzle/route.js",
-  "/api/hero-recommendation/route": "app/api/hero-recommendation/route.js",
-  "/_not-found/page": "app/_not-found/page.js",
-  "/page": "app/page.js"
-}
