@@ -42,22 +42,78 @@ const STORAGE_KEY_PREFIX = "kodik-translation-"
 const UI_HIDE_DELAY = 3500
 
 function parseSeconds(val: any): number | undefined {
-  if (typeof val === "number" && !isNaN(val)) return Math.floor(val)
+  if (typeof val === "number" && !isNaN(val)) {
+    if (val < 0 || val > 86400) return undefined
+    return Math.floor(val)
+  }
   if (typeof val === "string") {
     const trimmed = val.trim()
     if (trimmed.includes(":")) {
       const parts = trimmed.split(":").map(Number)
       if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
-        return parts[0] * 60 + parts[1]
+        const seconds = parts[0] * 60 + parts[1]
+        if (seconds < 0 || seconds > 86400) return undefined
+        return seconds
       }
       if (parts.length === 3 && !isNaN(parts[0]) && !isNaN(parts[1]) && !isNaN(parts[2])) {
-        return parts[0] * 3600 + parts[1] * 60 + parts[2]
+        const seconds = parts[0] * 3600 + parts[1] * 60 + parts[2]
+        if (seconds < 0 || seconds > 86400) return undefined
+        return seconds
       }
     }
     const num = parseFloat(trimmed)
-    if (!isNaN(num)) return Math.floor(num)
+    if (!isNaN(num) && num >= 0 && num <= 86400) return Math.floor(num)
   }
   return undefined
+}
+
+function extractEndingTimings(payload: any): { start: number; end?: number } | null {
+  if (!payload || typeof payload !== "object") return null
+
+  // Исключаем события опенинга
+  const typeStr = String(payload.type || payload.title || payload.name || "").toLowerCase()
+  if (typeStr.includes("opening") || typeStr.includes("опенинг")) {
+    return null
+  }
+
+  // 1. Прямые поля ending_start / ending_end
+  const startDirect = parseSeconds(payload.ending_start ?? payload.endingStart)
+  const endDirect = parseSeconds(payload.ending_end ?? payload.endingEnd)
+  if (startDirect && startDirect > 60) {
+    return { start: startDirect, end: endDirect }
+  }
+
+  // 2. Объект skip_buttons или skip (строго секция ending)
+  const skip = payload.skip_buttons || payload.skipButtons || payload.skip
+  if (skip?.ending) {
+    const s = parseSeconds(skip.ending.start ?? skip.ending.time ?? skip.ending.from)
+    const e = parseSeconds(skip.ending.end ?? skip.ending.to)
+    if (s && s > 60) return { start: s, end: e }
+  }
+
+  // 3. Массивы cuepoints / chapters / markers
+  const markers = payload.cuepoints || payload.chapters || payload.markers || payload.timings
+  if (Array.isArray(markers)) {
+    for (const item of markers) {
+      const label = String(item.title || item.name || item.type || item.label || "").toLowerCase()
+      if (label.includes("опенинг") || label.includes("opening")) {
+        continue
+      }
+      if (label.includes("эндинг") || label.includes("ending") || label.includes("титр")) {
+        const s = parseSeconds(item.time ?? item.start ?? item.value)
+        const e = parseSeconds(item.end ?? (item.duration && s ? s + item.duration : undefined))
+        if (s && s > 60) return { start: s, end: e }
+      }
+    }
+  } else if (typeof markers === "object") {
+    if (markers.ending) {
+      const s = parseSeconds(markers.ending.start ?? markers.ending.time)
+      const e = parseSeconds(markers.ending.end)
+      if (s && s > 60) return { start: s, end: e }
+    }
+  }
+
+  return null
 }
 
 function getSavedTranslationId(shikimoriId: string): string | null {
@@ -101,10 +157,13 @@ export function KodikPlayer({
   const [isDismissedEnd, setIsDismissedEnd] = useState(false)
   const [timeLeftSeconds, setTimeLeftSeconds] = useState<number | null>(null)
 
-  // Хранилища таймингов
+  // Хранилища таймингов и флагов
   const durationRef = useRef<number>(0)
   const lastSecondsRef = useRef<number>(0)
   const videoEndedRef = useRef<boolean>(false)
+  const isDomEndingActiveRef = useRef<boolean>(false)
+  const endingRangeRef = useRef<{ start: number; end?: number } | null>(null)
+  const targetEpisodeRef = useRef<number | null>(null)
 
   const playerContainerRef = useRef<HTMLDivElement>(null)
   const lastTapRef = useRef<number>(0)
@@ -147,6 +206,9 @@ export function KodikPlayer({
     durationRef.current = 0
     lastSecondsRef.current = 0
     videoEndedRef.current = false
+    isDomEndingActiveRef.current = false
+    endingRangeRef.current = null
+    targetEpisodeRef.current = null
   }, [episode])
 
   const loadTranslations = useCallback(async () => {
@@ -263,15 +325,19 @@ export function KodikPlayer({
     }
   }
 
-  // Переключение на следующую серию
+  // Надежное переключение на следующую серию
   const handleNextEpisode = useCallback((e?: React.MouseEvent) => {
     e?.stopPropagation()
     if (!hasNextEpisode) return
 
+    const nextEp = Number(episode) + 1
+    targetEpisodeRef.current = nextEp
+
     setIsNearEnd(false)
     setIsDismissedEnd(false)
     videoEndedRef.current = false
-    const nextEp = Number(episode) + 1
+    isDomEndingActiveRef.current = false
+    endingRangeRef.current = null
 
     setIsLoading(true)
     if (loadTimeout) clearTimeout(loadTimeout)
@@ -280,8 +346,7 @@ export function KodikPlayer({
     }, 8000)
     setLoadTimeout(timeout)
 
-    onEpisodeChange?.(nextEp)
-
+    // Отправляем команду в сам плеер Kodik через postMessage
     try {
       const frame = playerContainerRef.current?.querySelector("iframe")
       if (frame?.contentWindow) {
@@ -295,6 +360,9 @@ export function KodikPlayer({
     } catch {
       // ignore
     }
+
+    // Сообщаем родительскому компоненту
+    onEpisodeChange?.(nextEp)
   }, [hasNextEpisode, episode, onEpisodeChange, loadTimeout])
 
   const handleDismissNearEnd = (e: React.MouseEvent) => {
@@ -302,7 +370,7 @@ export function KodikPlayer({
     setIsDismissedEnd(true)
   }
 
-  // Меню выбора озвучек
+  // Рендер меню выбора озвучек
   const renderTranslationsPortal = () => {
     if (!showTranslationsMenu || !mounted || translations.length === 0) return null
 
@@ -409,7 +477,6 @@ export function KodikPlayer({
     )
   }
 
-  // При запущенном воспроизведении autoplay="1"
   const playerSrc = useMemo(() => {
     if (!selectedTranslation?.playerLink) return ""
 
@@ -536,7 +603,6 @@ export function KodikPlayer({
     }
   }, [loadTimeout])
 
-  // Отслеживание движений мыши и кликов (чтобы курсор и интерфейс не пропадали во время движения)
   useEffect(() => {
     if (!isStarted || hasError) return
 
@@ -547,7 +613,6 @@ export function KodikPlayer({
     const events = ["mouseenter", "mousemove", "click", "touchstart"] as const
     events.forEach((event) => container.addEventListener(event, handleActivity))
 
-    // Также глобальный слушатель мыши при открытом UI
     const handleGlobalMouseMove = (e: MouseEvent) => {
       if (container.contains(e.target as Node)) {
         showUiAndResetTimer()
@@ -574,7 +639,98 @@ export function KodikPlayer({
     }
   }, [showTranslationsMenu, isStarted, clearUiTimer, showUiAndResetTimer])
 
-  // Обработчик PostMessage событий Kodik
+  // --- 1. ПРЯМОЙ ПОИСК КНОПКИ KODIK В DOM (#right-block .fp-skip-button.active) ---
+  useEffect(() => {
+    if (!isStarted) return
+
+    const checkDom = () => {
+      try {
+        const frame = playerContainerRef.current?.querySelector("iframe")
+        const doc = frame?.contentDocument || frame?.contentWindow?.document
+        if (!doc) return
+
+        // Поиск кнопки: <div id="right-block"><div class="fp-skip-button active" data-seek-to="1436">Пропустить эндинг</div></div>
+        const skipButtons = doc.querySelectorAll<HTMLElement>(
+          "#right-block .fp-skip-button, .fp-skip-button, [class*='skip-button']"
+        )
+
+        let isEndingActiveNow = false
+        let detectedSeekTo: number | undefined
+
+        skipButtons.forEach((btn) => {
+          const text = (btn.textContent || "").toLowerCase().trim()
+
+          // СТРОГО ИСКЛЮЧАЕМ ОПЕНИНГ
+          if (text.includes("опенинг") || text.includes("opening")) {
+            return
+          }
+
+          // Проверяем, что это именно кнопка пропуска эндинга
+          if (text.includes("эндинг") || text.includes("ending") || text.includes("титр")) {
+            const isActive =
+              btn.classList.contains("active") ||
+              (btn.offsetParent !== null && window.getComputedStyle(btn).display !== "none")
+
+            if (isActive) {
+              isEndingActiveNow = true
+              const seekAttr = btn.getAttribute("data-seek-to")
+              if (seekAttr) {
+                const parsed = parseSeconds(seekAttr)
+                if (parsed) detectedSeekTo = parsed
+              }
+            }
+          }
+        })
+
+        // Маркеры cuepoints на полосе прогресса
+        const cueNodes = doc.querySelectorAll<HTMLElement>(
+          ".fp-cuepoint, [class*='cuepoint'], [title*='ндинг'], [data-title*='ндинг']"
+        )
+        cueNodes.forEach((node) => {
+          const title = (
+            node.getAttribute("title") ||
+            node.getAttribute("data-title") ||
+            node.getAttribute("data-original-title") ||
+            node.textContent ||
+            ""
+          ).toLowerCase()
+
+          if (title.includes("опенинг") || title.includes("opening")) return
+
+          if (title.includes("эндинг") || title.includes("ending") || title.includes("титр")) {
+            const match = title.match(/(\d{1,2}:\d{2}(?::\d{2})?)/)
+            if (match && match[1]) {
+              const parsed = parseSeconds(match[1])
+              if (parsed && parsed > 60) {
+                if (!endingRangeRef.current || endingRangeRef.current.start !== parsed) {
+                  endingRangeRef.current = { start: parsed, end: endingRangeRef.current?.end }
+                }
+              }
+            }
+          }
+        })
+
+        if (isEndingActiveNow) {
+          isDomEndingActiveRef.current = true
+          if (detectedSeekTo && endingRangeRef.current) {
+            endingRangeRef.current.end = detectedSeekTo
+          } else if (lastSecondsRef.current > 60 && !endingRangeRef.current) {
+            endingRangeRef.current = { start: lastSecondsRef.current, end: detectedSeekTo }
+          }
+          setIsNearEnd(true)
+        } else {
+          isDomEndingActiveRef.current = false
+        }
+      } catch {
+        // Cross-Origin ограничения
+      }
+    }
+
+    const interval = setInterval(checkDom, 400)
+    return () => clearInterval(interval)
+  }, [isStarted])
+
+  // --- 2. ОБРАБОТЧИК POSTMESSAGE СОБЫТИЙ KODIK ---
   useEffect(() => {
     if (!isStarted) return
 
@@ -583,7 +739,6 @@ export function KodikPlayer({
     const handleMessage = (event: MessageEvent) => {
       try {
         let data = event.data
-
         if (typeof data === "string") {
           try {
             data = JSON.parse(data)
@@ -595,93 +750,100 @@ export function KodikPlayer({
         if (!data || typeof data !== "object") return
 
         const key = data.key || data.type || data.event
-        if (!key || typeof key !== "string") return
-
         const value = data.value !== undefined ? data.value : data.data !== undefined ? data.data : data
 
-        // Длительность серии
+        // Извлечение меток эндинга из любого пришедшего сообщения
+        const detectedEnding = extractEndingTimings(value) || extractEndingTimings(data)
+        if (detectedEnding) {
+          endingRangeRef.current = detectedEnding
+        }
+
+        // Общая длительность видео
         const possibleDuration =
           parseSeconds(value?.duration) ??
           parseSeconds(value?.total) ??
           parseSeconds(value?.video_duration) ??
           parseSeconds(data?.duration) ??
-          parseSeconds(data?.total) ??
-          (key.includes("duration") ? parseSeconds(value) : undefined)
+          parseSeconds(data?.total)
 
-        if (possibleDuration && possibleDuration >= 180) {
+        if (possibleDuration && possibleDuration >= 120) {
           durationRef.current = possibleDuration
         }
 
-        // Текущее время
+        // Текущее время воспроизведения
         const currentSec =
           parseSeconds(value?.seconds) ??
           parseSeconds(value?.time) ??
           parseSeconds(value?.currentTime) ??
           parseSeconds(data?.seconds) ??
-          parseSeconds(data?.time) ??
-          (key.includes("time") ? parseSeconds(value) : undefined)
+          parseSeconds(data?.time)
 
-        if (typeof currentSec === "number") {
-          lastSecondsRef.current = currentSec
+        const curDuration = durationRef.current
+        const endingRange = endingRangeRef.current
 
-          if (durationRef.current > 0 && currentSec < durationRef.current - 120) {
-            setIsDismissedEnd(false)
-            setIsNearEnd(false)
-            videoEndedRef.current = false
-          }
-        }
-
-        // Номер серии
-        let newEpisode: number | undefined
-        if (key === "kodik_player_current_episode" || key === "episode") {
-          if (typeof value?.episode === "number") newEpisode = value.episode
-          else if (typeof value === "number") newEpisode = value
-        } else if (typeof data?.episode === "number") {
-          newEpisode = data.episode
-        }
-
-        // Окончание видео
+        // Событие окончания видео
         if (
           key === "kodik_player_video_ended" ||
           key === "kodik_player_ended" ||
-          key.includes("ended")
+          (typeof key === "string" && key.includes("ended"))
         ) {
           videoEndedRef.current = true
           setIsNearEnd(true)
           setTimeLeftSeconds(0)
         }
 
-        // Детекция эндинга
-        const curDuration = durationRef.current
-        if (videoEndedRef.current) {
-          setIsNearEnd(true)
-          setTimeLeftSeconds(0)
-        } else if (typeof currentSec === "number") {
-          if (currentSec < 60) {
+        if (typeof currentSec === "number") {
+          lastSecondsRef.current = currentSec
+
+          if (curDuration > 0) {
+            const left = Math.max(0, curDuration - currentSec)
+            setTimeLeftSeconds(left)
+          }
+
+          // Проверка на перемотку назад: сбрасываем плашку, если перемотали назад
+          const resetThreshold = endingRange?.start
+            ? endingRange.start - 5
+            : curDuration >= 300
+            ? curDuration - 110
+            : 0
+
+          if (resetThreshold > 0 && currentSec < resetThreshold) {
             setIsNearEnd(false)
-            setTimeLeftSeconds(null)
-          } else if (curDuration >= 180) {
-            const timeLeft = Math.max(0, curDuration - currentSec)
-            setTimeLeftSeconds(timeLeft)
-            const nearEnd = timeLeft <= 116 && timeLeft >= 0
-            setIsNearEnd(nearEnd)
+            setIsDismissedEnd(false)
+            videoEndedRef.current = false
+          }
+
+          // --- ОПРЕДЕЛЕНИЕ ЭНДИНГА: ---
+          // 1. Видео завершилось
+          // 2. В DOM активна кнопка "Пропустить эндинг"
+          // 3. Текущее время достигло расписания эндинга
+          // 4. АВТОМАТИЧЕСКИ: для обычных серий (от 5 мин) за 90 сек до конца всегда эндинг!
+          const isDomActive = isDomEndingActiveRef.current
+          const isTimeInKnownEnding = Boolean(endingRange && endingRange.start > 0 && currentSec >= endingRange.start)
+          const isAutoEnding = curDuration >= 300 && curDuration - currentSec <= 90 && curDuration - currentSec >= 0
+
+          if (videoEndedRef.current || isDomActive || isTimeInKnownEnding || isAutoEnding) {
+            setIsNearEnd(true)
           }
         }
 
-        // Аналитика
-        const frame = playerContainerRef.current?.querySelector("iframe")
-        const trustedPlayer = frame && event.source === frame.contentWindow
-        if (trustedPlayer && typeof currentSec === "number" && curDuration > 0) {
-          analyticsProgress.current(`${shikimoriId}:${newEpisode || episode}`, currentSec, curDuration, {
-            player: "kodik",
-            shikimori_id: shikimoriId,
-            episode: newEpisode || episode,
-          })
+        // Обновление номера серии
+        let newEpisode: number | undefined
+        if (key === "kodik_player_current_episode" || key === "episode") {
+          newEpisode = typeof value?.episode === "number" ? value.episode : typeof value === "number" ? value : undefined
         }
 
-        // Таймкод
+        // Синхронизация смены серии без двойных вызовов
+        if (newEpisode && newEpisode > 0 && newEpisode !== episode) {
+          if (targetEpisodeRef.current !== newEpisode) {
+            targetEpisodeRef.current = newEpisode
+            onEpisodeChange?.(newEpisode)
+          }
+        }
+
+        // Прогресс
         let timeStr: string | undefined
-        if (typeof currentSec === "number" && currentSec > 0) {
+        if (typeof currentSec === "number" && currentSec > 0 && currentSec <= 86400) {
           const mins = Math.floor(currentSec / 60)
           const secs = Math.floor(currentSec % 60)
           timeStr = `${mins}:${secs.toString().padStart(2, "0")}`
@@ -698,10 +860,6 @@ export function KodikPlayer({
             duration: curDuration || parseSeconds(value?.duration),
           })
         }
-
-        if (newEpisode && newEpisode !== episode && newEpisode > 0) {
-          onEpisodeChange?.(newEpisode)
-        }
       } catch (error) {
         console.warn("Error parsing Kodik message:", error)
       }
@@ -711,7 +869,7 @@ export function KodikPlayer({
     return () => {
       window.removeEventListener("message", handleMessage)
     }
-  }, [isStarted, episode, onEpisodeChange, onProgressUpdate, selectedTranslation, shikimoriId])
+  }, [isStarted, episode, onEpisodeChange, onProgressUpdate, selectedTranslation])
 
   return (
     <div
@@ -774,7 +932,7 @@ export function KodikPlayer({
         </div>
       ) : (
         <>
-          {/* Интерактивный оверлей: при движении мыши или тапе сразу будит UI и возвращает нормальный курсор */}
+          {/* Интерактивный оверлей */}
           <div
             className={`absolute inset-0 z-20 bg-transparent transition-opacity duration-300 ${
               showUi ? "pointer-events-none opacity-0" : "pointer-events-auto opacity-0 cursor-default"
@@ -819,7 +977,7 @@ export function KodikPlayer({
             )}
           </div>
 
-          {/* Выбор озвучки */}
+          {/* Выбор озвучки в плеере */}
           {showUi && translations.length > 0 && (
             <div
               className={`absolute top-2 left-2 sm:top-3 sm:left-3 z-30 max-w-[50%] sm:max-w-[200px] transition-opacity duration-300 ${
@@ -844,9 +1002,14 @@ export function KodikPlayer({
             </div>
           )}
 
-          {/* Плашка следующей серии */}
+          {/*
+            ПЛАШКА СЛЕДУЮЩЕЙ СЕРИИ:
+            - Срабатывает при обнаружении кнопки «Пропустить эндинг» в DOM,
+              по маркерам эндинга или автоматически за 90 сек до конца.
+            - На ПК приподнята, на смартфонах аккуратно расположена в углу.
+          */}
           {isStarted && hasNextEpisode && isNearEnd && !isDismissedEnd && (
-            <div className="absolute top-2.5 right-2.5 sm:top-auto sm:bottom-28 md:bottom-32 sm:right-5 z-40 max-w-[calc(100%-4.5rem)] sm:max-w-xs animate-in fade-in zoom-in-95 sm:slide-in-from-bottom-3 duration-300">
+            <div className="absolute top-2.5 right-2.5 sm:top-auto sm:bottom-28 md:bottom-32 sm:right-5 z-40 max-w-[calc(100%-4.5rem)] sm:max-w-xs animate-in fade-in zoom-in-95 sm:slide-in-from-bottom-3 duration-300 pointer-events-auto">
               <div className="flex items-center bg-zinc-950/95 sm:bg-zinc-900/95 backdrop-blur-md border border-white/15 sm:border-white/20 rounded-xl shadow-[0_8px_30px_rgba(0,0,0,0.85)] overflow-hidden transition-all hover:border-orange-500/60 group">
                 <button
                   onClick={handleNextEpisode}
@@ -931,7 +1094,7 @@ export function KodikPlayer({
             </div>
           ) : (
             <iframe
-              key={`${selectedTranslation?.translationId || "default"}-${episode}`}
+              key={selectedTranslation?.translationId || "default"}
               src={playerSrc || undefined}
               className={`h-full w-full transition-opacity duration-500 ${isLoading ? "opacity-0" : "opacity-100"}`}
               allow="autoplay; encrypted-media; fullscreen; picture-in-picture; screen-wake-lock"
