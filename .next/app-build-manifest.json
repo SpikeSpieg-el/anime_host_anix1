@@ -16,35 +16,30 @@
       "static/chunks/main-app.js",
       "static/chunks/app/not-found.js"
     ],
-    "/watch/[id]/loading": [
+    "/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/watch/[id]/loading.js"
-    ],
-    "/watch/[id]/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/watch/[id]/page.js"
+      "static/chunks/app/page.js"
     ],
     "/_not-found/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
       "static/chunks/app/_not-found/page.js"
     ],
-    "/api/region/route": [
+    "/api/hero-recommendation/route": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/api/region/route.js"
+      "static/chunks/app/api/hero-recommendation/route.js"
     ],
-    "/api/posters/route": [
+    "/api/anime/[id]/route": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/api/posters/route.js"
+      "static/chunks/app/api/anime/[id]/route.js"
     ],
-    "/api/kodik/player-proxy/route": [
+    "/api/auth/captcha/puzzle/route": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/api/kodik/player-proxy/route.js"
+      "static/chunks/app/api/auth/captcha/puzzle/route.js"
     ]
   }
 }

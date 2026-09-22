@@ -10,6 +10,7 @@ import { HeroBannerSkeleton } from '@/components/shared/skeleton'
 import { HomePageClient } from './home-client'
 import { useState, useEffect, Suspense } from 'react'
 import type { Anime, RecommendationReason } from '@/lib/shikimori'
+import { useAuth } from '@/components/auth/auth-provider'
 
 interface HomePageWrapperProps {
   topOfWeekHero: Anime | null
@@ -27,6 +28,7 @@ export function HomePageWrapper({
   initialData,
 }: HomePageWrapperProps) {
   const { isTVMode, isLoading } = useTVMode()
+  const { session } = useAuth()
   const [recommendedAnime, setRecommendedAnime] = useState<Anime | null>(null)
   const [recommendationReason, setRecommendationReason] = useState<RecommendationReason | undefined>()
   const [isRecommendationLoading, setIsRecommendationLoading] = useState(true)
@@ -56,7 +58,15 @@ export function HomePageWrapper({
     params.set('bust', String(Date.now()))
 
     try {
-      const response = await fetch(`/api/hero-recommendation?${params.toString()}`, { cache: 'no-store' })
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+      if (session?.access_token) {
+        headers['Authorization'] = `Bearer ${session.access_token}`
+      }
+
+      const response = await fetch(`/api/hero-recommendation?${params.toString()}`, { 
+        cache: 'no-store',
+        headers
+      })
       if (!response.ok) {
         console.error('[HomePageWrapper] Failed to fetch recommendation:', response.status)
         // Continue anyway - will use topOfWeekHero as fallback

@@ -1,7 +1,28 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getHeroRecommendation, getPopularNow } from "@/lib/shikimori"
+import { supabase } from "@/lib/supabase"
 
 export async function GET(request: NextRequest) {
+  // Проверка авторизации
+  const authHeader = request.headers.get('authorization')
+  
+  if (!authHeader?.startsWith('Bearer ')) {
+    return NextResponse.json(
+      { error: 'Требуется авторизация' },
+      { status: 401 }
+    )
+  }
+
+  const token = authHeader.substring(7)
+  const { data: { user }, error } = await supabase.auth.getUser(token)
+  
+  if (error || !user) {
+    return NextResponse.json(
+      { error: 'Неверный токен авторизации' },
+      { status: 401 }
+    )
+  }
+
   const { searchParams } = new URL(request.url)
   const watchedRaw = searchParams.get("watched")
   const bookmarksRaw = searchParams.get("bookmarks")

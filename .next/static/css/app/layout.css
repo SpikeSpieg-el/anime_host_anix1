@@ -715,6 +715,9 @@
   .bottom-\[-10\%\] {
     bottom: -10%;
   }
+  .bottom-\[4\.8rem\] {
+    bottom: 4.8rem;
+  }
   .-left-2 {
     left: calc(var(--spacing) * -2);
   }
@@ -5412,6 +5415,10 @@
     --tw-gradient-position: to bottom right in oklab;
     background-image: linear-gradient(var(--tw-gradient-stops));
   }
+  .bg-gradient-to-l {
+    --tw-gradient-position: to left in oklab;
+    background-image: linear-gradient(var(--tw-gradient-stops));
+  }
   .bg-gradient-to-r {
     --tw-gradient-position: to right in oklab;
     background-image: linear-gradient(var(--tw-gradient-stops));
@@ -5547,6 +5554,13 @@
     --tw-gradient-from: color-mix(in srgb, #000 80%, transparent);
     @supports (color: color-mix(in lab, red, red)) {
       --tw-gradient-from: color-mix(in oklab, var(--color-black) 80%, transparent);
+    }
+    --tw-gradient-stops: var(--tw-gradient-via-stops, var(--tw-gradient-position), var(--tw-gradient-from) var(--tw-gradient-from-position), var(--tw-gradient-to) var(--tw-gradient-to-position));
+  }
+  .from-black\/85 {
+    --tw-gradient-from: color-mix(in srgb, #000 85%, transparent);
+    @supports (color: color-mix(in lab, red, red)) {
+      --tw-gradient-from: color-mix(in oklab, var(--color-black) 85%, transparent);
     }
     --tw-gradient-stops: var(--tw-gradient-via-stops, var(--tw-gradient-position), var(--tw-gradient-from) var(--tw-gradient-from-position), var(--tw-gradient-to) var(--tw-gradient-to-position));
   }
@@ -8441,6 +8455,10 @@
     --tw-shadow: 0 0 20px var(--tw-shadow-color, rgba(255,255,255,0.3));
     box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
   }
+  .shadow-\[0_0_25px_rgba\(234\,88\,12\,0\.45\)\] {
+    --tw-shadow: 0 0 25px var(--tw-shadow-color, rgba(234,88,12,0.45));
+    box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
+  }
   .shadow-\[0_0_30px_rgba\(234\,88\,12\,0\.4\)\] {
     --tw-shadow: 0 0 30px var(--tw-shadow-color, rgba(234,88,12,0.4));
     box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
@@ -9527,6 +9545,9 @@
   }
   .slide-in-from-bottom-4 {
     --tw-enter-translate-y: 1rem;
+  }
+  .slide-in-from-right-4 {
+    --tw-enter-translate-x: 1rem;
   }
   .slide-in-from-top {
     --tw-enter-translate-y: -100%;
@@ -11448,6 +11469,13 @@
         @supports (color: color-mix(in lab, red, red)) {
           background-color: color-mix(in oklab, var(--color-primary) 95%, transparent);
         }
+      }
+    }
+  }
+  .hover\:bg-purple-500 {
+    &:hover {
+      @media (hover: hover) {
+        background-color: var(--color-purple-500);
       }
     }
   }
@@ -14286,6 +14314,11 @@
       right: calc(var(--spacing) * 6);
     }
   }
+  .sm\:right-44 {
+    @media (width >= 40rem) {
+      right: calc(var(--spacing) * 44);
+    }
+  }
   .sm\:right-auto {
     @media (width >= 40rem) {
       right: auto;
@@ -14309,6 +14342,11 @@
   .sm\:bottom-6 {
     @media (width >= 40rem) {
       bottom: calc(var(--spacing) * 6);
+    }
+  }
+  .sm\:bottom-16 {
+    @media (width >= 40rem) {
+      bottom: calc(var(--spacing) * 16);
     }
   }
   .sm\:bottom-30 {
@@ -14698,6 +14736,11 @@
   .sm\:max-h-none {
     @media (width >= 40rem) {
       max-height: none;
+    }
+  }
+  .sm\:min-h-\[40px\] {
+    @media (width >= 40rem) {
+      min-height: 40px;
     }
   }
   .sm\:min-h-\[130px\] {

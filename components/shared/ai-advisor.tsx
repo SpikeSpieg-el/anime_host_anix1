@@ -20,6 +20,7 @@ import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@/components/
 import { Button } from "@/components/ui/button"
 import { useBookmarks } from "@/components/providers/bookmarks-provider"
 import { useAuth } from "@/components/auth/auth-provider"
+import { AuthModal } from "@/components/auth/auth-modal"
 import { PreferenceSurvey } from "@/components/shared/preference-survey"
 import type { Anime } from "@/lib/shikimori"
 import { getDemoRecommendation } from "@/lib/demo-recommendations"
@@ -31,6 +32,7 @@ interface EnrichedRecommendation extends Anime {
 
 export function AiAdvisor() {
   const [isOpen, setIsOpen] = useState(false)
+  const [authModalOpen, setAuthModalOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [loadingText, setLoadingText] = useState("Анализирую ваши предпочтения...")
   const [step, setStep] = useState<'survey' | 'analyzing' | 'searching' | 'done'>('survey')
@@ -39,9 +41,16 @@ export function AiAdvisor() {
   const [preferenceData, setPreferenceData] = useState<any>(null)
 
   const { isSaved, toggle } = useBookmarks()
-  const { session } = useAuth()
+  const { session, user } = useAuth()
 
   useEffect(() => {
+    // Загружаем сохраненное состояние только для авторизованных пользователей
+    if (!user) {
+      // Очищаем сохраненное состояние если пользователь не авторизован
+      localStorage.removeItem('ai-advisor-last-state')
+      return
+    }
+
     const savedState = localStorage.getItem('ai-advisor-last-state')
     if (savedState) {
       try {
@@ -55,7 +64,7 @@ export function AiAdvisor() {
         console.error('Failed to load AI advisor state:', e)
       }
     }
-  }, [])
+  }, [user])
 
   useEffect(() => {
     if (!loading) return
@@ -340,115 +349,145 @@ export function AiAdvisor() {
   }
 
   return (
-    <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogTrigger asChild>
-        <button className="w-full md:w-auto group relative overflow-hidden rounded-xl bg-gradient-to-br from-indigo-600 via-purple-600 to-orange-500 p-[1px] shadow-2xl transition-all hover:scale-[1.02] active:scale-95 outline-none">
-          <div className="relative flex items-center justify-center md:justify-start gap-3 rounded-[11px] bg-zinc-950/90 px-5 py-3.5 backdrop-blur-sm transition-all group-hover:bg-zinc-950/75">
-            <div className="relative flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 shadow-md shrink-0">
-              <Sparkles className="h-4 w-4 text-white animate-pulse" />
-            </div>
-            <div className="text-left">
-              <div className="text-sm font-bold text-white group-hover:text-transparent group-hover:bg-clip-text group-hover:bg-gradient-to-r group-hover:from-indigo-400 group-hover:to-orange-400 transition-all">
-                AI Подборка
+    <>
+      <Dialog open={isOpen} onOpenChange={setIsOpen}>
+        <DialogTrigger asChild>
+          <button className="w-full md:w-auto group relative overflow-hidden rounded-xl bg-gradient-to-br from-indigo-600 via-purple-600 to-orange-500 p-[1px] shadow-2xl transition-all hover:scale-[1.02] active:scale-95 outline-none">
+            <div className="relative flex items-center justify-center md:justify-start gap-3 rounded-[11px] bg-zinc-950/90 px-5 py-3.5 backdrop-blur-sm transition-all group-hover:bg-zinc-950/75">
+              <div className="relative flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 shadow-md shrink-0">
+                <Sparkles className="h-4 w-4 text-white animate-pulse" />
               </div>
-              <div className="text-[10px] text-zinc-400 hidden sm:block">
-                Персональный подбор
+              <div className="text-left">
+                <div className="text-sm font-bold text-white group-hover:text-transparent group-hover:bg-clip-text group-hover:bg-gradient-to-r group-hover:from-indigo-400 group-hover:to-orange-400 transition-all">
+                  AI Подборка
+                </div>
+                <div className="text-[10px] text-zinc-400 hidden sm:block">
+                  Персональный подбор
+                </div>
               </div>
             </div>
+          </button>
+        </DialogTrigger>
+
+        <DialogContent className="bg-zinc-950 border border-white/10 text-foreground w-[95vw] sm:max-w-3xl max-h-[90vh] p-0 gap-0 overflow-hidden flex flex-col shadow-2xl rounded-2xl [&>button:last-child]:hidden">
+          
+          <div className="flex-shrink-0 px-4 sm:px-6 py-3.5 sm:py-4 border-b border-white/10 bg-zinc-900/50 backdrop-blur-xl flex items-center justify-between z-10">
+            <DialogTitle className="flex items-center gap-2.5 text-base sm:text-lg font-semibold text-white">
+              <div className="p-1.5 rounded-lg bg-purple-500/10 border border-purple-500/20 text-purple-400 shrink-0">
+                <Sparkles className="w-4 h-4" />
+              </div>
+              <span>AI Советник по аниме</span>
+            </DialogTitle>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => setIsOpen(false)}
+              className="h-8 w-8 text-zinc-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors shrink-0"
+            >
+              <X className="w-4 h-4" />
+            </Button>
           </div>
-        </button>
-      </DialogTrigger>
 
-      <DialogContent className="bg-zinc-950 border border-white/10 text-foreground w-[95vw] sm:max-w-3xl max-h-[90vh] p-0 gap-0 overflow-hidden flex flex-col shadow-2xl rounded-2xl [&>button:last-child]:hidden">
-        
-        <div className="flex-shrink-0 px-4 sm:px-6 py-3.5 sm:py-4 border-b border-white/10 bg-zinc-900/50 backdrop-blur-xl flex items-center justify-between z-10">
-          <DialogTitle className="flex items-center gap-2.5 text-base sm:text-lg font-semibold text-white">
-            <div className="p-1.5 rounded-lg bg-purple-500/10 border border-purple-500/20 text-purple-400 shrink-0">
-              <Sparkles className="w-4 h-4" />
-            </div>
-            <span>AI Советник по аниме</span>
-          </DialogTitle>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            onClick={() => setIsOpen(false)}
-            className="h-8 w-8 text-zinc-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors shrink-0"
-          >
-            <X className="w-4 h-4" />
-          </Button>
-        </div>
-
-        <div className="flex-1 overflow-y-auto p-3.5 sm:p-6 custom-scrollbar">
-          {error && !loading && (
-            <div className="flex flex-col items-center justify-center py-12 text-center animate-in fade-in px-2">
-              <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-400 mb-4 shrink-0">
-                <X className="w-7 h-7 sm:w-8 sm:h-8" />
-              </div>
-              <h4 className="text-base sm:text-lg font-semibold text-white mb-2">Упс! Что-то пошло не так</h4>
-              <p className="text-xs sm:text-sm text-zinc-400 max-w-md mb-6">{error}</p>
-              <Button onClick={() => handleGenerate(preferenceData)} variant="secondary" className="bg-white/10 hover:bg-white/20 text-white border-none">
-                <RefreshCcw className="w-4 h-4 mr-2 shrink-0" /> Попробовать снова
-              </Button>
-            </div>
-          )}
-
-          {!loading && step === 'survey' && !error && (
-            <div className="animate-in fade-in duration-300">
-              <PreferenceSurvey
-                onComplete={(data) => {
-                  setPreferenceData(data)
-                  handleGenerate(data)
-                }}
-                onCancel={() => {
-                  setIsOpen(false)
-                }}
-              />
-            </div>
-          )}
-
-          {loading && (
-            <div className="flex flex-col items-center justify-center py-16 space-y-4 animate-in fade-in px-4">
-              <div className="relative flex items-center justify-center">
-                <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full border-4 border-purple-500/20 border-t-purple-500 animate-spin" />
-                <Sparkles className="w-5 h-5 sm:w-6 sm:h-6 text-purple-400 absolute animate-pulse" />
-              </div>
-              <div className="text-center space-y-1">
-                <p className="text-sm sm:text-base font-medium text-white">{loadingText}</p>
-                <p className="text-xs text-zinc-500">Это займет всего пару секунд...</p>
-              </div>
-            </div>
-          )}
-
-          {step === 'done' && !loading && recommendations.length > 0 && (
-            <div className="space-y-4 sm:space-y-6 animate-in fade-in zoom-in-95 duration-300">
-              {renderHeroCard(recommendations[0])}
-
-              {/* Адаптивный блок нижних кнопок */}
-              <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between gap-2.5 pt-2">
+          <div className="flex-1 overflow-y-auto p-3.5 sm:p-6 custom-scrollbar">
+            {!user && (
+              <div className="flex flex-col items-center justify-center py-12 text-center animate-in fade-in px-2">
+                <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400 mb-4 shrink-0">
+                  <Sparkles className="w-7 h-7 sm:w-8 sm:h-8" />
+                </div>
+                <h4 className="text-base sm:text-lg font-semibold text-white mb-2">Требуется авторизация</h4>
+                <p className="text-xs sm:text-sm text-zinc-400 max-w-md mb-6">
+                  AI подборка доступна только для зарегистрированных пользователей. Войдите в аккаунт, чтобы получить персональные рекомендации.
+                </p>
                 <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  onClick={() => setStep('survey')} 
-                  className="w-full sm:w-auto text-zinc-400 hover:text-white hover:bg-white/5 transition-colors justify-center"
+                  onClick={() => {
+                    setIsOpen(false)
+                    setAuthModalOpen(true)
+                  }}
+                  variant="secondary" 
+                  className="bg-purple-600 hover:bg-purple-500 text-white border-none"
                 >
-                  <SlidersHorizontal className="w-3.5 h-3.5 mr-2 shrink-0" />
-                  <span>Изменить параметры анкеты</span>
-                </Button>
-
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  onClick={() => handleGenerate(preferenceData)} 
-                  className="w-full sm:w-auto text-purple-400 hover:text-purple-300 hover:bg-purple-500/10 transition-colors justify-center"
-                >
-                  <RefreshCcw className="w-3.5 h-3.5 mr-2 shrink-0" />
-                  <span>Предложить другое аниме</span>
+                  Войти в аккаунт
                 </Button>
               </div>
-            </div>
-          )}
-        </div>
-      </DialogContent>
-    </Dialog>
+            )}
+
+            {user && error && !loading && (
+              <div className="flex flex-col items-center justify-center py-12 text-center animate-in fade-in px-2">
+                <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-400 mb-4 shrink-0">
+                  <X className="w-7 h-7 sm:w-8 sm:h-8" />
+                </div>
+                <h4 className="text-base sm:text-lg font-semibold text-white mb-2">Упс! Что-то пошло не так</h4>
+                <p className="text-xs sm:text-sm text-zinc-400 max-w-md mb-6">{error}</p>
+                <Button onClick={() => handleGenerate(preferenceData)} variant="secondary" className="bg-white/10 hover:bg-white/20 text-white border-none">
+                  <RefreshCcw className="w-4 h-4 mr-2 shrink-0" /> Попробовать снова
+                </Button>
+              </div>
+            )}
+
+            {user && !loading && step === 'survey' && !error && (
+              <div className="animate-in fade-in duration-300">
+                <PreferenceSurvey
+                  onComplete={(data) => {
+                    setPreferenceData(data)
+                    handleGenerate(data)
+                  }}
+                  onCancel={() => {
+                    setIsOpen(false)
+                  }}
+                />
+              </div>
+            )}
+
+            {loading && (
+              <div className="flex flex-col items-center justify-center py-16 space-y-4 animate-in fade-in px-4">
+                <div className="relative flex items-center justify-center">
+                  <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full border-4 border-purple-500/20 border-t-purple-500 animate-spin" />
+                  <Sparkles className="w-5 h-5 sm:w-6 sm:h-6 text-purple-400 absolute animate-pulse" />
+                </div>
+                <div className="text-center space-y-1">
+                  <p className="text-sm sm:text-base font-medium text-white">{loadingText}</p>
+                  <p className="text-xs text-zinc-500">Это займет всего пару секунд...</p>
+                </div>
+              </div>
+            )}
+
+            {user && step === 'done' && !loading && recommendations.length > 0 && (
+              <div className="space-y-4 sm:space-y-6 animate-in fade-in zoom-in-95 duration-300">
+                {renderHeroCard(recommendations[0])}
+
+                {/* Адаптивный блок нижних кнопок */}
+                <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between gap-2.5 pt-2">
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={() => setStep('survey')} 
+                    className="w-full sm:w-auto text-zinc-400 hover:text-white hover:bg-white/5 transition-colors justify-center"
+                  >
+                    <SlidersHorizontal className="w-3.5 h-3.5 mr-2 shrink-0" />
+                    <span>Изменить параметры анкеты</span>
+                  </Button>
+
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={() => handleGenerate(preferenceData)} 
+                    className="w-full sm:w-auto text-purple-400 hover:text-purple-300 hover:bg-purple-500/10 transition-colors justify-center"
+                  >
+                    <RefreshCcw className="w-3.5 h-3.5 mr-2 shrink-0" />
+                    <span>Предложить другое аниме</span>
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <AuthModal 
+        isOpen={authModalOpen} 
+        onClose={setAuthModalOpen}
+        initialMode="login"
+      />
+    </>
   )
 }

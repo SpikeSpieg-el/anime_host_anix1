@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { supabase } from '@/lib/supabase'
 
 const rawBaseUrl = process.env.AI_API_BASE_URL || 'http://127.0.0.1:1239/v1'
 const API_BASE_URL = rawBaseUrl.replace(/\/+$/, '')
@@ -116,6 +117,25 @@ async function searchShikimoriServer(title: string, originalTitle?: string): Pro
 
 export async function POST(request: NextRequest) {
   try {
+    // Проверка авторизации
+    const authHeader = request.headers.get('authorization')
+    if (!authHeader?.startsWith('Bearer ')) {
+      return NextResponse.json(
+        { error: 'Требуется авторизация' },
+        { status: 401 }
+      )
+    }
+
+    const token = authHeader.substring(7)
+    const { data: { user }, error } = await supabase.auth.getUser(token)
+    
+    if (error || !user) {
+      return NextResponse.json(
+        { error: 'Неверный токен авторизации' },
+        { status: 401 }
+      )
+    }
+
     const body = await request.json()
     const { prompt, surveyData, userData } = body
 

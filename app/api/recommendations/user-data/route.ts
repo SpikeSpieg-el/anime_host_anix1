@@ -5,15 +5,25 @@ export async function GET(request: NextRequest) {
   try {
     // Получаем сессию пользователя
     const authHeader = request.headers.get('authorization')
-    let userId = null
-
-    if (authHeader?.startsWith('Bearer ')) {
-      const token = authHeader.substring(7)
-      const { data: { user }, error } = await supabase.auth.getUser(token)
-      if (!error && user) {
-        userId = user.id
-      }
+    
+    if (!authHeader?.startsWith('Bearer ')) {
+      return NextResponse.json(
+        { error: 'Требуется авторизация' },
+        { status: 401 }
+      )
     }
+
+    const token = authHeader.substring(7)
+    const { data: { user }, error } = await supabase.auth.getUser(token)
+    
+    if (error || !user) {
+      return NextResponse.json(
+        { error: 'Неверный токен авторизации' },
+        { status: 401 }
+      )
+    }
+
+    const userId = user.id
 
     // Если пользователь авторизован, берем данные из Supabase
     if (userId) {
@@ -216,23 +226,11 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    // Если не авторизован, возвращаем пустые данные
-    return NextResponse.json({
-      success: true,
-      data: {
-        history: [],
-        bookmarks: [],
-        preferences: {
-          topGenres: [],
-          topStudios: [],
-          preferredKinds: [],
-          avgRating: null,
-          totalWatched: 0,
-          totalBookmarks: 0,
-          completedCount: 0
-        }
-      }
-    })
+    // Если не авторизован (хотя выше уже проверили), возвращаем ошибку
+    return NextResponse.json(
+      { error: 'Требуется авторизация' },
+      { status: 401 }
+    )
 
   } catch (error) {
     console.error('Error in user-data API:', error)
