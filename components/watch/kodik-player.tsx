@@ -236,7 +236,7 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCo
     const nextEp = episode + 1
     onEpisodeChange?.(nextEp)
 
-    // Дополнительно отправляем сигнал плееру Kodik через postMessage
+    // Передаем команду плееру
     const frame = playerContainerRef.current?.querySelector("iframe")
     frame?.contentWindow?.postMessage(
       JSON.stringify({ key: 'kodik_player_api', value: { method: 'change_episode', episode: nextEp } }),
@@ -569,11 +569,10 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCo
           else if (typeof data.seconds === 'number') seconds = data.seconds
         }
 
-        // 3. Отслеживание приближения к концу серии (эндинг)
+        // 3. Отслеживание приближения к концу серии (эндинг: последние 110 сек)
         const dur = typeof value?.duration === 'number' ? value.duration : undefined
         if (typeof seconds === 'number' && typeof dur === 'number' && dur > 0) {
-          // Эндинг обычно начинается за ~90-120 секунд до конца серии
-          const nearEnd = (dur - seconds) <= 120 && (dur - seconds) >= 1
+          const nearEnd = (dur - seconds) <= 110 && (dur - seconds) >= 1
           setIsNearEnd((prev) => (prev !== nearEnd ? nearEnd : prev))
         }
 
@@ -747,23 +746,26 @@ export function KodikPlayer({ shikimoriId, title, poster, episode, onStart, onCo
             </div>
           )}
 
-          {/* Кнопка "Следующая серия" рядом с кнопкой пропуска эндинга */}
-          {isStarted && hasNextEpisode && (
-            <div
-              className={`absolute bottom-14 sm:bottom-16 right-36 sm:right-44 z-30 transition-all duration-300 ${
-                showUi || isNearEnd ? 'opacity-100 pointer-events-auto translate-y-0' : 'opacity-0 pointer-events-none translate-y-2'
-              }`}
-            >
+          {/* Затемнение правой стороны во время эндинга */}
+          <div
+            className={`absolute inset-y-0 right-0 w-3/5 sm:w-1/2 bg-gradient-to-l from-black/85 via-black/40 to-transparent pointer-events-none z-20 transition-opacity duration-700 ${
+              isNearEnd ? "opacity-100" : "opacity-0"
+            }`}
+          />
+
+          {/* Кнопка "Следующая серия" — появляется ТОЛЬКО во время эндинга */}
+          {isStarted && hasNextEpisode && isNearEnd && (
+            <div className="absolute bottom-[4.8rem] right-3 sm:bottom-16 sm:right-44 z-40 transition-all duration-500 animate-in fade-in slide-in-from-right-4">
               <button
                 onClick={handleNextEpisode}
-                className="flex items-center gap-1.5 sm:gap-2 px-3 py-1.5 sm:px-3.5 sm:py-2 bg-zinc-900/90 hover:bg-orange-600 active:bg-orange-700 text-white text-xs sm:text-sm font-semibold rounded-lg sm:rounded-xl border border-white/20 hover:border-orange-500/50 shadow-2xl backdrop-blur-md transition-all duration-200 pointer-events-auto group min-h-[36px]"
+                className="flex items-center gap-1.5 sm:gap-2 px-3 py-1.5 sm:px-4 sm:py-2 bg-orange-600 hover:bg-orange-500 active:bg-orange-700 text-white text-xs sm:text-sm font-bold rounded-lg sm:rounded-xl shadow-[0_0_25px_rgba(234,88,12,0.45)] border border-orange-400/40 backdrop-blur-md transition-all transform hover:scale-105 active:scale-95 pointer-events-auto group min-h-[36px] sm:min-h-[40px]"
                 title={`Перейти к ${episode + 1} серии`}
               >
                 <span>След. серия</span>
-                <span className="text-orange-400 group-hover:text-white font-mono text-[11px] sm:text-xs">
+                <span className="font-mono text-[11px] sm:text-xs opacity-90">
                   ({episode + 1})
                 </span>
-                <SkipForward className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-orange-400 group-hover:text-white transition-colors flex-shrink-0" />
+                <SkipForward className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white fill-current transition-transform group-hover:translate-x-0.5 flex-shrink-0" />
               </button>
             </div>
           )}
