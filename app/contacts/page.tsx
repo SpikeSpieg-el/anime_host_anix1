@@ -16,22 +16,7 @@ import { Navbar } from "@/components/layout/navbar"
 import { Footer } from "@/components/layout/footer"
 import { Button } from "@/components/ui/button"
 import { VkIcon, YoutubeIcon, InstagramIcon, TiktokIcon } from "@/components/shared/social-icons"
-import { AnalyticsEvent, trackEvent } from "@/lib/analytics"
-
-function SocialLinkButton({ platform, href, icon, label, location, hoverColor }: { platform: string; href: string; icon: React.ReactNode; label: string; location: string; hoverColor: string }) {
-  return (
-    <a
-      href={href}
-      target="_blank"
-      rel="noopener noreferrer"
-      className={`flex items-center gap-3 p-3 rounded-xl border border-border/80 bg-background/50 transition-colors ${hoverColor}`}
-      onClick={() => trackEvent(AnalyticsEvent.SOCIAL_CLICK, { platform, location })}
-    >
-      {icon}
-      <span className="text-sm font-semibold">{label}</span>
-    </a>
-  )
-}
+import { SocialLinkButton } from "@/components/shared/social-link-button"
 
 export const metadata: Metadata = {
   title: "Контакты — Weebx",
