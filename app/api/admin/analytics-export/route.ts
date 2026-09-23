@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process'
 import { ReadableStream } from 'node:stream'
 import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
+import { isValidPostgresUrl } from '@/lib/postgres-url'
 
 /**
  * Админский endpoint для экспорта данных Umami в CSV.
@@ -21,18 +22,6 @@ const EXPORTER_TOOL = '@openpanel/umami-exporter'
 
 function readAdminAuth(): boolean {
   return cookies().then((store) => store.get('admin_auth')?.value === 'true')
-}
-
-/** Минимальная проверка формата строки подключения Postgres. */
-export function isValidPostgresUrl(raw: string): boolean {
-  if (!raw || !raw.includes('://')) return false
-  try {
-    // Разбираем как URL, чтобы отсечь мусор и инъекции.
-    const url = new URL(raw)
-    return url.protocol === 'postgres:' || url.protocol === 'postgresql:'
-  } catch {
-    return false
-  }
 }
 
 export async function POST(request: Request) {
