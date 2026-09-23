@@ -598,6 +598,18 @@ export const AnalyticsEvent = {
   GUEST_HOOK_CTA: "guest_hook_cta",
   GUEST_HOOK_DISMISS: "guest_hook_dismiss",
   GUEST_HOOK_AUTH_OPEN: "guest_hook_auth_open",
+  SOCIAL_CLICK: "social_click",
+  ERROR_404: "error_404",
+  CATALOG_FILTER_CLICK: "catalog_filter_click",
+  CATALOG_SEARCH_CLICK: "catalog_search_click",
+  CATALOG_SORT_CLICK: "catalog_sort_click",
+  NAVIGATION_CLICK: "navigation_click",
+  EPISODE_NEXT_CLICK: "episode_next_click",
+  EPISODE_PREV_CLICK: "episode_prev_click",
+  COVER_MODAL_OPEN: "cover_modal_open",
+  HOME_CLICK: "home_click",
+  SEARCH_BAR_FOCUS: "search_bar_focus",
+  SEARCH_BAR_SUBMIT: "search_bar_submit",
 } as const
 
 export type AnalyticsEventName = (typeof AnalyticsEvent)[keyof typeof AnalyticsEvent]

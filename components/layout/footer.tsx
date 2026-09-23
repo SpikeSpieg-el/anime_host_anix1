@@ -5,6 +5,7 @@ import Link from "next/link"
 import { MessageCircle, Image as ImageIcon } from "lucide-react"
 import { Dialog, DialogContent, DialogTrigger, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { socialLinks, VkIcon, YoutubeIcon, InstagramIcon, TiktokIcon } from "@/components/shared/social-icons"
+import { AnalyticsEvent, trackEvent } from "@/lib/analytics"
 
 const animeQuotes = [
   "Ты сильнее, чем думаешь - Аниме учит нас",
@@ -107,6 +108,7 @@ export function Footer() {
                   rel="noopener noreferrer"
                   aria-label="Telegram"
                   className="w-9 h-9 rounded-lg border border-border bg-background/50 flex items-center justify-center text-muted-foreground hover:text-[#229ED9] hover:border-[#229ED9] transition-colors dark:bg-zinc-900/50 dark:border-white/5 dark:text-zinc-500"
+                  onClick={() => trackEvent(AnalyticsEvent.SOCIAL_CLICK, { platform: "telegram", location: "footer" })}
                 >
                   <MessageCircle className="w-[18px] h-[18px]" />
                 </a>
@@ -118,6 +120,7 @@ export function Footer() {
                     rel="noopener noreferrer"
                     aria-label={s.name}
                     className={`w-9 h-9 rounded-lg border border-border bg-background/50 flex items-center justify-center text-muted-foreground transition-colors ${s.hoverClass} hover:border-current dark:bg-zinc-900/50 dark:border-white/5 dark:text-zinc-500`}
+                    onClick={() => trackEvent(AnalyticsEvent.SOCIAL_CLICK, { platform: s.name.toLowerCase(), location: "footer" })}
                   >
                     <s.icon className="w-[18px] h-[18px]" />
                   </a>
@@ -129,30 +132,30 @@ export function Footer() {
           <div>
             <h4 className="text-foreground font-black uppercase tracking-widest text-[10px] sm:text-xs mb-4 sm:mb-6 dark:text-white">Навигация</h4>
             <ul className="space-y-3 sm:space-y-4">
-              <li><a className="text-muted-foreground hover:text-primary transition-colors text-sm sm:text-[15px] font-bold dark:text-zinc-500 dark:hover:text-orange-500" href="/catalog">Каталог аниме</a></li>
-              <li><a className="text-zinc-500 hover:text-orange-500 transition-colors text-sm sm:text-[15px] font-bold" href="/manga">Манга</a></li>
-              <li><a className="text-zinc-500 hover:text-orange-500 transition-colors text-sm sm:text-[15px] font-bold" href="/catalog?status=ongoing">Расписание онгоингов</a></li>
-              <li><a className="text-zinc-500 hover:text-orange-500 transition-colors text-sm sm:text-[15px] font-bold" href="/catalog?sort=popular">Популярные хиты</a></li>
-              <li><a className="text-zinc-500 hover:text-orange-500 transition-colors text-sm sm:text-[15px] font-bold" href="/catalog?kind=movie">Полнометражные фильмы</a></li>
-              <li><a className="text-zinc-500 hover:text-orange-500 transition-colors text-sm sm:text-[15px] font-bold" href="/gacha">WEEB-X Гача</a></li>
-              <li><a className="text-zinc-500 hover:text-orange-500 transition-colors text-sm sm:text-[15px] font-bold" href="/gacha?tab=market">Маркет карт</a></li>
-              <li><a className="text-zinc-500 hover:text-orange-500 transition-colors text-sm sm:text-[15px] font-bold" href="/battle">PVE битвы</a></li>
-              <li><a className="text-zinc-500 hover:text-orange-500 transition-colors text-sm sm:text-[15px] font-bold" href="/pvp">PvP арена</a></li>
+              <li><a className="text-muted-foreground hover:text-primary transition-colors text-sm sm:text-[15px] font-bold dark:text-zinc-500 dark:hover:text-orange-500" href="/catalog" onClick={() => trackEvent(AnalyticsEvent.NAVIGATION_CLICK, { target: "catalog", location: "footer" })}>Каталог аниме</a></li>
+              <li><a className="text-zinc-500 hover:text-orange-500 transition-colors text-sm sm:text-[15px] font-bold" href="/manga" onClick={() => trackEvent(AnalyticsEvent.NAVIGATION_CLICK, { target: "manga", location: "footer" })}>Манга</a></li>
+              <li><a className="text-zinc-500 hover:text-orange-500 transition-colors text-sm sm:text-[15px] font-bold" href="/catalog?status=ongoing" onClick={() => trackEvent(AnalyticsEvent.NAVIGATION_CLICK, { target: "ongoing", location: "footer" })}>Расписание онгоингов</a></li>
+              <li><a className="text-zinc-500 hover:text-orange-500 transition-colors text-sm sm:text-[15px] font-bold" href="/catalog?sort=popular" onClick={() => trackEvent(AnalyticsEvent.NAVIGATION_CLICK, { target: "popular", location: "footer" })}>Популярные хиты</a></li>
+              <li><a className="text-zinc-500 hover:text-orange-500 transition-colors text-sm sm:text-[15px] font-bold" href="/catalog?kind=movie" onClick={() => trackEvent(AnalyticsEvent.NAVIGATION_CLICK, { target: "movies", location: "footer" })}>Полнометражные фильмы</a></li>
+              <li><a className="text-zinc-500 hover:text-orange-500 transition-colors text-sm sm:text-[15px] font-bold" href="/gacha" onClick={() => trackEvent(AnalyticsEvent.NAVIGATION_CLICK, { target: "gacha", location: "footer" })}>WEEB-X Гача</a></li>
+              <li><a className="text-zinc-500 hover:text-orange-500 transition-colors text-sm sm:text-[15px] font-bold" href="/gacha?tab=market" onClick={() => trackEvent(AnalyticsEvent.NAVIGATION_CLICK, { target: "market", location: "footer" })}>Маркет карт</a></li>
+              <li><a className="text-zinc-500 hover:text-orange-500 transition-colors text-sm sm:text-[15px] font-bold" href="/battle" onClick={() => trackEvent(AnalyticsEvent.NAVIGATION_CLICK, { target: "battle", location: "footer" })}>PVE битвы</a></li>
+              <li><a className="text-zinc-500 hover:text-orange-500 transition-colors text-sm sm:text-[15px] font-bold" href="/pvp" onClick={() => trackEvent(AnalyticsEvent.NAVIGATION_CLICK, { target: "pvp", location: "footer" })}>PvP арена</a></li>
             </ul>
           </div>
 
           <div>
             <h4 className="text-foreground font-black uppercase tracking-widest text-[10px] sm:text-xs mb-4 sm:mb-6 dark:text-white">Помощь</h4>
             <ul className="space-y-3 sm:space-y-4">
-              <li><a className="text-muted-foreground hover:text-foreground transition-colors text-sm sm:text-[15px] font-bold dark:text-zinc-500 dark:hover:text-white" href="/faq">Часто задаваемые вопросы</a></li>
-              <li><a className="text-zinc-500 hover:text-white transition-colors text-sm sm:text-[15px] font-bold" href="/dmca">Правообладателям (DMCA)</a></li>
-              <li><a className="text-zinc-500 hover:text-white transition-colors text-sm sm:text-[15px] font-bold" href="/terms">Пользовательское соглашение</a></li>
-              <li><a className="text-zinc-500 hover:text-white transition-colors text-sm sm:text-[15px] font-bold" href="/contacts">Контакты</a></li>
-              <li><a href="https://t.me/Weebix" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-blue-500 hover:text-blue-600 transition-colors text-sm sm:text-[15px] font-bold"><MessageCircle className="w-4 h-4" /> Telegram</a></li>
-              <li><a href="https://vk.ru/WeebX_official" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-zinc-500 hover:text-[#0077FF] transition-colors text-sm sm:text-[15px] font-bold"><VkIcon className="w-4 h-4" /> ВКонтакте</a></li>
-              <li><a href="https://www.youtube.com/@WeebX_official" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-zinc-500 hover:text-[#FF0000] transition-colors text-sm sm:text-[15px] font-bold"><YoutubeIcon className="w-4 h-4" /> YouTube</a></li>
-              <li><a href="https://www.instagram.com/weebx_official/" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-zinc-500 hover:text-[#E4405F] transition-colors text-sm sm:text-[15px] font-bold"><InstagramIcon className="w-4 h-4" /> Instagram</a></li>
-              <li><a href="https://www.tiktok.com/@weebx_official" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-zinc-500 hover:text-foreground dark:hover:text-white transition-colors text-sm sm:text-[15px] font-bold"><TiktokIcon className="w-4 h-4" /> TikTok</a></li>
+              <li><a className="text-muted-foreground hover:text-foreground transition-colors text-sm sm:text-[15px] font-bold dark:text-zinc-500 dark:hover:text-white" href="/faq" onClick={() => trackEvent(AnalyticsEvent.NAVIGATION_CLICK, { target: "faq", location: "footer" })}>Часто задаваемые вопросы</a></li>
+              <li><a className="text-zinc-500 hover:text-white transition-colors text-sm sm:text-[15px] font-bold" href="/dmca" onClick={() => trackEvent(AnalyticsEvent.NAVIGATION_CLICK, { target: "dmca", location: "footer" })}>Правообладателям (DMCA)</a></li>
+              <li><a className="text-zinc-500 hover:text-white transition-colors text-sm sm:text-[15px] font-bold" href="/terms" onClick={() => trackEvent(AnalyticsEvent.NAVIGATION_CLICK, { target: "terms", location: "footer" })}>Пользовательское соглашение</a></li>
+              <li><a className="text-zinc-500 hover:text-white transition-colors text-sm sm:text-[15px] font-bold" href="/contacts" onClick={() => trackEvent(AnalyticsEvent.NAVIGATION_CLICK, { target: "contacts", location: "footer" })}>Контакты</a></li>
+              <li><a href="https://t.me/Weebix" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-blue-500 hover:text-blue-600 transition-colors text-sm sm:text-[15px] font-bold" onClick={() => trackEvent(AnalyticsEvent.SOCIAL_CLICK, { platform: "telegram", location: "footer_help" })}><MessageCircle className="w-4 h-4" /> Telegram</a></li>
+              <li><a href="https://vk.ru/WeebX_official" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-zinc-500 hover:text-[#0077FF] transition-colors text-sm sm:text-[15px] font-bold" onClick={() => trackEvent(AnalyticsEvent.SOCIAL_CLICK, { platform: "vk", location: "footer_help" })}><VkIcon className="w-4 h-4" /> ВКонтакте</a></li>
+              <li><a href="https://www.youtube.com/@WeebX_official" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-zinc-500 hover:text-[#FF0000] transition-colors text-sm sm:text-[15px] font-bold" onClick={() => trackEvent(AnalyticsEvent.SOCIAL_CLICK, { platform: "youtube", location: "footer_help" })}><YoutubeIcon className="w-4 h-4" /> YouTube</a></li>
+              <li><a href="https://www.instagram.com/weebx_official/" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-zinc-500 hover:text-[#E4405F] transition-colors text-sm sm:text-[15px] font-bold" onClick={() => trackEvent(AnalyticsEvent.SOCIAL_CLICK, { platform: "instagram", location: "footer_help" })}><InstagramIcon className="w-4 h-4" /> Instagram</a></li>
+              <li><a href="https://www.tiktok.com/@weebx_official" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-zinc-500 hover:text-foreground dark:hover:text-white transition-colors text-sm sm:text-[15px] font-bold" onClick={() => trackEvent(AnalyticsEvent.SOCIAL_CLICK, { platform: "tiktok", location: "footer_help" })}><TiktokIcon className="w-4 h-4" /> TikTok</a></li>
             </ul>
           </div>
 

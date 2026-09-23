@@ -1,13 +1,13 @@
 import { Metadata } from "next"
 import Link from "next/link"
-import { 
-  Mail, 
-  MessageCircle, 
-  ShieldAlert, 
-  FileText, 
-  Clock, 
-  PlayCircle, 
-  Sparkles, 
+import {
+  Mail,
+  MessageCircle,
+  ShieldAlert,
+  FileText,
+  Clock,
+  PlayCircle,
+  Sparkles,
   ArrowRight,
   Send,
   HelpCircle
@@ -16,6 +16,22 @@ import { Navbar } from "@/components/layout/navbar"
 import { Footer } from "@/components/layout/footer"
 import { Button } from "@/components/ui/button"
 import { VkIcon, YoutubeIcon, InstagramIcon, TiktokIcon } from "@/components/shared/social-icons"
+import { AnalyticsEvent, trackEvent } from "@/lib/analytics"
+
+function SocialLinkButton({ platform, href, icon, label, location, hoverColor }: { platform: string; href: string; icon: React.ReactNode; label: string; location: string; hoverColor: string }) {
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={`flex items-center gap-3 p-3 rounded-xl border border-border/80 bg-background/50 transition-colors ${hoverColor}`}
+      onClick={() => trackEvent(AnalyticsEvent.SOCIAL_CLICK, { platform, location })}
+    >
+      {icon}
+      <span className="text-sm font-semibold">{label}</span>
+    </a>
+  )
+}
 
 export const metadata: Metadata = {
   title: "Контакты — Weebx",
@@ -245,26 +261,11 @@ export default function ContactsPage() {
             Подпишитесь на наши официальные аккаунты, чтобы следить за новостями, обновлениями каталога и анонсами:
           </p>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-            <a href="https://t.me/Weebix" target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 p-3 rounded-xl border border-border/80 bg-background/50 hover:bg-[#229ED9]/10 hover:border-[#229ED9]/40 hover:text-[#229ED9] transition-colors">
-              <MessageCircle className="w-5 h-5" />
-              <span className="text-sm font-semibold">Telegram</span>
-            </a>
-            <a href="https://vk.ru/WeebX_official" target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 p-3 rounded-xl border border-border/80 bg-background/50 hover:bg-[#0077FF]/10 hover:border-[#0077FF]/40 hover:text-[#0077FF] transition-colors">
-              <VkIcon className="w-5 h-5" />
-              <span className="text-sm font-semibold">ВКонтакте</span>
-            </a>
-            <a href="https://www.youtube.com/@WeebX_official" target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 p-3 rounded-xl border border-border/80 bg-background/50 hover:bg-[#FF0000]/10 hover:border-[#FF0000]/40 hover:text-[#FF0000] transition-colors">
-              <YoutubeIcon className="w-5 h-5" />
-              <span className="text-sm font-semibold">YouTube</span>
-            </a>
-            <a href="https://www.instagram.com/weebx_official/" target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 p-3 rounded-xl border border-border/80 bg-background/50 hover:bg-[#E4405F]/10 hover:border-[#E4405F]/40 hover:text-[#E4405F] transition-colors">
-              <InstagramIcon className="w-5 h-5" />
-              <span className="text-sm font-semibold">Instagram</span>
-            </a>
-            <a href="https://www.tiktok.com/@weebx_official" target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 p-3 rounded-xl border border-border/80 bg-background/50 hover:bg-foreground/5 hover:border-foreground/30 hover:text-foreground transition-colors">
-              <TiktokIcon className="w-5 h-5" />
-              <span className="text-sm font-semibold">TikTok</span>
-            </a>
+            <SocialLinkButton platform="telegram" href="https://t.me/Weebix" icon={<MessageCircle className="w-5 h-5" />} label="Telegram" location="contacts" hoverColor="hover:bg-[#229ED9]/10 hover:border-[#229ED9]/40 hover:text-[#229ED9]" />
+            <SocialLinkButton platform="vk" href="https://vk.ru/WeebX_official" icon={<VkIcon className="w-5 h-5" />} label="ВКонтакте" location="contacts" hoverColor="hover:bg-[#0077FF]/10 hover:border-[#0077FF]/40 hover:text-[#0077FF]" />
+            <SocialLinkButton platform="youtube" href="https://www.youtube.com/@WeebX_official" icon={<YoutubeIcon className="w-5 h-5" />} label="YouTube" location="contacts" hoverColor="hover:bg-[#FF0000]/10 hover:border-[#FF0000]/40 hover:text-[#FF0000]" />
+            <SocialLinkButton platform="instagram" href="https://www.instagram.com/weebx_official/" icon={<InstagramIcon className="w-5 h-5" />} label="Instagram" location="contacts" hoverColor="hover:bg-[#E4405F]/10 hover:border-[#E4405F]/40 hover:text-[#E4405F]" />
+            <SocialLinkButton platform="tiktok" href="https://www.tiktok.com/@weebx_official" icon={<TiktokIcon className="w-5 h-5" />} label="TikTok" location="contacts" hoverColor="hover:bg-foreground/5 hover:border-foreground/30 hover:text-foreground" />
           </div>
         </div>
 

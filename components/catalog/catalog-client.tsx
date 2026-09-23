@@ -248,6 +248,11 @@ export function CatalogClient({ initialFilters }: { initialFilters: CatalogFilte
   }, [lastScrollY])
 
   const updateFilter = (key: keyof CatalogFilters, value: string | string[]) => {
+    // Track individual filter interactions
+    trackEvent(AnalyticsEvent.CATALOG_FILTER_CLICK, {
+      filter: key,
+      value: Array.isArray(value) ? value.join(',') : value,
+    })
     setFilters(prev => ({
       ...prev,
       [key]: Array.isArray(value) ? (value.length === 0 ? undefined : value) : (value === 'all' ? undefined : value),
@@ -272,6 +277,7 @@ export function CatalogClient({ initialFilters }: { initialFilters: CatalogFilte
   }
 
   const resetFilters = () => {
+    trackEvent(AnalyticsEvent.CATALOG_FILTER_CLICK, { action: "reset_filters" })
     const defaultFilters: CatalogFilters = {
       page: 1,
       limit: 24,
@@ -296,6 +302,7 @@ export function CatalogClient({ initialFilters }: { initialFilters: CatalogFilte
   }
 
   const showRandomAnime = async () => {
+    trackEvent(AnalyticsEvent.CATALOG_SEARCH_CLICK, { action: "random_anime" })
     startTransition(async () => {
       const randomFilters: CatalogFilters = {
         page: 1,
@@ -490,11 +497,14 @@ export function CatalogClient({ initialFilters }: { initialFilters: CatalogFilte
                     return (
                       <button
                         key={opt.value}
-                        onClick={() => updateFilter('order', opt.value)}
+                        onClick={() => {
+                          trackEvent(AnalyticsEvent.CATALOG_SORT_CLICK, { sort: opt.value })
+                          updateFilter('order', opt.value)
+                        }}
                         className={cn(
                           "py-2 px-1 rounded-lg text-[11px] font-medium transition-all text-center truncate",
-                          active 
-                            ? "bg-zinc-800 text-white shadow-sm font-semibold ring-1 ring-zinc-700" 
+                          active
+                            ? "bg-zinc-800 text-white shadow-sm font-semibold ring-1 ring-zinc-700"
                             : "text-zinc-400 hover:text-zinc-200"
                         )}
                       >

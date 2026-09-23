@@ -4,6 +4,7 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Home, Search, ArrowLeft, AlertCircle } from "lucide-react"
 import { useState, useEffect } from "react"
+import { AnalyticsEvent, trackEvent } from "@/lib/analytics"
 
 export default function NotFound() {
   const router = useRouter()
@@ -17,6 +18,12 @@ export default function NotFound() {
   useEffect(() => {
     const randomIndex = Math.floor(Math.random() * images.length)
     setCurrentImage(images[randomIndex])
+    
+    // Track 404 error
+    trackEvent(AnalyticsEvent.ERROR_404, {
+      url: window.location.pathname,
+      referrer: document.referrer,
+    })
   }, [])
 
   return (
@@ -157,6 +164,7 @@ export default function NotFound() {
           <Link
             href="/"
             className="group relative flex items-center justify-center gap-2.5 w-full sm:w-auto px-7 py-3.5 rounded-xl bg-orange-500 hover:bg-orange-400 text-black font-bold text-xs uppercase tracking-widest transition-all duration-300 shadow-lg shadow-orange-500/25 hover:shadow-orange-500/40 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98]"
+            onClick={() => trackEvent(AnalyticsEvent.HOME_CLICK, { location: "404" })}
           >
             <Home className="w-4 h-4 transition-transform duration-300 group-hover:scale-110" />
             <span>Главная</span>
@@ -166,6 +174,7 @@ export default function NotFound() {
           <Link
             href="/catalog"
             className="group relative flex items-center justify-center gap-2.5 w-full sm:w-auto px-7 py-3.5 rounded-xl bg-zinc-900/80 hover:bg-zinc-800/90 border border-white/10 hover:border-orange-500/40 text-zinc-200 hover:text-white font-bold text-xs uppercase tracking-widest backdrop-blur-md transition-all duration-300 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] shadow-md shadow-black/40"
+            onClick={() => trackEvent(AnalyticsEvent.NAVIGATION_CLICK, { target: "catalog", location: "404" })}
           >
             <Search className="w-4 h-4 text-orange-400 transition-transform duration-300 group-hover:scale-110" />
             <span>Каталог</span>
@@ -173,7 +182,10 @@ export default function NotFound() {
 
           {/* Назад */}
           <button
-            onClick={() => router.back()}
+            onClick={() => {
+              trackEvent(AnalyticsEvent.NAVIGATION_CLICK, { target: "back", location: "404" })
+              router.back()
+            }}
             className="group relative flex items-center justify-center gap-2.5 w-full sm:w-auto px-7 py-3.5 rounded-xl bg-zinc-900/80 hover:bg-zinc-800/90 border border-white/10 hover:border-orange-500/40 text-zinc-200 hover:text-white font-bold text-xs uppercase tracking-widest backdrop-blur-md transition-all duration-300 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] shadow-md shadow-black/40"
           >
             <ArrowLeft className="w-4 h-4 text-orange-400 transition-transform duration-300 group-hover:-translate-x-1" />

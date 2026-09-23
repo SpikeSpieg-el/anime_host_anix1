@@ -322,13 +322,17 @@ export function WatchPageClient({ anime, initialEpisode }: WatchPageClientProps)
         </div>
 
         <div className="flex flex-row items-center gap-4 md:gap-8 relative z-10">
-          <div 
-            onClick={() => setIsCoverModalOpen(true)}
+          <div
+            onClick={() => {
+              trackEvent(AnalyticsEvent.COVER_MODAL_OPEN, { shikimori_id: anime.shikimoriId, title: anime.title })
+              setIsCoverModalOpen(true)
+            }}
             role="button"
             tabIndex={0}
             onKeyDown={(e) => {
               if (e.key === "Enter" || e.key === " ") {
                 e.preventDefault()
+                trackEvent(AnalyticsEvent.COVER_MODAL_OPEN, { shikimori_id: anime.shikimoriId, title: anime.title })
                 setIsCoverModalOpen(true)
               }
             }}
@@ -398,6 +402,7 @@ export function WatchPageClient({ anime, initialEpisode }: WatchPageClientProps)
                       key={genre}
                       href={`/catalog?genre=${encodeURIComponent(genre)}`}
                       className="inline-flex items-center px-3 py-1.5 rounded-full bg-muted/50 border border-border hover:border-primary/40 hover:bg-primary/10 text-muted-foreground hover:text-primary text-xs md:text-sm font-medium transition-all duration-200"
+                      onClick={() => trackEvent(AnalyticsEvent.CATALOG_FILTER_CLICK, { filter: "genre", value: genre, location: "watch_page" })}
                     >
                       {genre}
                     </Link>

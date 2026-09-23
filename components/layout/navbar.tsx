@@ -214,6 +214,7 @@ export function Navbar() {
   }
 
   const handleLogoClick = (e: React.MouseEvent) => {
+    trackEvent(AnalyticsEvent.HOME_CLICK, { location: "navbar" })
     if (pathname === "/") {
       e.preventDefault()
     }
@@ -347,7 +348,7 @@ export function Navbar() {
                   <Link href="/gacha" className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-accent transition text-sm font-medium text-muted-foreground hover:text-foreground"><Sparkles size={14} /> Гача</Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
-                  <a href="https://t.me/Weebix" target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-accent transition text-sm font-medium text-blue-500 hover:text-blue-600"><MessageCircle size={14} /> Telegram</a>
+                  <a href="https://t.me/Weebix" target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-accent transition text-sm font-medium text-blue-500 hover:text-blue-600" onClick={() => trackEvent(AnalyticsEvent.SOCIAL_CLICK, { platform: "telegram", location: "navbar" })}><MessageCircle size={14} /> Telegram</a>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
                   <Link href="/battle" className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-accent transition text-sm font-medium text-red-500 hover:text-red-600"><Swords size={14} /> PVE Бои</Link>
@@ -495,7 +496,10 @@ export function Navbar() {
         <div className="bg-background/80 backdrop-blur-xl border border-white/10 dark:border-white/5 rounded-2xl shadow-2xl shadow-black/20 flex items-center justify-between px-2 py-2 h-[68px]">
           
           {/* 1. Главная */}
-          <Link href="/" onClick={() => window.scrollTo({ top: 0 })} className={navIconClass(pathname === "/")}>
+          <Link href="/" onClick={() => {
+            trackEvent(AnalyticsEvent.HOME_CLICK, { location: "mobile_nav" })
+            window.scrollTo({ top: 0 })
+          }} className={navIconClass(pathname === "/")}>
             <Home size={20} className={pathname === "/" ? "animate-pulse" : ""} />
             <span className="text-[10px] font-medium">Главная</span>
           </Link>

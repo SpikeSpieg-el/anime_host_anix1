@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react"
 import { ChevronLeft, ChevronRight, Play, Clock } from "lucide-react"
+import { AnalyticsEvent, trackEvent } from "@/lib/analytics"
 
 interface EpisodeSelectorProps {
   totalEpisodes: number
@@ -52,10 +53,12 @@ export function EpisodeSelector({
   }, [currentEpisode, isCollapsed])
 
   const handlePrevPage = () => {
+    trackEvent(AnalyticsEvent.EPISODE_PREV_CLICK, { page: currentPage })
     setCurrentPage((prev) => Math.max(0, prev - 1))
   }
 
   const handleNextPage = () => {
+    trackEvent(AnalyticsEvent.EPISODE_NEXT_CLICK, { page: currentPage })
     setCurrentPage((prev) => Math.min(totalPages - 1, prev + 1))
   }
 
@@ -131,7 +134,10 @@ export function EpisodeSelector({
             {lastWatchedInfo.episode !== currentEpisode && (
               <button
                 type="button"
-                onClick={() => onSelectEpisode(lastWatchedInfo.episode!)}
+                onClick={() => {
+                  trackEvent(AnalyticsEvent.EPISODE_CHANGE, { episode: lastWatchedInfo.episode, source: "continue_watching" })
+                  onSelectEpisode(lastWatchedInfo.episode!)
+                }}
                 className="px-3 py-1.5 rounded-lg bg-orange-600 hover:bg-orange-500 text-white text-xs font-semibold transition-colors shadow-md shadow-orange-600/20"
               >
                 Продолжить ({lastWatchedInfo.episode} серия)
@@ -188,12 +194,18 @@ export function EpisodeSelector({
           {collapsedWindow[0] !== 1 && (
             <div className="flex items-center gap-2 ml-2">
               <span className="text-xs text-zinc-400">…</span>
-              <button type="button" onClick={() => onSelectEpisode(1)} className="px-3 py-1 rounded-md text-xs text-zinc-300 hover:text-white">1</button>
+              <button type="button" onClick={() => {
+                trackEvent(AnalyticsEvent.EPISODE_CHANGE, { episode: 1, source: "first_episode" })
+                onSelectEpisode(1)
+              }} className="px-3 py-1 rounded-md text-xs text-zinc-300 hover:text-white">1</button>
             </div>
           )}
           {collapsedWindow[collapsedWindow.length - 1] !== totalEpisodes && (
             <div className="flex items-center gap-2">
-              <button type="button" onClick={() => onSelectEpisode(totalEpisodes)} className="px-3 py-1 rounded-md text-xs text-zinc-300 hover:text-white">{totalEpisodes}</button>
+              <button type="button" onClick={() => {
+                trackEvent(AnalyticsEvent.EPISODE_CHANGE, { episode: totalEpisodes, source: "last_episode" })
+                onSelectEpisode(totalEpisodes)
+              }} className="px-3 py-1 rounded-md text-xs text-zinc-300 hover:text-white">{totalEpisodes}</button>
               <span className="text-xs text-zinc-400">…</span>
             </div>
           )}
