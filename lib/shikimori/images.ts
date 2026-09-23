@@ -2,6 +2,7 @@ import { upgradeShikimoriUrl, generateArtPoster, normalizeShikimoriUrl } from ".
 import { shikimoriFetch, shikimoriJson } from "./client";
 import { BASE_URL } from "./config";
 import { getKodikPoster } from "../kodik";
+import { isExternalImageUrl } from "../image-loader";
 
 // Кэш для постеров и фонов
 const posterCache = new Map<string, string>();
@@ -13,12 +14,34 @@ const REQUEST_DELAY = 50; // 50ms между запросами (ускорен�
 /**
  * Вспомогательная функция для проксирования картинок через Weserv.nl
  * Обходит 403 ошибки от Shikimori, MyAnimeList и других источников
- * Временно отключена - возвращает оригинальный URL
+ * Для SEO схем используем локальный прокси для thumbnails
  */
-export function proxyImage(url: string | null | undefined): string | null {
+export function proxyImage(url: string | null | undefined, forSchema: boolean = false): string | null {
+  if (!url) return null;
+  
+  // For schema.org markup, use local proxy to avoid external robots.txt blocking
+  if (forSchema && isExternalImageUrl(url)) {
+    return `/api/thumbnail-proxy?url=${encodeURIComponent(url)}`;
+  }
+  
   // Временно отключаем проксирование из-за проблем с Next.js
   // Если будут 403 ошибки, можно будет добавить unoptimized prop к Image компонентам
-  return url || null;
+  return url;
+}
+
+/**
+ * Get a schema-ready poster URL that proxies external images
+ * This ensures Google can access thumbnails for video indexing
+ */
+export function getSchemaPosterUrl(posterUrl: string | null | undefined): string {
+  if (!posterUrl) return '';
+  
+  // Use local proxy for external images to avoid robots.txt blocking
+  if (isExternalImageUrl(posterUrl)) {
+    return `/api/thumbnail-proxy?url=${encodeURIComponent(posterUrl)}`;
+  }
+  
+  return posterUrl;
 }
 
 function delayRequest(): Promise<void> {
@@ -57,7 +80,7 @@ export async function resolveBestPoster(shikimoriUrl: string, romajiName: string
   // Шаг 1: Пробуем Shikimori через прокси (всегда, даже если внешние API отключены)
   const upgradedUrl = upgradeShikimoriUrl(shikimoriUrl);
   if (isHighQualityImage(upgradedUrl, true)) {
-    const proxiedUrl = proxyImage(upgradedUrl);
+    const proxiedUrl = proxyImage(upgradedUrl, false);
     if (proxiedUrl) {
       posterCache.set(cacheKey, proxiedUrl);
       return proxiedUrl;
@@ -78,7 +101,7 @@ export async function resolveBestPoster(shikimoriUrl: string, romajiName: string
     await delayRequest();
     const anilist = await getAnilistPoster(name);
     if (anilist) {
-      const proxied = proxyImage(anilist);
+      const proxied = proxyImage(anilist, false);
       if (proxied) {
         posterCache.set(cacheKey, proxied);
         return proxied;
@@ -91,7 +114,7 @@ export async function resolveBestPoster(shikimoriUrl: string, romajiName: string
     await delayRequest();
     const kitsu = await getKitsuPoster(name);
     if (kitsu) {
-      const proxied = proxyImage(kitsu);
+      const proxied = proxyImage(kitsu, false);
       if (proxied) {
         posterCache.set(cacheKey, proxied);
         return proxied;
@@ -103,7 +126,7 @@ export async function resolveBestPoster(shikimoriUrl: string, romajiName: string
   await delayRequest();
   const kodik = await getKodikPoster(shikimoriId);
   if (kodik) {
-    const proxied = proxyImage(kodik);
+    const proxied = proxyImage(kodik, false);
     if (proxied) {
       posterCache.set(cacheKey, proxied);
       return proxied;
@@ -115,7 +138,7 @@ export async function resolveBestPoster(shikimoriUrl: string, romajiName: string
     await delayRequest();
     const mal = await getMyAnimeListPoster(name);
     if (mal) {
-      const proxied = proxyImage(mal);
+      const proxied = proxyImage(mal, false);
       if (proxied) {
         posterCache.set(cacheKey, proxied);
         return proxied;
@@ -129,7 +152,7 @@ export async function resolveBestPoster(shikimoriUrl: string, romajiName: string
       ? shikimoriUrl 
       : `https://shikimori.one${shikimoriUrl}`;
     if (isHighQualityImage(fullShikimoriUrl, true)) {
-      const proxied = proxyImage(fullShikimoriUrl);
+      const proxied = proxyImage(fullShikimoriUrl, false);
       if (proxied) {
         posterCache.set(cacheKey, proxied);
         return proxied;

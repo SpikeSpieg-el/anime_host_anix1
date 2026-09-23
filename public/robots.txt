@@ -5,8 +5,12 @@ Allow: /
 Disallow: /admin/
 Disallow: /18+/
 Disallow: /private/
-Disallow: /api/
 Disallow: /_next/
+
+# API routes - разрешаем только для изображений, остальные блокируем
+Allow: /api/thumbnail-proxy
+Allow: /api/fallback-poster
+Disallow: /api/
 
 # Персональные страницы пользователей (не должны индексироваться)
 Disallow: /bookmarks
@@ -22,7 +26,7 @@ Disallow: /*?filter=
 Disallow: /*?page=
 Disallow: /*?search=
 
-# Yandex: Clean-param для борьбы с дубликатами URL-параметров
+# Yandex: Clean param для борьбы с дубликатами URL-параметров
 # Яндекс игнорирует Disallow: /*?param= по-другому, ему нужна Clean-param
 Clean-param: sort&filter&page&search&q&genre&year&status&kind&score&episode /
 Clean-param: sort&filter&page&search&q&genre&year&status&kind&score /catalog

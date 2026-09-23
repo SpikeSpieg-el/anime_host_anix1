@@ -5,6 +5,7 @@ import dynamic from "next/dynamic"
 import { WatchPageHeaderSkeleton, PlayerSkeleton, EpisodeSelectorSkeleton, TextSkeleton } from "@/components/shared/skeleton"
 import type { Metadata } from "next"
 import { BreadcrumbStructuredData } from "@/components/seo/structured-data"
+import { getSchemaPosterUrl } from "@/lib/shikimori/images"
 
 type ExtendedAnime = Anime & {
   russian?: string
@@ -268,7 +269,7 @@ export default async function WatchPage({
     "@type": anime.kind === "movie" ? "Movie" : "TVSeries",
     "name": animeTitle,
     "alternateName": alternateNames,
-    "image": anime.poster,
+    "image": getSchemaPosterUrl(anime.poster),
     "description": anime.description?.replace(/\[.*?\]/g, "").slice(0, 200) || `Смотреть аниме ${animeTitle} онлайн`,
     "genre": anime.genres,
     "inLanguage": "ru",
@@ -276,8 +277,8 @@ export default async function WatchPage({
   }
 
   if (anime.airedOn) {
-    jsonLd["dateCreated"] = anime.airedOn
-    jsonLd["datePublished"] = anime.airedOn
+    jsonLd["dateCreated"] = new Date(anime.airedOn).toISOString()
+    jsonLd["datePublished"] = new Date(anime.airedOn).toISOString()
   }
 
   if (animeRating) {
@@ -300,8 +301,8 @@ export default async function WatchPage({
         "name": editorialReview.author || "Редакция Weebx",
       },
       "reviewBody": editorialReview.content,
-      "datePublished": editorialReview.created_at,
-      "dateModified": editorialReview.updated_at || editorialReview.created_at,
+      "datePublished": new Date(editorialReview.created_at).toISOString(),
+      "dateModified": new Date(editorialReview.updated_at || editorialReview.created_at).toISOString(),
     }
   }
 
@@ -310,10 +311,10 @@ export default async function WatchPage({
     "@type": "VideoObject",
     "name": episode ? `${animeTitle} - Серия ${episode}` : animeTitle,
     "description": anime.description?.replace(/\[.*?\]/g, "").slice(0, 200) || `Смотреть аниме ${animeTitle} онлайн`,
-    "thumbnailUrl": anime.poster,
+    "thumbnailUrl": getSchemaPosterUrl(anime.poster),
     "contentUrl": contentUrl,
     "embedUrl": `${baseUrl}/embed/${cleanId}${episode ? `?episode=${episode}` : ""}`,
-    "uploadDate": anime.airedOn || new Date().toISOString().split("T")[0],
+    "uploadDate": anime.airedOn ? new Date(anime.airedOn).toISOString() : new Date().toISOString(),
     "duration": "PT24M",
     "inLanguage": "ru",
     "genre": anime.genres,
