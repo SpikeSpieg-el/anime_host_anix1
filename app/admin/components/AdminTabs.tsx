@@ -18,6 +18,7 @@ const TABS: { id: AdminTab; label: string }[] = [
   { id: "news", label: "Новости" },
   { id: 'editorial', label: 'Редакция' },
   { id: "tutorial", label: "Туториал" },
+  { id: "analytics", label: "Аналитика" },
 ]
 
 export function AdminTabs({ activeTab, onTabChange }: AdminTabsProps) {

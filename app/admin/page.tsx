@@ -20,6 +20,7 @@ import { EventsTab } from "./components/EventsTab"
 import { TutorialTab } from "./components/TutorialTab"
 import { NewsTab } from "./components/NewsTab"
 import { EditorialTab } from "./components/EditorialTab"
+import { AnalyticsTab } from "./components/AnalyticsTab"
 
 interface BannerFormData {
   name: string
@@ -882,6 +883,10 @@ export default function AdminPage() {
         {activeTab === 'editorial' && <EditorialTab />}
 
         {activeTab === 'tutorial' && <TutorialTab />}
+
+        {activeTab === 'analytics' && (
+          <AnalyticsTab activeTab={activeTab} onTabChange={setActiveTab} />
+        )}
       </div>
 
       <ScrollToTop />

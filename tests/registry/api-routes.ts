@@ -19,6 +19,7 @@ export interface ApiRegistryEntry {
 export const API_ROUTES: ApiRegistryEntry[] = [
   { path: "/api/admin/test", methods: ["GET"], auth: "admin" },
   { path: "/api/admin/users", methods: ["GET"], auth: "admin" },
+  { path: "/api/admin/analytics-export", methods: ["POST"], auth: "admin", notes: "экспорт данных Umami в CSV через утилиту @openpanel/umami-exporter (cookie admin_auth)" },
   { path: "/api/anime-batch", methods: ["GET"], auth: "public" },
   { path: "/api/anime/:id", methods: ["GET"], auth: "public" },
   { path: "/api/anime/catalog", methods: ["GET"], auth: "public" },
