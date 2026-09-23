@@ -1,8 +1,67 @@
 "use client"
 
-import { Eye, Bookmark, User, Search, Users, Brain, Sword, Shield } from "lucide-react"
+import { useMemo, useState } from "react"
+import { Eye, Bookmark, User, Search, Users, Brain, Sword, Shield, Filter, ArrowUpDown, X } from "lucide-react"
 import Image from "next/image"
 import type { UserWithStats } from "./types"
+
+/** Фильтр по активности пользователя. */
+type ActivityFilter = "all" | "with_history" | "with_bookmarks" | "with_pvp" | "inactive"
+
+/** Сортировка списка пользователей. */
+type SortOption = "default" | "last_active" | "most_history" | "most_bookmarks" | "most_pvp" | "username"
+
+const ACTIVITY_FILTERS: { value: ActivityFilter; label: string }[] = [
+  { value: "all", label: "Все пользователи" },
+  { value: "with_history", label: "Есть история просмотров" },
+  { value: "with_bookmarks", label: "Есть закладки" },
+  { value: "with_pvp", label: "Есть PvP-битвы" },
+  { value: "inactive", label: "Без активности" },
+]
+
+const SORT_OPTIONS: { value: SortOption; label: string }[] = [
+  { value: "default", label: "По умолчанию" },
+  { value: "last_active", label: "Сначала активные" },
+  { value: "most_history", label: "Больше всего истории" },
+  { value: "most_bookmarks", label: "Больше всего закладок" },
+  { value: "most_pvp", label: "Больше всего PvP-битв" },
+  { value: "username", label: "По имени (А→Я)" },
+]
+
+function matchesActivityFilter(user: UserWithStats, filter: ActivityFilter): boolean {
+  switch (filter) {
+    case "with_history":
+      return user.watchHistoryCount > 0
+    case "with_bookmarks":
+      return user.bookmarksCount > 0
+    case "with_pvp":
+      return (user.aiStats?.total_battles ?? 0) > 0
+    case "inactive":
+      return user.watchHistoryCount === 0 && user.bookmarksCount === 0 && (user.aiStats?.total_battles ?? 0) === 0
+    case "all":
+    default:
+      return true
+  }
+}
+
+function sortUsers(users: UserWithStats[], sort: SortOption): UserWithStats[] {
+  if (sort === "default") return users
+  const sorted = [...users]
+  switch (sort) {
+    case "last_active":
+      return sorted.sort((a, b) => (b.lastActivity ?? "").localeCompare(a.lastActivity ?? ""))
+    case "most_history":
+      return sorted.sort((a, b) => b.watchHistoryCount - a.watchHistoryCount)
+    case "most_bookmarks":
+      return sorted.sort((a, b) => b.bookmarksCount - a.bookmarksCount)
+    case "most_pvp":
+      return sorted.sort((a, b) => (b.aiStats?.total_battles ?? 0) - (a.aiStats?.total_battles ?? 0))
+    case "username":
+      return sorted.sort((a, b) => (a.username ?? "").localeCompare(b.username ?? "", "ru"))
+    default:
+      return users
+  }
+}
 
 interface UsersTabProps {
   users: UserWithStats[]
@@ -33,24 +92,89 @@ export function UsersTab({
   formatDate,
   formatTimestamp,
 }: UsersTabProps) {
-  const filteredUsers = users.filter(user =>
-    user.username?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.id.toLowerCase().includes(searchTerm.toLowerCase())
-  )
+  const [activityFilter, setActivityFilter] = useState<ActivityFilter>("all")
+  const [sortOption, setSortOption] = useState<SortOption>("default")
+
+  const hasActiveFilters = activityFilter !== "all" || sortOption !== "default" || searchTerm.trim().length > 0
+
+  const filteredUsers = useMemo(() => {
+    const query = searchTerm.trim().toLowerCase()
+    const bySearch = users.filter(user =>
+      user.username?.toLowerCase().includes(query) ||
+      user.id.toLowerCase().includes(query)
+    )
+    const byActivity = bySearch.filter(user => matchesActivityFilter(user, activityFilter))
+    return sortUsers(byActivity, sortOption)
+  }, [users, searchTerm, activityFilter, sortOption])
+
+  const resetFilters = () => {
+    onSearchChange("")
+    setActivityFilter("all")
+    setSortOption("default")
+  }
+
+  const selectClass =
+    "px-3 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-2 focus:ring-primary text-sm text-foreground"
 
   return (
     <>
-      <div className="mb-4 sm:mb-6">
-        <div className="relative max-w-md">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground" size={20} />
-          <input
-            type="text"
-            placeholder="Search users by username or ID..."
-            value={searchTerm}
-            onChange={(e) => onSearchChange(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-2 focus:ring-primary"
-          />
+      <div className="mb-4 sm:mb-6 space-y-3">
+        <div className="flex flex-col lg:flex-row lg:items-center gap-3">
+          <div className="relative flex-1 max-w-md">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground" size={20} />
+            <input
+              type="text"
+              placeholder="Search users by username or ID..."
+              value={searchTerm}
+              onChange={(e) => onSearchChange(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-1.5">
+              <Filter size={14} className="text-muted-foreground" />
+              <select
+                value={activityFilter}
+                onChange={(e) => setActivityFilter(e.target.value as ActivityFilter)}
+                aria-label="Фильтр по активности"
+                className={selectClass}
+              >
+                {ACTIVITY_FILTERS.map(f => (
+                  <option key={f.value} value={f.value}>{f.label}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              <ArrowUpDown size={14} className="text-muted-foreground" />
+              <select
+                value={sortOption}
+                onChange={(e) => setSortOption(e.target.value as SortOption)}
+                aria-label="Сортировка пользователей"
+                className={selectClass}
+              >
+                {SORT_OPTIONS.map(o => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+            </div>
+
+            {hasActiveFilters && (
+              <button
+                onClick={resetFilters}
+                className="inline-flex items-center gap-1 px-2.5 py-2 text-xs text-muted-foreground hover:text-foreground bg-muted/50 hover:bg-muted border border-border rounded transition"
+              >
+                <X size={12} />
+                Сбросить
+              </button>
+            )}
+          </div>
         </div>
+
+        <p className="text-xs text-muted-foreground">
+          Показано {filteredUsers.length} из {users.length} пользователей
+        </p>
       </div>
 
       <div className="grid gap-3 sm:gap-4 md:gap-6">
@@ -329,7 +453,19 @@ export function UsersTab({
       {filteredUsers.length === 0 && !loading && (
         <div className="text-center py-12">
           <Users size={48} className="mx-auto text-muted-foreground mb-4" />
-          <p className="text-muted-foreground">No users found matching your search</p>
+          <p className="text-muted-foreground">
+            {users.length === 0
+              ? "No users found"
+              : "No users found matching your search and filters"}
+          </p>
+          {hasActiveFilters && users.length > 0 && (
+            <button
+              onClick={resetFilters}
+              className="mt-3 px-4 py-2 text-sm bg-primary text-primary-foreground rounded hover:bg-primary/90 transition"
+            >
+              Сбросить фильтры
+            </button>
+          )}
         </div>
       )}
     </>
