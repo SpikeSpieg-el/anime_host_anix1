@@ -1,84 +1,125 @@
-import { spawn } from 'node:child_process'
-import { ReadableStream } from 'node:stream'
+// app/api/admin/analytics-export/route.ts
+import { Pool, PoolClient } from 'pg'
+import QueryStream from 'pg-query-stream'
 import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
-import { isValidPostgresUrl } from '@/lib/postgres-url'
-
-/**
- * Админский endpoint для экспорта данных Umami в CSV.
- *
- * Запускает утилиту `@openpanel/umami-exporter` как подпроцесс на сервере:
- * она подключается к Postgres, объединяет события и сессии и выводит готовый
- * CSV-файл (на stdout). Вывод потоково передаётся клиенту как скачиваемый файл.
- *
- * Безопасность: строка подключения НЕ вставляется в shell — передаётся как единый
- * аргумент spawn, поэтому инъекции через URL невозможны.
- */
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-const EXPORTER_TOOL = '@openpanel/umami-exporter'
+const pool = new Pool({
+  connectionString: process.env.UMAMI_DATABASE_URL,
+  max: 3,
+})
 
-function readAdminAuth(): boolean {
-  return cookies().then((store) => store.get('admin_auth')?.value === 'true')
+function csvField(value: unknown): string {
+  if (value === null || value === undefined) return ''
+  const str = typeof value === 'object' ? JSON.stringify(value) : String(value)
+  if (str.includes('"') || str.includes(',') || str.includes('\n') || str.includes('\r')) {
+    return `"${str.replace(/"/g, '""')}"`
+  }
+  return str
 }
 
-export async function POST(request: Request) {
+export async function GET(request: Request) {
   try {
-    const isAdmin = await readAdminAuth()
+    const cookieStore = await cookies()
+    const isAdmin = cookieStore.get('admin_auth')?.value === 'true'
+
     if (!isAdmin) {
-      return NextResponse.json(
-        { error: 'Unauthorized: Admin authentication required' },
-        { status: 401 }
-      )
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const payload = (await request.json()) as {
-      databaseUrl?: string
-      websiteId?: string
-      jobId?: string
+    if (!process.env.UMAMI_DATABASE_URL) {
+      return NextResponse.json({ error: 'Database URL not configured' }, { status: 500 })
     }
 
-    const databaseUrl = String(payload.databaseUrl ?? '').trim()
-    if (!isValidPostgresUrl(databaseUrl)) {
-      return NextResponse.json(
-        { error: 'Неверная строка подключения к базе данных. Ожидается postgres://...' },
-        { status: 400 }
-      )
+    const { searchParams } = new URL(request.url)
+    const websiteId = searchParams.get('websiteId')
+
+    const encoder = new TextEncoder()
+
+    // Базовый запрос под Umami v2/v3
+    let sql = `
+      SELECT 
+        e.event_id AS id,
+        e.website_id,
+        e.event_name,
+        e.created_at AS timestamp,
+        e.url_path,
+        e.page_title
+      FROM website_event e
+    `
+    const params: unknown[] = []
+
+    if (websiteId) {
+      params.push(websiteId)
+      sql += ` WHERE e.website_id = $1`
     }
 
-    // Потоковая передача вывода утилиты как скачиваемого CSV-файла.
-    const proc = spawn('npx', [EXPORTER_TOOL, databaseUrl, '--output', '-'], {
-      stdio: ['ignore', 'pipe', 'inherit'],
-    })
+    sql += ` ORDER BY e.created_at DESC`
 
-    const stream = new ReadableStream({
-      start(controller) {
+    let client: PoolClient | null = null
+    let queryStream: QueryStream | null = null
+
+    const stream = new ReadableStream<Uint8Array>({
+      async start(controller) {
         try {
-          proc.stdout.on('data', (chunk: Buffer) => controller.enqueue(chunk))
-          proc.stderr.on('data', (chunk: Buffer) => console.error('[analytics-export]', chunk.toString().trim()))
-          proc.on('error', (err) => controller.error(err))
-          proc.on('close', () => controller.close())
+          client = await pool.connect()
+          
+          controller.enqueue(
+            encoder.encode('id,website_id,event_name,timestamp,url_path,page_title\n')
+          )
+
+          queryStream = client.query(new QueryStream(sql, params))
+
+          queryStream.on('data', (row: any) => {
+            const rowCsv = [
+              row.id,
+              row.website_id,
+              row.event_name,
+              row.timestamp ? new Date(row.timestamp).toISOString() : '',
+              row.url_path,
+              row.page_title,
+            ].map(csvField).join(',') + '\n'
+
+            controller.enqueue(encoder.encode(rowCsv))
+          })
+
+          queryStream.on('end', () => {
+            client?.release()
+            client = null
+            controller.close()
+          })
+
+          queryStream.on('error', (err: Error) => {
+            console.error('[analytics-export] query error:', err)
+            client?.release()
+            client = null
+            controller.error(err)
+          })
         } catch (err) {
+          client?.release()
+          client = null
           controller.error(err)
         }
       },
+      cancel() {
+        queryStream?.destroy()
+        client?.release()
+        client = null
+      },
     })
 
-    const filename = `umami-export-${Date.now()}.csv`
     return new NextResponse(stream, {
       headers: {
         'content-type': 'text/csv; charset=utf-8',
-        'content-disposition': `attachment; filename="${filename}"`,
+        'content-disposition': `attachment; filename="analytics-${Date.now()}.csv"`,
         'cache-control': 'no-store',
       },
     })
   } catch (error) {
-    console.error('[analytics-export] failed:', error)
-    return NextResponse.json(
-      { error: 'Не удалось запустить экспорт. Проверьте строку подключения к базе данных.' },
-      { status: 502 }
-    )
+    console.error('[analytics-export] error:', error)
+    return NextResponse.json({ error: 'Internal Error' }, { status: 500 })
   }
 }

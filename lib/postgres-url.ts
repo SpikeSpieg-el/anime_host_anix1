@@ -1,13 +1,12 @@
 /**
- * Вспомогательная функция для проверки строки подключения к Postgres.
+ * Helper for validating a Postgres connection string.
  *
- * Размещена в отдельном модуле (вне Route Handler), потому что файл
- * `app/api/**/*.ts` может экспортировать только допустимые поля Route
- * (GET/POST/runtime/dynamic и т.д.), а произвольные хелперы Next.js отбрасывает
- * на этапе проверки типов при сборке (`next build`).
+ * Lives in a plain module (outside the Route Handler) because files under
+ * app/api can only export valid Next.js Route fields, not arbitrary helpers,
+ * which would break next build type checking.
  */
 
-/** Минимальная проверка формата строки подключения Postgres. */
+/** Minimal format check for a Postgres connection string. */
 export function isValidPostgresUrl(raw: string): boolean {
   if (!raw || !raw.includes('://')) return false
   try {
