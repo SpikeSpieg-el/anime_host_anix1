@@ -4,6 +4,7 @@ import React, { createContext, useCallback, useContext, useEffect, useState, use
 import { getFreshAnimeData } from "@/app/actions/get-fresh-anime-data"
 import { supabase } from "@/lib/supabase"
 import { useAuth } from "@/components/auth/auth-provider"
+import { getWatchPath } from "@/lib/seo/watch-url"
 
 export interface EpisodeUpdate {
   animeId: string
@@ -365,7 +366,7 @@ export function EpisodeUpdatesProvider({ children }: { children: React.ReactNode
                 userId: user.id,
                 title: `Weebx — Новая серия: ${topUpdate.animeTitle}`,
                 message: `Вышла серия ${topUpdate.newEpisode}${topUpdate.totalEpisodes ? ` из ${topUpdate.totalEpisodes}` : ""}`,
-                url: `/watch/${topUpdate.animeId}`,
+                url: getWatchPath(topUpdate.animeId, topUpdate.animeTitle),
               }),
             }).catch((e) => console.warn("Push send failed:", e))
           }

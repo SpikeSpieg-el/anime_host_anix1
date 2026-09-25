@@ -89,6 +89,8 @@ export interface FranchiseItem {
   id: string;
   title: string;
   originalTitle?: string;
+  /** Название, из которого строится ЧПУ страницы (russian || name, как в transformAnime). */
+  canonicalTitle?: string;
   poster: string;
   year?: number;
   kind?: string;

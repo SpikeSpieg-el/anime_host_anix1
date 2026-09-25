@@ -11,6 +11,7 @@ import { TranslateButton } from "./translate-button"
 import { getProxiedSrc } from "@/lib/image-loader"
 import type { LinkedAnime } from "@/lib/shikimori/types"
 import { BreadcrumbStructuredData } from "@/components/seo/structured-data"
+import { getWatchPath } from "@/lib/seo/watch-url"
 
 interface Props {
   params: Promise<{ id: string }>
@@ -117,7 +118,7 @@ function sanitizeShikimoriHtml(html: string, animePosters: Map<number, string>):
           const posterHtml = poster
             ? `<img src="${getProxiedSrc(poster)}" alt="${nameRu || nameEn}" class="news-anime-poster" loading="lazy" />`
             : `<div class="news-anime-poster-placeholder"></div>`
-          return `<a href="/watch/${id}" class="news-anime-card">${posterHtml}<span class="news-anime-titles"><span class="name-ru">${nameRu}</span><span class="name-en">${nameEn}</span></span></a>`
+          return `<a href="${getWatchPath(id, nameRu || nameEn)}" class="news-anime-card">${posterHtml}<span class="news-anime-titles"><span class="name-ru">${nameRu}</span><span class="name-en">${nameEn}</span></span></a>`
         }
         if (attrs.type === 'person' && attrs.id) {
           const name = attrs.russian || attrs.name || ''

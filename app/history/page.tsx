@@ -24,6 +24,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 import { AnalyticsEvent, trackEvent } from "@/lib/analytics"
+import { getWatchPath } from "@/lib/seo/watch-url"
 
 function normalizePosterUrl(value: string): string {
   const raw = (value ?? "").trim()
@@ -442,7 +443,7 @@ export default function HistoryPage() {
 
                     {/* Постер */}
                     <Link
-                      href={item.episode ? `/watch/${item.id}?episode=${item.episode}` : `/watch/${item.id}`}
+                      href={getWatchPath(item.id, item.title, item.episode)}
                       className="relative w-16 h-20 sm:w-20 sm:h-24 rounded-xl overflow-hidden flex-shrink-0 bg-secondary border border-border dark:bg-zinc-800 dark:border-zinc-800"
                     >
                       <Image
@@ -460,7 +461,7 @@ export default function HistoryPage() {
                     <div className="flex-1 min-w-0 flex flex-col justify-center gap-1.5">
                       <div className="flex items-center gap-2 flex-wrap">
                         <Link
-                          href={item.episode ? `/watch/${item.id}?episode=${item.episode}` : `/watch/${item.id}`}
+                          href={getWatchPath(item.id, item.title, item.episode)}
                           className="font-bold text-xs sm:text-sm text-foreground hover:text-orange-500 transition-colors truncate dark:text-zinc-200 dark:hover:text-orange-400"
                         >
                           {item.title}
@@ -547,7 +548,7 @@ export default function HistoryPage() {
                   )}
 
                   <Link
-                    href={item.episode ? `/watch/${item.id}?episode=${item.episode}` : `/watch/${item.id}`}
+                    href={getWatchPath(item.id, item.title, item.episode)}
                     className={cn("block", isSelectionMode && "pointer-events-none")}
                     onClick={(e) => {
                       if (isSelectionMode) {

@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { X, Sparkles } from 'lucide-react'
 import type { Anime } from '@/lib/shikimori'
 import { useRouter } from 'next/navigation'
+import { getWatchPath } from "@/lib/seo/watch-url"
 
 interface RandomAnimeModalProps {
   anime: Anime | null
@@ -39,7 +40,7 @@ export function RandomAnimeModal({ anime, onClose }: RandomAnimeModalProps) {
   const handleNavigate = async () => {
     if (anime) {
       setIsLoading(true)
-      await Promise.resolve(router.push(`/watch/${anime.id}`, { scroll: false }))
+      await Promise.resolve(router.push(getWatchPath(anime.id, anime.title), { scroll: false }))
         .finally(() => {
           setIsLoading(false)
           onClose()

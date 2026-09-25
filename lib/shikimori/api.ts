@@ -365,6 +365,7 @@ export async function getAnimeFranchise(id: string): Promise<FranchiseItem[]> {
       id: String(node.id),
       title: node.name,
       originalTitle: animeData?.name || node.name,
+      canonicalTitle: animeData?.russian || animeData?.name || node.name,
       poster: upgradeShikimoriUrl(sourcePoster),
       year: node.year,
       kind: node.kind,

@@ -19,6 +19,7 @@ import {
   openAuthFromGuestHook,
   trackGuestHook,
 } from "@/lib/guest-hooks"
+import { getWatchPath } from "@/lib/seo/watch-url"
 
 export const CHIBI_STORAGE_KEY = "chibi-guide-enabled"
 export const CHIBI_SPEECH_MODE_KEY = "chibi-speech-mode"
@@ -1249,7 +1250,7 @@ export function ChibiGuide() {
               ) : randomAnime ? (
                 <>
                   <Link
-                    href={`/watch/${randomAnime.id}`}
+                    href={getWatchPath(randomAnime.id, randomAnime.title)}
                     onClick={() => setIsBubbleOpen(false)}
                     className="w-full block"
                   >

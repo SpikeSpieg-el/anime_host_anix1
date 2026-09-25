@@ -15,6 +15,7 @@ import { HeroBannerSkeleton } from "@/components/shared/skeleton"
 import { useBookmarks } from "@/components/providers/bookmarks-provider"
 import { RecommendationReason } from "@/lib/shikimori/types"
 import { cn } from "@/lib/utils"
+import { getWatchPath } from "@/lib/seo/watch-url"
 
 // Helper function for dynamic episode/series text
 const getEpisodeText = (count: number): string => {
@@ -719,7 +720,7 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime, recommendationRea
               {/* 4. ОСНОВНЫЕ КНОПКИ */}
               <div className="w-full sm:w-auto flex flex-row items-stretch justify-center gap-2.5 sm:gap-3">
                 <Link 
-                  href={`/watch/${anime.id}`} 
+                  href={getWatchPath(anime.id, anime.title)} 
                   className="flex-1 sm:flex-none flex justify-center items-center gap-2 lg:gap-3 bg-white text-black hover:bg-zinc-200 px-5 sm:px-8 py-3 sm:py-3.5 lg:py-4 rounded-xl lg:rounded-2xl font-black text-xs sm:text-sm uppercase tracking-wider shadow-[0_4px_20px_-2px_rgba(0,0,0,0.3)] transition-transform active:scale-95"
                 >
                   <Play fill="currentColor" className="w-4 h-4 lg:w-5 lg:h-5 text-orange-600" />
@@ -881,7 +882,7 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime, recommendationRea
                           <div className="flex flex-row gap-3">
                             <button 
                               type="button"
-                              onClick={() => { setIsDialogOpen(false); router.push(`/watch/${anime.id}`) }}
+                              onClick={() => { setIsDialogOpen(false); router.push(getWatchPath(anime.id, anime.title)) }}
                               className="flex-1 flex items-center justify-center gap-2 bg-gradient-to-r from-orange-600 to-orange-500 hover:from-orange-500 hover:to-orange-400 text-white font-black py-3 sm:py-3.5 rounded-xl uppercase tracking-wider shadow-lg shadow-orange-600/25 transition-all active:scale-[0.98] group/btn text-xs sm:text-sm"
                             >
                               <Eye className="w-4 h-4 sm:w-5 sm:h-5 group-hover/btn:scale-110 transition-transform" />

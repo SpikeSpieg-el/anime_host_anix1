@@ -24,6 +24,7 @@ import { AuthModal } from "@/components/auth/auth-modal"
 import { PreferenceSurvey } from "@/components/shared/preference-survey"
 import type { Anime } from "@/lib/shikimori"
 import { getDemoRecommendation } from "@/lib/demo-recommendations"
+import { getWatchPath } from "@/lib/seo/watch-url"
 
 interface EnrichedRecommendation extends Anime {
   reason: string
@@ -255,7 +256,7 @@ export function AiAdvisor() {
   const renderHeroCard = (anime: EnrichedRecommendation) => {
     const isRealAnime = Number(anime.id) > 0
     const saved = isRealAnime ? isSaved(anime.id) : false
-    const watchHref = isRealAnime ? `/watch/${anime.id}` : `/catalog?search=${encodeURIComponent(anime.title)}`
+    const watchHref = isRealAnime ? getWatchPath(anime.id, anime.title) : `/catalog?search=${encodeURIComponent(anime.title)}`
 
     return (
       <div className="relative group overflow-hidden rounded-2xl bg-zinc-900/80 border border-white/10 p-4 sm:p-6 shadow-2xl backdrop-blur-xl transition-all duration-300">

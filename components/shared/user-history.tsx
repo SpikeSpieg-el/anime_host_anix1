@@ -6,6 +6,7 @@ import { Clock, Search, History, ChevronRight } from "lucide-react"
 import { useEpisodeUpdates } from "@/hooks/use-episode-updates"
 import { useHistory } from "@/components/providers/history-provider"
 import { HistorySkeleton } from "@/components/shared/skeleton"
+import { getWatchPath } from "@/lib/seo/watch-url"
 
 // Helper function for dynamic episode/series text
 const getEpisodeText = (count: number): string => {
@@ -194,7 +195,7 @@ return (
           return (
           <Link
             key={item.id}
-            href={item.episode ? `/watch/${item.id}?episode=${item.episode}` : `/watch/${item.id}`}
+            href={getWatchPath(item.id, item.title, item.episode)}
             className="group relative block"
             onClick={() => {
               // При клике удаляем уведомление об обновлении, так как пользователь пошел смотреть

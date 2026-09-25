@@ -39,6 +39,7 @@ import { useAuth } from "@/components/auth/auth-provider"
 import { AuthModal } from "@/components/auth/auth-modal"
 import { ErrorBoundary } from "@/components/ui/error-boundary"
 import { cn } from "@/lib/utils"
+import { getWatchPath } from "@/lib/seo/watch-url"
 
 // ---------- Вспомогательные функции ----------
 
@@ -996,7 +997,7 @@ export default function AccountStatsPage() {
                           key={item.id}
                           className="group relative bg-secondary/30 dark:bg-zinc-900/40 border border-border/50 dark:border-zinc-800/80 rounded-2xl overflow-hidden transition-all hover:border-orange-500/50 hover:shadow-lg flex flex-col"
                         >
-                          <Link href={`/watch/${item.id}`} className="relative block aspect-[2/3] w-full overflow-hidden bg-zinc-900">
+                          <Link href={getWatchPath(item.id, item.title)} className="relative block aspect-[2/3] w-full overflow-hidden bg-zinc-900">
                             <Image
                               src={normalizePoster(item?.poster)}
                               alt={item.title || "Anime"}
@@ -1014,7 +1015,7 @@ export default function AccountStatsPage() {
                           <div className="p-2.5 sm:p-3 flex-1 flex flex-col justify-between">
                             <div>
                               <Link
-                                href={`/watch/${item.id}`}
+                                href={getWatchPath(item.id, item.title)}
                                 className="block font-bold text-xs sm:text-sm text-foreground hover:text-orange-500 transition-colors line-clamp-1 dark:text-zinc-200"
                                 title={item.title}
                               >
@@ -1103,7 +1104,7 @@ export default function AccountStatsPage() {
                         <div className="flex-1 min-w-0 space-y-2">
                           <div className="flex items-center justify-between gap-2">
                             <Link
-                              href={`/watch/${anime.id}`}
+                              href={getWatchPath(anime.id, anime.title)}
                               className="text-xs sm:text-sm font-bold text-foreground hover:text-orange-500 transition-colors truncate dark:text-zinc-200"
                             >
                               {anime.title}

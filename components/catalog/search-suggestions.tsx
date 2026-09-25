@@ -9,6 +9,7 @@ import { useAuth } from "@/components/auth/auth-provider"
 import { SearchResultsSkeleton } from "@/components/shared/skeleton"
 import { checkEasterEgg, easterEggs } from "@/lib/easter-eggs"
 import { toast } from "sonner"
+import { getWatchPath } from "@/lib/seo/watch-url"
 
 function saveSearchHistory(query: string) {
   if (typeof window === "undefined") return
@@ -97,9 +98,9 @@ export function SearchSuggestions({
     }
   }, [value, profile?.allow_nsfw_search])
 
-  const handleAnimeClick = (animeId: string) => {
+  const handleAnimeClick = (animeId: string, title?: string) => {
     saveSearchHistory(value)
-    router.push(`/watch/${animeId}`) // Переход на страницу конкретного аниме
+    router.push(getWatchPath(animeId, title)) // Переход на страницу конкретного аниме
     setIsOpen(false)
     onChange("") // Очищаем поиск после перехода
   }
@@ -184,7 +185,7 @@ export function SearchSuggestions({
                 {suggestions.map((anime) => (
                   <button
                     key={anime.id}
-                    onClick={() => handleAnimeClick(anime.id)}
+                    onClick={() => handleAnimeClick(anime.id, anime.title)}
                     className="w-full text-left p-2 rounded-lg hover:bg-secondary transition-colors group flex items-start gap-3 mb-1"
                   >
                     <Image
