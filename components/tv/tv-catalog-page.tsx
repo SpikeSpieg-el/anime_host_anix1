@@ -7,6 +7,7 @@ import { TVAnimeCard } from './tv-anime-card'
 import { TVVoiceSearch } from './tv-voice-search'
 import type { Anime } from '@/lib/shikimori'
 import { ChevronLeft, ChevronRight, Filter } from 'lucide-react'
+import { getWatchPath } from "@/lib/seo/watch-url"
 
 interface TVCatalogPageProps {
   allowNsfw?: boolean
@@ -61,8 +62,8 @@ export function TVCatalogPage({ allowNsfw = false }: TVCatalogPageProps) {
     }
   }
 
-  const handleAnimeSelect = (id: string) => {
-    router.push(`/watch/${id}`)
+  const handleAnimeSelect = (id: string, title?: string) => {
+    router.push(getWatchPath(id, title))
   }
 
   const handleSearch = (query: string) => {
@@ -150,7 +151,7 @@ export function TVCatalogPage({ allowNsfw = false }: TVCatalogPageProps) {
                   imageUrl={anime.poster}
                   episodesTotal={anime.episodesTotal}
                   rating={anime.rating}
-                  onSelect={() => handleAnimeSelect(anime.id)}
+                  onSelect={() => handleAnimeSelect(anime.id, anime.title)}
                 />
               ))}
             </div>

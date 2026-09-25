@@ -3,6 +3,7 @@
 import { Sparkles, Calendar, TrendingUp, Play, ExternalLink, ChevronRight } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
+import { getWatchPath } from "@/lib/seo/watch-url"
 
 // Helper function for dynamic episode/series text
 const getEpisodeText = (count: number): string => {
@@ -66,7 +67,7 @@ export function UpdatesBanner({ updates, announcements }: UpdatesBannerProps) {
             {updates.slice(0, 3).map((anime) => (
               <Link
                 key={anime.id}
-                href={`/watch/${anime.id}`}
+                href={getWatchPath(anime.id, anime.title)}
                 className="group flex items-center gap-4 rounded-xl p-3 bg-secondary/40 hover:bg-secondary/60 border hover:border-accent transition-all active:scale-[0.99]"
               >
                 <div className="relative w-12 h-16 sm:w-14 sm:h-20 rounded-lg overflow-hidden shrink-0 bg-secondary">
@@ -117,7 +118,7 @@ export function UpdatesBanner({ updates, announcements }: UpdatesBannerProps) {
             {announcements.slice(0, 3).map((anime) => (
               <Link
                 key={anime.id}
-                href={`/watch/${anime.id}`}
+                href={getWatchPath(anime.id, anime.title)}
                 className="group flex items-center gap-4 rounded-xl p-3 bg-secondary/40 hover:bg-secondary/60 border hover:border-accent transition-all active:scale-[0.99]"
               >
                 <div className="relative w-12 h-16 sm:w-14 sm:h-20 rounded-lg overflow-hidden shrink-0 bg-secondary">

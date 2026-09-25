@@ -15,6 +15,7 @@ import Link from "next/link"
 import { cn } from "@/lib/utils"
 import { useCover } from "@/components/providers/cover-provider"
 import { usePushNotifications, type PushErrorReason } from "@/hooks/use-push-notifications"
+import { getWatchPath } from "@/lib/seo/watch-url"
 
 interface EpisodeUpdate {
   animeId: string
@@ -268,7 +269,7 @@ export function EpisodeUpdateBadge({ updates, onClearUpdate, onClearAll, classNa
           {updates.map((update, idx) => (
             <Link
               key={update.animeId}
-              href={`/watch/${update.animeId}`}
+              href={getWatchPath(update.animeId, update.animeTitle)}
               onClick={() => {
                 onClearUpdate?.(update.animeId)
                 setIsOpen(false)

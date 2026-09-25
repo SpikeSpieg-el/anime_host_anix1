@@ -8,6 +8,7 @@ import { TVLayout } from './tv-layout'
 import type { Anime } from '@/lib/shikimori'
 import { ChevronRight } from 'lucide-react'
 import Link from 'next/link'
+import { getWatchPath } from "@/lib/seo/watch-url"
 
 interface TVHomePageProps {
   popularNow: Anime[]
@@ -38,8 +39,8 @@ export function TVHomePage({ popularNow, popularAlways, ongoingAnime }: TVHomePa
     }
   }
 
-  const handleAnimeSelect = (id: string) => {
-    router.push(`/watch/${id}`)
+  const handleAnimeSelect = (id: string, title?: string) => {
+    router.push(getWatchPath(id, title))
   }
 
   return (
@@ -70,7 +71,7 @@ export function TVHomePage({ popularNow, popularAlways, ongoingAnime }: TVHomePa
                     imageUrl={anime.poster}
                     episodesTotal={anime.episodesTotal}
                     rating={anime.rating}
-                    onSelect={() => handleAnimeSelect(anime.id)}
+                    onSelect={() => handleAnimeSelect(anime.id, anime.title)}
                   />
                 ))}
               </div>
@@ -99,7 +100,7 @@ export function TVHomePage({ popularNow, popularAlways, ongoingAnime }: TVHomePa
                     imageUrl={anime.poster}
                     episodesTotal={anime.episodesTotal}
                     rating={anime.rating}
-                    onSelect={() => handleAnimeSelect(anime.id)}
+                    onSelect={() => handleAnimeSelect(anime.id, anime.title)}
                   />
                 ))}
               </div>
@@ -124,7 +125,7 @@ export function TVHomePage({ popularNow, popularAlways, ongoingAnime }: TVHomePa
                     imageUrl={anime.poster}
                     episodesTotal={anime.episodesTotal}
                     rating={anime.rating}
-                    onSelect={() => handleAnimeSelect(anime.id)}
+                    onSelect={() => handleAnimeSelect(anime.id, anime.title)}
                   />
                 ))}
               </div>
@@ -149,7 +150,7 @@ export function TVHomePage({ popularNow, popularAlways, ongoingAnime }: TVHomePa
                     imageUrl={anime.poster}
                     episodesTotal={anime.episodesTotal}
                     rating={anime.rating}
-                    onSelect={() => handleAnimeSelect(anime.id)}
+                    onSelect={() => handleAnimeSelect(anime.id, anime.title)}
                   />
                 ))}
               </div>

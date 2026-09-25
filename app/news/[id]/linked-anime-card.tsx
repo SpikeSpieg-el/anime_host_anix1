@@ -5,6 +5,7 @@ import { Tv, Film, Clapperboard, Play, Bookmark } from "lucide-react"
 import { useBookmarks } from "@/components/providers/bookmarks-provider"
 import { getProxiedSrc } from "@/lib/image-loader"
 import type { Anime } from "@/lib/shikimori/types"
+import { getWatchPath } from "@/lib/seo/watch-url"
 
 interface LinkedAnimeCardProps {
   id: number
@@ -21,6 +22,7 @@ export function LinkedAnimeCard({ id, name, russian, poster, kindLabel, statusLa
   const { isSaved, toggle } = useBookmarks()
   const idStr = String(id)
   const saved = isSaved(idStr)
+  const watchHref = getWatchPath(id, russian || name)
 
   const anime = useMemo<Anime>(() => ({
     id: idStr,
@@ -40,7 +42,7 @@ export function LinkedAnimeCard({ id, name, russian, poster, kindLabel, statusLa
 
   return (
     <div className="news-linked-anime-card group">
-      <a href={`/watch/${id}`} className="news-linked-poster-link">
+      <a href={watchHref} className="news-linked-poster-link">
         {poster ? (
           <img
             src={getProxiedSrc(poster)}
@@ -57,7 +59,7 @@ export function LinkedAnimeCard({ id, name, russian, poster, kindLabel, statusLa
 
       <div className="news-linked-info">
         <span className="news-linked-eyebrow">Связанное аниме</span>
-        <a href={`/watch/${id}`} className="flex items-center gap-2 flex-wrap mt-1">
+        <a href={watchHref} className="flex items-center gap-2 flex-wrap mt-1">
           <span className="text-base sm:text-lg font-bold text-foreground dark:text-white group-hover:text-blue-400 transition-colors">
             {russian || name}
           </span>
@@ -96,7 +98,7 @@ export function LinkedAnimeCard({ id, name, russian, poster, kindLabel, statusLa
           <Bookmark className="w-4 h-4" fill={saved ? "currentColor" : "none"} />
           <span className="hidden sm:inline">{saved ? "В закладках" : "В закладки"}</span>
         </button>
-        <a href={`/watch/${id}`} className="news-linked-cta">
+        <a href={watchHref} className="news-linked-cta">
           <Play className="w-4 h-4" />
           <span className="hidden sm:inline">Смотреть</span>
         </a>

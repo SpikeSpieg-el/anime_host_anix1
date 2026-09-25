@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
-import type { NextRequest } from "next/server"
+import type { NextFetchEvent, NextRequest } from "next/server"
+import { getWatchRedirectPath } from "@/lib/seo/watch-redirect"
 
 // Paths that require CSRF protection (state-changing operations)
 const CSRF_PROTECTED_PATHS = [
@@ -97,9 +98,33 @@ function applySecurityHeaders(response: NextResponse) {
   return response
 }
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest, event?: NextFetchEvent) {
   const pathname = request.nextUrl.pathname
   const method = request.method
+
+  // SEO: /watch/{id} (и устаревшие slug'и) → 301 на канонический /watch/{id}-{slug}.
+  // Делаем это здесь, а не в page.tsx: из-за loading.tsx страница успевает отдать
+  // «200 OK» до redirect(), и Next.js подставляет лишь <meta refresh>, который
+  // поисковики считают временным редиректом → дубли в индексе.
+  // (app/loading.tsx оборачивает в Suspense ВСЕ страницы, так что это касается
+  // любого redirect()/notFound() внутри page.tsx, не только /watch.)
+  if ((method === "GET" || method === "HEAD") && pathname.startsWith("/watch/")) {
+    const redirectPath = await getWatchRedirectPath(
+      pathname,
+      request.nextUrl.search,
+      fetch,
+      event ? (task) => event.waitUntil(task) : undefined,
+    )
+    if (redirectPath) {
+      const url = request.nextUrl.clone()
+      const q = redirectPath.indexOf("?")
+      url.pathname = q === -1 ? redirectPath : redirectPath.slice(0, q)
+      url.search = q === -1 ? "" : redirectPath.slice(q)
+      const response = NextResponse.redirect(url, 301)
+      response.headers.set("Cache-Control", "public, max-age=3600")
+      return applySecurityHeaders(response)
+    }
+  }
 
   // Check if path is exempt from security headers (like X-Frame-Options: DENY)
   const isSecurityHeadersExempt = SECURITY_HEADERS_EXEMPT_PATHS.some((path) => pathname.startsWith(path))

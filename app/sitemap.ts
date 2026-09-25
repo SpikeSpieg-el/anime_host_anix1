@@ -9,6 +9,7 @@ import {
 } from '@/lib/shikimori'
 import { BASE_URL } from '@/lib/shikimori/config'
 import { shikimoriJson } from '@/lib/shikimori/client'
+import { getWatchPath } from "@/lib/seo/watch-url"
 
 // Sitemap пересчитывается раз в 6 часов — lastModified стабилен внутри окна кэша
 export const revalidate = 21600
@@ -193,7 +194,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       const images = anime.poster ? [anime.poster] : undefined
 
       animePages.push({
-        url: `${SITE_URL}/watch/${anime.id}`,
+        url: `${SITE_URL}${getWatchPath(anime.id, anime.title)}`,
         lastModified: isOngoing ? NOW : lastMod,
         changeFrequency: isOngoing ? 'daily' : 'weekly',
         priority: isOngoing ? 0.8 : 0.6,

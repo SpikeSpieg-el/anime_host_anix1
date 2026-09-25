@@ -7,6 +7,7 @@ import { TVEpisodeSelector } from './tv-episode-selector'
 import type { Anime } from '@/lib/shikimori'
 import { ChevronLeft } from 'lucide-react'
 import { useRouter } from 'next/navigation'
+import { getWatchPath } from "@/lib/seo/watch-url"
 
 interface TVWatchPageProps {
   anime: Anime
@@ -19,7 +20,7 @@ export function TVWatchPage({ anime, initialEpisode }: TVWatchPageProps) {
 
   const handleEpisodeChange = (episode: number) => {
     setCurrentEpisode(episode)
-    router.push(`/watch/${anime.id}?episode=${episode}`, { scroll: false })
+    router.push(getWatchPath(anime.id, anime.title, episode), { scroll: false })
   }
 
   const handleBack = () => {

@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { useBookmarks } from "@/components/providers/bookmarks-provider"
 import { useState } from "react"
 import { cn } from "@/lib/utils"
+import { getWatchPath } from "@/lib/seo/watch-url"
 
 // Helper function for dynamic episode/series text
 const getEpisodeText = (count: number): string => {
@@ -75,7 +76,7 @@ export function AnimeCard({ anime, className, variant = 'default', showUpdateBad
   // Table variant - horizontal layout
   if (isTable) {
     return (
-      <Link href={`/watch/${anime.id}`} className={cn("group relative block bg-secondary/50 rounded-lg border hover:border-primary/50 transition-all p-3", className, "border-border dark:bg-zinc-900/50 dark:border-zinc-800 dark:hover:border-orange-500/50")}>
+      <Link href={getWatchPath(anime.id, anime.title)} className={cn("group relative block bg-secondary/50 rounded-lg border hover:border-primary/50 transition-all p-3", className, "border-border dark:bg-zinc-900/50 dark:border-zinc-800 dark:hover:border-orange-500/50")}>
         <div className="flex gap-3">
           {/* Poster */}
           <div className="relative w-16 h-20 sm:w-20 sm:h-28 flex-shrink-0 overflow-hidden rounded-md bg-secondary dark:bg-zinc-800">
@@ -175,7 +176,7 @@ export function AnimeCard({ anime, className, variant = 'default', showUpdateBad
   }
 
   return (
-    <Link href={`/watch/${anime.id}`} className={cn("group relative block h-full flex flex-col", className)}>
+    <Link href={getWatchPath(anime.id, anime.title)} className={cn("group relative block h-full flex flex-col", className)}>
       <div className={`relative aspect-[2/3] w-full overflow-hidden rounded-lg bg-secondary shadow-lg dark:bg-zinc-900 ${maxHeight ? `max-h-[${maxHeight}]` : ''}`}>
         <Image
           src={posterSrc}

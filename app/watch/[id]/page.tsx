@@ -1,4 +1,4 @@
-import { notFound, redirect } from "next/navigation"
+import { notFound, permanentRedirect } from "next/navigation"
 import { Navbar } from "@/components/layout/navbar"
 import { getAnimeById, getAnimeFranchise, type Anime } from "@/lib/shikimori"
 import dynamic from "next/dynamic"
@@ -6,6 +6,7 @@ import { WatchPageHeaderSkeleton, PlayerSkeleton, EpisodeSelectorSkeleton, TextS
 import type { Metadata } from "next"
 import { BreadcrumbStructuredData } from "@/components/seo/structured-data"
 import { getSchemaPosterUrl } from "@/lib/shikimori/images"
+import { cleanAnimeTitle, getWatchPath, getWatchSegment, parseWatchParam, safeDecodeSegment } from "@/lib/seo/watch-url"
 
 type ExtendedAnime = Anime & {
   russian?: string
@@ -59,21 +60,22 @@ async function getEditorialReview(animeId: string): Promise<EditorialReview | nu
   }
 }
 
-function slugify(text: string): string {
-  const ru: Record<string, string> = {
-    а: "a", б: "b", в: "v", г: "g", д: "d", е: "e", ё: "yo", ж: "zh",
-    з: "z", и: "i", й: "y", к: "k", л: "l", м: "m", н: "n", о: "o",
-    п: "p", р: "r", с: "s", т: "t", у: "u", ф: "f", х: "kh", ц: "ts",
-    ч: "ch", ш: "sh", щ: "shch", ъ: "", ы: "y", ь: "", э: "e", ю: "yu", я: "ya"
+/**
+ * Страховочный редирект на канонический ЧПУ-адрес.
+ *
+ * Основную работу делает middleware (настоящий HTTP 301). Сюда доходят только
+ * запросы с устаревшим slug, которого ещё нет в кэше middleware. Из-за
+ * app/loading.tsx страница к этому моменту уже стримится с кодом 200, поэтому
+ * Next.js сможет лишь вставить <meta http-equiv="refresh" content="0;url=...">.
+ * permanentRedirect (в отличие от redirect) даёт задержку 0 — поисковики считают
+ * такой refresh постоянным; вдобавок на странице есть <link rel="canonical">.
+ */
+function ensureCanonicalParam(id: string, cleanId: string, title: string, episode?: number) {
+  const expectedParam = getWatchSegment(cleanId, title)
+  if (safeDecodeSegment(id) !== expectedParam) {
+    permanentRedirect(getWatchPath(cleanId, title, episode))
   }
-  return text
-    .toLowerCase()
-    .split("")
-    .map((char) => ru[char] || char)
-    .join("")
-    .replace(/[^a-z0-9]/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "")
+  return expectedParam
 }
 
 const WatchPageLayoutWrapper = dynamic(
@@ -106,7 +108,7 @@ export async function generateMetadata({
   const sp = searchParams ? await searchParams : undefined
   const episode = sp?.episode ? Number.parseInt(sp.episode, 10) : undefined
 
-  const cleanId = id.split("-")[0]
+  const cleanId = parseWatchParam(id)
   const [rawAnime, editorialReview] = await Promise.all([
     getAnimeById(cleanId, true),
     getEditorialReview(cleanId),
@@ -124,7 +126,7 @@ export async function generateMetadata({
 
   // Очищаем вшитый год в скобках из названия
   const rawTitle = anime.russian || anime.title || ''
-  const mainTitle = rawTitle.replace(/\s*\(\d{4}\)$/, "").trim()
+  const mainTitle = cleanAnimeTitle(rawTitle)
   
   const altTitle = anime.english && anime.english !== mainTitle ? anime.english.replace(/\s*\(\d{4}\)$/, "") : 
                    anime.japanese && anime.japanese !== mainTitle ? anime.japanese.replace(/\s*\(\d{4}\)$/, "") : ""
@@ -148,8 +150,7 @@ export async function generateMetadata({
   const description = `${rawDescription} Смотрите «${mainTitle}» (${epTextLabel}) с русской озвучкой и субтитрами онлайн на Weebx.`
 
   const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://weeb-x.com"
-  const slug = slugify(mainTitle)
-  const canonicalUrl = `${baseUrl}/watch/${cleanId}${slug ? `-${slug}` : ""}${episode ? `?episode=${episode}` : ""}`
+  const canonicalUrl = `${baseUrl}${getWatchPath(cleanId, rawTitle, episode)}`
 
   const rawKeywords = [
     `смотреть ${mainTitle} онлайн`,
@@ -227,7 +228,7 @@ export default async function WatchPage({
   const sp = searchParams ? await searchParams : undefined
   const episode = sp?.episode ? Number.parseInt(sp.episode, 10) : undefined
 
-  const cleanId = id.split("-")[0]
+  const cleanId = parseWatchParam(id)
 
   // Запрашиваем аниме и комментарий редакции параллельно
   const [rawAnime, editorialReview] = await Promise.all([
@@ -240,17 +241,11 @@ export default async function WatchPage({
   const anime = rawAnime as ExtendedAnime
   
   // Очищаем вшитый год в скобках из названия
-  const rawTitle = anime.russian || anime.title || `Аниме #${cleanId}`
-  const animeTitle = rawTitle.replace(/\s*\(\d{4}\)$/, "").trim()
-  
-  const slug = slugify(animeTitle)
-  const expectedParam = slug ? `${cleanId}-${slug}` : cleanId
+  const rawTitle = anime.russian || anime.title || ""
+  const animeTitle = cleanAnimeTitle(rawTitle) || `Аниме #${cleanId}`
 
-  // Автоматический редирект на красивый ЧПУ адрес
-  if (id !== expectedParam) {
-    const epQuery = episode ? `?episode=${episode}` : ""
-    redirect(`/watch/${expectedParam}${epQuery}`)
-  }
+  // Страховка: обычно сюда уже приходит канонический адрес (301 из middleware).
+  const expectedParam = ensureCanonicalParam(id, cleanId, rawTitle, episode)
 
   const franchise = await getAnimeFranchise(cleanId)
   const watchOrder = franchise

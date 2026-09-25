@@ -5,6 +5,7 @@ import Image from "next/image"
 import Link from "next/link"
 import type { FranchiseItem } from "@/lib/shikimori"
 import { useCover } from "@/components/providers/cover-provider"
+import { getWatchPath } from "@/lib/seo/watch-url"
 
 interface WatchOrderSectionProps {
   watchOrder: FranchiseItem[]
@@ -78,7 +79,7 @@ export function WatchOrderSection({ watchOrder }: WatchOrderSectionProps) {
           ) : (
             <Link
               key={item.id}
-              href={`/watch/${item.id}`}
+              href={getWatchPath(item.id, item.canonicalTitle || item.title)}
               className="group block rounded-xl border border-border bg-secondary/40 p-2 transition hover:border-orange-500/40"
             >
               <div className="relative aspect-[2/3] overflow-hidden rounded-lg">
