@@ -10,6 +10,7 @@ import {
 import { BASE_URL } from '@/lib/shikimori/config'
 import { shikimoriJson } from '@/lib/shikimori/client'
 import { getWatchPath } from "@/lib/seo/watch-url"
+import { clampLastmod, escapeXml, isSitemapSafeUrl } from '@/lib/seo/sitemap-utils'
 
 // Sitemap пересчитывается раз в 6 часов — lastModified стабилен внутри окна кэша
 export const revalidate = 21600
@@ -21,6 +22,22 @@ const STATIC_PAGES_DATE = new Date('2026-07-01')
 
 // Текущая дата — для динамических страниц (фиксируется кэшем revalidate)
 const NOW = new Date()
+
+/**
+ * Блоки <image:image> временно выключены.
+ *
+ * 1. Яндекс-валидатор исторически ругается на Google-пространство имён
+ *    sitemap-image («Неизвестный тег image:image» / «Ошибка разбора… 1 элемент
+ *    с ошибками») и в этом случае не читает файл целиком — в Вебмастере
+ *    «Количество выявленных страниц 0».
+ * 2. 92 из 161 постера отдаются редиректом shikimori.one → shikimori.io,
+ *    а для <image:loc> нужен прямой URL изображения.
+ *
+ * Постеры и так видны роботам: они отдаются тегами <img> на страницах
+ * /watch/*. Если Яндекс начнёт стабильно принимать image-блоки, флаг можно
+ * вернуть в true — код ниже уже валидирует URL.
+ */
+const INCLUDE_IMAGES = false
 
 interface ShikimoriMangaListItem {
   id: number
@@ -188,14 +205,25 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       if (!anime?.id || seenAnimeIds.has(anime.id)) continue
       seenAnimeIds.add(anime.id)
 
-      const lastMod = anime.airedOn ? new Date(anime.airedOn) : NOW
-      // Для онгоингов — чаще обновляется, для вышедших — реже
+      const url = `${SITE_URL}${getWatchPath(anime.id, anime.title)}`
+      // Битую запись в sitemap лучше не класть: Яндекс валидирует URL целиком
+      // и на одном «неправильном» элементе не читает весь файл.
+      if (!isSitemapSafeUrl(url)) {
+        console.warn('[sitemap] skip unsafe anime url:', url)
+        continue
+      }
+
       const isOngoing = anime.status === 'ongoing'
-      const images = anime.poster ? [anime.poster] : undefined
+      // lastModified не должен быть в будущем и не должен быть Invalid Date:
+      // clampLastmod отдаёт null вместо мусорной даты.
+      const lastMod = isOngoing
+        ? NOW
+        : clampLastmod(anime.airedOn, NOW) ?? NOW
+      const images = INCLUDE_IMAGES && isSitemapSafeUrl(anime.poster) ? [anime.poster] : undefined
 
       animePages.push({
-        url: `${SITE_URL}${getWatchPath(anime.id, anime.title)}`,
-        lastModified: isOngoing ? NOW : lastMod,
+        url,
+        lastModified: lastMod,
         changeFrequency: isOngoing ? 'daily' : 'weekly',
         priority: isOngoing ? 0.8 : 0.6,
         images,
@@ -207,20 +235,30 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       .filter((m) => m.id)
       .map((manga) => ({
         url: `${SITE_URL}/manga/${manga.id}`,
-        lastModified: manga.aired_on ? new Date(manga.aired_on) : STATIC_PAGES_DATE,
+        lastModified: clampLastmod(manga.aired_on, NOW) ?? STATIC_PAGES_DATE,
         changeFrequency: 'weekly' as const,
         priority: 0.5,
       }))
+      .filter((page) => isSitemapSafeUrl(page.url))
 
     // --- Страницы новостей ---
-    const newsPages: MetadataRoute.Sitemap = newsIds.map((id) => ({
-      url: `${SITE_URL}/news/${id}`,
-      lastModified: NOW,
-      changeFrequency: 'monthly' as const,
-      priority: 0.4,
-    }))
+    const newsPages: MetadataRoute.Sitemap = newsIds
+      .map((id) => ({
+        url: `${SITE_URL}/news/${id}`,
+        lastModified: NOW,
+        changeFrequency: 'monthly' as const,
+        priority: 0.4,
+      }))
+      .filter((page) => isSitemapSafeUrl(page.url))
 
-    return [...staticPages, ...animePages, ...mangaPages, ...newsPages]
+    // Next.js вставляет url в <loc> как есть, без XML-экранирования
+    // (resolve-route-data.ts: `content += `<loc>${item.url}</loc>\n``), поэтому
+    // экранируем сами: иначе один `&` в любом URL ломает весь файл.
+    return [...staticPages, ...animePages, ...mangaPages, ...newsPages].map((entry) => ({
+      ...entry,
+      url: escapeXml(entry.url),
+      images: entry.images?.map((image) => escapeXml(image)),
+    }))
   } catch (error) {
     console.error('[sitemap] Error generating dynamic pages:', error)
     return staticPages
