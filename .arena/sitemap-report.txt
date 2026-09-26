@@ -1,0 +1,74 @@
+===== RESPONSE HEADERS =====
+HTTP/2 200 
+alt-svc: h3=":443"; ma=2592000
+cache-control: public, max-age=0, must-revalidate
+content-security-policy: default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://analytics.weeb-x.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; style-src-elem 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https: http:; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' https://*.supabase.co https://nhost.weebx.duckdns.org:8443 wss://nhost.weebx.duckdns.org:8443 https://analytics.weeb-x.com /stats https://shikimori.one https://shikimori.io https://*.shikimori.one https://*.shikimori.io https://pvp.weeb-x.com wss://pvp.weeb-x.com; frame-src 'self' https: http:; media-src 'self' https: http: blob:; object-src 'none'; base-uri 'self'
+content-type: application/xml
+date: Sat, 26 Sep 2026 12:23:54 GMT
+permissions-policy: camera=(), microphone=(), geolocation=(), browsing-topics=()
+referrer-policy: strict-origin-when-cross-origin
+vary: RSC, Next-Router-State-Tree, Next-Router-Prefetch, Next-Router-Segment-Prefetch
+via: 1.1 Caddy
+x-content-type-options: nosniff
+x-frame-options: DENY
+x-nextjs-cache: HIT
+x-nextjs-prerender: 1
+x-xss-protection: 1; mode=block
+
+===== SIZE =====
+ 2214 70169 /tmp/sitemap.xml
+a91297ab3f64fc444350e5f9a49dcbba  /tmp/sitemap.xml
+===== LINES 640-670 =====
+<loc>https://weeb-x.com/watch/9253-vrata-shteyna</loc>
+<image:image>
+<image:loc>https://shikimori.one/system/animes/original/9253.jpg?1711975211</image:loc>
+</image:image>
+<lastmod>2011-04-06T00:00:00.000Z</lastmod>
+<changefreq>weekly</changefreq>
+<priority>0.6</priority>
+</url>
+<url>
+<loc>https://weeb-x.com/watch/1735-naruto-uragannye-khroniki</loc>
+<image:image>
+<image:loc>https://shikimori.one/system/animes/original/1735.jpg?1711965662</image:loc>
+</image:image>
+<lastmod>2007-02-15T00:00:00.000Z</lastmod>
+<changefreq>weekly</changefreq>
+<priority>0.6</priority>
+</url>
+<url>
+<loc>https://weeb-x.com/watch/33486-moya-geroyskaya-akademiya-2</loc>
+<image:image>
+<image:loc>https://shikimori.one/system/animes/original/33486.jpg?1711944315</image:loc>
+</image:image>
+<lastmod>2017-04-01T00:00:00.000Z</lastmod>
+<changefreq>weekly</changefreq>
+<priority>0.6</priority>
+</url>
+<url>
+<loc>https://weeb-x.com/watch/35760-ataka-titanov-3</loc>
+<image:image>
+<image:loc>https://shikimori.one/system/animes/original/35760.jpg?1711973466</image:loc>
+</image:image>
+===== LINE 651 (octal dump) =====
+0000000   <   i   m   a   g   e   :   l   o   c   >   h   t   t   p   s
+0000020   :   /   /   s   h   i   k   i   m   o   r   i   .   o   n   e
+0000040   /   s   y   s   t   e   m   /   a   n   i   m   e   s   /   o
+0000060   r   i   g   i   n   a   l   /   1   7   3   5   .   j   p   g
+0000100   ?   1   7   1   1   9   6   5   6   6   2   <   /   i   m   a
+0000120   g   e   :   l   o   c   >  \n
+0000130
+===== COUNTS =====
+url tags: 288
+image:loc tags: 161
+lastmod tags: 288
+===== AMPERSANDS =====
+no ampersands at all
+===== NON-ASCII LINES =====
+pure ASCII
+===== HTTP STATUS OF SAMPLE PAGES =====
+https://weeb-x.com/watch/1735-naruto-uragannye-khroniki -> 200 
+https://weeb-x.com/watch/9253-vrata-shteyna -> 200 
+https://weeb-x.com/watch/33486-moya-geroyskaya-akademiya-2 -> 200 
+https://weeb-x.com/ -> 200 
+https://weeb-x.com/catalog -> 200 
