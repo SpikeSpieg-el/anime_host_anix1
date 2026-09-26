@@ -1,0 +1,143 @@
+name: Arena Sitemap Probe
+
+# Временный диагностический workflow (ветка arena/...) — тянет живой sitemap.xml
+# и печатает в лог сырые строки + результаты валидации URL/дат.
+on:
+  push:
+    paths:
+      - .github/workflows/arena-sitemap-probe.yml
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Fetch and inspect live sitemap
+        run: |
+          set -o pipefail
+          curl -sS --compressed -D headers.txt -o sitemap.xml --max-time 90 https://weeb-x.com/sitemap.xml
+          echo '===== RESPONSE HEADERS ====='
+          cat headers.txt
+          echo '===== SIZE ====='
+          wc -c -l sitemap.xml
+          md5sum sitemap.xml
+          echo '===== LINES 640-670 ====='
+          sed -n '640,670p' sitemap.xml
+          echo '===== LINE 651 (raw) ====='
+          sed -n '651p' sitemap.xml
+          echo '===== LINE 651 (octal dump) ====='
+          sed -n '651p' sitemap.xml | od -c | head -10
+          echo '===== COUNTS ====='
+          echo -n 'url tags: '; grep -c '<url>' sitemap.xml || true
+          echo -n 'image:loc tags: '; grep -c '<image:loc>' sitemap.xml || true
+          echo -n 'lastmod tags: '; grep -c '<lastmod>' sitemap.xml || true
+          echo '===== RAW AMPERSANDS / NON-ASCII ====='
+          grep -n '&' sitemap.xml | head -20 || echo 'no ampersands at all'
+          grep -nP '[^\x09\x0A\x0D\x20-\x7E]' sitemap.xml | head -10 || echo 'pure ASCII'
+
+      - name: Validate sitemap semantics
+        run: |
+          python3 - <<'PY'
+          import re, sys, unicodedata
+          from urllib.parse import urlparse, unquote
+          from datetime import datetime, timezone
+
+          raw = open('sitemap.xml','rb').read()
+          print('bytes:', len(raw))
+          try:
+              text = raw.decode('utf-8')
+              print('utf-8 decode: OK')
+          except UnicodeDecodeError as e:
+              print('utf-8 decode FAILED:', e); sys.exit(0)
+
+          lines = text.split('\n')
+          print('total lines:', len(lines))
+
+          # well-formedness
+          import xml.etree.ElementTree as ET
+          try:
+              tree = ET.fromstring(text)
+              print('XML parse: OK, root =', tree.tag)
+          except Exception as e:
+              print('XML parse FAILED:', e)
+
+          # map line numbers of each <url> block and its children
+          blocks = []
+          cur = None
+          for i, ln in enumerate(lines, start=1):
+              s = ln.strip()
+              if s.startswith('<url>'):
+                  cur = {'line': i}
+                  blocks.append(cur)
+              if cur is not None:
+                  for tag in ('loc', 'image:loc', 'lastmod', 'changefreq', 'priority'):
+                      m = re.match(r'^<%s>(.*)</%s>$' % (tag, tag), s)
+                      if m:
+                          cur.setdefault(tag, m.group(1))
+                          cur.setdefault(tag + '_line', i)
+              if s.startswith('</url>') and cur is not None:
+                  cur = None
+
+          print('url blocks:', len(blocks))
+
+          def bad_url(u):
+              if not u:
+                  return 'empty'
+              if any(c in u for c in ' \t\r\n\\"<>'):
+                  return 'contains whitespace/backslash/quote/angle'
+              if not u.isascii():
+                  return 'non-ascii'
+              if '%' in u:
+                  for m in re.finditer(r'%(.{0,2})', u):
+                      pass
+                  for m in re.finditer(r'%', u):
+                      seg = u[m.start():m.start()+3]
+                      if not re.match(r'^%[0-9A-Fa-f]{2}', seg):
+                          return 'bad percent-escape: ' + seg
+              p = urlparse(u)
+              if p.scheme not in ('http', 'https'):
+                  return 'bad scheme: ' + p.scheme
+              if not p.netloc:
+                  return 'no host'
+              if len(u) > 2048:
+                  return 'too long (%d)' % len(u)
+              return None
+
+          problems = []
+          seen = set()
+          dupes = []
+          for b in blocks:
+              loc = b.get('loc', '')
+              problem = bad_url(loc)
+              if problem:
+                  problems.append((b.get('loc_line'), 'LOC', loc[:120], problem))
+              if loc in seen:
+                  dupes.append((b.get('loc_line'), loc[:120]))
+              seen.add(loc)
+              img = b.get('image:loc')
+              if img:
+                  p2 = bad_url(img)
+                  if p2:
+                      problems.append((b.get('image:loc_line'), 'IMG', img[:120], p2))
+              lm = b.get('lastmod')
+              if lm:
+                  try:
+                      datetime.fromisoformat(lm.replace('Z', '+00:00'))
+                  except Exception as e:
+                      problems.append((b.get('lastmod_line'), 'LASTMOD', lm, str(e)))
+              else:
+                  problems.append((b.get('line'), 'LASTMOD', 'MISSING', 'no lastmod'))
+
+          print('--- problems (line, kind, value, reason) ---')
+          for p in problems[:60]:
+              print(p)
+          print('total problems:', len(problems))
+          print('duplicate locs:', len(dupes))
+          for d in dupes[:20]:
+              print('  dup', d)
+
+          print('--- element types on each line around 651 ---')
+          for i in range(640, min(len(lines), 670)):
+              print(i + 1, repr(lines[i])[:160])
+          PY
