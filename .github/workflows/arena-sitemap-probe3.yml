@@ -1,0 +1,67 @@
+name: Arena Sitemap Probe 3
+
+# Диагностика #3: почему <image:loc> c shikimori.one отдаёт 301 и работает ли
+# собственный прокси сайта /api/thumbnail-proxy как источник картинок.
+on:
+  push:
+    paths:
+      - .github/workflows/arena-sitemap-probe3.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  probe3:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Image redirect analysis
+        run: |
+          mkdir -p .arena
+          R=.arena/image-redirects.txt
+          {
+            echo '### shikimori.one root'
+            curl -sSI --max-time 30 https://shikimori.one/ | head -8
+            echo
+            echo '### poster WITH query, follow redirects'
+            curl -sS -o /dev/null -L -w 'final=%{http_code} type=%{content_type} size=%{size_download} url=%{url_effective}\n' \
+              'https://shikimori.one/system/animes/original/1735.jpg?1711965662' --max-time 45
+            curl -sSI --max-time 30 'https://shikimori.one/system/animes/original/1735.jpg?1711965662' | grep -iE '^(HTTP|location|content-type|server|cf-)' || true
+            echo
+            echo '### poster WITHOUT query'
+            curl -sS -o /dev/null -L -w 'final=%{http_code} type=%{content_type} size=%{size_download} url=%{url_effective}\n' \
+              'https://shikimori.one/system/animes/original/1735.jpg' --max-time 45
+            echo
+            echo '### poster WITH browser UA'
+            curl -sSI --max-time 30 -H 'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126 Safari/537.36' \
+              -H 'Accept: image/avif,image/webp,image/*,*/*;q=0.8' \
+              'https://shikimori.one/system/animes/original/1735.jpg?1711965662' | grep -iE '^(HTTP|location|content-type|server)' || true
+            echo
+            echo '### own image proxy of the site'
+            curl -sS -o /dev/null -w 'proxy=%{http_code} type=%{content_type} size=%{size_download}\n' --max-time 90 \
+              'https://weeb-x.com/api/thumbnail-proxy?url=https%3A%2F%2Fshikimori.one%2Fsystem%2Fanimes%2Foriginal%2F1735.jpg%3F1711965662'
+            echo
+            echo '### redirect behaviour of /watch pages'
+            curl -sS -o /dev/null -w '/watch/1735 -> %{http_code} %{redirect_url}\n' --max-time 30 'https://weeb-x.com/watch/1735'
+            curl -sS -o /dev/null -w '/watch/1735-naruto-uragannye-khroniki -> %{http_code} %{redirect_url}\n' --max-time 30 'https://weeb-x.com/watch/1735-naruto-uragannye-khroniki'
+            echo
+            echo '### sample of 15 image:loc URLs from the live sitemap'
+            grep -o '<image:loc>[^<]*</image:loc>' .arena/sitemap-live.xml | sed 's/<[^>]*>//g' | head -15 | while read -r u; do
+              printf '%s -> ' "$u"
+              curl -sS -o /dev/null -L -w '%{http_code} %{content_type} %{size_download}\n' --max-time 45 "$u"
+            done
+          } > $R
+          cat $R
+
+      - name: Publish report
+        run: |
+          git config user.name "arena-ai-coding-agent[bot]"
+          git config user.email "arena-ai-coding-agent[bot]@users.noreply.github.com"
+          git add -f .arena
+          git commit -m "chore(seo): отчёт probe #3 (редиректы картинок) [skip ci]" || echo nothing
+          git push
