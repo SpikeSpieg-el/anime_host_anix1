@@ -24,6 +24,7 @@ import { WatchPageGallery } from "@/components/watch/watch-page-gallery"
 import { CoverModal } from "@/components/watch/cover-modal"
 import { FloatingNav } from "@/components/layout/floating-nav"
 import { AuthPromptBanner } from "@/components/watch/auth-prompt-banner"
+import { BoostyBanner } from "@/components/watch/boosty-banner"
 import { cn } from "@/lib/utils"
 import { Eye } from "lucide-react"
 import { AnalyticsEvent, trackEvent } from "@/lib/analytics"
@@ -459,6 +460,9 @@ export function WatchPageClient({ anime, initialEpisode }: WatchPageClientProps)
           )}
         </div>
       </div>
+
+      {/* Boosty Donation Banner */}
+      <BoostyBanner />
 
       {/* Крючок: стартовый пак / 10 000 монет — после начала просмотра */}
       {showStarterHook && !user && (
