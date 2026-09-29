@@ -18,6 +18,7 @@ import {
   trackGuestHook,
 } from "@/lib/guest-hooks"
 import { AnalyticsEvent, loadAnalyticsScript, unloadAnalyticsScript, UMAMI_SCRIPT_TAG_ID } from "@/lib/analytics"
+import { STARTING_COINS } from "@/lib/economy"
 
 const WEBSITE_ID = "11111111-2222-3333-4444-555555555555"
 
@@ -72,8 +73,11 @@ describe("GUEST_HOOK_COPY", () => {
     }
   })
 
-  it("стартовый пак упоминает 10 000 монет", () => {
-    expect(GUEST_HOOK_COPY[GuestHookId.STARTER_PACK].title).toMatch(/10\s*000/)
+  it("стартовый пак упоминает стартовый бонус (2 000 монет = 40 круток)", () => {
+    // Число обязано совпадать с STARTING_COINS, иначе гостю обещают несуществующий бонус
+    expect(GUEST_HOOK_COPY[GuestHookId.STARTER_PACK].title).toMatch(
+      new RegExp(`${STARTING_COINS.toLocaleString("ru-RU").replace(/\s/g, "\\s")}`)
+    )
   })
 })
 

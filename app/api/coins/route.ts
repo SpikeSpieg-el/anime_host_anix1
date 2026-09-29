@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
+import { STARTING_COINS } from '@/lib/economy'
 
 async function getAuthenticatedUser(request: Request) {
   const authHeader = request.headers.get('authorization')
@@ -71,10 +72,10 @@ export async function GET(request: Request) {
       
       // PGRST116 = row not found
       if (error.code === 'PGRST116') {
-        // User has no coins record, create one with 10000 bonus (1000 base + 9000 registration bonus)
+        // Нет записи о балансе — выдаём стартовый бонус (2 000 = 40 круток)
         const { data: newRecord, error: insertError } = await supabaseAdmin
           .from('user_coins')
-          .insert({ id: user.id, coins: 10000 })
+          .insert({ id: user.id, coins: STARTING_COINS })
           .select('coins')
           .single()
 
@@ -92,7 +93,7 @@ export async function GET(request: Request) {
           console.warn('Database insert failed, returning default coins as fallback')
           return NextResponse.json({ 
             success: true,
-            coins: 10000,
+            coins: STARTING_COINS,
             warning: 'Using default coins due to database error',
             error: insertError.message
           })
@@ -104,7 +105,7 @@ export async function GET(request: Request) {
       // PGRST115 = relation does not exist (table doesn't exist)
       if (error.code === 'PGRST115') {
         console.warn('user_coins table does not exist, returning default coins')
-        return NextResponse.json({ success: true, coins: 10000, warning: 'Table not found' })
+        return NextResponse.json({ success: true, coins: STARTING_COINS, warning: 'Table not found' })
       }
 
       console.error('Get coins error:', error)
@@ -128,48 +129,14 @@ export async function POST(request: Request) {
 
     const { user, supabaseAdmin } = authData
     const body = await request.json()
-    const { operation, amount, coins } = body
+    const { operation, amount, coins, refundToken } = body
 
-    // Support both old format (direct coins set) and new format (operations)
-    if (coins !== undefined) {
-      // Legacy format - direct coins setting
-      if (typeof coins !== 'number') {
-        return NextResponse.json({ success: false, message: 'Invalid coins value' }, { status: 400 })
-      }
+    // Раньше здесь принимался { coins: <любое число> } — прямая установка баланса
+    // по запросу клиента. Это печать монет из консоли браузера, формат удалён.
+    void coins
 
-      // Update or insert coins
-      const { data, error } = await supabaseAdmin
-        .from('user_coins')
-        .upsert({ id: user.id, coins, updated_at: new Date().toISOString() })
-        .select('coins')
-        .single()
-
-      if (error) {
-        console.error('Update coins error:', error)
-        console.error('Update error details:', {
-          code: error.code,
-          message: error.message,
-          details: error.details,
-          hint: error.hint,
-          userId: user.id,
-          coins: coins
-        })
-        
-        // Fallback: return the requested coins amount if database update fails
-        console.warn('Database update failed, returning requested coins as fallback')
-        return NextResponse.json({ 
-          success: true,
-          coins: coins,
-          warning: 'Database update failed, coins may not be persisted',
-          error: error.message
-        })
-      }
-
-      return NextResponse.json({ success: true, coins: data.coins })
-    }
-
-    // New format - operations
-    if (!operation || typeof amount !== 'number') {
+    // Операции: 'spend' (списание за крутку) и 'add' (возврат по одноразовому токену).
+    if (!operation) {
       return NextResponse.json({ success: false, message: "Invalid request" }, { status: 400 })
     }
 
@@ -177,92 +144,103 @@ export async function POST(request: Request) {
 
     switch (operation) {
       case 'add':
-        if (amount <= 0) {
-          return NextResponse.json({ success: false, message: "Amount must be positive" }, { status: 400 })
+        // Начисление возможно ТОЛЬКО по одноразовому токену возврата,
+        // который сервер выдал при списании (см. economy_refund_tokens).
+        // Раньше здесь было обычное сложение: любой авторизованный игрок мог
+        // напечатать себе сколько угодно монет одним POST-запросом.
+        if (!refundToken || typeof refundToken !== 'string') {
+          return NextResponse.json(
+            { success: false, message: 'refundToken required' },
+            { status: 400 }
+          )
         }
-        
-        // Get current balance
-        const { data: profile, error: fetchError } = await supabaseAdmin
+
+        const { data: refundData, error: refundError } = await supabaseAdmin.rpc('economy_redeem_refund', {
+          p_user_id: user.id,
+          p_token: refundToken,
+        })
+
+        if (refundError) {
+          console.error('[API Coins] redeem refund:', refundError)
+          return NextResponse.json({ success: false, message: "Database error" }, { status: 500 })
+        }
+
+        const refundResult = refundData as { ok?: boolean; error?: string; amount?: number }
+        if (!refundResult?.ok) {
+          return NextResponse.json(
+            { success: false, message: refundResult?.error || 'refund_rejected' },
+            { status: 400 }
+          )
+        }
+
+        const { data: afterRefund, error: afterRefundError } = await supabaseAdmin
           .from('user_coins')
           .select('coins')
           .eq('id', user.id)
           .single()
 
-        if (fetchError && fetchError.code !== 'PGRST116') {
-          console.error('[API Coins] Error fetching profile:', fetchError)
+        if (afterRefundError) {
+          console.error('[API Coins] balance after refund:', afterRefundError)
           return NextResponse.json({ success: false, message: "Database error" }, { status: 500 })
         }
 
-        const currentBalance = profile?.coins || 0
-        const newBalance = currentBalance + amount
-
-        // Update balance
-        const { error: updateError } = await supabaseAdmin
-          .from('user_coins')
-          .upsert({ 
-            id: user.id, 
-            coins: newBalance,
-            updated_at: new Date().toISOString()
-          }, {
-            onConflict: 'id'
-          })
-
-        if (updateError) {
-          console.error('[API Coins] Error updating coins:', updateError)
-          return NextResponse.json({ success: false, message: "Failed to update balance" }, { status: 500 })
+        console.log(`[API Coins] Refunded ${refundResult.amount} coins to user ${user.id}`)
+        result = {
+          success: true,
+          newBalance: afterRefund.coins,
+          message: `Refunded ${refundResult.amount} coins`,
         }
-
-        console.log(`[API Coins] Added ${amount} coins to user ${user.id}. New balance: ${newBalance}`)
-        result = { success: true, newBalance, message: `Added ${amount} coins` }
         break
 
       case 'spend':
-        if (amount <= 0) {
-          return NextResponse.json({ success: false, message: "Amount must be positive" }, { status: 400 })
+        if (typeof amount !== 'number' || !Number.isInteger(amount) || amount <= 0 || amount > 1_000_000) {
+          return NextResponse.json(
+            { success: false, message: 'Amount must be a positive integer' },
+            { status: 400 }
+          )
         }
-        
-        // Get current balance
-        const { data: spendProfile, error: spendFetchError } = await supabaseAdmin
-          .from('user_coins')
-          .select('coins')
-          .eq('id', user.id)
-          .single()
 
-        if (spendFetchError && spendFetchError.code !== 'PGRST116') {
-          console.error('[API Coins] Error fetching profile for spend:', spendFetchError)
+        // Списание и возврат делает база под блокировкой строки (economy_spend):
+        // раньше это было чтение-вычитание-запись из API, из-за чего два
+        // параллельных запроса могли списать монеты дважды.
+        const { data: spendData, error: spendError } = await supabaseAdmin.rpc('economy_spend', {
+          p_user_id: user.id,
+          p_amount: amount,
+        })
+
+        if (spendError) {
+          console.error('[API Coins] spend:', spendError)
           return NextResponse.json({ success: false, message: "Database error" }, { status: 500 })
         }
 
-        const currentSpendBalance = spendProfile?.coins || 0
-
-        // Check if user has enough coins
-        if (currentSpendBalance < amount) {
-          return NextResponse.json({ 
-            success: false, 
-            message: `Insufficient coins. Need ${amount}, have ${currentSpendBalance}` 
-          }, { status: 400 })
+        const spendResult = spendData as {
+          ok?: boolean
+          error?: string
+          need?: number
+          have?: number
+          new_balance?: number
+          refund_token?: string
         }
 
-        const newSpendBalance = currentSpendBalance - amount
-
-        // Update balance
-        const { error: spendUpdateError } = await supabaseAdmin
-          .from('user_coins')
-          .upsert({ 
-            id: user.id, 
-            coins: newSpendBalance,
-            updated_at: new Date().toISOString()
-          }, {
-            onConflict: 'id'
-          })
-
-        if (spendUpdateError) {
-          console.error('[API Coins] Error updating coins for spend:', spendUpdateError)
-          return NextResponse.json({ success: false, message: "Failed to update balance" }, { status: 500 })
+        if (!spendResult?.ok) {
+          if (spendResult?.error === 'insufficient_coins') {
+            return NextResponse.json(
+              { success: false, message: 'Insufficient coins', need: spendResult.need, have: spendResult.have },
+              { status: 400 }
+            )
+          }
+          return NextResponse.json({ success: false, message: spendResult?.error || 'spend_rejected' }, { status: 400 })
         }
 
-        console.log(`[API Coins] Spent ${amount} coins from user ${user.id}. New balance: ${newSpendBalance}`)
-        result = { success: true, newBalance: newSpendBalance, message: `Spent ${amount} coins` }
+        console.log(`[API Coins] Spent ${amount} coins from user ${user.id}. New balance: ${spendResult.new_balance}`)
+        result = {
+          success: true,
+          newBalance: spendResult.new_balance,
+          message: `Spent ${amount} coins`,
+          // Токен возврата: если крутка не выдалась (сеть, пустой набор),
+          // клиент сможет вернуть ровно списанную сумму и ровно один раз.
+          refundToken: spendResult.refund_token ?? null,
+        }
         break
 
       default:

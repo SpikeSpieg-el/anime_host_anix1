@@ -5,6 +5,7 @@ import { useState, useEffect, useCallback, useRef } from "react"
 import { Navbar } from "@/components/layout/navbar"
 import { Footer } from "@/components/layout/footer"
 import { Sparkles, Star, Heart, Loader2, X, ZoomIn, ExternalLink, RefreshCcw, Trash, Trash2, Crown, Package, Coins, Search, Database, Store, Share, Swords, Wrench, Move, Mail, Calendar, ChevronDown, Flame } from "lucide-react"
+import { GachaDailyBonus } from "@/components/gacha/gacha-daily-bonus"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { ANIME_PACKS } from "@/lib/gacha-packs"
 import type { AnimePack } from "@/lib/gacha-packs"
@@ -476,7 +477,7 @@ export default function GachaPage() {
       
       <Navbar />
 
-      {/* Гостевой крючок: 10 000 монет + стартовый пак */}
+      {/* Гостевой крючок: стартовый бонус + стартовый пак */}
       {showGuestStarter && !session?.user && (
         <div className="relative z-20 mx-auto max-w-3xl px-4 pt-4">
           <GuestHookBanner
@@ -1448,6 +1449,9 @@ export default function GachaPage() {
                   )}
                 </div>
               )}
+
+              {/* Воронка возврата: ежедневная серия + веха коллекции */}
+              <GachaDailyBonus collectedCount={collectedCards.length} />
 
               {/* Dev: Force Rarity Selector */}
               {isDev && (

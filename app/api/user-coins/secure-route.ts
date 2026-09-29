@@ -123,15 +123,10 @@ export async function POST(request: Request) {
         newBalance = currentBalance - amount
         break
 
-      case 'set':
-        if (amount < 0) {
-          return NextResponse.json({ success: false, message: "Amount cannot be negative" }, { status: 400 })
-        }
-        // Only allow setting coins for administrative purposes (could add additional auth check here)
-        newBalance = amount
-        break
-
       default:
+        // Операция 'set' удалена намеренно: она позволяла любому авторизованному
+        // пользователю записать себе произвольный баланс (см. economy v2 миграцию).
+        // Админские правки баланса делаются через service_role в админке.
         return NextResponse.json({ success: false, message: "Invalid operation" }, { status: 400 })
     }
 

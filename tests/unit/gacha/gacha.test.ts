@@ -26,8 +26,9 @@ describe("rarity config", () => {
   })
 
   it("dismantle values are monotonic and match known endpoints", () => {
-    expect(getDismantleValue("trash")).toBe(5)
-    expect(getDismantleValue("omnipotent")).toBe(5000)
+    // Пыль за разбор ≈ 70% справедливой цены монет (см. lib/economy.ts)
+    expect(getDismantleValue("trash")).toBe(4)
+    expect(getDismantleValue("omnipotent")).toBe(3700)
     for (let i = 1; i < ALL_RARITIES.length; i++) {
       expect(getDismantleValue(ALL_RARITIES[i])).toBeGreaterThanOrEqual(
         getDismantleValue(ALL_RARITIES[i - 1]),
