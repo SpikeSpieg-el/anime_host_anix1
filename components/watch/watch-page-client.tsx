@@ -464,7 +464,7 @@ export function WatchPageClient({ anime, initialEpisode }: WatchPageClientProps)
       {/* Boosty Donation Banner */}
       <BoostyBanner />
 
-      {/* Крючок: стартовый пак / 10 000 монет — после начала просмотра */}
+      {/* Крючок: стартовый пак / стартовый бонус — после начала просмотра */}
       {showStarterHook && !user && (
         <AuthPromptBanner
           variant="starter-pack"

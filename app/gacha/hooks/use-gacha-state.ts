@@ -33,6 +33,7 @@ import { generateCardUniqueId, calculateCollectionRating, signCard, verifyCard }
 import { AnalyticsEvent, trackEvent } from "@/lib/analytics"
 import { getProxiedSrc } from "@/lib/image-loader"
 import { GuestHookId, openAuthFromGuestHook } from "@/lib/guest-hooks"
+import { STARTING_COINS, STARTING_SPINS } from "@/lib/economy"
 
 function createVisibleTimeout(duration: number, message: string) {
   let remaining = duration
@@ -783,7 +784,7 @@ export function useGachaState() {
       if (guestRolls >= GUEST_ROLL_LIMIT) {
         setErrorPopupConfig({
           title: "Стартовый бонус ждёт",
-          message: `Вы использовали все ${GUEST_ROLL_LIMIT} бесплатных круток. Создай профиль и получи 10 000 монет — хватит, чтобы выбить Легендарную или Всемогущая!`,
+          message: `Вы использовали все ${GUEST_ROLL_LIMIT} бесплатных круток. Создай профиль и получи ${STARTING_COINS} монет — это ${STARTING_SPINS} круток, а дальше монеты идут с продажи ненужных карт и из PvE.`,
           type: "warning"
         })
         setShowErrorPopup(true)
@@ -809,6 +810,10 @@ export function useGachaState() {
       return
     }
 
+    // Токен возврата живёт на уровне handleRoll: catch-блок ниже тоже должен
+    // иметь возможность вернуть списанное, если крутка упала.
+    let spinRefundToken: string | undefined
+
     try {
       setIsRolling(true)
       operationStartTime.current = Date.now()
@@ -818,10 +823,13 @@ export function useGachaState() {
       setIsSavingCard(false)
       isRestoredCard.current = false // Сбрасываем флаг при новой крутке
 
-      // SECURE: Spend coins BEFORE rolling to prevent getting cards without paying
+      // SECURE: Spend coins BEFORE rolling to prevent getting cards without paying.
+      // Сервер вместе со списанием выдаёт одноразовый токен возврата: если крутка
+      // не выдалась (сеть/пустой набор), вернуть потраченное можно только на него.
       if (authUser) {
-        const spendSuccess = await spendCoins(rollCost)
-        if (!spendSuccess) {
+        const spendResult = await spendCoins(rollCost)
+        spinRefundToken = spendResult.refundToken
+        if (!spendResult.success) {
           setErrorPopupConfig({
             title: "Недостаточно монет",
             message: `Не удалось списать ${rollCost} монет. Проверьте баланс и попробуйте снова!`,
@@ -906,7 +914,7 @@ export function useGachaState() {
           setIsRolling(false); isRollingRef.current = false
           // Refund coins since no card was obtained
           if (authUser) {
-            await addCoins(rollCost).catch(e => console.error('[handleRoll] Refund failed:', e))
+            await addCoins(rollCost, spinRefundToken).catch(e => console.error('[handleRoll] Refund failed:', e))
           }
           return 
         }
@@ -922,7 +930,7 @@ export function useGachaState() {
           setIsRolling(false); isRollingRef.current = false
           // Refund coins since no card was obtained
           if (authUser) {
-            await addCoins(rollCost).catch(e => console.error('[handleRoll] Refund failed:', e))
+            await addCoins(rollCost, spinRefundToken).catch(e => console.error('[handleRoll] Refund failed:', e))
           }
           return
         }
@@ -988,7 +996,7 @@ export function useGachaState() {
         } else {
           // No result - refund coins
           if (authUser) {
-            await addCoins(rollCost).catch(e => console.error('[handleRoll] Refund failed:', e))
+            await addCoins(rollCost, spinRefundToken).catch(e => console.error('[handleRoll] Refund failed:', e))
           }
           await handleEmptyResult()
         }
@@ -1001,7 +1009,7 @@ export function useGachaState() {
       setIsRolling(false); isRollingRef.current = false
       // Refund coins on error if we already spent them
       if (authUser) {
-        await addCoins(rollCost).catch(e => console.error('[handleRoll] Refund failed:', e))
+        await addCoins(rollCost, spinRefundToken).catch(e => console.error('[handleRoll] Refund failed:', e))
       }
       setErrorPopupConfig({
         title: "Ошибка",

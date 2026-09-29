@@ -33,7 +33,7 @@ export interface GuestHookCopy {
 export const GUEST_HOOK_COPY: Record<GuestHookIdValue, GuestHookCopy> = {
   [GuestHookId.STARTER_PACK]: {
     badge: "Стартовый бонус",
-    title: "Забери 10 000 монет и стартовый пак",
+    title: "Забери 2 000 монет и стартовый пак",
     description:
       "Создай профиль за 10 секунд и получи приветственную валюту — хватит, чтобы выбить персонажей ранга Legendary или Omnipotent.",
     cta: "Забрать",

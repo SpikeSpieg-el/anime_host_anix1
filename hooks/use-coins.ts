@@ -165,17 +165,22 @@ export function useCoins() {
   }, [user?.id, session?.access_token])
 
   // SECURE: Потратить монеты через безопасный API
-  const spendCoins = useCallback(async (amount: number): Promise<boolean> => {
+  /**
+   * Списывает монеты и возвращает одноразовый токен возврата.
+   * Токен выдаёт сервер при списании: вернуть потраченное можно только на него,
+   * поэтому «накрутить» монеты повторными возвратами невозможно.
+   */
+  const spendCoins = useCallback(async (amount: number): Promise<{ success: boolean; refundToken?: string }> => {
     if (!user) {
       console.warn('[useCoins] Cannot spend coins: user not authenticated')
-      return false
+      return { success: false }
     }
 
     // Используем сессию напрямую из useAuth
     const accessToken = session?.access_token
     if (!accessToken) {
-      console.warn('[useCoins] No session token available')
-      return false
+      console.warn('[useCoins] No access token available')
+      return { success: false }
     }
 
     try {
@@ -197,28 +202,37 @@ export function useCoins() {
           localStorage.setItem(COINS_STORAGE_KEY, (result.newBalance ?? coins).toString())
         }
         console.log(`[useCoins] Successfully spent ${amount} coins`)
-        return true
+        return { success: true, refundToken: result.refundToken ?? undefined }
       } else {
         console.error('[useCoins] Failed to spend coins:', result.message)
         // Refresh balance from server to sync stale client state
         loadCoins()
-        return false
+        return { success: false }
       }
     } catch (error: any) {
       // Игнорируем AbortError
       if (error.name === 'AbortError') {
         console.log('[useCoins] Spend coins request aborted')
-        return false
+        return { success: false }
       }
       console.error('[useCoins] Error spending coins:', error)
-      return false
+      return { success: false }
     }
   }, [user, coins, session])
 
   // SECURE: Добавить монеты через безопасный API
-  const addCoins = useCallback(async (amount: number): Promise<boolean> => {
+  /**
+   * Возвращает монеты по одноразовому токену возврата.
+   * Сумму сверяет сервер: клиент не может вернуть больше списанного.
+   */
+  const addCoins = useCallback(async (amount: number, refundToken?: string): Promise<boolean> => {
     if (!user) {
       console.warn('[useCoins] Cannot add coins: user not authenticated')
+      return false
+    }
+
+    if (!refundToken) {
+      console.warn('[useCoins] Refund without token is not allowed — ignored')
       return false
     }
 
@@ -236,7 +250,7 @@ export function useCoins() {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${accessToken}`
         },
-        body: JSON.stringify({ operation: 'add', amount })
+        body: JSON.stringify({ operation: 'add', amount, refundToken })
       })
 
       const result = await res.json()
@@ -280,8 +294,16 @@ export function useCoins() {
       loadCoins()
     }
     
+    // Баланс изменили на сервере (ежедневный бонус, веха коллекции, возврат крутки)
+    const handleEconomyCoinsChanged = () => {
+      if (!user) return
+      isLoadingRef.current = false
+      loadCoins()
+    }
+
     window.addEventListener('supabase-reconnected', handleSupabaseReconnect)
-    
+    window.addEventListener('economy-coins-changed', handleEconomyCoinsChanged)
+
     return () => {
       isMountedRef.current = false
       // Отменяем все pending запросы при размонтировании
@@ -290,6 +312,7 @@ export function useCoins() {
         abortControllerRef.current = null
       }
       window.removeEventListener('supabase-reconnected', handleSupabaseReconnect)
+      window.removeEventListener('economy-coins-changed', handleEconomyCoinsChanged)
     }
   }, [user, loadCoins])
 
@@ -331,7 +354,7 @@ export function useCoins() {
     forceSync: async () => {
       if (!user) return
       const syncedCoins = await forceSyncCoins(user.id)
-      if (syncedCoins !== null) {
+      if (typeof syncedCoins === 'number' && Number.isFinite(syncedCoins)) {
         setCoins(syncedCoins)
         localStorage.setItem(COINS_STORAGE_KEY, syncedCoins.toString())
       }
@@ -340,7 +363,7 @@ export function useCoins() {
     fixOverflow: async (targetAmount: number = 70000) => {
       if (!user) return
       const fixedCoins = await fixOverflowCoins(user.id, targetAmount)
-      if (fixedCoins !== null && fixedCoins !== undefined) {
+      if (typeof fixedCoins === 'number' && Number.isFinite(fixedCoins)) {
         setCoins(fixedCoins)
         localStorage.setItem(COINS_STORAGE_KEY, fixedCoins.toString())
       }

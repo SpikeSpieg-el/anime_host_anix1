@@ -11,6 +11,7 @@
     "test:unit": "vitest run tests/unit tests/api",
     "test:coverage": "vitest run --coverage",
     "test:gacha": "node scripts/gacha-autotest.mjs",
+    "economy:report": "node scripts/economy-report.mjs",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:install": "playwright install --with-deps chromium",

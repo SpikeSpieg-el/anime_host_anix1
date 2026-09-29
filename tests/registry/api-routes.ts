@@ -17,9 +17,17 @@ export interface ApiRegistryEntry {
 }
 
 export const API_ROUTES: ApiRegistryEntry[] = [
+  { path: "/api/account-stats", methods: ["GET"], auth: "bearer" },
+  { path: "/api/bookmarks", methods: ["GET", "POST", "DELETE"], auth: "bearer" },
+  { path: "/api/coins/normalize", methods: ["POST"], auth: "bearer", notes: "серверная проверка баланса: клиент больше не пишет монеты напрямую" },
+  { path: "/api/economy/daily", methods: ["GET", "POST", "PUT"], auth: "bearer", notes: "ежедневная награда и вехи коллекции" },
+  { path: "/api/fallback-poster", methods: ["GET"], auth: "public" },
+  { path: "/api/market/instant-sell", methods: ["GET", "POST"], auth: "bearer", notes: "мгновенная продажа карты за 70% справедливой цены" },
+  { path: "/api/thumbnail-proxy", methods: ["GET"], auth: "public" },
+  { path: "/api/watch-history", methods: ["GET", "POST", "DELETE"], auth: "bearer" },
   { path: "/api/admin/test", methods: ["GET"], auth: "admin" },
   { path: "/api/admin/users", methods: ["GET"], auth: "admin" },
-  { path: "/api/admin/analytics-export", methods: ["POST"], auth: "admin", notes: "экспорт данных Umami в CSV через утилиту @openpanel/umami-exporter (cookie admin_auth)" },
+  { path: "/api/admin/analytics-export", methods: ["GET"], auth: "admin", notes: "экспорт данных Umami в CSV через утилиту @openpanel/umami-exporter (cookie admin_auth)" },
   { path: "/api/anime-batch", methods: ["GET"], auth: "public" },
   { path: "/api/anime/:id", methods: ["GET"], auth: "public" },
   { path: "/api/anime/catalog", methods: ["GET"], auth: "public" },

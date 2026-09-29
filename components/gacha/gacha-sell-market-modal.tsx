@@ -1,9 +1,17 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { Loader2, Store } from "lucide-react"
+import { Loader2, Store, Zap, TrendingUp } from "lucide-react"
 import type { Card } from "@/app/gacha/types"
-import { computeMaxListingPrice, computeMinListingPrice } from "@/lib/market-floor"
+import {
+  computeMaxListingPrice,
+  computeMinListingPrice,
+  getFairCardValue,
+  getInstantSellPrice,
+  getNetProceeds,
+} from "@/lib/market-floor"
+import { MARKET_TAX_RATE } from "@/lib/economy"
+import { getDismantleValue } from "@/types/gacha"
 import { useAuth } from "@/components/auth/auth-provider" // Импортируем хук авторизации
 import { AnalyticsEvent, trackEvent } from "@/lib/analytics"
 
@@ -27,6 +35,8 @@ export function GachaSellMarketModal({
   const [marketData, setMarketData] = useState<any>(null)
   const [loadingSuggestedPrice, setLoadingSuggestedPrice] = useState(false)
   const [analyticsData, setAnalyticsData] = useState<any>(null)
+  const [instantSelling, setInstantSelling] = useState(false)
+  const [confirmInstant, setConfirmInstant] = useState(false)
   
   // Получаем сессию напрямую из провайдера, не дергая базу лишний раз
   const { session } = useAuth()
@@ -59,9 +69,59 @@ export function GachaSellMarketModal({
     )
   }, [card, collectedCards])
 
+  // Мгновенная продажа: монеты сразу, но 30% справедливой цены уходит в никуда.
+  // Это плата за ликвидность — выбирать её стоит, только когда крутить надо сейчас.
+  const instantSellPrice = useMemo(() => (card ? getInstantSellPrice(card) : 0), [card])
+  const fairPrice = useMemo(() => (card ? getFairCardValue(card) : 0), [card])
+  const dustValue = useMemo(() => (card ? getDismantleValue(card.rarity) : 0), [card])
+
+  const instantSell = useCallback(async () => {
+    if (!card || !session?.access_token) {
+      onNotify("Маркет", "Войдите в аккаунт, чтобы продавать карты.", "warning")
+      return
+    }
+
+    setInstantSelling(true)
+    try {
+      const res = await fetch("/api/market/instant-sell", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ uniqueId: card.uniqueId }),
+      })
+
+      const data = await res.json()
+      if (!res.ok) {
+        throw new Error(data.error || "Не удалось продать карту")
+      }
+
+      trackEvent(AnalyticsEvent.MARKET_LIST, {
+        price: data.price,
+        rarity: card.rarity,
+        anime: card.anime,
+        instant: true,
+      })
+      onNotify(
+        "Маркет",
+        `Карта продана за ${Number(data.price).toLocaleString()} монет.`,
+        "info"
+      )
+      setConfirmInstant(false)
+      onClose()
+      await onListed()
+    } catch (e) {
+      onNotify("Маркет", e instanceof Error ? e.message : "Ошибка", "error")
+    } finally {
+      setInstantSelling(false)
+    }
+  }, [card, onClose, onListed, onNotify, session])
+
   useEffect(() => {
     if (!card) return
     setPriceInput(minSellPrice.toLocaleString('ru-RU'))
+    setConfirmInstant(false)
     
     // Загружаем рекомендуемую цену
     const loadSuggestedPrice = async () => {
@@ -135,7 +195,7 @@ export function GachaSellMarketModal({
     if (price > maxSellPrice) {
       onNotify(
         "Цена",
-        `Максимум для этой карты — ${maxSellPrice.toLocaleString()} монет (не больше от минимума, общий потолок 15 млн).`,
+        `Максимум для этой карты — ${maxSellPrice.toLocaleString()} монет (2.5× справедливой цены; выше рынок не купит).`,
         "warning"
       )
       return
@@ -212,14 +272,13 @@ export function GachaSellMarketModal({
           ) : null}
         </p>
         
-        {!loadingSuggestedPrice && marketData && marketData.totalListings > 0 && (
+        {!loadingSuggestedPrice && marketData && marketData.sampleCount > 0 && (
           <p className="text-xs text-slate-400 mb-2">
-            На рынке: {marketData.totalListings} карт этой редкости
-            {marketData.minListedPrice && marketData.maxListedPrice && (
-              <span className="ml-2">
-                (цены: {marketData.minListedPrice.toLocaleString()} — {marketData.maxListedPrice.toLocaleString()})
-              </span>
-            )}
+            Продано за 14 дней: {marketData.sampleCount} шт. по медиане{" "}
+            <span className="text-green-300 font-black">
+              {Number(marketData.medianPrice).toLocaleString()}
+            </span>{" "}
+            монет
           </p>
         )}
 
@@ -266,7 +325,9 @@ export function GachaSellMarketModal({
 
         {!loadingSuggestedPrice && priceExplanation && (
           <div className="mb-3 p-2 bg-slate-800/50 rounded-lg">
-            <p className="text-xs text-slate-400 mb-1 font-bold">Как формируется цена:</p>
+            <p className="text-xs text-slate-400 mb-1 font-bold">
+              Справедливая цена карты: {priceExplanation.fair?.toLocaleString()} монет
+            </p>
             <div className="space-y-1">
               {priceExplanation.base && (
                 <p className="text-xs text-slate-300">{priceExplanation.base}</p>
@@ -274,15 +335,15 @@ export function GachaSellMarketModal({
               {priceExplanation.stats && (
                 <p className="text-xs text-slate-300">{priceExplanation.stats}</p>
               )}
-              {priceExplanation.rarity && (
-                <p className="text-xs text-slate-300">{priceExplanation.rarity}</p>
-              )}
               {priceExplanation.mainChar && (
                 <p className="text-xs text-slate-300">{priceExplanation.mainChar}</p>
               )}
               {priceExplanation.modifiers && (
                 <p className="text-xs text-slate-300">{priceExplanation.modifiers}</p>
               )}
+              <p className="text-[10px] text-slate-500">
+                Распылить карту даст {dustValue} пыли (пыль тратится на смену арта, в монеты не переводится).
+              </p>
             </div>
           </div>
         )}
@@ -321,6 +382,58 @@ export function GachaSellMarketModal({
             Расчёт рекомендуемой цены...
           </div>
         )}
+        <div className="mb-3 rounded-xl border border-amber-500/25 bg-amber-500/5 p-3">
+          <div className="flex items-center gap-2 mb-1">
+            <Zap className="w-4 h-4 text-amber-300" />
+            <span className="text-xs font-black text-amber-200 uppercase tracking-wider">
+              Продать сразу
+            </span>
+          </div>
+          <p className="text-xs text-slate-300 mb-2">
+            {instantSellPrice.toLocaleString()} монет сразу, без ожидания покупателя. Это
+            примерно столько же, сколько даст разбор в пыль, но монетками — и можно сразу крутить
+            дальше. Выставляя лот, ты получаешь до{" "}
+            <span className="text-cyan-300 font-black">
+              {getNetProceeds(maxSellPrice).toLocaleString()}
+            </span>{" "}
+            монет, но только если кто-то купит.
+          </p>
+          {confirmInstant ? (
+            <div className="flex gap-2">
+              <button
+                type="button"
+                disabled={instantSelling}
+                onClick={() => void instantSell()}
+                className="flex-1 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 font-black text-xs flex items-center justify-center gap-2"
+              >
+                {instantSelling ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                Продать за {instantSellPrice.toLocaleString()}
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirmInstant(false)}
+                className="px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 font-bold text-xs"
+              >
+                Отмена
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setConfirmInstant(true)}
+              className="w-full py-2 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 text-amber-200 font-bold text-xs border border-amber-500/30"
+            >
+              Продать сразу за {instantSellPrice.toLocaleString()} монет
+            </button>
+          )}
+        </div>
+
+        <p className="text-[10px] text-slate-500 mb-2 flex items-center gap-1">
+          <TrendingUp className="w-3 h-3" />
+          Комиссия маркета {Math.round(MARKET_TAX_RATE * 100)}% — из цены лота. Справедливая цена
+          карты: {fairPrice.toLocaleString()} монет.
+        </p>
+
         <div className="flex flex-col sm:flex-row gap-3">
           <button
             type="button"

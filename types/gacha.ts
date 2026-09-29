@@ -18,19 +18,22 @@ export const rarityConfig: Record<Rarity, { color: string; bg: string; label: st
 }
 
 export const getDismantleValue = (rarity: Rarity): number => {
+  // Пыль за разбор карты. Держим примерно на 70% справедливой цены монет
+  // (см. RARITY_FAIR_VALUE в lib/economy.ts): рынок всегда выгоднее распыления,
+  // иначе игрокам нет смысла продавать, а пыль не спустить в монеты.
   const values: Record<Rarity, number> = {
-    trash: 5,
-    common: 10,
-    uncommon: 20,
-    rare: 40,
-    super_rare: 80,
-    epic: 150,
-    mythic: 300,
-    legendary: 500,
-    ancient: 800,
-    divine: 1200,
-    transcendent: 2000,
-    omnipotent: 5000
+    trash: 4,
+    common: 5,
+    uncommon: 8,
+    rare: 30,
+    super_rare: 60,
+    epic: 115,
+    mythic: 230,
+    legendary: 380,
+    ancient: 640,
+    divine: 880,
+    transcendent: 1500,
+    omnipotent: 3700
   };
   return values[rarity] || 5;
 };
