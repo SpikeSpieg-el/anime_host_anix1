@@ -6,6 +6,7 @@ import { cookies } from 'next/headers'
 import { Footer } from "@/components/layout/footer"
 import { ScrollToTop } from "@/components/layout/scroll-to-top"
 import type { Metadata } from "next"
+import { safeSerializeJson } from "@/lib/seo/safe-json"
 
 async function getUserProfile() {
   try {
@@ -229,11 +230,11 @@ export default async function CatalogPage({ searchParams }: CatalogPageProps) {
       {/* Schema.org Микроразметка для поисковиков */}
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(collectionJsonLd) }}
+        dangerouslySetInnerHTML={{ __html: safeSerializeJson(collectionJsonLd) }}
       />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
+        dangerouslySetInnerHTML={{ __html: safeSerializeJson(breadcrumbJsonLd) }}
       />
 
       {/* Dot Pattern Background */}

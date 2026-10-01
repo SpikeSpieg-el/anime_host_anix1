@@ -4,8 +4,13 @@ export interface UserProfile {
   avatar_url: string | null
   updated_at: string | null
   allow_nsfw_search?: boolean
-  email?: string
-  created_at?: string
+  email?: string | null
+  created_at?: string | null
+  last_sign_in_at?: string | null
+  banned_until?: string | null
+  is_banned?: boolean
+  referrerDomain?: string | null
+  referralLandingPage?: string | null
 }
 
 export interface WatchHistoryItem {
@@ -28,6 +33,32 @@ export interface BookmarkItem {
   created_at: string
 }
 
+export interface UserActivityEvent {
+  id: string
+  user_id: string
+  event_type: string
+  category: string | null
+  payload: Record<string, any> | null
+  created_at: string
+}
+
+export interface AccountStatsSummary {
+  total_sessions?: number | string | null
+  total_time_ms?: number | string | null
+  watch_time_ms?: number | string | null
+  last_visit_at?: string | null
+  first_visit_at?: string | null
+  page_views?: number | string | null
+  watch_events?: number | string | null
+  gacha_rolls?: number | string | null
+  battles_started?: number | string | null
+  bookmarks_added?: number | string | null
+  market_actions?: number | string | null
+  searches?: number | string | null
+  avg_session_ms?: number | string | null
+  last_updated_at?: string | null
+}
+
 export interface UserWithStats extends UserProfile {
   watchHistoryCount: number
   bookmarksCount: number
@@ -36,6 +67,13 @@ export interface UserWithStats extends UserProfile {
   recentBookmarks: BookmarkItem[]
   allHistory: WatchHistoryItem[]
   allBookmarks: BookmarkItem[]
+  detailsLoaded?: boolean
+  activityEvents?: UserActivityEvent[]
+  activityEventsCount?: number
+  activityEventsAvailable?: boolean
+  accountStats?: AccountStatsSummary | null
+  accountStatsAvailable?: boolean
+  aiStatsAvailable?: boolean
   aiStats: {
     total_battles: number
     last_battle_date: string | null

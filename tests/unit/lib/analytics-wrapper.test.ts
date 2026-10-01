@@ -1,6 +1,6 @@
 import { act, createElement, StrictMode } from "react"
 import { createRoot, type Root } from "react-dom/client"
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from "vitest"
 import { AnalyticsWrapper } from "@/components/layout/analytics-wrapper"
 import { UMAMI_SCRIPT_TAG_ID, unloadAnalyticsScript } from "@/lib/analytics"
 
@@ -19,7 +19,8 @@ vi.mock("@/components/auth/auth-provider", () => ({ useAuth: () => ({ user: stat
 let root: Root
 let host: HTMLDivElement
 let payloads: Record<string, unknown>[]
-let identify: ReturnType<typeof vi.fn>
+type Identify = (id: unknown, data?: unknown) => unknown
+let identify: Mock<Identify>
 async function render() {
   await act(async () => { root.render(createElement(StrictMode, null, createElement(AnalyticsWrapper))) })
 }
@@ -31,7 +32,7 @@ beforeEach(() => {
   unloadAnalyticsScript()
   document.getElementById(UMAMI_SCRIPT_TAG_ID)?.remove()
   payloads = []
-  identify = vi.fn(() => Promise.resolve())
+  identify = vi.fn<Identify>(() => Promise.resolve())
   window.umami = {
     track: build => { payloads.push((build as Function)({ hostname: "localhost", website: "test" })); return Promise.resolve() },
     identify,

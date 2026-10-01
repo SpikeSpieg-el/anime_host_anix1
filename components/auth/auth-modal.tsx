@@ -9,8 +9,9 @@ import { AnimeSliderCaptcha } from "@/components/auth/anime-slider-captcha"
 import { Loader2, Mail, Lock, LogIn, UserPlus, AlertCircle, KeyRound, CheckCircle2, ArrowLeft } from "lucide-react"
 import { loggers } from "@/lib/logger"
 import { useToast } from "@/hooks/use-toast"
+import { useConsent } from "@/components/providers/consent-provider"
 import { dispatchGiftCardReceived } from "@/lib/gift-card-events"
-import { AnalyticsEvent, identifyUser, trackEvent } from "@/lib/analytics"
+import { AnalyticsEvent, getSignupAttribution, identifyUser, trackEvent } from "@/lib/analytics"
 import { consumeGuestHookAuthSource } from "@/lib/guest-hooks"
 import type { Card } from "@/app/gacha/types"
 
@@ -109,6 +110,7 @@ export function AuthModal({
   const [error, setError] = useState<string | null>(null)
   const [resetSent, setResetSent] = useState(false)
   const { toast } = useToast()
+  const { consent, hasConsent } = useConsent()
 
   const isOpen = externalIsOpen !== undefined ? externalIsOpen : internalIsOpen
   const setIsOpen = onClose || setInternalIsOpen
@@ -244,6 +246,8 @@ export function AuthModal({
             data: {
               referral_code: referralCode,
               gift_card: giftCardValue ? JSON.stringify(giftCardValue) : null,
+              // Store first-touch attribution only when the visitor opted into analytics.
+              ...(hasConsent && consent?.analytics ? getSignupAttribution() : {}),
             },
           },
         })

@@ -15,6 +15,20 @@ import {
 } from "lucide-react"
 import type { CustomNews } from "./types"
 
+function toSafePreviewText(markup: string): string {
+  return markup
+    .replace(/<\s*script\b[^>]*>[\s\S]*?<\s*\/script\s*>/gi, " ")
+    .replace(/<\s*style\b[^>]*>[\s\S]*?<\s*\/style\s*>/gi, " ")
+    .replace(/<\s*br\s*\/?>/gi, "\n")
+    .replace(/<\s*\/\s*(?:p|div|li|h[1-6])\s*>/gi, "\n")
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&nbsp;|&#160;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim()
+}
+
 interface NewsTabProps {
   news: CustomNews[]
   isLoading: boolean
@@ -162,16 +176,15 @@ export function NewsTab({ news, isLoading, onCreateNews, onUpdateNews, onDeleteN
         </p>
       </div>
 
-      {/* Полный текст HTML */}
+      {/* Предпросмотр без интерпретации пользовательского HTML */}
       <div className="pt-4 border-t border-border">
         {body ? (
-          <div
-            className="shikimori-news-body prose prose-invert max-w-none text-foreground/90 leading-relaxed font-sans text-sm sm:text-base"
-            dangerouslySetInnerHTML={{ __html: body }}
-          />
+          <p className="whitespace-pre-wrap break-words text-foreground/90 leading-relaxed font-sans text-sm sm:text-base">
+            {toSafePreviewText(body)}
+          </p>
         ) : (
           <p className="text-sm text-muted-foreground italic">
-            Полный текст (HTML) пока не заполнен...
+            Полный текст пока не заполнен...
           </p>
         )}
       </div>

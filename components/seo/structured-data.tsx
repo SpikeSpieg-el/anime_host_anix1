@@ -1,3 +1,5 @@
+import { safeSerializeJson } from "@/lib/seo/safe-json"
+
 interface StructuredDataProps {
   type: 'organization' | 'website' | 'breadcrumb' | 'faq' | 'video' | 'webapp'
   data: Record<string, any>
@@ -7,7 +9,7 @@ export function StructuredData({ type, data }: StructuredDataProps) {
   return (
     <script
       type="application/ld+json"
-      dangerouslySetInnerHTML={{ __html: JSON.stringify(data) }}
+      dangerouslySetInnerHTML={{ __html: safeSerializeJson(data) }}
     />
   )
 }

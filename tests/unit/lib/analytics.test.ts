@@ -378,6 +378,15 @@ describe("идентичность и свойства посетителей (�
     // username-из-email — персональные данные, в Umami не отправляем
     expect(buildUserProperties({ username: "user@example.com" })).not.toHaveProperty("username")
     expect(buildUserProperties({ username: "weeb", referred_by: "code" }).referred).toBe(true)
+    expect(buildUserProperties({
+      initial_referrer_domain: "WWW.DTS.ANTIPIRACY.GLOBAL",
+      initial_landing_page: "/r/private-code",
+      initial_visit_date: "2026-09-30",
+    })).toMatchObject({
+      initial_referrer_domain: "dts.antipiracy.global",
+      initial_landing_page: "/r/[code]",
+      initial_visit_date: "2026-09-30",
+    })
   })
 
   it("identify шлёт свойства и дублирует только при их изменении", async () => {

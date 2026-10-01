@@ -3,6 +3,8 @@ import { Pool, PoolClient } from 'pg'
 import QueryStream from 'pg-query-stream'
 import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
+import { ADMIN_AUTH_COOKIE, isValidAdminSession } from '@/lib/admin-auth'
+import { csvField } from '@/lib/csv'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -12,19 +14,10 @@ const pool = new Pool({
   max: 3,
 })
 
-function csvField(value: unknown): string {
-  if (value === null || value === undefined) return ''
-  const str = typeof value === 'object' ? JSON.stringify(value) : String(value)
-  if (str.includes('"') || str.includes(',') || str.includes('\n') || str.includes('\r')) {
-    return `"${str.replace(/"/g, '""')}"`
-  }
-  return str
-}
-
 export async function GET(request: Request) {
   try {
     const cookieStore = await cookies()
-    const isAdmin = cookieStore.get('admin_auth')?.value === 'true'
+    const isAdmin = isValidAdminSession(cookieStore.get(ADMIN_AUTH_COOKIE)?.value)
 
     if (!isAdmin) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

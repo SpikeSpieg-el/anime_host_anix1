@@ -29,6 +29,15 @@ describe("createRateLimiter", () => {
     expect(limiter.checkLimit("ip-b").success).toBe(true)
   })
 
+  it("can reset a bucket after a successful authentication", () => {
+    const limiter = createRateLimiter({ interval: 60_000, maxRequests: 1 })
+    const id = `reset-${Math.random()}`
+    expect(limiter.checkLimit(id).success).toBe(true)
+    expect(limiter.checkLimit(id).success).toBe(false)
+    limiter.resetLimit(id)
+    expect(limiter.checkLimit(id).success).toBe(true)
+  })
+
   it("resets after the window", () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date("2026-01-01T00:00:00Z"))

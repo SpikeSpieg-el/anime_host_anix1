@@ -1,14 +1,10 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { createClient } from "@supabase/supabase-js"
+import { supabase } from "@/lib/supabase"
 import { toast } from "sonner"
 import { Sparkles, Edit, Trash2, Plus, Loader2, Eye, FileText, HelpCircle, ChevronDown, ChevronUp, Copy, Check } from "lucide-react"
 import { FormattedEditorialContent } from "@/components/watch/watch-page-layout-wrapper"
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
 interface EditorialReview {
   id: string

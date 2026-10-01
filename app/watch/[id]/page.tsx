@@ -7,6 +7,7 @@ import type { Metadata } from "next"
 import { BreadcrumbStructuredData } from "@/components/seo/structured-data"
 import { getSchemaPosterUrl } from "@/lib/shikimori/images"
 import { cleanAnimeTitle, getWatchPath, getWatchSegment, parseWatchParam, safeDecodeSegment } from "@/lib/seo/watch-url"
+import { safeSerializeJson } from "@/lib/seo/safe-json"
 
 type ExtendedAnime = Anime & {
   russian?: string
@@ -330,11 +331,11 @@ export default async function WatchPage({
     <>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        dangerouslySetInnerHTML={{ __html: safeSerializeJson(jsonLd) }}
       />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(videoObject) }}
+        dangerouslySetInnerHTML={{ __html: safeSerializeJson(videoObject) }}
       />
       <BreadcrumbStructuredData
         items={[

@@ -49,11 +49,9 @@ export default defineConfig({
       ],
     },
   },
-  // В Next.js JSX компилирует SWC (automatic runtime), а vitest по умолчанию
-  // берёт `jsx: preserve` из tsconfig и падает с «React is not defined»
-  // на компонентах. Приводим к тому же runtime, что и в приложении.
-  esbuild: {
-    jsx: "automatic",
+  // Vite 7 transforms TSX through Oxc; use the same automatic JSX runtime as Next.
+  oxc: {
+    jsx: { runtime: "automatic" },
   },
   resolve: {
     alias: {

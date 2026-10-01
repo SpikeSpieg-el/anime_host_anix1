@@ -8,7 +8,7 @@ interface AdminTabsProps {
 }
 
 const TABS: { id: AdminTab; label: string }[] = [
-  { id: "users", label: "Users" },
+  { id: "users", label: "Пользователи" },
   { id: "pvp", label: "PvP" },
   { id: "ai_battle", label: "AI Battle" },
   { id: "battle_logs", label: "Battle Logs" },

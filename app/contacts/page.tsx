@@ -17,6 +17,7 @@ import { Footer } from "@/components/layout/footer"
 import { Button } from "@/components/ui/button"
 import { VkIcon, YoutubeIcon, InstagramIcon, TiktokIcon } from "@/components/shared/social-icons"
 import { SocialLinkButton } from "@/components/shared/social-link-button"
+import { safeSerializeJson } from "@/lib/seo/safe-json"
 
 export const metadata: Metadata = {
   title: "Контакты — Weebx",
@@ -101,7 +102,7 @@ export default function ContactsPage() {
       {/* Schema.org Микроразметка */}
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(contactsJsonLd) }}
+        dangerouslySetInnerHTML={{ __html: safeSerializeJson(contactsJsonLd) }}
       />
 
       <Navbar />

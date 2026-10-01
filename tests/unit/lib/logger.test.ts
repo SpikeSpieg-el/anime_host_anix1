@@ -13,6 +13,7 @@ describe("logger", () => {
 
   afterEach(() => {
     spies.splice(0).forEach((s) => s.mockRestore())
+    vi.unstubAllEnvs()
   })
 
   it("exposes named loggers", () => {
@@ -47,8 +48,7 @@ describe("logger", () => {
   })
 
   it("debug/info are skipped in production", () => {
-    const original = process.env.NODE_ENV
-    process.env.NODE_ENV = "production"
+    vi.stubEnv("NODE_ENV", "production")
     const prod = createLogger("prod")
     prod.debug("nope")
     prod.info("nope")
@@ -56,6 +56,5 @@ describe("logger", () => {
     expect(console.info).not.toHaveBeenCalled()
     prod.warn("still")
     expect(console.warn).toHaveBeenCalled()
-    process.env.NODE_ENV = original
   })
 })

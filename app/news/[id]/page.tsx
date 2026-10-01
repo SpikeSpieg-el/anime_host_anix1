@@ -12,6 +12,7 @@ import { getProxiedSrc } from "@/lib/image-loader"
 import type { LinkedAnime } from "@/lib/shikimori/types"
 import { BreadcrumbStructuredData } from "@/components/seo/structured-data"
 import { getWatchPath } from "@/lib/seo/watch-url"
+import { sanitizeNewsHtml } from "@/lib/news/sanitize-html"
 
 interface Props {
   params: Promise<{ id: string }>
@@ -321,8 +322,11 @@ export default async function NewsItemPage({ params }: Props) {
     })
   )
 
-  const bodyHtml = news.htmlBody ? (isJikan ? news.htmlBody : sanitizeShikimoriHtml(news.htmlBody, animePosters)) : null
-  const footerHtml = news.htmlFooter ? sanitizeShikimoriFooter(news.htmlFooter) : null
+  const transformedBodyHtml = news.htmlBody
+    ? (isJikan ? news.htmlBody : sanitizeShikimoriHtml(news.htmlBody, animePosters))
+    : null
+  const bodyHtml = transformedBodyHtml ? sanitizeNewsHtml(transformedBodyHtml) : null
+  const footerHtml = news.htmlFooter ? sanitizeNewsHtml(sanitizeShikimoriFooter(news.htmlFooter)) : null
   const textBody = cleanText(news.excerpt)
   const cleanTitle = cleanText(news.title)
 
