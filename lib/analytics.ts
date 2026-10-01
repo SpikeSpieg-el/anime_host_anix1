@@ -468,6 +468,32 @@ export function getGuestIdentity(): VisitorIdentity {
   }
 }
 
+export interface SignupAttribution {
+  initial_referrer_domain?: string
+  initial_landing_page?: string
+  initial_visit_date?: string
+}
+
+/**
+ * Read the already consented guest attribution so a new account can be matched
+ * to its first-touch source. Callers must check analytics consent first.
+ */
+export function getSignupAttribution(): SignupAttribution {
+  try {
+    const visitor = getGuestIdentity()
+    const domain = visitor.referrerDomain.toLowerCase().replace(/^www\./, "")
+    const safeDomain = domain !== "direct" && /^[a-z0-9.-]{1,253}$/.test(domain) ? domain : ""
+    const landingPage = sanitizeAnalyticsUrl(visitor.landingPage)
+    return {
+      ...(safeDomain ? { initial_referrer_domain: safeDomain } : {}),
+      ...(landingPage ? { initial_landing_page: landingPage.slice(0, MAX_STRING_LENGTH) } : {}),
+      ...(visitor.firstVisit ? { initial_visit_date: visitor.firstVisit } : {}),
+    }
+  } catch {
+    return {}
+  }
+}
+
 function detectDeviceType(): "mobile" | "tablet" | "desktop" {
   if (typeof navigator === "undefined") return "desktop"
   const ua = navigator.userAgent || ""
@@ -524,6 +550,9 @@ export function buildGuestProperties(identity: VisitorIdentity): UmamiEventData 
 export interface UserAnalyticsProfile {
   username?: string | null
   referred_by?: string | null
+  initial_referrer_domain?: string | null
+  initial_landing_page?: string | null
+  initial_visit_date?: string | null
 }
 
 /**
@@ -541,6 +570,19 @@ export function buildUserProperties(profile?: UserAnalyticsProfile | null): Umam
   const username = typeof profile?.username === "string" ? profile.username.trim() : ""
   if (username && !username.includes("@")) {
     data.username = username
+  }
+  const referrerDomain = typeof profile?.initial_referrer_domain === "string"
+    ? profile.initial_referrer_domain.toLowerCase().replace(/^www\./, "")
+    : ""
+  if (referrerDomain && referrerDomain !== "direct" && /^[a-z0-9.-]{1,253}$/.test(referrerDomain)) {
+    data.initial_referrer_domain = referrerDomain
+  }
+  const landingPage = typeof profile?.initial_landing_page === "string"
+    ? sanitizeAnalyticsUrl(profile.initial_landing_page)
+    : ""
+  if (landingPage) data.initial_landing_page = landingPage
+  if (typeof profile?.initial_visit_date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(profile.initial_visit_date)) {
+    data.initial_visit_date = profile.initial_visit_date
   }
   return data
 }

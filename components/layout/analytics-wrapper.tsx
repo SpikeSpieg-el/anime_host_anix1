@@ -35,7 +35,13 @@ export function AnalyticsWrapper() {
   useEffect(() => {
     if (!granted || sessionLoading) return
     if (user?.id) {
-      identifyUser(`supabase:${user.id}`, buildUserProperties(profile))
+      identifyUser(`supabase:${user.id}`, buildUserProperties({
+        username: profile?.username,
+        referred_by: profile?.referred_by,
+        initial_referrer_domain: user.user_metadata?.initial_referrer_domain,
+        initial_landing_page: user.user_metadata?.initial_landing_page,
+        initial_visit_date: user.user_metadata?.initial_visit_date,
+      }))
     } else {
       const visitor = getGuestIdentity()
       identifyUser(visitor.id, buildGuestProperties(visitor))

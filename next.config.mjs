@@ -194,7 +194,7 @@ const nextConfig = {
             key: 'Content-Security-Policy',
             value: [
               "default-src 'self'",
-              `script-src 'self' 'unsafe-inline' 'unsafe-eval' ${UMAMI_ORIGIN}`,
+              `script-src 'self' 'unsafe-inline'${process.env.NODE_ENV === 'development' ? " 'unsafe-eval'" : ''} ${UMAMI_ORIGIN}`,
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
               "style-src-elem 'self' 'unsafe-inline' https://fonts.googleapis.com",
               "img-src 'self' data: blob: https: http:",
@@ -206,6 +206,7 @@ const nextConfig = {
               "media-src 'self' https: http: blob:",
               "object-src 'none'",
               "base-uri 'self'",
+              "form-action 'self'",
             ].join('; ')
           },
         ],

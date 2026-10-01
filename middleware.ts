@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import type { NextFetchEvent, NextRequest } from "next/server"
 import { getWatchRedirectPath } from "@/lib/seo/watch-redirect"
+import { isValidAdminRequestOrigin } from "@/lib/admin-origin"
 
 // Paths that require CSRF protection (state-changing operations)
 const CSRF_PROTECTED_PATHS = [
@@ -65,7 +66,7 @@ const SECURITY_HEADERS: Record<string, string> = {
   "Permissions-Policy": "camera=(), microphone=(), geolocation=(), browsing-topics=()",
   "Content-Security-Policy": [
     "default-src 'self'",
-    `script-src 'self' 'unsafe-inline' 'unsafe-eval' ${UMAMI_ORIGIN}`,
+    `script-src 'self' 'unsafe-inline'${process.env.NODE_ENV === "development" ? " 'unsafe-eval'" : ""} ${UMAMI_ORIGIN}`,
     // Google Fonts are declared in app/layout.tsx. Keep the source in both
     // style-src and style-src-elem because some browsers do not treat the
     // fallback from style-src consistently for <link rel="stylesheet">.
@@ -78,6 +79,7 @@ const SECURITY_HEADERS: Record<string, string> = {
     "media-src 'self' https: http: blob:",
     "object-src 'none'",
     "base-uri 'self'",
+    "form-action 'self'",
   ].join("; "),
 }
 
@@ -88,12 +90,34 @@ const STRIP_HEADERS = [
   "X-Matched-Path",
 ]
 
-function applySecurityHeaders(response: NextResponse) {
+function isAdminSurface(pathname: string): boolean {
+  return pathname === "/admin" || pathname.startsWith("/admin/") ||
+    pathname === "/api/admin" || pathname.startsWith("/api/admin/")
+}
+
+function applySecurityHeaders(response: NextResponse, pathname = "") {
   for (const [key, value] of Object.entries(SECURITY_HEADERS)) {
     response.headers.set(key, value)
   }
   for (const header of STRIP_HEADERS) {
     response.headers.delete(header)
+  }
+
+  if (isAdminSurface(pathname)) {
+    response.headers.set("Cache-Control", "private, no-store, max-age=0, must-revalidate")
+    response.headers.set("Pragma", "no-cache")
+    response.headers.set("Referrer-Policy", "no-referrer")
+    response.headers.set("Cross-Origin-Resource-Policy", "same-origin")
+    response.headers.set("Cross-Origin-Opener-Policy", "same-origin")
+    // Keep admin pages and APIs out of third-party frames. This is scoped here
+    // because the public Kodik player proxy intentionally supports framing.
+    response.headers.set(
+      "Content-Security-Policy",
+      `${SECURITY_HEADERS["Content-Security-Policy"]}; frame-ancestors 'none'`,
+    )
+  }
+  if (process.env.NODE_ENV === "production") {
+    response.headers.set("Strict-Transport-Security", "max-age=31536000")
   }
   return response
 }
@@ -122,7 +146,7 @@ export async function middleware(request: NextRequest, event?: NextFetchEvent) {
       url.search = q === -1 ? "" : redirectPath.slice(q)
       const response = NextResponse.redirect(url, 301)
       response.headers.set("Cache-Control", "public, max-age=3600")
-      return applySecurityHeaders(response)
+      return applySecurityHeaders(response, pathname)
     }
   }
 
@@ -132,12 +156,20 @@ export async function middleware(request: NextRequest, event?: NextFetchEvent) {
     return NextResponse.next()
   }
 
-  // Only protect state-changing HTTP methods
+  // Admin form actions and future admin API mutations must be same-origin.
+  // Fail closed in production when Origin is absent or malformed.
   const isStateChangingMethod = ["POST", "PUT", "DELETE", "PATCH"].includes(method)
+  if (
+    isAdminSurface(pathname) &&
+    isStateChangingMethod &&
+    !isValidAdminRequestOrigin(request.headers.get("origin"), request.headers, request.url)
+  ) {
+    return applySecurityHeaders(new NextResponse("Forbidden", { status: 403 }), pathname)
+  }
 
   if (!isStateChangingMethod) {
     // Apply security headers even on GET requests
-    return applySecurityHeaders(NextResponse.next())
+    return applySecurityHeaders(NextResponse.next(), pathname)
   }
 
   // Check if path is exempt from CSRF (external integrations like Lampa)
@@ -147,14 +179,14 @@ export async function middleware(request: NextRequest, event?: NextFetchEvent) {
     response.headers.set("Access-Control-Allow-Origin", "*")
     response.headers.set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
     response.headers.set("Access-Control-Allow-Headers", "Content-Type, Authorization")
-    return applySecurityHeaders(response)
+    return applySecurityHeaders(response, pathname)
   }
 
   // Check if path requires CSRF protection
   const requiresCsrf = CSRF_PROTECTED_PATHS.some((path) => pathname.startsWith(path))
 
   if (!requiresCsrf) {
-    return applySecurityHeaders(NextResponse.next())
+    return applySecurityHeaders(NextResponse.next(), pathname)
   }
 
   // For API routes, check for required headers
@@ -171,17 +203,19 @@ export async function middleware(request: NextRequest, event?: NextFetchEvent) {
 
     // Check Origin header if present (for cross-origin requests)
     if (origin && host) {
-      const originUrl = new URL(origin)
-      if (originUrl.host !== host) {
-        console.warn(`Cross-origin request from ${origin} to ${pathname}`)
-        // In production, you might want to block this
-        // return new NextResponse("Forbidden", { status: 403 })
+      try {
+        const originUrl = new URL(origin)
+        if (originUrl.host !== host) {
+          console.warn(`Cross-origin request from ${origin} to ${pathname}`)
+        }
+      } catch {
+        console.warn(`Malformed Origin header on ${pathname}`)
       }
     }
   }
 
   const response = NextResponse.next()
-  return applySecurityHeaders(response)
+  return applySecurityHeaders(response, pathname)
 }
 
 export const config = {

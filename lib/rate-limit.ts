@@ -40,7 +40,7 @@ export function createRateLimiter(options: RateLimitOptions) {
       }
 
       requestsInWindow.push(now)
-      rateLimitStore.set(identifier, requestsInWindow)
+      rateLimitStore.set(identifier, requestsInWindow, { ttl: interval })
 
       return {
         success: true,
@@ -48,11 +48,17 @@ export function createRateLimiter(options: RateLimitOptions) {
         reset,
       }
     },
+    resetLimit(identifier: string): void {
+      rateLimitStore.delete(identifier)
+    },
   }
 }
 
 // Default rate limiters for different use cases
 export const rateLimiters = {
+  // Admin login: strict per-process backstop. Add edge/WAF limiting too for multi-instance deployments.
+  adminLogin: createRateLimiter({ interval: 15 * 60_000, maxRequests: 5 }),
+
   // Strict: 10 requests per minute (for auth endpoints)
   strict: createRateLimiter({ interval: 60000, maxRequests: 10 }),
   

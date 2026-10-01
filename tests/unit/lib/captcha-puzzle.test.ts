@@ -5,11 +5,12 @@ import {
   generateVerificationToken,
   verifyRegistrationToken,
 } from "@/lib/captcha-puzzle"
+import type { TrajectoryPoint } from "@/lib/captcha-puzzle"
 
 const SECRET = "test-secret-key-1234567890"
 
-function makeHumanPoints(n: number, baseX: number, durationMs: number): ReturnType<typeof analyzeTrajectory> {
-  const points: Array<{ x: number; y: number; t: number }> = []
+function makeHumanPoints(n: number, baseX: number, durationMs: number): TrajectoryPoint[] {
+  const points: TrajectoryPoint[] = []
   for (let i = 0; i < n; i++) {
     // Человек имеет микро-дрожание по Y и неравномерное время.
     const yJitter = Math.sin(i * 1.7) * 2 + (Math.random() - 0.5)
@@ -40,14 +41,14 @@ describe("analyzeTrajectory", () => {
 
   it("отклоняет телепорт с идеальным равномерным шагом (< 280мс)", () => {
     // 15 точек, но общее время < 280мс и абсолютно одинаковый шаг (dx=3, dt=15).
-    const points = []
+    const points: TrajectoryPoint[] = []
     for (let i = 0; i < 15; i++) points.push({ x: i * 3, y: 50 + Math.sin(i) * 1.2, t: i * 15 })
     expect(analyzeTrajectory(points)).toBe(false)
   })
 
   it("отклоняет идеальную линейную скорость (скрипт)", () => {
     // 8 точек с абсолютно одинаковым шагом по времени и X — без джиттера.
-    const points = []
+    const points: TrajectoryPoint[] = []
     for (let i = 0; i < 8; i++) {
       points.push({ x: i * 5, y: 50, t: i * 100 })
     }

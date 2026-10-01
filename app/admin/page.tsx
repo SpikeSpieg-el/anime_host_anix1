@@ -1,10 +1,10 @@
 "use client"
 
-import { useEffect, useState, useTransition } from "react"
+import { useEffect, useRef, useState, useTransition } from "react"
 import { LogOut, Lock } from "lucide-react"
 import { ScrollToTop } from "@/components/layout/scroll-to-top"
 import { Footer } from "@/components/layout/footer"
-import { adminLogin, adminLogout, checkAdminAuth, getAdminUsers, getPvPRules, updatePvPRule, getPvPLocations, createPvPLocation, deletePvPLocation, getPvPLogs, getBattleAIDashboard, getAdminUsersSimple, getBanners, createBanner, updateBanner, deleteBanner, getBannerCards, addBannerCard, updateBannerCard, deleteBannerCard, adminSendMail, adminSendMailBulk, adminGiftCardToUser, adminSendPushNotification, adminSendPushNotificationBulk, getPlayerLearningProfiles, getBattleBackgrounds, createBattleBackground, deleteBattleBackground, toggleBattleBackground, updateBattleBackground, getCustomNews, createCustomNews, updateCustomNews, deleteCustomNews, toggleCustomNewsPublished } from "./actions"
+import { adminLogin, adminLogout, checkAdminAuth, getAdminUsers, getAdminUserDetails, adminSetUserBan, getPvPRules, updatePvPRule, getPvPLocations, createPvPLocation, deletePvPLocation, getPvPLogs, getBattleAIDashboard, getAdminUsersSimple, getBanners, createBanner, updateBanner, deleteBanner, getBannerCards, addBannerCard, updateBannerCard, deleteBannerCard, adminSendMail, adminSendMailBulk, adminGiftCardToUser, adminSendPushNotification, adminSendPushNotificationBulk, getPlayerLearningProfiles, getBattleBackgrounds, createBattleBackground, deleteBattleBackground, toggleBattleBackground, updateBattleBackground, getCustomNews, createCustomNews, updateCustomNews, deleteCustomNews, toggleCustomNewsPublished } from "./actions"
 import type { Rarity } from "@/types/gacha"
 import { toast } from "sonner"
 
@@ -54,6 +54,7 @@ export default function AdminPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
+  const [totpCode, setTotpCode] = useState("")
   const [authError, setAuthError] = useState("")
   const [isPending, startTransition] = useTransition()
 
@@ -61,6 +62,10 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedUser, setSelectedUser] = useState<UserWithStats | null>(null)
+  const [detailsLoadingUserId, setDetailsLoadingUserId] = useState<string | null>(null)
+  const [detailsError, setDetailsError] = useState<string | null>(null)
+  const [banLoadingUserId, setBanLoadingUserId] = useState<string | null>(null)
+  const detailsRequestId = useRef<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [showAllHistory, setShowAllHistory] = useState(false)
   const [showAllBookmarks, setShowAllBookmarks] = useState(false)
@@ -136,8 +141,11 @@ export default function AdminPage() {
       const formData = new FormData()
       formData.set("username", username)
       formData.set("password", password)
+      formData.set("totpCode", totpCode)
       const result = await adminLogin(formData)
       if (result?.error) {
+        setPassword("")
+        setTotpCode("")
         setAuthError(result.error)
       } else {
         setAuthError("")
@@ -159,6 +167,10 @@ export default function AdminPage() {
       setError(null)
       const data = await getAdminUsers()
       setUsers(data)
+      setSelectedUser(null)
+      setDetailsError(null)
+      detailsRequestId.current = null
+      setDetailsLoadingUserId(null)
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Failed to load users data"
       setError(errorMessage)
@@ -230,6 +242,70 @@ export default function AdminPage() {
     } catch (err) {
       console.error("Failed to fetch simple users:", err)
       toast.error("Не удалось загрузить список пользователей")
+    }
+  }
+
+  const handleSelectUser = async (user: UserWithStats) => {
+    if (selectedUser?.id === user.id) {
+      detailsRequestId.current = null
+      setSelectedUser(null)
+      setDetailsError(null)
+      setDetailsLoadingUserId(null)
+      return
+    }
+
+    setSelectedUser(user)
+    setShowAllHistory(false)
+    setShowAllBookmarks(false)
+    setDetailsError(null)
+    if (user.detailsLoaded) return
+
+    detailsRequestId.current = user.id
+    setDetailsLoadingUserId(user.id)
+    try {
+      const details = await getAdminUserDetails(user.id)
+      setUsers((current) => current.map((item) => item.id === user.id ? { ...item, ...details } : item))
+      setSelectedUser((current) => current?.id === user.id ? { ...current, ...details } : current)
+    } catch (err) {
+      console.error("Failed to load user details:", err)
+      if (detailsRequestId.current === user.id) {
+        setDetailsError(err instanceof Error ? err.message : "Не удалось загрузить данные пользователя")
+      }
+    } finally {
+      if (detailsRequestId.current === user.id) {
+        detailsRequestId.current = null
+        setDetailsLoadingUserId(null)
+      }
+    }
+  }
+
+  const handleOpenMail = (userId: string) => {
+    setMailTargetUserId(userId)
+    setActiveTab("mail")
+    if (!mailLoaded || !simpleUsers.some((user) => user.id === userId)) {
+      void fetchSimpleUsers()
+    }
+  }
+
+  const handleToggleUserBan = async (user: UserWithStats) => {
+    const nextBanned = !user.is_banned
+    const confirmed = confirm(nextBanned
+      ? `Заблокировать вход для аккаунта ${user.email || user.username || user.id}? Это не удалит данные; блокировку можно будет снять здесь же.`
+      : `Снять блокировку входа для аккаунта ${user.email || user.username || user.id}?`)
+    if (!confirmed) return
+
+    try {
+      setBanLoadingUserId(user.id)
+      const result = await adminSetUserBan(user.id, nextBanned)
+      const updates = { is_banned: result.is_banned, banned_until: result.banned_until }
+      setUsers((current) => current.map((item) => item.id === user.id ? { ...item, ...updates } : item))
+      setSelectedUser((current) => current?.id === user.id ? { ...current, ...updates } : current)
+      toast.success(nextBanned ? "Вход для аккаунта заблокирован" : "Блокировка снята")
+    } catch (err) {
+      console.error("Failed to change user ban state:", err)
+      toast.error(err instanceof Error ? err.message : "Не удалось изменить статус аккаунта")
+    } finally {
+      setBanLoadingUserId(null)
     }
   }
 
@@ -634,7 +710,7 @@ export default function AdminPage() {
   }
 
   const formatDate = (dateString: string | null) => {
-    if (!dateString) return 'Never'
+    if (!dateString) return 'Нет данных'
     return new Date(dateString).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
   }
 
@@ -651,8 +727,8 @@ export default function AdminPage() {
               <div className="mx-auto w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-4">
                 <Lock className="w-6 h-6 text-primary" />
               </div>
-              <h1 className="text-xl sm:text-2xl font-bold text-foreground mb-2">Admin Access</h1>
-              <p className="text-sm text-muted-foreground">Enter credentials to access admin dashboard</p>
+              <h1 className="text-xl sm:text-2xl font-bold text-foreground mb-2">Доступ к админ-панели</h1>
+              <p className="text-sm text-muted-foreground">Введите логин и пароль администратора</p>
             </div>
             <form onSubmit={handleLogin} className="space-y-4">
               {authError && (
@@ -661,15 +737,20 @@ export default function AdminPage() {
                 </div>
               )}
               <div>
-                <label className="block text-sm font-medium text-foreground mb-2">Username</label>
-                <input type="text" value={username} onChange={(e) => setUsername(e.target.value)} className="w-full px-3 py-2 bg-muted border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary text-foreground" required />
+                <label htmlFor="admin-username" className="block text-sm font-medium text-foreground mb-2">Логин</label>
+                <input id="admin-username" name="username" type="text" autoComplete="username" value={username} onChange={(e) => setUsername(e.target.value)} className="w-full px-3 py-2 bg-muted border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary text-foreground" required />
               </div>
               <div>
-                <label className="block text-sm font-medium text-foreground mb-2">Password</label>
-                <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full px-3 py-2 bg-muted border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary text-foreground" required />
+                <label htmlFor="admin-password" className="block text-sm font-medium text-foreground mb-2">Пароль</label>
+                <input id="admin-password" name="password" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full px-3 py-2 bg-muted border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary text-foreground" required />
+              </div>
+              <div>
+                <label htmlFor="admin-totp" className="block text-sm font-medium text-foreground mb-2">Код из приложения-аутентификатора (TOTP)</label>
+                <input id="admin-totp" name="totpCode" type="text" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} value={totpCode} onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, "").slice(0, 6))} className="w-full px-3 py-2 bg-muted border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary text-foreground" aria-describedby="admin-totp-hint" />
+                <p id="admin-totp-hint" className="mt-1 text-xs text-muted-foreground">Обязателен в production; в локальной разработке — если настроен.</p>
               </div>
               <button type="submit" disabled={isPending} className="w-full py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors font-medium disabled:opacity-50">
-                {isPending ? "Signing in..." : "Sign In"}
+                {isPending ? "Входим…" : "Войти"}
               </button>
             </form>
           </div>
@@ -678,7 +759,7 @@ export default function AdminPage() {
     )
   }
 
-  if (loading) {
+  if (loading && users.length === 0) {
     return (
       <div className="min-h-screen bg-background p-3 sm:p-4 md:p-8">
         <div className="max-w-7xl mx-auto">
@@ -714,15 +795,15 @@ export default function AdminPage() {
         <div className="flex flex-col gap-4 mb-6 md:mb-8">
           <div className="flex justify-between items-center">
             <div>
-              <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-foreground mb-1 md:mb-2">Admin Dashboard</h1>
+              <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-foreground mb-1 md:mb-2">Панель администратора</h1>
             </div>
             <div className="flex gap-2 sm:gap-4 items-center">
               <div className="text-xs sm:text-sm text-muted-foreground hidden sm:block">
-                Total Users: {users.length}
+                Пользователей: {users.length}
               </div>
               <button onClick={handleLogout} className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-muted hover:bg-muted/80 rounded transition text-sm" disabled={isPending}>
                 <LogOut size={16} />
-                {isPending ? "..." : "Logout"}
+                {isPending ? "…" : "Выйти"}
               </button>
             </div>
           </div>
@@ -733,14 +814,16 @@ export default function AdminPage() {
           <UsersTab
             users={users}
             loading={loading}
+            onRefresh={fetchUsers}
             searchTerm={searchTerm}
             onSearchChange={setSearchTerm}
             selectedUser={selectedUser}
-            onSelectUser={(user) => {
-              setSelectedUser(selectedUser?.id === user.id ? null : user)
-              setShowAllHistory(false)
-              setShowAllBookmarks(false)
-            }}
+            onSelectUser={handleSelectUser}
+            onOpenMail={handleOpenMail}
+            onToggleUserBan={handleToggleUserBan}
+            detailsLoadingUserId={detailsLoadingUserId}
+            banLoadingUserId={banLoadingUserId}
+            detailsError={detailsError}
             showAllHistory={showAllHistory}
             onToggleAllHistory={() => setShowAllHistory(!showAllHistory)}
             showAllBookmarks={showAllBookmarks}

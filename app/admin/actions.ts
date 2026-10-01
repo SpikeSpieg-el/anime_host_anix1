@@ -1,88 +1,72 @@
 "use server"
 
-import { cookies } from "next/headers"
+import { cookies, headers } from "next/headers"
 import { redirect } from "next/navigation"
+import { createHash } from "node:crypto"
 import { createClient } from "@supabase/supabase-js"
 import webpush from "web-push"
-
-const ADMIN_USERNAME = process.env.ADMIN_USERNAME
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD
-
-const MAX_ATTEMPTS = 5
-const LOCKOUT_MS = 15 * 60 * 1000 // 15 minutes
+import { ADMIN_AUTH_COOKIE, ADMIN_SESSION_TTL_SECONDS, constantTimeStringEqual, consumeAdminTotp, createAdminSessionToken, getAdminAuthConfigurationError, isAdminTotpRequired, isValidAdminSession } from "@/lib/admin-auth"
+import { rateLimiters } from "@/lib/rate-limit"
+import { sanitizeNewsHtml } from "@/lib/news/sanitize-html"
 
 export async function adminLogin(formData: FormData) {
-  const username = formData.get("username") as string
-  const password = formData.get("password") as string
+  const fieldValue = (name: string) => {
+    const value = formData.get(name)
+    return typeof value === "string" ? value : ""
+  }
+  const username = fieldValue("username")
+  const password = fieldValue("password")
+  const totpCode = fieldValue("totpCode")
 
+  const configurationError = getAdminAuthConfigurationError()
+  if (configurationError) {
+    console.error(`[admin-auth] Refusing login: ${configurationError}`)
+    return { error: "Админ-вход отключён: не настроены обязательные параметры защиты." }
+  }
+
+  const requestHeaders = await headers()
+  const clientIp = (
+    requestHeaders.get("cf-connecting-ip") ||
+    requestHeaders.get("x-real-ip") ||
+    requestHeaders.get("x-forwarded-for")?.split(",")[0] ||
+    "unknown"
+  ).trim().slice(0, 128)
+  const allowlistedIps = (process.env.ADMIN_ALLOWED_IPS || "")
+    .split(",")
+    .map((ip) => ip.trim())
+    .filter(Boolean)
+  if (allowlistedIps.length > 0 && !allowlistedIps.includes(clientIp)) {
+    return { error: "Неверные данные для входа." }
+  }
+
+  // Process-local throttling is a backstop. Production should also rate-limit
+  // /admin at its trusted CDN/WAF so attempts are capped across instances.
+  const rateLimitKey = `admin-login:${createHash("sha256").update(clientIp).digest("hex")}`
+  const rateLimit = rateLimiters.adminLogin.checkLimit(rateLimitKey)
+  if (!rateLimit.success) return { error: "Слишком много попыток. Попробуйте позже." }
+
+  const expectedUsername = process.env.ADMIN_USERNAME?.trim() || ""
+  const expectedPassword = process.env.ADMIN_PASSWORD || ""
+  const usernameMatches = constantTimeStringEqual(username, expectedUsername)
+  const passwordMatches = constantTimeStringEqual(password, expectedPassword)
+
+  if (!usernameMatches || !passwordMatches) {
+    return { error: "Неверные данные для входа." }
+  }
+
+  // Do not consume a valid TOTP step when the primary credentials are wrong.
+  if (isAdminTotpRequired() && !consumeAdminTotp(totpCode, process.env.ADMIN_TOTP_SECRET || "")) {
+    return { error: "Неверные данные для входа." }
+  }
+
+  rateLimiters.adminLogin.resetLimit(rateLimitKey)
   const cookieStore = await cookies()
-
-  // Rate limiting: check failed attempts from cookie
-  const attemptsCookie = cookieStore.get("admin_attempts")?.value
-  let attempts: { count: number; firstAttempt: number; lastAttempt: number } = {
-    count: 0,
-    firstAttempt: 0,
-    lastAttempt: 0,
-  }
-
-  if (attemptsCookie) {
-    try {
-      attempts = JSON.parse(attemptsCookie)
-    } catch {
-      // corrupted cookie, reset
-    }
-  }
-
-  const now = Date.now()
-
-  // Reset attempts if lockout period has passed
-  if (attempts.firstAttempt && now - attempts.firstAttempt > LOCKOUT_MS) {
-    attempts = { count: 0, firstAttempt: 0, lastAttempt: 0 }
-  }
-
-  // Check if currently locked out
-  if (attempts.count >= MAX_ATTEMPTS) {
-    const remainingMs = LOCKOUT_MS - (now - attempts.firstAttempt)
-    const remainingMin = Math.ceil(remainingMs / 60000)
-    return {
-      error: `Слишком много попыток. Повторите через ${remainingMin} мин.`
-    }
-  }
-
-  if (!username || !password) {
-    return { error: "Введите логин и пароль" }
-  }
-
-  if (username !== ADMIN_USERNAME || password !== ADMIN_PASSWORD) {
-    // Increment failed attempts
-    attempts.count += 1
-    attempts.lastAttempt = now
-    if (!attempts.firstAttempt) attempts.firstAttempt = now
-
-    cookieStore.set("admin_attempts", JSON.stringify(attempts), {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      maxAge: 60 * 30, // 30 minutes
-      path: "/",
-    })
-
-    const remaining = MAX_ATTEMPTS - attempts.count
-    if (remaining > 0) {
-      return { error: `Неверный логин или пароль. Осталось попыток: ${remaining}` }
-    } else {
-      return { error: "Слишком много попыток. Аккаунт заблокирован на 15 минут." }
-    }
-  }
-
-  // Success: clear attempts cookie
-  cookieStore.delete("admin_attempts")
-
-  cookieStore.set("admin_auth", "true", {
+  cookieStore.delete("admin_attempts") // remove the old client-controlled lockout cookie
+  cookieStore.set(ADMIN_AUTH_COOKIE, createAdminSessionToken(), {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    maxAge: 60 * 60 * 24, // 1 day
+    sameSite: "strict",
+    maxAge: ADMIN_SESSION_TTL_SECONDS,
     path: "/",
   })
 
@@ -91,83 +75,271 @@ export async function adminLogin(formData: FormData) {
 
 export async function adminLogout() {
   const cookieStore = await cookies()
-  cookieStore.delete("admin_auth")
+  cookieStore.delete(ADMIN_AUTH_COOKIE)
   redirect("/admin")
 }
 
 export async function checkAdminAuth(): Promise<boolean> {
   const cookieStore = await cookies()
-  const adminAuth = cookieStore.get("admin_auth")?.value
-  return adminAuth === "true"
+  return isValidAdminSession(cookieStore.get(ADMIN_AUTH_COOKIE)?.value)
 }
 
+const ADMIN_DATA_PAGE_SIZE = 1000
+const USER_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
+function isMissingTableError(error: any): boolean {
+  const message = String(error?.message ?? error ?? "").toLowerCase()
+  return error?.code === "42P01" || error?.code === "PGRST205" ||
+    message.includes("does not exist") || message.includes("could not find the table")
+}
+
+async function fetchAllPages<T>(buildQuery: (from: number, to: number) => any): Promise<T[]> {
+  const rows: T[] = []
+  for (let from = 0; ; from += ADMIN_DATA_PAGE_SIZE) {
+    const { data, error } = await buildQuery(from, from + ADMIN_DATA_PAGE_SIZE - 1)
+    if (error) throw error
+    const page = (data ?? []) as T[]
+    rows.push(...page)
+    if (page.length < ADMIN_DATA_PAGE_SIZE) return rows
+  }
+}
+
+async function fetchOptionalPages<T>(buildQuery: (from: number, to: number) => any): Promise<{ rows: T[]; available: boolean }> {
+  try {
+    return { rows: await fetchAllPages<T>(buildQuery), available: true }
+  } catch (error) {
+    if (isMissingTableError(error)) return { rows: [], available: false }
+    throw error
+  }
+}
+
+async function listAllAuthUsers(supabase: any): Promise<any[]> {
+  const users: any[] = []
+  for (let page = 1; ; page += 1) {
+    const { data, error } = await supabase.auth.admin.listUsers({ page, perPage: ADMIN_DATA_PAGE_SIZE })
+    if (error) throw error
+    const pageUsers = data?.users ?? []
+    users.push(...pageUsers)
+    if (pageUsers.length < ADMIN_DATA_PAGE_SIZE) return users
+  }
+}
+
+function toIsoDate(value: unknown): string | null {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    const milliseconds = value < 1_000_000_000_000 ? value * 1000 : value
+    const date = new Date(milliseconds)
+    return Number.isNaN(date.getTime()) ? null : date.toISOString()
+  }
+  if (typeof value === "string" && value.trim()) {
+    const numericValue = /^-?\d+(?:\.\d+)?$/.test(value.trim()) ? Number(value) : null
+    if (numericValue !== null && Number.isFinite(numericValue)) {
+      const milliseconds = Math.abs(numericValue) < 1_000_000_000_000 ? numericValue * 1000 : numericValue
+      const date = new Date(milliseconds)
+      return Number.isNaN(date.getTime()) ? null : date.toISOString()
+    }
+    const date = new Date(value)
+    return Number.isNaN(date.getTime()) ? null : date.toISOString()
+  }
+  return null
+}
+
+function newestDate(values: unknown[]): string | null {
+  const dates = values.map(toIsoDate).filter((value): value is string => Boolean(value))
+  return dates.sort((a, b) => b.localeCompare(a))[0] ?? null
+}
+
+function isFutureDate(value: string | null | undefined): boolean {
+  if (!value) return false
+  const timestamp = new Date(value).getTime()
+  return Number.isFinite(timestamp) && timestamp > Date.now()
+}
+
+/**
+ * Admin user list. History/bookmark counts are aggregated across every page
+ * (PostgREST otherwise silently returns only the first 1,000 rows). Details are
+ * loaded per-user on demand to keep the initial admin screen small.
+ */
 export async function getAdminUsers() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  const supabase = await getAdminSupabase()
 
-  if (!supabaseUrl || !supabaseServiceKey) {
-    throw new Error("Server misconfigured: Supabase env vars missing")
+  const [profiles, authUsers, historyRows, bookmarkRows, statsResult, aiStatsResult] = await Promise.all([
+    fetchAllPages<any>((from, to) => supabase
+      .from("profiles")
+      .select("*")
+      .order("updated_at", { ascending: false, nullsFirst: false })
+      .order("id", { ascending: true })
+      .range(from, to)),
+    listAllAuthUsers(supabase),
+    fetchAllPages<any>((from, to) => supabase
+      .from("watch_history")
+      .select("user_id, anime_id, timestamp")
+      .order("timestamp", { ascending: false })
+      .order("user_id", { ascending: true })
+      .order("anime_id", { ascending: true })
+      .range(from, to)),
+    fetchAllPages<any>((from, to) => supabase
+      .from("bookmarks")
+      .select("user_id, anime_id, created_at")
+      .order("created_at", { ascending: false })
+      .order("user_id", { ascending: true })
+      .order("anime_id", { ascending: true })
+      .range(from, to)),
+    fetchOptionalPages<any>((from, to) => supabase
+      .from("account_stats")
+      .select("*")
+      .order("user_id", { ascending: true })
+      .range(from, to)),
+    fetchOptionalPages<any>((from, to) => supabase
+      .from("ai_learning_stats")
+      .select("*")
+      .order("user_id", { ascending: true })
+      .range(from, to)),
+  ])
+
+  const profileById = new Map<string, any>((profiles || []).map((profile: any) => [profile.id, profile]))
+  const authById = new Map<string, any>((authUsers || []).map((user: any) => [user.id, user]))
+  const statsById = new Map<string, any>(statsResult.rows.map((stats: any) => [stats.user_id, stats]))
+  const aiStatsById = new Map<string, any>(aiStatsResult.rows.map((stats: any) => [stats.user_id, stats]))
+  const historyCountById = new Map<string, number>()
+  const bookmarkCountById = new Map<string, number>()
+  const lastHistoryById = new Map<string, string>()
+  const lastBookmarkById = new Map<string, string>()
+
+  for (const row of historyRows) {
+    historyCountById.set(row.user_id, (historyCountById.get(row.user_id) ?? 0) + 1)
+    const timestamp = toIsoDate(row.timestamp)
+    if (timestamp && (!lastHistoryById.has(row.user_id) || timestamp > lastHistoryById.get(row.user_id)!)) {
+      lastHistoryById.set(row.user_id, timestamp)
+    }
+  }
+  for (const row of bookmarkRows) {
+    bookmarkCountById.set(row.user_id, (bookmarkCountById.get(row.user_id) ?? 0) + 1)
+    const timestamp = toIsoDate(row.created_at)
+    if (timestamp && (!lastBookmarkById.has(row.user_id) || timestamp > lastBookmarkById.get(row.user_id)!)) {
+      lastBookmarkById.set(row.user_id, timestamp)
+    }
   }
 
-  const supabase = createClient(supabaseUrl, supabaseServiceKey)
-
-  const { data: profiles, error: profilesError } = await supabase
-    .from("profiles")
-    .select("*")
-    .order("updated_at", { ascending: false })
-
-  if (profilesError) throw profilesError
-
-  const { data: watchHistory, error: historyError } = await supabase
-    .from("watch_history")
-    .select("*")
-    .order("timestamp", { ascending: false })
-
-  if (historyError) throw historyError
-
-  const { data: bookmarks, error: bookmarksError } = await supabase
-    .from("bookmarks")
-    .select("*")
-    .order("created_at", { ascending: false })
-
-  if (bookmarksError) throw bookmarksError
-
-  const { data: aiStats, error: aiStatsError } = await supabase
-    .from("ai_learning_stats")
-    .select("*")
-
-  if (aiStatsError) {
-    console.error("Error fetching AI stats:", aiStatsError)
-    // Don't throw - continue without AI stats if table doesn't exist yet
-  }
-
-  const usersWithStats = profiles.map((profile) => {
-    const userHistory = watchHistory.filter((item) => item.user_id === profile.id)
-    const userBookmarks = bookmarks.filter((item) => item.user_id === profile.id)
-    const userAIStats = aiStats?.find((stat) => stat.user_id === profile.id) || null
-
-    const lastActivity = [
-      ...userHistory.map((h) => h.created_at),
-      ...userBookmarks.map((b) => b.created_at),
-      profile.updated_at,
-    ]
-      .filter(Boolean)
-      .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0]
+  // Include Auth users even if an older/failed signup trigger did not create a profile row.
+  const userIds = new Set<string>([...profileById.keys(), ...authById.keys()])
+  return Array.from(userIds).map((id) => {
+    const profile = profileById.get(id) ?? {}
+    const authUser = authById.get(id) ?? {}
+    const metadata = authUser.user_metadata ?? {}
+    const accountStats = statsById.get(id) ?? null
+    const bannedUntil = authUser.banned_until ?? null
+    const watchHistoryCount = historyCountById.get(id) ?? 0
+    const bookmarksCount = bookmarkCountById.get(id) ?? 0
 
     return {
       ...profile,
-      watchHistoryCount: userHistory.length,
-      bookmarksCount: userBookmarks.length,
-      lastActivity,
-      recentHistory: userHistory.slice(0, 5),
-      recentBookmarks: userBookmarks.slice(0, 5),
-      allHistory: userHistory,
-      allBookmarks: userBookmarks,
-      aiStats: userAIStats,
+      id,
+      username: profile.username ?? metadata.username ?? authUser.email ?? null,
+      avatar_url: profile.avatar_url ?? metadata.avatar_url ?? null,
+      email: authUser.email ?? null,
+      created_at: authUser.created_at ?? null,
+      last_sign_in_at: authUser.last_sign_in_at ?? null,
+      banned_until: bannedUntil,
+      is_banned: isFutureDate(bannedUntil),
+      referral_code: profile.referral_code ?? null,
+      referred_by: profile.referred_by ?? null,
+      referrerDomain: metadata.initial_referrer_domain ?? metadata.referrer_domain ?? null,
+      referralLandingPage: metadata.initial_landing_page ?? null,
+      watchHistoryCount,
+      bookmarksCount,
+      lastActivity: newestDate([
+        profile.updated_at,
+        authUser.last_sign_in_at,
+        lastHistoryById.get(id),
+        lastBookmarkById.get(id),
+        accountStats?.last_visit_at,
+        accountStats?.last_updated_at,
+      ]),
+      recentHistory: [],
+      recentBookmarks: [],
+      allHistory: [],
+      allBookmarks: [],
+      detailsLoaded: false,
+      activityEvents: [],
+      activityEventsCount: 0,
+      activityEventsAvailable: true,
+      accountStats,
+      accountStatsAvailable: statsResult.available,
+      aiStats: aiStatsById.get(id) ?? null,
+      aiStatsAvailable: aiStatsResult.available,
     }
-  })
+  }).sort((a, b) => (b.created_at ?? b.updated_at ?? "").localeCompare(a.created_at ?? a.updated_at ?? ""))
+}
 
-  return usersWithStats
+/** Load a selected user's full saved/watch lists and latest event log. */
+export async function getAdminUserDetails(userId: string) {
+  const supabase = await getAdminSupabase()
+  if (!USER_ID_PATTERN.test(userId)) throw new Error("Invalid user ID")
+
+  const [history, bookmarks, activityResult] = await Promise.all([
+    fetchAllPages<any>((from, to) => supabase
+      .from("watch_history")
+      .select("*")
+      .eq("user_id", userId)
+      .order("timestamp", { ascending: false })
+      .order("anime_id", { ascending: true })
+      .range(from, to)),
+    fetchAllPages<any>((from, to) => supabase
+      .from("bookmarks")
+      .select("*")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false })
+      .order("anime_id", { ascending: true })
+      .range(from, to)),
+    (async () => {
+      try {
+        const { data, error, count } = await supabase
+          .from("user_activity_events")
+          .select("id, user_id, event_type, category, payload, created_at", { count: "exact" })
+          .eq("user_id", userId)
+          .order("created_at", { ascending: false })
+          .order("id", { ascending: true })
+          .limit(100)
+        if (error) {
+          if (isMissingTableError(error)) return { rows: [], count: 0, available: false }
+          throw error
+        }
+        return { rows: data ?? [], count: count ?? data?.length ?? 0, available: true }
+      } catch (error) {
+        if (isMissingTableError(error)) return { rows: [], count: 0, available: false }
+        throw error
+      }
+    })(),
+  ])
+
+  return {
+    detailsLoaded: true,
+    allHistory: history,
+    recentHistory: history.slice(0, 5),
+    allBookmarks: bookmarks,
+    recentBookmarks: bookmarks.slice(0, 5),
+    watchHistoryCount: history.length,
+    bookmarksCount: bookmarks.length,
+    activityEvents: activityResult.rows,
+    activityEventsCount: activityResult.count,
+    activityEventsAvailable: activityResult.available,
+  }
+}
+
+/** Block/unblock account sign-in without deleting its data. */
+export async function adminSetUserBan(userId: string, banned: boolean) {
+  const supabase = await getAdminSupabase()
+  if (!USER_ID_PATTERN.test(userId) || typeof banned !== "boolean") throw new Error("Invalid moderation request")
+
+  const { data, error } = await supabase.auth.admin.updateUserById(userId, {
+    ban_duration: banned ? "876000h" : "none", // 100 years; reversible from this panel.
+  })
+  if (error) throw error
+
+  return {
+    banned_until: data.user?.banned_until ?? (banned ? new Date(Date.now() + 876000 * 60 * 60 * 1000).toISOString() : null),
+    is_banned: banned,
+  }
 }
 
 export async function getPvPRules() {
@@ -517,33 +689,32 @@ export async function getBattleAIDashboard() {
 // ============================================================
 export async function getAdminUsersSimple() {
   const supabase = await getAdminSupabase()
+  const [profiles, authUsers] = await Promise.all([
+    fetchAllPages<any>((from, to) => supabase
+      .from("profiles")
+      .select("id, username, avatar_url, updated_at")
+      .order("updated_at", { ascending: false, nullsFirst: false })
+      .order("id", { ascending: true })
+      .range(from, to)),
+    listAllAuthUsers(supabase),
+  ])
 
-  // profiles table (note: profiles has no created_at column)
-  const { data: profiles, error: profilesError } = await supabase
-    .from("profiles")
-    .select("id, username, avatar_url, updated_at")
-    .order("updated_at", { ascending: false, nullsFirst: false })
+  const profileById = new Map<string, any>(profiles.map((profile: any) => [profile.id, profile]))
+  const authById = new Map<string, any>(authUsers.map((user: any) => [user.id, user]))
+  const ids = new Set<string>([...profileById.keys(), ...authById.keys()])
 
-  if (profilesError) throw profilesError
-
-  // auth.users emails (only accessible via service role through the auth schema)
-  // Supabase exposes auth.users only via admin API; we try to fetch emails.
-  const { data: usersAuth, error: authError } = await supabase.auth.admin.listUsers({
-    page: 1,
-    perPage: 1000,
-  })
-
-  const emailMap = new Map<string, string>()
-  if (!authError && usersAuth?.users) {
-    for (const u of usersAuth.users) {
-      if (u.email) emailMap.set(u.id, u.email)
+  return Array.from(ids).map((id) => {
+    const profile = profileById.get(id) ?? {}
+    const authUser = authById.get(id) ?? {}
+    return {
+      id,
+      username: profile.username ?? authUser.user_metadata?.username ?? authUser.email ?? null,
+      avatar_url: profile.avatar_url ?? authUser.user_metadata?.avatar_url ?? null,
+      updated_at: profile.updated_at ?? null,
+      email: authUser.email ?? null,
+      created_at: authUser.created_at ?? null,
     }
-  }
-
-  return (profiles || []).map((p: any) => ({
-    ...p,
-    email: emailMap.get(p.id) ?? null,
-  }))
+  }).sort((a, b) => (b.created_at ?? b.updated_at ?? "").localeCompare(a.created_at ?? a.updated_at ?? ""))
 }
 
 // ============================================================
@@ -1123,7 +1294,7 @@ export async function createCustomNews(news: { title: string; excerpt: string; b
     .insert([{
       title: news.title,
       excerpt: news.excerpt,
-      body: news.body ?? null,
+      body: news.body ? sanitizeNewsHtml(news.body) : null,
       image_url: news.image_url ?? null,
       author: news.author ?? null,
       is_published: news.is_published ?? false,
@@ -1140,9 +1311,16 @@ export async function updateCustomNews(id: string, updates: { title?: string; ex
   if (!isAdmin) throw new Error("Unauthorized")
 
   const supabase = await getAdminSupabase()
+  const safeUpdates = {
+    ...updates,
+    ...(updates.body !== undefined
+      ? { body: updates.body ? sanitizeNewsHtml(updates.body) : updates.body }
+      : {}),
+    updated_at: new Date().toISOString(),
+  }
   const { data, error } = await supabase
     .from("custom_news")
-    .update({ ...updates, updated_at: new Date().toISOString() })
+    .update(safeUpdates)
     .eq("id", id)
     .select()
     .single()
