@@ -4,6 +4,7 @@ import { createVideoProgressTracker } from "@/lib/analytics-video"
 import { useState, useEffect, useMemo, useRef, useCallback } from "react"
 import { createPortal } from "react-dom"
 import { PlayerLoading } from "@/components/watch/player-loading"
+import { EpisodeComingSoonBanner } from "@/components/watch/episode-coming-soon-banner"
 import { AlertCircle, ChevronDown, Mic, Subtitles, Check, X, SkipForward, Clock, Info } from "lucide-react"
 import { RegionDetector } from "@/components/providers/region-detector"
 import { getProxiedSrc } from "@/lib/image-loader"
@@ -33,6 +34,8 @@ interface KodikPlayerProps {
    * сайт всё равно зажмёт номер серии этим значением.
    */
   maxEpisode?: number
+  /** ID аниме из базы (для подписки на уведомления) */
+  animeId?: string
   onStart?: () => void
   onCountryChange?: (country: string) => void
   onRegionDetected?: (isRussia: boolean) => void
@@ -90,6 +93,7 @@ export function KodikPlayer({
   poster,
   episode,
   maxEpisode,
+  animeId,
   onStart,
   onCountryChange,
   onRegionDetected,
@@ -103,6 +107,7 @@ export function KodikPlayer({
   const [selectedCountry, setSelectedCountry] = useState<string>("RU")
   const [errorMessage, setErrorMessage] = useState<string>("")
   const [showFullscreenHint, setShowFullscreenHint] = useState(false)
+  const [showComingSoonBanner, setShowComingSoonBanner] = useState(false)
 
   // Состояние эндинга
   const [isNearEnd, setIsNearEnd] = useState(false)
@@ -270,6 +275,23 @@ export function KodikPlayer({
   useEffect(() => {
     loadTranslations()
   }, [loadTranslations])
+
+  // Показываем баннер "Серия скоро выйдет", если:
+  // 1. Озвучек совсем нет (translations.length === 0)
+  // 2. Серия по данным Shikimori ещё не вышла (episode > maxEpisode)
+  useEffect(() => {
+    if (translationsLoading) {
+      setShowComingSoonBanner(false)
+      return
+    }
+
+    const hasNoTranslations = translations.length === 0
+    const isEpisodeNotReleased = maxEpisode && episode > maxEpisode
+
+    // Показываем баннер только если озвучек совсем нет ИЛИ серия ещё не вышла по данным Shikimori
+    // НЕ показываем если есть озвучки но непонятно сколько серий (Kodik не вернул данные)
+    setShowComingSoonBanner(Boolean(hasNoTranslations || isEpisodeNotReleased))
+  }, [translations, translationsLoading, episode, maxEpisode])
 
   useEffect(() => {
     if (!selectedTranslation || translations.length === 0) return
@@ -1068,50 +1090,64 @@ export function KodikPlayer({
             <RegionDetector onCountryChange={handleCountryChange} onRegionDetected={onRegionDetected} />
           </div>
 
-          {translations.length > 0 && (
-            <div className="absolute top-2 left-2 sm:top-4 sm:left-4 z-20 max-w-[55%] sm:max-w-[240px]">
-              <button
-                ref={triggerButtonRef}
-                onClick={() => (showTranslationsMenu ? setShowTranslationsMenu(false) : openMenu())}
-                className="flex items-center gap-1.5 sm:gap-2 px-2.5 py-1.5 sm:px-3 sm:py-2 bg-zinc-900/90 backdrop-blur-sm border border-white/10 rounded-lg text-xs sm:text-sm text-white hover:bg-zinc-800 transition-colors min-h-[38px] w-full cursor-pointer"
+          {showComingSoonBanner ? (
+            <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-zinc-900/95 p-4 sm:p-6 cursor-default">
+              <EpisodeComingSoonBanner
+                episodeNumber={episode}
+                animeTitle={title}
+                animeId={animeId || shikimoriId}
+                reason={translations.length === 0 ? "no-translations" : "episode-not-ready"}
+                className="w-full max-w-md"
+              />
+            </div>
+          ) : (
+            <>
+              {translations.length > 0 && (
+                <div className="absolute top-2 left-2 sm:top-4 sm:left-4 z-20 max-w-[55%] sm:max-w-[240px]">
+                  <button
+                    ref={triggerButtonRef}
+                    onClick={() => (showTranslationsMenu ? setShowTranslationsMenu(false) : openMenu())}
+                    className="flex items-center gap-1.5 sm:gap-2 px-2.5 py-1.5 sm:px-3 sm:py-2 bg-zinc-900/90 backdrop-blur-sm border border-white/10 rounded-lg text-xs sm:text-sm text-white hover:bg-zinc-800 transition-colors min-h-[38px] w-full cursor-pointer"
+                  >
+                    {selectedTranslation?.type === "subtitles" ? (
+                      <Subtitles className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0 text-blue-400" />
+                    ) : (
+                      <Mic className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0 text-orange-400" />
+                    )}
+                    <span className="truncate flex-1 text-left">
+                      {selectedTranslation?.title || "Выбрать озвучку"}
+                    </span>
+                    <ChevronDown className={`w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0 transition-transform ${showTranslationsMenu ? "rotate-180" : ""}`} />
+                  </button>
+                </div>
+              )}
+
+              {translationsLoading && translations.length === 0 && (
+                <div className="absolute top-2 left-2 sm:top-4 sm:left-4 z-20 px-2.5 py-2 bg-zinc-900/90 backdrop-blur-sm border border-white/10 rounded-lg text-xs text-zinc-400">
+                  Загрузка озвучек...
+                </div>
+              )}
+
+              <div
+                className="flex-1 flex items-center justify-center group cursor-pointer w-full"
+                onClick={handleStartPlayer}
               >
-                {selectedTranslation?.type === "subtitles" ? (
-                  <Subtitles className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0 text-blue-400" />
-                ) : (
-                  <Mic className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0 text-orange-400" />
-                )}
-                <span className="truncate flex-1 text-left">
-                  {selectedTranslation?.title || "Выбрать озвучку"}
-                </span>
-                <ChevronDown className={`w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0 transition-transform ${showTranslationsMenu ? "rotate-180" : ""}`} />
-              </button>
-            </div>
+                <img
+                  src={poster ? getProxiedSrc(poster) : undefined}
+                  className="absolute inset-0 w-full h-full object-cover opacity-30 blur-sm transition-opacity group-hover:opacity-40"
+                  alt=""
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+
+                <button className="relative z-10 flex items-center gap-2 sm:gap-3 px-4 py-2.5 sm:px-8 sm:py-4 bg-orange-600 hover:bg-orange-500 active:bg-orange-700 text-white rounded-xl sm:rounded-2xl font-bold transition-all transform group-hover:scale-105 group-active:scale-95 shadow-[0_0_30px_rgba(234,88,12,0.4)] min-h-[44px] sm:min-h-[48px] cursor-pointer">
+                  <svg className="w-4 h-4 sm:w-6 sm:h-6 fill-current flex-shrink-0" viewBox="0 0 24 24">
+                    <path d="M8 5v14l11-7z" />
+                  </svg>
+                  <span className="text-xs sm:text-sm md:text-base">Смотреть {episode} серию</span>
+                </button>
+              </div>
+            </>
           )}
-
-          {translationsLoading && translations.length === 0 && (
-            <div className="absolute top-2 left-2 sm:top-4 sm:left-4 z-20 px-2.5 py-2 bg-zinc-900/90 backdrop-blur-sm border border-white/10 rounded-lg text-xs text-zinc-400">
-              Загрузка озвучек...
-            </div>
-          )}
-
-          <div
-            className="flex-1 flex items-center justify-center group cursor-pointer w-full"
-            onClick={handleStartPlayer}
-          >
-            <img
-              src={poster ? getProxiedSrc(poster) : undefined}
-              className="absolute inset-0 w-full h-full object-cover opacity-30 blur-sm transition-opacity group-hover:opacity-40"
-              alt=""
-            />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
-
-            <button className="relative z-10 flex items-center gap-2 sm:gap-3 px-4 py-2.5 sm:px-8 sm:py-4 bg-orange-600 hover:bg-orange-500 active:bg-orange-700 text-white rounded-xl sm:rounded-2xl font-bold transition-all transform group-hover:scale-105 group-active:scale-95 shadow-[0_0_30px_rgba(234,88,12,0.4)] min-h-[44px] sm:min-h-[48px] cursor-pointer">
-              <svg className="w-4 h-4 sm:w-6 sm:h-6 fill-current flex-shrink-0" viewBox="0 0 24 24">
-                <path d="M8 5v14l11-7z" />
-              </svg>
-              <span className="text-xs sm:text-sm md:text-base">Смотреть {episode} серию</span>
-            </button>
-          </div>
         </div>
       ) : (
         <>
