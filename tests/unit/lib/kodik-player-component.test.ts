@@ -322,7 +322,7 @@ describe("KodikPlayer: плашка «Озвучка не найдена»", () 
     stubFetch([])
     mounted = await mountPlayer({ shikimoriId: "64510", title: "Тайтл без озвучки", episode: 1, maxEpisode: 1 })
 
-    clickButton(mounted.container, "Войти и получать уведомления")
+    clickButton(mounted.container, "Войти и уведомить")
 
     // Намерение сохраняется в localStorage: после регистрации ожидание
     // создастся само, даже если вход случится в другой вкладке или позже

@@ -409,7 +409,8 @@ export function EpisodeComingSoonBanner({
               ) : (
                 <span className="flex items-center gap-2">
                   <Bell className="h-3.5 w-3.5 flex-shrink-0" />
-                  <span className="truncate">{user ? "Уведомить меня" : "Войти и получать уведомления"}</span>
+                  {/* Короткая подпись: на 320px длинная уходит в многоточие */}
+                  <span className="truncate">{user ? "Уведомить меня" : "Войти и уведомить"}</span>
                 </span>
               )}
             </Button>
@@ -417,7 +418,8 @@ export function EpisodeComingSoonBanner({
 
           {!isSubscribed && reason !== "loading-failed" && !user && (
             <p className="text-[10px] leading-snug text-zinc-500 sm:text-xs">
-              Уведомление привяжется к аккаунту — придёт на любое устройство.
+              Нужен аккаунт: ожидание привяжется к профилю и уведомление придёт на
+              любое устройство.
             </p>
           )}
         </div>
