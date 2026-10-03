@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getAnimeTranslations } from "@/lib/kodik"
+import { getAnimeTranslationsResult } from "@/lib/kodik"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 3600 // кэш на 1 час — список озвучек меняется редко
@@ -23,22 +23,29 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const translations = await getAnimeTranslations(shikimoriId, title)
+    const { translations, ok } = await getAnimeTranslationsResult(shikimoriId, title)
 
     return NextResponse.json(
-      { translations },
+      // ok=false — Kodik не ответил (сеть/токен/лимит). Пустой список в этом
+      // случае НЕ означает «озвучки нет», поэтому клиент показывает «не удалось
+      // загрузить», а не «озвучка не найдена».
+      { translations, ok },
       {
-        headers: {
-          "Cache-Control":
-            "public, max-age=3600, s-maxage=3600, stale-while-revalidate=86400",
-        },
+        headers: ok
+          ? {
+              "Cache-Control":
+                "public, max-age=3600, s-maxage=3600, stale-while-revalidate=86400",
+            }
+          // Сбой кэшировать на час нельзя: иначе тайтл с рабочей озвучкой
+          // останется «мёртвым» для всех, кто зашёл в окно сбоя.
+          : { "Cache-Control": "no-store" },
       }
     )
   } catch (error) {
     console.error("Error in /api/kodik/translations:", error)
     return NextResponse.json(
-      { error: "Не удалось получить список озвучек", translations: [] },
-      { status: 500 }
+      { error: "Не удалось получить список озвучек", translations: [], ok: false },
+      { status: 500, headers: { "Cache-Control": "no-store" } }
     )
   }
 }

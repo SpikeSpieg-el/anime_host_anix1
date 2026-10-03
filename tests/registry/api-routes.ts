@@ -27,6 +27,7 @@ export const API_ROUTES: ApiRegistryEntry[] = [
   { path: "/api/watch-history", methods: ["GET", "POST", "DELETE"], auth: "bearer" },
   { path: "/api/admin/users", methods: ["GET"], auth: "admin" },
   { path: "/api/admin/analytics-export", methods: ["GET"], auth: "admin", notes: "экспорт данных Umami в CSV; signed __Host session, production TOTP, no-store" },
+  { path: "/api/alerts/check", methods: ["GET", "POST"], auth: "bearer", notes: "ожидание озвучки (translation_alerts): сервер спрашивает Kodik, шлёт web-push и пишет episode_updates" },
   { path: "/api/anime-batch", methods: ["GET"], auth: "public" },
   { path: "/api/anime/:id", methods: ["GET"], auth: "public" },
   { path: "/api/anime/catalog", methods: ["GET"], auth: "public" },

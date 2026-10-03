@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import { clearPendingAlerts, readPendingAlerts, toAlertRow } from '@/lib/translation-alerts'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -260,6 +261,37 @@ export async function syncLocalDataToAccount(userId: string) {
     } catch {
       // ignore invalid json
     }
+  }
+
+  // 2b. Синхронизация ожиданий озвучки (translation_alerts).
+  // Гость мог нажать «Уведомить меня» на плашке «Озвучка не найдена» ещё до
+  // регистрации. Намерение лежит в localStorage и обязано превратиться в
+  // реальное ожидание: иначе обещанное уведомление о появлении озвучки
+  // не придёт никогда (закладок и истории у такого тайтла нет).
+  try {
+    const pendingAlerts = readPendingAlerts()
+    if (pendingAlerts.length > 0) {
+      const alertsPayload = pendingAlerts.map((intent) => ({
+        ...toAlertRow(userId, intent),
+        // Повторный вход не должен «хоронить» ожидание, если оно уже
+        // закрывалось уведомлением ранее.
+        notified_at: null,
+        last_checked_at: null,
+      }))
+
+      const { error } = await supabase
+        .from('translation_alerts')
+        .upsert(alertsPayload, { onConflict: 'user_id,anime_id' })
+
+      if (!error) {
+        clearPendingAlerts(pendingAlerts.map((intent) => intent.animeId))
+        console.log(`Translation alerts synced: ${alertsPayload.length}`)
+      } else {
+        console.warn('Translation alerts sync failed:', error.message)
+      }
+    }
+  } catch (error) {
+    console.warn('Translation alerts sync exception:', error)
   }
 
   // 3. Синхронизация монет: только читаем баланс с сервера.

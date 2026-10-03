@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { act, createElement, type ComponentProps } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { KodikPlayer } from "@/components/watch/kodik-player"
+import { ALERTS_RESOLVED_EVENT } from "@/lib/translation-alerts"
 
 ;(globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
@@ -281,5 +282,130 @@ describe("KodikPlayer: плашка «Следующая серия»", () => {
     postFromPlayer(mounted.container, { key: "kodik_player_current_episode", value: { episode: 4 } })
 
     expect(mounted.onEpisodeChange).toHaveBeenCalledWith(4)
+  })
+})
+
+describe("KodikPlayer: плашка «Озвучка не найдена»", () => {
+  let mounted: MountResult | null = null
+
+  afterEach(async () => {
+    if (mounted) {
+      await act(async () => {
+        mounted?.root.unmount()
+      })
+      mounted.container.remove()
+      mounted = null
+    }
+    vi.unstubAllGlobals()
+  })
+
+  const playerBox = (container: HTMLElement) =>
+    container.firstElementChild as HTMLElement | null
+
+  it("показывается, когда Kodik не вернул ни одной озвучки", async () => {
+    stubFetch([])
+    mounted = await mountPlayer({
+      shikimoriId: "64510",
+      title: "Если бы история была мяукающей статьёй",
+      episode: 1,
+      maxEpisode: 1,
+    })
+
+    expect(mounted.container.textContent).toContain("Озвучка не найдена")
+    expect(mounted.container.textContent).toContain("Скоро")
+    // Обещание должно быть явным: уведомление придёт и без закладок
+    expect(mounted.container.textContent).toContain("список ожидания")
+    expect(mounted.container.textContent).toContain("в закладки не нужно")
+  })
+
+  it("гостю предлагает войти, а не молча подписывает браузер", async () => {
+    stubFetch([])
+    mounted = await mountPlayer({ shikimoriId: "64510", title: "Тайтл без озвучки", episode: 1, maxEpisode: 1 })
+
+    clickButton(mounted.container, "Войти и уведомить")
+
+    // Намерение сохраняется в localStorage: после регистрации ожидание
+    // создастся само, даже если вход случится в другой вкладке или позже
+    // (подтверждение почты, возврат через день).
+    const raw = localStorage.getItem("weebx_pending_translation_alerts")
+    expect(raw).toBeTruthy()
+    const intent = JSON.parse(raw as string)["64510"]
+    expect(intent.animeId).toBe("64510")
+    expect(intent.episode).toBe(1)
+    expect(intent.reason).toBe("no-translations")
+    expect(intent.ts).toBeGreaterThan(0)
+  })
+
+  it("на телефоне блок плеера растёт по плашке, а не режет её по 16:9", async () => {
+    stubFetch([])
+    mounted = await mountPlayer({ shikimoriId: "64510", title: "Тайтл без озвучки", episode: 1, maxEpisode: 1 })
+
+    const box = playerBox(mounted.container)
+    expect(box).not.toBeNull()
+    // Жёсткий aspect-video остаётся только с sm+, до этого — поток и min-height
+    expect(box!.className).toContain("sm:aspect-video")
+    expect(box!.className).not.toMatch(/(^|\s)aspect-video/)
+
+    const plate = box!.querySelector('[data-testid="episode-coming-soon-banner"]')?.parentElement
+    expect(plate?.className).toContain("sm:absolute")
+    // Обёртка плашки идёт в потоке и держит минимальную высоту — по ней
+    // растягивается и сам блок плеера (иначе overflow-hidden обрезал бы текст).
+    const plateHolder = plate?.parentElement
+    expect(plateHolder?.className).toContain("min-h-[220px]")
+    expect(plateHolder?.className).toContain("sm:absolute")
+    expect(box!.contains(plateHolder as HTMLElement)).toBe(true)
+  })
+
+  it("уезжает без перезагрузки, когда сервер нашёл озвучку", async () => {
+    stubFetch([])
+    mounted = await mountPlayer({ shikimoriId: "64510", title: "Тайтл без озвучки", episode: 1, maxEpisode: 1 })
+    expect(mounted.container.textContent).toContain("Озвучка не найдена")
+
+    // Ожидание пользователя разобрал POST /api/alerts/check — плеер обязан
+    // перезапросить Kodik, а не держать пользователя на мёртвой плашке.
+    stubFetch([makeTranslation()])
+    act(() => {
+      window.dispatchEvent(
+        new CustomEvent(ALERTS_RESOLVED_EVENT, {
+          detail: { resolved: [{ animeId: "64510", kind: "dub", episode: 1 }] },
+        }),
+      )
+    })
+    await act(async () => {})
+
+    expect(mounted.container.textContent).not.toContain("Озвучка не найдена")
+    expect(mounted.container.textContent).toContain("Смотреть 1 серию")
+    expect(playerBox(mounted.container)!.className).toMatch(/(^|\s)aspect-video/)
+  })
+
+  it("при сбое Kodik не врёт про «озвучку не найдено»", async () => {
+    // Kodik недоступен (сеть/токен): пустой список ≠ «озвучки нет».
+    // Иначе плашка предлагала бы ждать озвучку для давно озвученного тайтла.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input)
+        if (url.includes("/api/kodik/translations")) {
+          return { ok: true, status: 200, json: async () => ({ translations: [], ok: false }) }
+        }
+        return { ok: false, status: 500, json: async () => ({}) }
+      }),
+    )
+
+    mounted = await mountPlayer({ shikimoriId: "21", title: "One Piece", episode: 1, maxEpisode: 12 })
+
+    expect(mounted.container.textContent).toContain("Не удалось загрузить озвучку")
+    expect(mounted.container.textContent).not.toContain("Озвучка не найдена")
+    // Подписка на ожидание в этом случае не предлагается — только повтор
+    expect(mounted.container.textContent).toContain("Обновить страницу")
+    expect(mounted.container.textContent).not.toContain("Уведомить меня")
+  })
+
+  it("с озвучками плашки нет, а 16:9 возвращается", async () => {
+    stubFetch([makeTranslation()])
+    mounted = await mountPlayer({ shikimoriId: "21", title: "One Piece", episode: 1, maxEpisode: 12 })
+
+    expect(mounted.container.textContent).not.toContain("Озвучка не найдена")
+    expect(playerBox(mounted.container)!.className).toMatch(/(^|\s)aspect-video/)
   })
 })

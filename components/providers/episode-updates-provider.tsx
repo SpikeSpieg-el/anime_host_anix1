@@ -5,6 +5,13 @@ import { getFreshAnimeData } from "@/app/actions/get-fresh-anime-data"
 import { supabase } from "@/lib/supabase"
 import { useAuth } from "@/components/auth/auth-provider"
 import { getWatchPath } from "@/lib/seo/watch-url"
+import {
+  ALERTS_LAST_CHECK_KEY,
+  ALERTS_RESOLVED_EVENT,
+  mapAlertRow,
+  shouldRunAlertsCheck,
+  type TranslationAlert,
+} from "@/lib/translation-alerts"
 
 export interface EpisodeUpdate {
   animeId: string
@@ -19,6 +26,12 @@ export interface EpisodeUpdate {
 interface EpisodeUpdatesContextValue {
   updates: EpisodeUpdate[]
   checkAnimeUpdates: (force?: boolean) => void
+  /**
+   * Проверить «ожидания озвучки» (translation_alerts) через сервер.
+   * Нужна отдельно от checkAnimeUpdates: онгоинги ищутся по episodes_aired
+   * из Shikimori, а появления озвучки там не видно в принципе.
+   */
+  checkTranslationAlerts: (force?: boolean) => void
   clearUpdate: (id: string) => void
   clearAllUpdates: () => void
   mounted: boolean
@@ -26,6 +39,16 @@ interface EpisodeUpdatesContextValue {
 }
 
 const EpisodeUpdatesContext = createContext<EpisodeUpdatesContextValue | null>(null)
+
+interface AlertsState {
+  /** Ожидания, которые ещё не закрыты (уведомление не отправлено). */
+  active: TranslationAlert[]
+  /** Тайтлы, уведомления по которым нельзя затирать клиентским клинером. */
+  protectedIds: Set<string>
+}
+
+/** Сколько дней держим защиту уведомления по уже закрытому ожиданию. */
+const ALERT_PROTECTION_WINDOW_MS = 30 * 24 * 60 * 60 * 1000
 
 const EPISODE_UPDATES_KEY = "episode_updates_v1"
 const LAST_CHECK_KEY = "last_episode_check_ts"
@@ -40,6 +63,7 @@ export function EpisodeUpdatesProvider({ children }: { children: React.ReactNode
 
   const updatesRef = useRef<EpisodeUpdate[]>([])
   const isCheckingRef = useRef(false)
+  const alertsCheckingRef = useRef(false)
 
   useEffect(() => {
     updatesRef.current = updates
@@ -91,6 +115,133 @@ export function EpisodeUpdatesProvider({ children }: { children: React.ReactNode
       }
     }
   }, [user])
+
+  /**
+   * Состояние ожиданий озвучки пользователя (public.translation_alerts).
+   *
+   * Это отдельный от закладок и истории список: на тайтл без озвучки нельзя
+   * ни подписаться через историю (смотреть нечего), ни рассчитывать на
+   * «догадался положить в закладки». Именно он гарантирует, что уведомление
+   * о появлении озвучки/серии действительно придёт.
+   *
+   * `protectedIds` — тайтлы, уведомления по которым клиентскому клинеру
+   * трогать нельзя. Сюда входят и уже закрытые ожидания (озвучка нашлась,
+   * сервер записал серию в episode_updates): иначе проверка онгоингов, не
+   * найдя тайтл в закладках/истории, тут же затёрла бы свежее уведомление.
+   */
+  const fetchAlertsState = useCallback(async (): Promise<AlertsState> => {
+    const empty: AlertsState = { active: [], protectedIds: new Set<string>() }
+    if (!user) return empty
+
+    try {
+      const { data, error } = await supabase
+        .from("translation_alerts")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false })
+        .limit(200)
+
+      if (error || !Array.isArray(data)) {
+        // До применения миграции таблицы может не быть — не ломаем остальные проверки.
+        if (error) console.warn("[EpisodeUpdates] translation_alerts read failed:", error.message)
+        return empty
+      }
+
+      const now = Date.now()
+      const active: TranslationAlert[] = []
+      const protectedIds = new Set<string>()
+
+      for (const row of data as any[]) {
+        const animeId = row?.anime_id !== undefined && row?.anime_id !== null ? String(row.anime_id) : ""
+        if (!animeId) continue
+
+        const notifiedAt = row?.notified_at ? Date.parse(String(row.notified_at)) : NaN
+        const isActive = !row?.notified_at
+
+        if (isActive) {
+          const alert = mapAlertRow(row)
+          if (alert) active.push(alert)
+        }
+
+        // Ждущие — всегда; закрытые — пока уведомление актуально (30 дней).
+        if (
+          isActive ||
+          (Number.isFinite(notifiedAt) && now - notifiedAt < ALERT_PROTECTION_WINDOW_MS)
+        ) {
+          protectedIds.add(animeId)
+        }
+      }
+
+      return { active, protectedIds }
+    } catch (e) {
+      console.warn("[EpisodeUpdates] translation_alerts error:", e)
+      return empty
+    }
+  }, [user])
+
+  /**
+   * Дёргает серверную проверку ожиданий (POST /api/alerts/check).
+   * Сервер сам спрашивает Kodik, шлёт web-push и кладёт найденную серию в
+   * episode_updates — здесь остаётся только подтянуть её в колокольчик.
+   */
+  const checkTranslationAlerts = useCallback(
+    async (force?: boolean) => {
+      if (typeof window === "undefined" || !user) return
+      if (alertsCheckingRef.current) return
+      alertsCheckingRef.current = true
+
+      try {
+        if (!force) {
+          const lastCheck = localStorage.getItem(ALERTS_LAST_CHECK_KEY)
+          if (!shouldRunAlertsCheck(lastCheck ? Number(lastCheck) : null)) return
+        }
+
+        const { active } = await fetchAlertsState()
+        if (active.length === 0) {
+          // Ждать нечего — не тратим ни свой запрос, ни лимиты Kodik.
+          localStorage.setItem(ALERTS_LAST_CHECK_KEY, String(Date.now()))
+          return
+        }
+
+        const { data: sessionData } = await supabase.auth.getSession()
+        const token = sessionData?.session?.access_token
+        if (!token) return
+
+        const res = await fetch("/api/alerts/check", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({}),
+        })
+
+        if (!res.ok) {
+          if (res.status === 429) return // серверный троттлинг — попробуем в следующий заход
+          console.warn("[EpisodeUpdates] alerts check failed:", res.status)
+          return
+        }
+
+        const data = await res.json().catch(() => null)
+        localStorage.setItem(ALERTS_LAST_CHECK_KEY, String(Date.now()))
+
+        const resolved = Array.isArray(data?.resolved) ? data.resolved : []
+        if (resolved.length > 0) {
+          // Сервер уже записал episode_updates — подтягиваем их в колокольчик
+          // и сообщаем плашке «Скоро», что ожидание закрыто.
+          await loadUpdates()
+          window.dispatchEvent(
+            new CustomEvent(ALERTS_RESOLVED_EVENT, { detail: { resolved } }),
+          )
+        }
+      } catch (e) {
+        console.warn("[EpisodeUpdates] alerts check error:", e)
+      } finally {
+        alertsCheckingRef.current = false
+      }
+    },
+    [user, fetchAlertsState, loadUpdates],
+  )
 
   const clearUpdate = useCallback(async (id: string) => {
     const target = updatesRef.current.find((u) => u.animeId === id)
@@ -204,6 +355,12 @@ export function EpisodeUpdatesProvider({ children }: { children: React.ReactNode
         return
       }
 
+      // Тайтлы, которых пользователь ЖДЁТ (озвучка ещё не вышла), в историю и
+      // закладки попасть не могли — их проверяет сервер (POST /api/alerts/check)
+      // и кладёт результат в episode_updates. Ниже клинер «убрать уведомления
+      // по тайтлам не из списка» не должен такие записи затирать.
+      const { protectedIds } = await fetchAlertsState()
+
       const freshData = await getFreshAnimeData(idsToCheck)
 
       // Dispatch fresh anime data so BookmarksProvider can refresh stale bookmark entries
@@ -230,8 +387,14 @@ export function EpisodeUpdatesProvider({ children }: { children: React.ReactNode
       const freshIds = new Set(freshData.map((a) => String(a.id)))
 
       freshData.forEach((anime) => {
-        // Fix #1: For non-ongoing anime, remove any existing notification instead of skipping
+        const isProtected = protectedIds.has(String(anime.id))
+
+        // Fix #1: For non-ongoing anime, remove any existing notification instead of skipping.
+        // Кроме тайтлов из ожиданий озвучки: у них уведомление создал сервер
+        // (озвучка нашлась), и статус «released» тут ни при чём — сносить его
+        // можно только вместе с самим ожиданием.
         if (anime.status !== "ongoing") {
+          if (isProtected) return
           const existingIdx = newUpdatesList.findIndex((u) => u.animeId === String(anime.id))
           if (existingIdx !== -1) {
             newUpdatesList.splice(existingIdx, 1)
@@ -268,7 +431,7 @@ export function EpisodeUpdatesProvider({ children }: { children: React.ReactNode
             }
             hasChanges = true
           }
-        } else {
+        } else if (!isProtected) {
           const existingIdx = newUpdatesList.findIndex((u) => u.animeId === anime.id)
           if (existingIdx !== -1) {
             newUpdatesList.splice(existingIdx, 1)
@@ -281,19 +444,22 @@ export function EpisodeUpdatesProvider({ children }: { children: React.ReactNode
       // (anime may have been deleted from Shikimori or API failed for those IDs)
       // Only remove if we got a successful response (freshData.length > 0)
       if (freshData.length > 0) {
-        const staleFromApi = newUpdatesList.filter(
-          (u) => !freshIds.has(String(u.animeId)) && idsToCheck.includes(String(u.animeId))
-        )
+        const isStaleFromApi = (animeId: string) =>
+          idsToCheck.includes(String(animeId)) &&
+          !freshIds.has(String(animeId)) &&
+          !protectedIds.has(String(animeId))
+
+        const staleFromApi = newUpdatesList.filter((u) => isStaleFromApi(String(u.animeId)))
         if (staleFromApi.length > 0) {
-          newUpdatesList = newUpdatesList.filter(
-            (u) => !(idsToCheck.includes(String(u.animeId)) && !freshIds.has(String(u.animeId)))
-          )
+          newUpdatesList = newUpdatesList.filter((u) => !isStaleFromApi(String(u.animeId)))
           hasChanges = true
         }
       }
 
-      // Remove notifications for anime no longer in history or bookmarks
+      // Remove notifications for anime no longer in history or bookmarks.
+      // Ожидаемые тайтлы считаем валидными: они попали в список сервером.
       const validIds = new Set(idsToCheck.map(String))
+      protectedIds.forEach((id) => validIds.add(id))
       const staleUpdates = newUpdatesList.filter((u) => !validIds.has(String(u.animeId)))
       if (staleUpdates.length > 0) {
         newUpdatesList = newUpdatesList.filter((u) => validIds.has(String(u.animeId)))
@@ -383,7 +549,7 @@ export function EpisodeUpdatesProvider({ children }: { children: React.ReactNode
       setIsChecking(false)
       isCheckingRef.current = false
     }
-  }, [user])
+  }, [user, fetchAlertsState])
 
   useEffect(() => {
     setMounted(true)
@@ -396,22 +562,37 @@ export function EpisodeUpdatesProvider({ children }: { children: React.ReactNode
     const handleCheckNeeded = () => checkAnimeUpdates(true)
 
     const timer = setTimeout(() => checkAnimeUpdates(), 2000)
+    // Ожидания озвучки проверяем чуть позже, чтобы не спорить за сеть с
+    // онгоингами и не задерживать первый рендер.
+    const alertsTimer = setTimeout(() => checkTranslationAlerts(), 3500)
+
+    // Вернулся на вкладку — возможно, озвучка появилась час назад.
+    const handleVisible = () => {
+      if (document.visibilityState === "visible") checkTranslationAlerts()
+    }
+    const handleAuthSynced = () => checkTranslationAlerts(true)
 
     window.addEventListener("storage", handleStorage)
     window.addEventListener(UPDATE_EVENT, handleCustom)
     window.addEventListener("episode-updates-check-needed" as any, handleCheckNeeded)
+    window.addEventListener("visibilitychange", handleVisible)
+    window.addEventListener("auth-synced", handleAuthSynced)
 
     return () => {
       clearTimeout(timer)
+      clearTimeout(alertsTimer)
       window.removeEventListener("storage", handleStorage)
       window.removeEventListener(UPDATE_EVENT, handleCustom)
       window.removeEventListener("episode-updates-check-needed" as any, handleCheckNeeded)
+      window.removeEventListener("visibilitychange", handleVisible)
+      window.removeEventListener("auth-synced", handleAuthSynced)
     }
-  }, [loadUpdates, checkAnimeUpdates])
+  }, [loadUpdates, checkAnimeUpdates, checkTranslationAlerts])
 
   const value: EpisodeUpdatesContextValue = {
     updates,
     checkAnimeUpdates,
+    checkTranslationAlerts,
     clearUpdate,
     clearAllUpdates,
     mounted,

@@ -14,7 +14,8 @@ import {
 import Link from "next/link"
 import { cn } from "@/lib/utils"
 import { useCover } from "@/components/providers/cover-provider"
-import { usePushNotifications, type PushErrorReason } from "@/hooks/use-push-notifications"
+import { usePushNotifications } from "@/hooks/use-push-notifications"
+import { getPushErrorMessage } from "@/lib/push-messages"
 import { getWatchPath } from "@/lib/seo/watch-url"
 
 interface EpisodeUpdate {
@@ -81,33 +82,6 @@ export function EpisodeUpdateBadge({ updates, onClearUpdate, onClearAll, classNa
     })()
     return () => { cancelled = true }
   }, [updates, failedPosters, fallbackPosters])
-
-  const getPushErrorMessage = (reason: PushErrorReason | null): string => {
-    switch (reason) {
-      case "permission-denied":
-        return "Разрешение отклонено. Откройте настройки сайта (иконка замка в адресной строке) → Уведомления → Разрешить, затем попробуйте снова."
-      case "permission-dismissed":
-        return "Окно разрешения было закрыто. Нажмите кнопку ещё раз."
-      case "not-logged-in":
-        return "Войдите в аккаунт, чтобы включить push-уведомления."
-      case "not-secure-context":
-        return "Push-уведомления работают только на HTTPS-соединении."
-      case "no-notification-api":
-        return "Этот браузер не поддерживает уведомления."
-      case "sw-registration-failed":
-        return "Не удалось зарегистрировать service worker. Очистите кэш браузера и попробуйте снова."
-      case "no-vapid-key":
-        return "Сервер не настроен для push-уведомлений (VAPID ключи). Обратитесь к администратору."
-      case "push-subscribe-failed":
-        return "Браузер отказался создавать подписку. Возможно, push заблокирован в настройках браузера."
-      case "save-failed":
-        return "Не удалось сохранить подписку на сервере. Попробуйте позже."
-      case "unsupported":
-        return "Этот браузер не поддерживает push-уведомления."
-      default:
-        return "Не удалось включить. Проверьте разрешения браузера."
-    }
-  }
 
   const combinedClassName = cn("ml-2", className)
 
