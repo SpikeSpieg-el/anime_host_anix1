@@ -387,7 +387,10 @@ export async function POST(request: NextRequest) {
           { onConflict: "user_id,anime_id" },
         )
         if (updateError) {
+          // Ожидание НЕ закрываем: следующая проверка попробует снова.
+          // Иначе уведомление потерялось бы молча — ровно тот баг, который чиним.
           console.error("[alerts/check] episode_updates upsert failed:", updateError)
+          continue
         }
 
         // 2. Закрываем ожидание ДО пуша: если рассылка упадёт, пользователь
