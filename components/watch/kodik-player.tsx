@@ -22,6 +22,7 @@ import {
   resolveMaxEpisode,
   type KodikSeasonsMap,
 } from "@/lib/kodik-player-logic"
+import { ALERTS_RESOLVED_EVENT } from "@/lib/translation-alerts"
 
 interface KodikPlayerProps {
   shikimoriId: string
@@ -139,6 +140,12 @@ export function KodikPlayer({
   // Меню озвучек
   const [translations, setTranslations] = useState<KodikTranslation[]>([])
   const [translationsLoading, setTranslationsLoading] = useState(false)
+  /**
+   * Kodik не ответил (сеть/токен/лимит). Пустой список озвучек в этом случае
+   * НЕ означает «озвучки нет» — иначе плеер обещал бы пользователю уведомление
+   * о выходе озвучки для тайтла, который давно озвучен.
+   */
+  const [translationsFailed, setTranslationsFailed] = useState(false)
   const [selectedTranslation, setSelectedTranslation] = useState<KodikTranslation | null>(null)
   const [showTranslationsMenu, setShowTranslationsMenu] = useState(false)
   const translationsMenuRef = useRef<HTMLDivElement>(null)
@@ -242,8 +249,12 @@ export function KodikPlayer({
     return () => clearTimeout(timer)
   }, [notice])
 
-  const loadTranslations = useCallback(async () => {
-    if (translations.length > 0) return
+  /**
+   * Запрос списка озвучек в Kodik + подбор озвучки под нужную серию.
+   * Всегда ходит в сеть — поэтому для первичной загрузки есть обёртка
+   * `loadTranslations` с защитой от повторных вызовов.
+   */
+  const fetchTranslations = useCallback(async () => {
     setTranslationsLoading(true)
     try {
       const res = await fetch(
@@ -253,6 +264,7 @@ export function KodikPlayer({
       const data = await res.json()
       const list: KodikTranslation[] = data.translations || []
       setTranslations(list)
+      setTranslationsFailed(data.ok === false)
 
       const savedId = getSavedTranslationId(shikimoriId)
       const saved = savedId ? list.find((t) => t.translationId === savedId) : null
@@ -265,16 +277,47 @@ export function KodikPlayer({
         null
 
       setSelectedTranslation(validSaved || availableForEpisode)
+      return list
     } catch (e) {
       console.error("Error loading translations:", e)
+      setTranslationsFailed(true)
+      return null
     } finally {
       setTranslationsLoading(false)
     }
-  }, [shikimoriId, title, translations.length, episode])
+  }, [shikimoriId, title, episode])
+
+  const loadTranslations = useCallback(async () => {
+    if (translations.length > 0) return
+    await fetchTranslations()
+  }, [translations.length, fetchTranslations])
 
   useEffect(() => {
     loadTranslations()
   }, [loadTranslations])
+
+  /**
+   * Озвучка появилась, пока пользователь смотрел на плашку «Скоро».
+   * Серверная проверка ожиданий (POST /api/alerts/check) диспатчит событие —
+   * перезапрашиваем Kodik, чтобы плашка уехала и серию можно было включить
+   * сразу, без перезагрузки страницы.
+   */
+  useEffect(() => {
+    const handleAlertsResolved = (event: Event) => {
+      const detail = (event as CustomEvent).detail
+      const resolved = Array.isArray(detail?.resolved) ? detail.resolved : []
+      const mine = resolved.some(
+        (item: any) =>
+          String(item?.animeId ?? "") === String(shikimoriId) ||
+          String(item?.animeId ?? "") === String(animeId ?? ""),
+      )
+      if (!mine) return
+      fetchTranslations()
+    }
+
+    window.addEventListener(ALERTS_RESOLVED_EVENT, handleAlertsResolved)
+    return () => window.removeEventListener(ALERTS_RESOLVED_EVENT, handleAlertsResolved)
+  }, [fetchTranslations, shikimoriId, animeId])
 
   // Показываем баннер "Серия скоро выйдет", если:
   // 1. Озвучек совсем нет (translations.length === 0)
@@ -1076,27 +1119,49 @@ export function KodikPlayer({
     watchedWallSeconds,
   ])
 
+  // Плашка «Скоро / Озвучка не найдена» — единственный контент блока плеера,
+  // который не влезает в 16:9 на телефоне: при ширине 360px aspect-video даёт
+  // ~200px высоты, а у контейнера overflow-hidden, поэтому текст и кнопка
+  // просто обрезались. В режиме ожидания на <640px блок растёт по контенту
+  // (плашка идёт в потоке), а жёсткие 16:9 возвращаются на sm+.
+  const showComingSoonPlate = !isStarted && showComingSoonBanner
+
   return (
     <div
       ref={playerContainerRef}
-      className={`relative aspect-video w-full overflow-hidden rounded-xl sm:rounded-2xl bg-zinc-950 border border-white/5 shadow-2xl ${
-        showUi ? "cursor-default" : "cursor-none"
-      }`}
+      className={`relative w-full overflow-hidden rounded-xl sm:rounded-2xl bg-zinc-950 border border-white/5 shadow-2xl ${
+        showComingSoonPlate ? "sm:aspect-video" : "aspect-video"
+      } ${showUi ? "cursor-default" : "cursor-none"}`}
       style={{ paddingTop: "env(safe-area-inset-top)", ...(isFullscreen ? { overflow: "visible" } : {}) }}
     >
       {!isStarted ? (
-        <div className="absolute inset-0 flex flex-col items-center justify-center cursor-default">
+        <div
+          className={`flex flex-col items-center justify-center cursor-default ${
+            showComingSoonPlate
+              ? "relative min-h-[220px] w-full sm:absolute sm:inset-0 sm:min-h-0"
+              : "absolute inset-0"
+          }`}
+        >
           <div className="z-20 absolute top-2 right-2 sm:top-4 sm:right-4">
             <RegionDetector onCountryChange={handleCountryChange} onRegionDetected={onRegionDetected} />
           </div>
 
           {showComingSoonBanner ? (
-            <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-zinc-900/95 p-4 sm:p-6 cursor-default">
+            <div className="relative z-30 flex w-full flex-col items-center justify-center bg-zinc-900/95 p-3 cursor-default sm:absolute sm:inset-0 sm:overflow-y-auto sm:p-6">
               <EpisodeComingSoonBanner
                 episodeNumber={episode}
                 animeTitle={title}
                 animeId={animeId || shikimoriId}
-                reason={translations.length === 0 ? "no-translations" : "episode-not-ready"}
+                shikimoriId={shikimoriId}
+                poster={poster}
+                baselineEpisode={maxEpisode}
+                reason={
+                  translations.length === 0
+                    ? translationsFailed
+                      ? "loading-failed"
+                      : "no-translations"
+                    : "episode-not-ready"
+                }
                 className="w-full max-w-md"
               />
             </div>

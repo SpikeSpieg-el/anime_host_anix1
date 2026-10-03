@@ -136,6 +136,7 @@ npm start
 │   ├── admin/                 # Админ-панель
 │   ├── anime/                 # Страницы аниме
 │   ├── api/                   # API Routes (50+ эндпоинтов)
+│   │   ├── alerts/            # Ожидание озвучки: проверка translation_alerts + web-push
 │   │   ├── animdl/            # Запасной плеер и скачивание (animdl: stream/download/hls/file/torrent)
 │   │   ├── anime/             # API аниме
 │   │   ├── backdrops/         # Фоновые изображения
@@ -223,7 +224,9 @@ npm start
 │   ├── use-dust.ts            # Хук пыли
 │   ├── use-episode-updates.ts # Отслеживание новых серий
 │   ├── use-mobile.ts          # Определение мобильного
+│   ├── use-push-notifications.ts # Web-push подписка браузера
 │   ├── use-toast.ts           # Уведомления
+│   ├── use-translation-alert.ts # «Жду озвучку» по конкретному тайтлу
 │   └── use-tv-mode.ts         # Режим ТВ
 ├── lib/                        # Утилиты и API-интеграции
 │   ├── anilibria/             # Anilibria API
@@ -245,8 +248,10 @@ npm start
 │   ├── kodik.ts               # Интеграция с Kodik
 │   ├── logger.ts              # Логирование
 │   ├── market-floor.ts        # Логика рынка
+│   ├── push-messages.ts       # Тексты ошибок/фолбэков push-подписки
 │   ├── rate-limit.ts          # Rate limiting
 │   ├── supabase.ts            # Клиент Supabase
+│   ├── translation-alerts.ts  # Логика ожиданий озвучки (чистая, покрыта тестами)
 │   └── utils.ts               # Вспомогательные функции
 ├── public/                     # Статические файлы
 ├── pvp-server/                 # Socket.io сервер PvP (отдельный сервис, порт 3001)
@@ -287,7 +292,8 @@ npm start
 - История просмотров, закладки
 - Торговая площадка с realtime
 - Боевая система, PvP-рейтинг
-- Уведомления о новых сериях
+- Уведомления о новых сериях (`episode_updates`)
+- Ожидания озвучки по тайтлам без перевода (`translation_alerts`) — см. `docs/EPISODE-ALERTS.md`
 
 ## 🎨 Особенности реализации
 

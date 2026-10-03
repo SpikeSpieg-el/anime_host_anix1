@@ -206,11 +206,23 @@ export async function getAnimeEpisodes(
  *
  * Сортировка: озвучки (voice) сначала, затем субтитры;
  * внутри группы — по убыванию количества серий.
+ *
+ * Пустой список и недоступный Kodik — РАЗНЫЕ ситуации, но раньше обе
+ * превращались в `[]`. Из-за этого плеер показывал «Озвучка не найдена»
+ * при сетевом сбое или протухшем токене, а проверка ожиданий озвучки
+ * не могла отличить «озвучки нет» от «мы не смогли спросить». Поэтому
+ * результат отдаётся вместе с признаком `ok`.
  */
-export async function getAnimeTranslations(
+export interface KodikTranslationsResult {
+  translations: KodikTranslation[]
+  /** false — Kodik не ответил (сеть/токен/лимит); пустой список ничего не значит. */
+  ok: boolean
+}
+
+export async function getAnimeTranslationsResult(
   shikimoriId: string,
   title?: string
-): Promise<KodikTranslation[]> {
+): Promise<KodikTranslationsResult> {
   try {
     const filters: Record<string, string> = {
       shikimori_id: shikimoriId,
@@ -221,8 +233,12 @@ export async function getAnimeTranslations(
     if (title) filters.title = title
 
     const data = await kodikRequest("search", filters)
-    if (!data || !data.results || data.results.length === 0) {
-      return []
+    // kodikRequest возвращает null при ошибке токена/сети/ответа API.
+    if (!data) {
+      return { translations: [], ok: false }
+    }
+    if (!data.results || data.results.length === 0) {
+      return { translations: [], ok: true }
     }
 
     const seen = new Set<string>()
@@ -256,11 +272,24 @@ export async function getAnimeTranslations(
       return b.episodesCount - a.episodesCount
     })
 
-    return translations
+    return { translations, ok: true }
   } catch (error) {
     console.error("Error fetching translations from Kodik:", error)
-    return []
+    return { translations: [], ok: false }
   }
+}
+
+/**
+ * Список всех доступных озвучек (переводов) для аниме.
+ * Обёртка для совместимости: если нужно отличать сбой Kodik от «озвучек нет»,
+ * берите `getAnimeTranslationsResult`.
+ */
+export async function getAnimeTranslations(
+  shikimoriId: string,
+  title?: string
+): Promise<KodikTranslation[]> {
+  const result = await getAnimeTranslationsResult(shikimoriId, title)
+  return result.translations
 }
 
 /**
