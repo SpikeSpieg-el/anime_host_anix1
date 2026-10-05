@@ -96,6 +96,10 @@ KODIK_API_TOKEN=your_kodik_api_token
 # Если не задан, используется встроенный ключ. Ротация делает старые ссылки
 # плеера недействительными (перезапрашиваются автоматически).
 # PLAYER_LINK_SECRET=long_random_string
+# Аварийный чёрный список IP (через запятую, действует мгновенно):
+# одиночные адреса и подсети — 5.128.0.1, 5.128.0.0/24, 2a03:d000::/48.
+# Основной список управляется из админки: /admin → вкладка «Чёрный список».
+# BLOCKED_IPS=5.128.192.0/24,185.4.6.2
 NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
