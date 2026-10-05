@@ -12,6 +12,7 @@ describe("isExternalImageUrl", () => {
     expect(isExternalImageUrl("https://i.pinimg.com/originals/aa.jpg")).toBe(true)
     expect(isExternalImageUrl("https://cdn.myanimelist.net/images/anime/1.jpg")).toBe(true)
     expect(isExternalImageUrl("https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/x.png")).toBe(true)
+    expect(isExternalImageUrl("https://kitsu-production-media.s3.us-west-002.backblazeb2.com/anime/50021/poster_image/poster.jpg?X-Amz-Signature=test")).toBe(true)
   })
 })
 

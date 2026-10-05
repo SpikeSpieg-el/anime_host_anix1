@@ -84,6 +84,8 @@ const ALLOWED_HOSTS = [
   'kitsu.app',
   'media.kitsu.app',
   'media.kitsu.io',
+  // Kitsu returns signed poster URLs from this Backblaze B2 S3 bucket.
+  'kitsu-production-media.s3.us-west-002.backblazeb2.com',
   'cdn.myanimelist.net',
   'myanimelist.net',
   'api.jikan.moe',
@@ -149,6 +151,7 @@ function getReferer(hostname) {
     'kitsu.app': 'https://kitsu.io/',
     'media.kitsu.app': 'https://kitsu.io/',
     'media.kitsu.io': 'https://kitsu.io/',
+    'kitsu-production-media.s3.us-west-002.backblazeb2.com': 'https://kitsu.io/',
     'kodikapi.com': 'https://kodik.info/',
     'kodik.info': 'https://kodik.info/',
     'cdn.kodik.info': 'https://kodik.info/',

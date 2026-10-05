@@ -17,6 +17,7 @@ export async function GET(req: NextRequest) {
       's4.anilist.co',
       'kitsu.app',
       'media.kitsu.app',
+      'kitsu-production-media.s3.us-west-002.backblazeb2.com',
       'kodikapi.com',
       'kodik.info',
       'cdn.kodik.info',
@@ -26,7 +27,7 @@ export async function GET(req: NextRequest) {
       'pinimg.com',
     ];
 
-    if (!allowedDomains.some(domain => url.hostname.includes(domain))) {
+    if (!allowedDomains.some(domain => url.hostname === domain || url.hostname.endsWith(`.${domain}`))) {
       return NextResponse.json({ error: "Domain not allowed" }, { status: 403 });
     }
 

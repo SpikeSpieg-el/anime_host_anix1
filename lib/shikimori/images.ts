@@ -6,9 +6,64 @@ import { isExternalImageUrl } from "../image-loader";
 // Кэш для постеров и фонов
 const posterCache = new Map<string, string>();
 const backdropCache = new Map<string, string | null>();
+const SIGNED_POSTER_REFRESH_BUFFER_MS = 60_000;
 // Очередь для запросов с задержкой
 let requestQueue = Promise.resolve();
 const REQUEST_DELAY = 50; // 50ms между запросами (ускорено для быстрой загрузки)
+
+/**
+ * Kitsu's API may return AWS SigV4 URLs that expire after a short period.
+ * Read the actual expiry instead of letting the in-memory poster cache keep
+ * returning an already-expired URL indefinitely.
+ */
+export function getSignedImageUrlExpiresAt(url: string): number | null {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return null;
+  }
+
+  const getParam = (name: string) =>
+    [...parsed.searchParams.entries()].find(([key]) => key.toLowerCase() === name.toLowerCase())?.[1];
+  const signature = getParam("X-Amz-Signature");
+  if (!signature) return null;
+
+  const date = getParam("X-Amz-Date");
+  const expiresInSeconds = Number(getParam("X-Amz-Expires"));
+  const match = date?.match(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/);
+  if (!match || !Number.isFinite(expiresInSeconds) || expiresInSeconds <= 0) {
+    // If a URL is signed but its expiry cannot be parsed, don't cache it.
+    return 0;
+  }
+
+  const [year, month, day, hour, minute, second] = match.slice(1).map(Number);
+  const signedAt = Date.UTC(year, month - 1, day, hour, minute, second);
+  return Number.isFinite(signedAt) ? signedAt + expiresInSeconds * 1000 : 0;
+}
+
+function getCachedPoster(cacheKey: string): string | null {
+  const cachedPoster = posterCache.get(cacheKey);
+  if (!cachedPoster) return null;
+
+  const expiresAt = getSignedImageUrlExpiresAt(cachedPoster);
+  if (expiresAt !== null && expiresAt <= Date.now() + SIGNED_POSTER_REFRESH_BUFFER_MS) {
+    posterCache.delete(cacheKey);
+    return null;
+  }
+
+  return cachedPoster;
+}
+
+function cachePoster(cacheKey: string, poster: string): void {
+  const expiresAt = getSignedImageUrlExpiresAt(poster);
+  if (expiresAt !== null && expiresAt <= Date.now() + SIGNED_POSTER_REFRESH_BUFFER_MS) {
+    posterCache.delete(cacheKey);
+    return;
+  }
+
+  posterCache.set(cacheKey, poster);
+}
 
 /**
  * Вспомогательная функция для проксирования картинок через Weserv.nl
@@ -66,7 +121,7 @@ export async function resolveBestPoster(shikimoriUrl: string, romajiName: string
   const cacheKey = `${shikimoriId}-${romajiName}-${russianName}-${disableExternalAPIs}`;
   
   // Проверяем кэш, но не возвращаем сохранённые URL страниц вместо изображений
-  const cachedPoster = posterCache.get(cacheKey);
+  const cachedPoster = getCachedPoster(cacheKey);
   if (cachedPoster && (cachedPoster.startsWith('data:') || isHighQualityImage(cachedPoster, true))) {
     return cachedPoster;
   }
@@ -81,7 +136,7 @@ export async function resolveBestPoster(shikimoriUrl: string, romajiName: string
   if (isHighQualityImage(upgradedUrl, true)) {
     const proxiedUrl = proxyImage(upgradedUrl, false);
     if (proxiedUrl) {
-      posterCache.set(cacheKey, proxiedUrl);
+      cachePoster(cacheKey, proxiedUrl);
       return proxiedUrl;
     }
   }
@@ -90,7 +145,7 @@ export async function resolveBestPoster(shikimoriUrl: string, romajiName: string
   if (disableExternalAPIs) {
     console.log(`[resolveBestPoster] Using fallback for ${targetName} (external APIs disabled)`);
     const fallback = generateArtPoster(targetName);
-    posterCache.set(cacheKey, fallback);
+    cachePoster(cacheKey, fallback);
     return fallback;
   }
 
@@ -102,7 +157,7 @@ export async function resolveBestPoster(shikimoriUrl: string, romajiName: string
     if (anilist) {
       const proxied = proxyImage(anilist, false);
       if (proxied) {
-        posterCache.set(cacheKey, proxied);
+        cachePoster(cacheKey, proxied);
         return proxied;
       }
     }
@@ -115,7 +170,7 @@ export async function resolveBestPoster(shikimoriUrl: string, romajiName: string
     if (kitsu) {
       const proxied = proxyImage(kitsu, false);
       if (proxied) {
-        posterCache.set(cacheKey, proxied);
+        cachePoster(cacheKey, proxied);
         return proxied;
       }
     }
@@ -129,7 +184,7 @@ export async function resolveBestPoster(shikimoriUrl: string, romajiName: string
   if (kodik) {
     const proxied = proxyImage(kodik, false);
     if (proxied) {
-      posterCache.set(cacheKey, proxied);
+      cachePoster(cacheKey, proxied);
       return proxied;
     }
   }
@@ -141,7 +196,7 @@ export async function resolveBestPoster(shikimoriUrl: string, romajiName: string
     if (mal) {
       const proxied = proxyImage(mal, false);
       if (proxied) {
-        posterCache.set(cacheKey, proxied);
+        cachePoster(cacheKey, proxied);
         return proxied;
       }
     }
@@ -155,7 +210,7 @@ export async function resolveBestPoster(shikimoriUrl: string, romajiName: string
     if (isHighQualityImage(fullShikimoriUrl, true)) {
       const proxied = proxyImage(fullShikimoriUrl, false);
       if (proxied) {
-        posterCache.set(cacheKey, proxied);
+        cachePoster(cacheKey, proxied);
         return proxied;
       }
     }
@@ -163,7 +218,7 @@ export async function resolveBestPoster(shikimoriUrl: string, romajiName: string
 
   // Шаг 7: Фоллбэк - генерируем заглушку
   const fallback = generateArtPoster(targetName);
-  posterCache.set(cacheKey, fallback);
+  cachePoster(cacheKey, fallback);
   return fallback;
 }
 
@@ -199,7 +254,9 @@ async function getKitsuPoster(searchTitle: string): Promise<string | null> {
         "Accept": "application/vnd.api+json",
         "Content-Type": "application/vnd.api+json"
       },
-      next: { revalidate: 86400 }
+      // Poster URLs from Kitsu are presigned and may expire in as little as 15m.
+      // Do not persist the API response in Next's Data Cache past that expiry.
+      cache: "no-store",
     });
 
     if (!response.ok) return null;
