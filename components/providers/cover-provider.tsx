@@ -1,6 +1,7 @@
 "use client"
 
 import React, { createContext, useContext, useCallback, useEffect, useState, useRef } from "react"
+import { isImageUrlFresh, isImageUrlSafeToPersist } from "@/lib/signed-image-url"
 
 interface CoverCache {
   [animeId: string]: {
@@ -30,8 +31,15 @@ function isReusablePoster(poster: string): boolean {
   return Boolean(
     poster &&
     !poster.startsWith('data:') &&
-    !/^https?:\/\/shikimori\.(one|io|org)\/animes\/\d+\/?(?:\?.*)?$/i.test(poster)
+    !/^https?:\/\/shikimori\.(one|io|org)\/animes\/\d+\/?(?:\?.*)?$/i.test(poster) &&
+    isImageUrlFresh(poster)
   )
+}
+
+// SigV4 URLs can expire in minutes. Keep them in memory only, never in the
+// seven-day localStorage cache where they would be replayed after expiry.
+function isPersistablePoster(poster: string): boolean {
+  return isReusablePoster(poster) && isImageUrlSafeToPersist(poster)
 }
 
 function loadCacheFromStorage(): CoverCache {
@@ -42,21 +50,25 @@ function loadCacheFromStorage(): CoverCache {
     if (!raw) return {}
     
     const data = JSON.parse(raw)
-    if (data.version !== CACHE_VERSION) return {}
+    if (data.version !== CACHE_VERSION) {
+      window.localStorage.removeItem(CACHE_KEY)
+      return {}
+    }
     
-    // Очищаем устаревшие записи
+    // Drop expired, temporary, and invalid poster URLs before they reach UI.
     const now = Date.now()
     const cleaned: CoverCache = {}
     
     for (const [id, entry] of Object.entries(data.cache || {})) {
       const typedEntry = entry as { poster: string; backdrop: string | null; timestamp: number; sources: string[] }
-      if (now - typedEntry.timestamp < CACHE_TTL) {
-        // Skip fallback and invalid Shikimori page URLs - they should be re-fetched
-        if (!isReusablePoster(typedEntry.poster)) continue
+      if (now - typedEntry.timestamp < CACHE_TTL && isPersistablePoster(typedEntry.poster)) {
         cleaned[id] = typedEntry
       }
     }
-    
+
+    // Rewrite storage so legacy signed URLs are removed instead of being
+    // reconsidered on every page load.
+    saveCacheToStorage(cleaned)
     return cleaned
   } catch {
     return {}
@@ -67,9 +79,18 @@ function saveCacheToStorage(cache: CoverCache) {
   if (typeof window === "undefined") return
   
   try {
+    const persistableCache = Object.fromEntries(
+      Object.entries(cache).filter(([, entry]) => isPersistablePoster(entry.poster)),
+    ) as CoverCache
+
+    if (Object.keys(persistableCache).length === 0) {
+      window.localStorage.removeItem(CACHE_KEY)
+      return
+    }
+
     const data = {
       version: CACHE_VERSION,
-      cache,
+      cache: persistableCache,
       timestamp: Date.now()
     }
     window.localStorage.setItem(CACHE_KEY, JSON.stringify(data))
@@ -358,8 +379,8 @@ export function CoverProvider({ children }: { children: React.ReactNode }) {
   const getFromCache = useCallback((animeId: string) => {
     const entry = cache[animeId]
     if (!entry) return null
-    // Don't return data URI fallback as a "valid" cached poster
-    if (entry.poster && entry.poster.startsWith('data:')) return null
+    // The poster may have expired since this entry was first added to memory.
+    if (!isReusablePoster(entry.poster)) return null
     
     return {
       poster: entry.poster,

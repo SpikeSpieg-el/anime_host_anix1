@@ -2,52 +2,25 @@ import { upgradeShikimoriUrl, generateArtPoster, normalizeShikimoriUrl } from ".
 import { shikimoriFetch, shikimoriJson } from "./client";
 import { BASE_URL } from "./config";
 import { isExternalImageUrl } from "../image-loader";
+import {
+  isImageUrlFresh,
+  SIGNED_IMAGE_URL_REFRESH_BUFFER_MS,
+} from "../signed-image-url";
+
+export { getSignedImageUrlExpiresAt } from "../signed-image-url";
 
 // Кэш для постеров и фонов
 const posterCache = new Map<string, string>();
 const backdropCache = new Map<string, string | null>();
-const SIGNED_POSTER_REFRESH_BUFFER_MS = 60_000;
 // Очередь для запросов с задержкой
 let requestQueue = Promise.resolve();
 const REQUEST_DELAY = 50; // 50ms между запросами (ускорено для быстрой загрузки)
-
-/**
- * Kitsu's API may return AWS SigV4 URLs that expire after a short period.
- * Read the actual expiry instead of letting the in-memory poster cache keep
- * returning an already-expired URL indefinitely.
- */
-export function getSignedImageUrlExpiresAt(url: string): number | null {
-  let parsed: URL;
-  try {
-    parsed = new URL(url);
-  } catch {
-    return null;
-  }
-
-  const getParam = (name: string) =>
-    [...parsed.searchParams.entries()].find(([key]) => key.toLowerCase() === name.toLowerCase())?.[1];
-  const signature = getParam("X-Amz-Signature");
-  if (!signature) return null;
-
-  const date = getParam("X-Amz-Date");
-  const expiresInSeconds = Number(getParam("X-Amz-Expires"));
-  const match = date?.match(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/);
-  if (!match || !Number.isFinite(expiresInSeconds) || expiresInSeconds <= 0) {
-    // If a URL is signed but its expiry cannot be parsed, don't cache it.
-    return 0;
-  }
-
-  const [year, month, day, hour, minute, second] = match.slice(1).map(Number);
-  const signedAt = Date.UTC(year, month - 1, day, hour, minute, second);
-  return Number.isFinite(signedAt) ? signedAt + expiresInSeconds * 1000 : 0;
-}
 
 function getCachedPoster(cacheKey: string): string | null {
   const cachedPoster = posterCache.get(cacheKey);
   if (!cachedPoster) return null;
 
-  const expiresAt = getSignedImageUrlExpiresAt(cachedPoster);
-  if (expiresAt !== null && expiresAt <= Date.now() + SIGNED_POSTER_REFRESH_BUFFER_MS) {
+  if (!isImageUrlFresh(cachedPoster, Date.now(), SIGNED_IMAGE_URL_REFRESH_BUFFER_MS)) {
     posterCache.delete(cacheKey);
     return null;
   }
@@ -56,8 +29,7 @@ function getCachedPoster(cacheKey: string): string | null {
 }
 
 function cachePoster(cacheKey: string, poster: string): void {
-  const expiresAt = getSignedImageUrlExpiresAt(poster);
-  if (expiresAt !== null && expiresAt <= Date.now() + SIGNED_POSTER_REFRESH_BUFFER_MS) {
+  if (!isImageUrlFresh(poster, Date.now(), SIGNED_IMAGE_URL_REFRESH_BUFFER_MS)) {
     posterCache.delete(cacheKey);
     return;
   }

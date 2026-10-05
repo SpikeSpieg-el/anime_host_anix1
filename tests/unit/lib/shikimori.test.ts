@@ -9,7 +9,11 @@ import {
   generateArtPoster,
 } from "@/lib/shikimori/utils"
 import { transformAnimeCalendar, toLinkedAnimeFromShikimori, transformTopic } from "@/lib/shikimori/transformers"
-import { getSignedImageUrlExpiresAt } from "@/lib/shikimori/images"
+import {
+  getSignedImageUrlExpiresAt,
+  isImageUrlFresh,
+  isImageUrlSafeToPersist,
+} from "@/lib/signed-image-url"
 import { BASE_URL, SITE_URL, GENRES_MAP, NSFW_GENRE_IDS } from "@/lib/shikimori/config"
 import { makeShikimoriAnime } from "../../fixtures/anime"
 
@@ -36,6 +40,20 @@ describe("signed poster URL expiry", () => {
   it("returns null for permanent URLs and treats malformed signed URLs as uncachable", () => {
     expect(getSignedImageUrlExpiresAt("https://media.kitsu.app/anime/poster.jpg")).toBeNull()
     expect(getSignedImageUrlExpiresAt("https://example.com/poster.jpg?X-Amz-Signature=test")).toBe(0)
+    expect(getSignedImageUrlExpiresAt("https://example.com/poster.jpg?X-Amz-Date=20261005T125040Z")).toBe(0)
+  })
+
+  it("stops reusing a poster shortly before its signed URL expires", () => {
+    const expiresAt = getSignedImageUrlExpiresAt(signedUrl)!
+    expect(isImageUrlFresh(signedUrl, expiresAt - 120_000)).toBe(true)
+    expect(isImageUrlFresh(signedUrl, expiresAt - 30_000)).toBe(false)
+    expect(isImageUrlFresh(signedUrl, expiresAt)).toBe(false)
+  })
+
+  it("allows permanent covers in persistent caches but never stores signed URLs", () => {
+    expect(isImageUrlSafeToPersist(signedUrl)).toBe(false)
+    expect(isImageUrlSafeToPersist("https://media.kitsu.app/anime/poster.jpg")).toBe(true)
+    expect(isImageUrlSafeToPersist("https://example.com/poster.jpg?X-Amz-Signature=test")).toBe(false)
   })
 })
 
