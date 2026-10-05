@@ -53,6 +53,7 @@ export function isExternalImageUrl(url: string): boolean {
     's4.anilist.co',
     'kitsu.app',
     'media.kitsu.app',
+    'kitsu-production-media.s3.us-west-002.backblazeb2.com',
     rt(['ko', 'dikapi.com']),
     rt(['ko', 'dik.info']),
     rt(['cdn.ko', 'dik.info']),

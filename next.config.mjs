@@ -88,6 +88,12 @@ const nextConfig = {
         hostname: 'media.kitsu.app',
         pathname: '/**',
       },
+      // Kitsu's API can return short-lived, signed Backblaze S3 poster URLs.
+      {
+        protocol: 'https',
+        hostname: 'kitsu-production-media.s3.us-west-002.backblazeb2.com',
+        pathname: '/**',
+      },
       // 5. Yande.re artwork used by the gacha collection
       {
         protocol: 'https',

@@ -9,6 +9,7 @@ import {
   generateArtPoster,
 } from "@/lib/shikimori/utils"
 import { transformAnimeCalendar, toLinkedAnimeFromShikimori, transformTopic } from "@/lib/shikimori/transformers"
+import { getSignedImageUrlExpiresAt } from "@/lib/shikimori/images"
 import { BASE_URL, SITE_URL, GENRES_MAP, NSFW_GENRE_IDS } from "@/lib/shikimori/config"
 import { makeShikimoriAnime } from "../../fixtures/anime"
 
@@ -22,6 +23,19 @@ describe("shikimori config", () => {
     expect(GENRES_MAP["Экшен"]).toBe("1")
     expect(GENRES_MAP["Хентай"]).toBe("12")
     expect(NSFW_GENRE_IDS).toContain(12)
+  })
+})
+
+describe("signed poster URL expiry", () => {
+  const signedUrl = "https://kitsu-production-media.s3.us-west-002.backblazeb2.com/anime/50021/poster_image/poster.jpg?X-Amz-Date=20261005T125040Z&X-Amz-Expires=900&X-Amz-Signature=test"
+
+  it("computes the expiry from the SigV4 date and TTL", () => {
+    expect(getSignedImageUrlExpiresAt(signedUrl)).toBe(Date.UTC(2026, 9, 5, 13, 5, 40))
+  })
+
+  it("returns null for permanent URLs and treats malformed signed URLs as uncachable", () => {
+    expect(getSignedImageUrlExpiresAt("https://media.kitsu.app/anime/poster.jpg")).toBeNull()
+    expect(getSignedImageUrlExpiresAt("https://example.com/poster.jpg?X-Amz-Signature=test")).toBe(0)
   })
 })
 
