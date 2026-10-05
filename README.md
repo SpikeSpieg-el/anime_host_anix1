@@ -92,6 +92,10 @@ npm install
 Создайте файл `.env.local` в корне проекта:
 ```env
 KODIK_API_TOKEN=your_kodik_api_token
+# Секрет шифрования ссылок плеера (защита от автосканеров антипиратских систем).
+# Если не задан, используется встроенный ключ. Ротация делает старые ссылки
+# плеера недействительными (перезапрашиваются автоматически).
+# PLAYER_LINK_SECRET=long_random_string
 NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key

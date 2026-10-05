@@ -1,7 +1,6 @@
 import { upgradeShikimoriUrl, generateArtPoster, normalizeShikimoriUrl } from "./utils";
 import { shikimoriFetch, shikimoriJson } from "./client";
 import { BASE_URL } from "./config";
-import { getKodikPoster } from "../kodik";
 export * from "./types";
 export * from "./config";
 export * from "./utils"; // generateArtPoster, etc.
@@ -27,9 +26,12 @@ export async function resolveBestPoster(shikimoriUrl: string, romajiName: string
   const upgradedUrl = upgradeShikimoriUrl(shikimoriUrl);
   if (isHighQualityImage(upgradedUrl, true)) return upgradedUrl;
 
-  // Попробуем другие источники (Kodik, Anilist, MAL)
+  // Попробуем другие источники (Kodik, Anilist, MAL).
+  // Kodik подгружаем лениво: модуль ходит в kodik-api.com и не должен
+  // попадать в клиентские бандлы (этот код выполняется только на сервере).
   const namesToTry = [romajiName, russianName].filter(Boolean);
-  
+
+  const { getKodikPoster } = await import("../kodik");
   const kodik = await getKodikPoster(shikimoriId);
   if (kodik) return kodik;
 

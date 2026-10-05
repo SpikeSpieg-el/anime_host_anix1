@@ -60,8 +60,14 @@ interface KodikTranslation {
   type: string
   quality: string
   episodesCount: number
+  /**
+   * Внутренний зашифрованный адрес плеера вида `/embed/<токен>`.
+   * Прямая ссылка на внешний видеохостинг сюда НЕ попадает — она
+   * расшифровывается только на сервере в момент отдачи страницы плеера
+   * (см. lib/player-protect.ts).
+   */
   playerLink: string
-  /** Карта сезонов от Kodik: { "1": { episodes: { "1": "//link", ... } } } */
+  /** Карта сезонов: { "1": { episodes: { "1": "", ... } } } — только номера серий. */
   seasons?: KodikSeasonsMap
 }
 
@@ -155,7 +161,6 @@ export function KodikPlayer({
   const [isMobile, setIsMobile] = useState(false)
   const [menuPos, setMenuPos] = useState<{ top: number; left: number; width: number } | null>(null)
   const [mounted, setMounted] = useState(false)
-  const [useProxy, setUseProxy] = useState(false)
 
   // Текущий сезон — приходит от плеера, нужен для точной границы серий
   // (в много сезонных тайтлах Kodik нумерует серии внутри сезона).
@@ -258,7 +263,7 @@ export function KodikPlayer({
     setTranslationsLoading(true)
     try {
       const res = await fetch(
-        `/api/kodik/translations?shikimoriId=${encodeURIComponent(shikimoriId)}&title=${encodeURIComponent(title)}`
+        `/api/player/translations?shikimoriId=${encodeURIComponent(shikimoriId)}&title=${encodeURIComponent(title)}`
       )
       if (!res.ok) throw new Error("Failed to load translations")
       const data = await res.json()
@@ -627,11 +632,12 @@ export function KodikPlayer({
     )
   }
 
+  // Плеер вставляется ТОЛЬКО после клика «Смотреть» (см. isStarted ниже),
+  // а его адрес — наш внутренний /embed/<токен>, а не прямая ссылка на
+  // внешний видеохостинг: в коде страницы торчит только weeb-x.com.
   const playerSrc = useMemo(() => {
-    if (!selectedTranslation?.playerLink) return ""
-
-    let url = selectedTranslation.playerLink
-    if (url.startsWith("//")) url = `https:${url}`
+    const base = selectedTranslation?.playerLink
+    if (!base) return ""
 
     const params = new URLSearchParams({
       no_ads: "true",
@@ -649,14 +655,9 @@ export function KodikPlayer({
       params.append("country", selectedCountry)
     }
 
-    const separator = url.includes("?") ? "&" : "?"
-    const directUrl = `${url}${separator}${params.toString()}`
-
-    if (useProxy) {
-      return `/api/kodik/player-proxy?url=${encodeURIComponent(directUrl)}`
-    }
-    return directUrl
-  }, [selectedTranslation, episode, selectedCountry, useProxy, isStarted])
+    const separator = base.includes("?") ? "&" : "?"
+    return `${base}${separator}${params.toString()}`
+  }, [selectedTranslation, episode, selectedCountry, isStarted])
 
   const handleCountryChange = (countryCode: string) => {
     setSelectedCountry(countryCode)

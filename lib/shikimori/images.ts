@@ -1,7 +1,6 @@
 import { upgradeShikimoriUrl, generateArtPoster, normalizeShikimoriUrl } from "./utils";
 import { shikimoriFetch, shikimoriJson } from "./client";
 import { BASE_URL } from "./config";
-import { getKodikPoster } from "../kodik";
 import { isExternalImageUrl } from "../image-loader";
 
 // Кэш для постеров и фонов
@@ -122,8 +121,10 @@ export async function resolveBestPoster(shikimoriUrl: string, romajiName: string
     }
   }
 
-  // Шаг 4: Пробуем Kodik
+  // Шаг 4: Пробуем Kodik. Ленивый импорт: модуль не должен попадать
+  // в клиентские бандлы (код выполняется только на сервере).
   await delayRequest();
+  const { getKodikPoster } = await import("../kodik");
   const kodik = await getKodikPoster(shikimoriId);
   if (kodik) {
     const proxied = proxyImage(kodik, false);

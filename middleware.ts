@@ -16,9 +16,11 @@ const CSRF_EXEMPT_PATHS = [
   "/api/lampa/",
 ]
 
-// Paths that are exempt from security headers (like X-Frame-Options: DENY)
+// Paths that are exempt from security headers (like X-Frame-Options: DENY).
+// /embed/ — отдельная страница плеера: она проксирует внешний видеоплеер
+// и должна позволять встраивание в iframe на нашем же сайте.
 const SECURITY_HEADERS_EXEMPT_PATHS = [
-  "/api/kodik/player-proxy",
+  "/embed/",
 ]
 
 // Paths that are API routes (for header checks)

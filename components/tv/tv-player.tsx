@@ -17,10 +17,30 @@ export function TVPlayer({ animeId, episode, animeTitle, totalEpisodes, onNextEp
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
+    let cancelled = false
     setIsLoading(true)
-    const url = `https://kodikplayer.com/find-player?shikimoriID=${animeId}&episode=${episode}&quality=720&no_ads=true&no_provider_ads=true&block_blocked_countries=true&hide_selectors=true`
-    setKodikUrl(url)
-    setIsLoading(false)
+    setKodikUrl('')
+
+    // Прямая ссылка на внешний плеер в код страницы не попадает:
+    // сервер отдаёт наш внутренний зашифрованный адрес /embed/<токен>
+    // (см. lib/player-protect.ts).
+    fetch(
+      `/api/player/session?shikimoriId=${encodeURIComponent(animeId)}&episode=${encodeURIComponent(String(episode))}`
+    )
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!cancelled) setKodikUrl(data?.src || '')
+      })
+      .catch(() => {
+        if (!cancelled) setKodikUrl('')
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoading(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
   }, [animeId, episode])
 
 

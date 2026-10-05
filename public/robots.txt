@@ -7,6 +7,9 @@ Disallow: /18+/
 Disallow: /private/
 Disallow: /_next/
 
+# Страница плеера (техническая ссылка «Смотреть») — не индексировать
+Disallow: /embed/
+
 # API routes - разрешаем только для изображений, остальные блокируем
 Allow: /api/thumbnail-proxy
 Allow: /api/fallback-poster

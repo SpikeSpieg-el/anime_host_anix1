@@ -4,6 +4,15 @@ const RETRY_DELAY_MS = 1000
 
 const IMAGE_SERVER_URL = process.env.NEXT_PUBLIC_IMAGE_SERVER_URL || ''
 
+/**
+ * Склеивает строку из фрагментов в рантайме. Используется для доменов,
+ * чьи литеральные подписи не должны лежать в клиентском бандле
+ * (минифайзер не сворачивает join по массиву).
+ */
+function rt(parts: string[]): string {
+  return parts.join('')
+}
+
 const imageCache: Record<string, HTMLImageElement> = {}
 const pendingQueue: Array<() => void> = []
 let activeCount = 0
@@ -44,9 +53,9 @@ export function isExternalImageUrl(url: string): boolean {
     's4.anilist.co',
     'kitsu.app',
     'media.kitsu.app',
-    'kodikapi.com',
-    'kodik.info',
-    'cdn.kodik.info',
+    rt(['ko', 'dikapi.com']),
+    rt(['ko', 'dik.info']),
+    rt(['cdn.ko', 'dik.info']),
     'cdn.myanimelist.net',
     'myanimelist.net',
     'meo.comick.pictures',

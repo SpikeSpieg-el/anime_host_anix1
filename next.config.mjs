@@ -156,7 +156,9 @@ const nextConfig = {
   async headers() {
     return [
       {
-        source: '/api/kodik/player-proxy',
+        // Отдельная страница плеера (проксирует внешний видеоплеер).
+        // Разрешаем встраивание только в наш собственный сайт.
+        source: '/embed/:token',
         headers: [
           {
             key: 'X-Frame-Options',
@@ -166,10 +168,20 @@ const nextConfig = {
             key: 'Content-Security-Policy',
             value: "frame-ancestors 'self'",
           },
+          {
+            key: 'X-Robots-Tag',
+            value: 'noindex, nofollow, noarchive',
+          },
+          {
+            key: 'Cache-Control',
+            value: 'private, no-store',
+          },
         ],
       },
       {
-        source: '/(.*)',
+        // /embed/ исключён: страница плеера задаёт заголовки сама
+        // (см. правило выше) и должна встраиваться в наш же сайт.
+        source: '/((?!embed/).*)',
         headers: [
           {
             // strict-origin-when-cross-origin: Umami берёт referrer из
