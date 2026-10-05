@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server"
 import type { NextFetchEvent, NextRequest } from "next/server"
+import { createClient } from "@supabase/supabase-js"
 import { getWatchRedirectPath } from "@/lib/seo/watch-redirect"
 import { isValidAdminRequestOrigin } from "@/lib/admin-origin"
+import { getClientIp, ipMatchesTarget, parseBlocklistEnv } from "@/lib/ip-block"
 
 // Paths that require CSRF protection (state-changing operations)
 const CSRF_PROTECTED_PATHS = [
@@ -16,9 +18,11 @@ const CSRF_EXEMPT_PATHS = [
   "/api/lampa/",
 ]
 
-// Paths that are exempt from security headers (like X-Frame-Options: DENY)
+// Paths that are exempt from security headers (like X-Frame-Options: DENY).
+// /embed/ — отдельная страница плеера: она проксирует внешний видеоплеер
+// и должна позволять встраивание в iframe на нашем же сайте.
 const SECURITY_HEADERS_EXEMPT_PATHS = [
-  "/api/kodik/player-proxy",
+  "/embed/",
 ]
 
 // Paths that are API routes (for header checks)
@@ -95,6 +99,55 @@ function isAdminSurface(pathname: string): boolean {
     pathname === "/api/admin" || pathname.startsWith("/api/admin/")
 }
 
+/* ------------------------------------------------------------------ */
+/* Чёрный список IP (сканеры антипиратских систем, паразитные боты)    */
+/* ------------------------------------------------------------------ */
+/* Список живёт в двух местах:                                        */
+/*  - env BLOCKED_IPS (через запятую) — аварийный, действует мгновенно; */
+/*  - таблица Supabase ip_bans — управляется из админ-панели.           */
+/* База опрашивается не чаще раза в полминуты (кэш в памяти); если она  */
+/* недоступна — работаем с тем, что есть, посетителей не роняем.       */
+/* ------------------------------------------------------------------ */
+
+const BLOCKLIST_CACHE_TTL_MS = 30_000
+
+let blocklistCache: { targets: string[]; fetchedAt: number } | null = null
+
+async function getBlockedIpTargets(): Promise<string[]> {
+  const envTargets = parseBlocklistEnv(process.env.BLOCKED_IPS)
+  const now = Date.now()
+  if (blocklistCache && now - blocklistCache.fetchedAt < BLOCKLIST_CACHE_TTL_MS) {
+    return envTargets.length > 0
+      ? [...envTargets, ...blocklistCache.targets]
+      : blocklistCache.targets
+  }
+
+  let dbTargets: string[] = []
+  try {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY
+    if (url && key) {
+      const supabase = createClient(url, key)
+      const { data, error } = await supabase
+        .from("ip_bans")
+        .select("target")
+        .order("created_at", { ascending: false })
+        .limit(5000)
+      if (!error && Array.isArray(data)) {
+        dbTargets = data
+          .map((row) => (row as { target?: string }).target)
+          .filter((target): target is string => Boolean(target))
+      }
+    }
+  } catch (error) {
+    // База легла — не класть вместе с ней сайт: остаёмся на кэше и env.
+    console.error("[ip-blocklist] не удалось прочитать ip_bans:", error)
+  }
+
+  blocklistCache = { targets: dbTargets, fetchedAt: now }
+  return envTargets.length > 0 ? [...envTargets, ...dbTargets] : dbTargets
+}
+
 function applySecurityHeaders(response: NextResponse, pathname = "") {
   for (const [key, value] of Object.entries(SECURITY_HEADERS)) {
     response.headers.set(key, value)
@@ -125,6 +178,21 @@ function applySecurityHeaders(response: NextResponse, pathname = "") {
 export async function middleware(request: NextRequest, event?: NextFetchEvent) {
   const pathname = request.nextUrl.pathname
   const method = request.method
+
+  // Чёрный список IP: сканерам и забаненным адресам отдаём обычный 404,
+  // не раскрывая факт блокировки. Админку не трогаем, чтобы случайно не
+  // запереть самих себя (там свой вход по паролю + TOTP + белый список).
+  if (!isAdminSurface(pathname)) {
+    const clientIp = getClientIp(request.headers)
+    if (clientIp) {
+      const targets = await getBlockedIpTargets()
+      for (const target of targets) {
+        if (ipMatchesTarget(clientIp, target)) {
+          return new NextResponse("Not Found", { status: 404 })
+        }
+      }
+    }
+  }
 
   // SEO: /watch/{id} (и устаревшие slug'и) → 301 на канонический /watch/{id}-{slug}.
   // Делаем это здесь, а не в page.tsx: из-за loading.tsx страница успевает отдать

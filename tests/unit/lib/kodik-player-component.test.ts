@@ -31,11 +31,12 @@ function makeTranslation(overrides: Record<string, unknown> = {}) {
     type: "voice",
     quality: "720p",
     episodesCount: 12,
-    playerLink: "//kodikplayer.com/serial/1/hash/720p",
+    // Сервер больше не отдаёт прямые ссылки: только внутренний /embed/<токен>
+    playerLink: "/embed/test-token-abc123",
     seasons: {
       "1": {
         episodes: Object.fromEntries(
-          Array.from({ length: 12 }, (_, i) => [String(i + 1), `//link/${i + 1}`])
+          Array.from({ length: 12 }, (_, i) => [String(i + 1), ""])
         ),
       },
     },
@@ -48,7 +49,7 @@ function stubFetch(translations: unknown[]) {
     "fetch",
     vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input)
-      if (url.includes("/api/kodik/translations")) {
+      if (url.includes("/api/player/translations")) {
         return { ok: true, status: 200, json: async () => ({ translations }) }
       }
       return { ok: false, status: 500, json: async () => ({}) }
@@ -385,7 +386,7 @@ describe("KodikPlayer: плашка «Озвучка не найдена»", () 
       "fetch",
       vi.fn(async (input: RequestInfo | URL) => {
         const url = String(input)
-        if (url.includes("/api/kodik/translations")) {
+        if (url.includes("/api/player/translations")) {
           return { ok: true, status: 200, json: async () => ({ translations: [], ok: false }) }
         }
         return { ok: false, status: 500, json: async () => ({}) }
@@ -407,5 +408,45 @@ describe("KodikPlayer: плашка «Озвучка не найдена»", () 
 
     expect(mounted.container.textContent).not.toContain("Озвучка не найдена")
     expect(playerBox(mounted.container)!.className).toMatch(/(^|\s)aspect-video/)
+  })
+})
+
+describe("KodikPlayer: защита от сканеров (прямые ссылки не видны)", () => {
+  let mounted: MountResult | null = null
+
+  beforeEach(() => {
+    stubFetch([makeTranslation()])
+  })
+
+  afterEach(async () => {
+    if (mounted) {
+      await act(async () => {
+        mounted?.root.unmount()
+      })
+      mounted.container.remove()
+      mounted = null
+    }
+    vi.unstubAllGlobals()
+  })
+
+  it("до клика «Смотреть» никакого плеера в DOM нет", async () => {
+    mounted = await mountPlayer({ shikimoriId: "21", title: "One Piece", episode: 1 })
+
+    expect(mounted.container.querySelector("iframe")).toBeNull()
+  })
+
+  it("после клика «Смотреть» вставляется наш /embed/<токен>, а не внешний плеер", async () => {
+    mounted = await mountPlayer({ shikimoriId: "21", title: "One Piece", episode: 3 })
+    clickButton(mounted.container, "Смотреть 3 серию")
+
+    const frame = mounted.container.querySelector("iframe") as HTMLIFrameElement | null
+    expect(frame).not.toBeNull()
+
+    const src = frame!.getAttribute("src") || ""
+    expect(src.startsWith("/embed/")).toBe(true)
+    expect(src).toContain("episode=3")
+    // В DOM не должно остаться ни одного внешнего домена плеера
+    expect(src).not.toMatch(/kodik|aniqit|anivod/i)
+    expect(mounted.container.innerHTML).not.toMatch(/kodikplayer\.com|kodik\.cc|kodik\.info|aniqit\.com|anivod\.com/i)
   })
 })

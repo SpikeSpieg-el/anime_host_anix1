@@ -234,7 +234,7 @@ export interface CustomNews {
   updated_at: string
 }
 
-export type AdminTab = 'users' | 'pvp' | 'ai_battle' | 'battle_logs' | 'cards' | 'mail' | 'events' | 'editorial' | 'tutorial' | 'news' | 'analytics'
+export type AdminTab = 'users' | 'pvp' | 'ai_battle' | 'battle_logs' | 'cards' | 'mail' | 'events' | 'editorial' | 'tutorial' | 'news' | 'analytics' | 'blacklist'
 
 export interface TutorialSection {
   id: string

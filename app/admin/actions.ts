@@ -8,6 +8,7 @@ import webpush from "web-push"
 import { ADMIN_AUTH_COOKIE, ADMIN_SESSION_TTL_SECONDS, constantTimeStringEqual, consumeAdminTotp, createAdminSessionToken, getAdminAuthConfigurationError, isAdminTotpRequired, isValidAdminSession } from "@/lib/admin-auth"
 import { rateLimiters } from "@/lib/rate-limit"
 import { sanitizeNewsHtml } from "@/lib/news/sanitize-html"
+import { isValidIp, normalizeBlockTarget, subnetForIp } from "@/lib/ip-block"
 
 export async function adminLogin(formData: FormData) {
   const fieldValue = (name: string) => {
@@ -1383,4 +1384,131 @@ export async function getPlayerLearningProfiles() {
     username: userMap[s.user_id]?.username || null,
     avatar_url: userMap[s.user_id]?.avatar_url || null,
   }))
+}
+
+/* ------------------------------------------------------------------ */
+/* Чёрный список IP (защита от автосканеров и паразитных ботов)        */
+/* ------------------------------------------------------------------ */
+
+export interface IpBanRow {
+  id: string
+  target: string
+  reason: string | null
+  source: string
+  created_at: string
+}
+
+const IP_TARGET_PATTERN = /^[0-9a-fA-F:.\[\]/]+$/
+
+export async function getIpBans(): Promise<IpBanRow[]> {
+  const supabase = await getAdminSupabase()
+  const { data, error } = await supabase
+    .from("ip_bans")
+    .select("id, target, reason, source, created_at")
+    .order("created_at", { ascending: false })
+    .limit(5000)
+  if (error) throw error
+  return (data || []) as IpBanRow[]
+}
+
+export async function addIpBan(target: string, reason?: string): Promise<IpBanRow> {
+  const supabase = await getAdminSupabase()
+
+  const raw = String(target || "").trim()
+  if (!raw || raw.length > 49 || !IP_TARGET_PATTERN.test(raw)) {
+    throw new Error("Некорректный IP или подсеть")
+  }
+  const normalized = normalizeBlockTarget(raw)
+  if (!normalized) throw new Error("Некорректный IP или подсеть")
+
+  const cleanReason = reason?.trim() ? reason.trim().slice(0, 500) : null
+
+  const { data, error } = await supabase
+    .from("ip_bans")
+    .insert({ target: normalized, reason: cleanReason, source: "admin" })
+    .select("id, target, reason, source, created_at")
+    .single()
+  if (error) {
+    if (String(error.message).includes("duplicate") || (error as { code?: string }).code === "23505") {
+      throw new Error(`Запись ${normalized} уже есть в чёрном списке`)
+    }
+    throw error
+  }
+  return data as IpBanRow
+}
+
+export async function removeIpBan(id: string): Promise<void> {
+  const supabase = await getAdminSupabase()
+  if (!USER_ID_PATTERN.test(id)) throw new Error("Invalid request")
+  const { error } = await supabase.from("ip_bans").delete().eq("id", id)
+  if (error) throw error
+}
+
+export interface IpLookupResult {
+  ip: string
+  org: string | null
+  asn: string | null
+  city: string | null
+  region: string | null
+  country: string | null
+  hostname: string | null
+  isHostingLike: boolean
+}
+
+/** Подсети крупных хостингов — повод банить смелее. */
+const HOSTING_ORG_MARKERS = [
+  "hetzner", "selectel", "vdsina", "timeweb", "reg.ru", "beget", "ovh",
+  "digitalocean", "linode", "akamai", "amazon", "aws", "google cloud",
+  "google llc", "microsoft", "azure", "cloudflare", "hostkey", "aeza",
+  "firstbyte", "justhost", "ihor", "ruvds", "masterhost", "jino",
+  "contabo", "scaleway", "vultr", "ukfast", "ionos", "hostinger",
+]
+
+/**
+ * Пробиваем IP через ipinfo.io (бесплатный режим без токена).
+ * Оператор (org/ASN) сразу показывает, серверный это хостинг или
+ * обычный провайдер — хостинг можно банить всей подсетью.
+ */
+export async function lookupIpInfo(ip: string): Promise<IpLookupResult> {
+  const isAdmin = await checkAdminAuth()
+  if (!isAdmin) throw new Error("Unauthorized")
+
+  const raw = String(ip || "").trim()
+  if (!isValidIp(raw)) throw new Error("Некорректный IP")
+
+  const res = await fetch(`https://ipinfo.io/${encodeURIComponent(raw)}/json`, {
+    headers: { Accept: "application/json" },
+    signal: AbortSignal.timeout?.(8000),
+  })
+  if (!res.ok) throw new Error(`ipinfo.io вернул ${res.status}`)
+  const info = (await res.json()) as {
+    ip?: string
+    org?: string
+    city?: string
+    region?: string
+    country?: string
+    hostname?: string
+  }
+
+  const org = info.org?.trim() || null
+  const orgLower = (org || "").toLowerCase()
+  const asnMatch = orgLower.match(/^as\d+/)
+
+  return {
+    ip: info.ip || raw,
+    org,
+    asn: asnMatch ? asnMatch[0].toUpperCase() : null,
+    city: info.city || null,
+    region: info.region || null,
+    country: info.country || null,
+    hostname: info.hostname || null,
+    isHostingLike: HOSTING_ORG_MARKERS.some((marker) => orgLower.includes(marker)),
+  }
+}
+
+/** Быстрый бан подсети: /24 для IPv4 и /64 для IPv6. */
+export async function addIpSubnetBan(ip: string, reason?: string): Promise<IpBanRow> {
+  const subnet = subnetForIp(String(ip || "").trim())
+  if (!subnet) throw new Error("Не удалось вычислить подсеть")
+  return addIpBan(subnet, reason)
 }

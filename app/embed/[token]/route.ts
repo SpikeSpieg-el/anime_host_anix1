@@ -1,24 +1,53 @@
 import { NextRequest, NextResponse } from "next/server"
+import {
+  isCrawlerRequest,
+  isCrossOriginReferer,
+  resolvePlayerToken,
+} from "@/lib/player-protect"
 
-// Добавлены aniqit.com и anivod.com — без них половина ссылок отдаст 403
-const KODIK_DOMAINS = [
-  "aniqit.com",
-  "anivod.com",
-  "kodikplayer.com",
-  "kodik.cc",
-  "kodik.info",
-  "kodik.biz",
-  "kodik-add.com",
-]
+/**
+ * Отдельная страница плеера: /embed/<токен>.
+ *
+ * Вместо прямой ссылки на внешний видеохостинг вставляется этот адрес.
+ * Токен — зашифрованный (AES-256-GCM) и короткоживущий, поэтому:
+ *  - в коде страницы /watch/... нет ни одной внешней ссылки;
+ *  - сканер не может сконструировать или угадать адрес плеера;
+ *  - даже перехваченный адрес протухает через 48 часов.
+ *
+ * Страница закрыта от индексации (robots.txt + X-Robots-Tag),
+ * не отдаётся ботам и чужим сайтам (см. lib/player-protect.ts).
+ */
 
-function isValidKodikUrl(url: string): boolean {
-  try {
-    const parsed = new URL(url)
-    const domain = parsed.hostname.replace(/^www\./, "")
-    return KODIK_DOMAINS.some((d) => domain === d || domain.endsWith(`.${d}`))
-  } catch {
-    return false
-  }
+export const dynamic = "force-dynamic"
+
+/** Какие query-параметры разрешено прокидывать внутрь плеера. */
+const ALLOWED_PARAMS = [
+  "episode",
+  "season",
+  "country",
+  "autoplay",
+  "quality",
+  "no_ads",
+  "no_provider_ads",
+  "hide_selectors",
+  "translate",
+] as const
+
+const RESPONSE_HEADERS: Record<string, string> = {
+  "Content-Type": "text/html; charset=utf-8",
+  // Не кэшировать нигде: токен одноразовый по смыслу.
+  "Cache-Control": "private, no-store",
+  // Сканеры и поисковики не должны индексировать страницу плеера.
+  "X-Robots-Tag": "noindex, nofollow, noarchive",
+  // Встраивать можно только в наш собственный сайт.
+  "X-Frame-Options": "SAMEORIGIN",
+  "Content-Security-Policy": "frame-ancestors 'self'",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+}
+
+function notFound(): NextResponse {
+  // Ничем не выдаём, что здесь вообще есть плеер.
+  return new NextResponse("Not Found", { status: 404, headers: RESPONSE_HEADERS })
 }
 
 const AD_BLOCK_CSS = `
@@ -38,8 +67,8 @@ const AD_BLOCK_CSS = `
 [id*="casino"],[class*="casino"],[id*="betting"],[class*="betting"],
 [id*="1xbet"],[class*="1xbet"],[id*="gambling"],[class*="gambling"],
 [id*="click"],[class*="click"],[id*="popunder"],[class*="popunder"],
-[id*="teaser"],[class*="teaser"],[id*="promo"],[class*="promo"],
-.vast-container,.vast-ad,.vast-preroll,.vast-overlay,
+[id*="teaser"],[class*="promo"],[id*="promo"],
+.vast-container,.vast-ad,.vast-preroll,.vast-ad-overlay,
 .adfox-code,.adfox-bid,.yandex-rtb,.yandex-direct {
   display:none!important;
   visibility:hidden!important;
@@ -128,8 +157,7 @@ const AD_BLOCK_JS = `
       });
     });
   });
-  
-  // ИСПРАВЛЕНО: убран ошибочный () в конце вызова observe
+
   mo.observe(document.documentElement || document.body || document, { childList: true, subtree: true });
 
   // 2. АВТО-СКИП ВИДЕОРЕКЛАМЫ (срабатывает каждые 250мс)
@@ -156,26 +184,28 @@ const AD_BLOCK_JS = `
 </script>
 `
 
-const RESPONSE_HEADERS = {
-  "Content-Type": "text/html; charset=utf-8",
-  "X-Frame-Options": "SAMEORIGIN",
-  "Content-Security-Policy": "frame-ancestors 'self' *",
-}
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ token: string }> }
+) {
+  // 1. Ботам страницу плеера не отдаём вообще.
+  if (isCrawlerRequest(request.headers)) return notFound()
 
-export async function GET(request: NextRequest) {
-  const targetUrl = request.nextUrl.searchParams.get("url")
-
-  if (!targetUrl) {
-    return new NextResponse("Missing URL", { status: 400, headers: RESPONSE_HEADERS })
+  // 2. Хотлинк с чужого сайта — тоже мимо.
+  if (isCrossOriginReferer(request.headers.get("referer"), request.headers, request.url)) {
+    return notFound()
   }
 
-  if (!isValidKodikUrl(targetUrl)) {
-    return new NextResponse("Invalid URL", { status: 403, headers: RESPONSE_HEADERS })
-  }
+  // 3. Расшифровываем токен. Неверный/протухший — обычный 404.
+  const { token } = await params
+  const baseUrl = resolvePlayerToken(token)
+  if (!baseUrl) return notFound()
 
-  const urlObj = new URL(targetUrl)
-  if (!urlObj.searchParams.has("country")) {
-    urlObj.searchParams.set("country", "US")
+  // 4. Прокидываем только разрешённые параметры просмотра.
+  const urlObj = new URL(baseUrl)
+  for (const name of ALLOWED_PARAMS) {
+    const value = request.nextUrl.searchParams.get(name)
+    if (value !== null) urlObj.searchParams.set(name, value)
   }
   const finalUrl = urlObj.toString()
 
@@ -200,9 +230,19 @@ export async function GET(request: NextRequest) {
 
     const html = await response.text()
 
-    const baseUrl = new URL(finalUrl)
-    const baseOrigin = `${baseUrl.protocol}//${baseUrl.host}`
-    const baseTag = `<base href="${baseOrigin}${baseUrl.pathname}">`
+    // База — фактический адрес после редиректов видеохостинга.
+    let baseOrigin = urlObj.origin
+    let basePath = urlObj.pathname
+    if (response.url) {
+      try {
+        const resolved = new URL(response.url)
+        baseOrigin = resolved.origin
+        basePath = resolved.pathname
+      } catch {
+        // остаёмся на запрошенном адресе
+      }
+    }
+    const baseTag = `<base href="${baseOrigin}${basePath}">`
 
     const adBlockInjection = `${baseTag}<style>${AD_BLOCK_CSS}</style>${AD_BLOCK_JS}`
 
@@ -220,7 +260,7 @@ export async function GET(request: NextRequest) {
       headers: RESPONSE_HEADERS,
     })
   } catch (error) {
-    // В случае сбоя отдаем красивую заглушку, а не белый экран смерти
+    // В случае сбоя отдаём красивую заглушку, а не белый экран смерти
     return new NextResponse(
       `<html><body style="background:#09090b;color:#71717a;display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;margin:0;"><p>Ошибка загрузки видеопотока. Попробуйте обновить серию.</p></body></html>`,
       { status: 200, headers: RESPONSE_HEADERS }

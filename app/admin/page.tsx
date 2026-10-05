@@ -21,6 +21,7 @@ import { TutorialTab } from "./components/TutorialTab"
 import { NewsTab } from "./components/NewsTab"
 import { EditorialTab } from "./components/EditorialTab"
 import { AnalyticsTab } from "./components/AnalyticsTab"
+import { BlacklistTab } from "./components/BlacklistTab"
 
 interface BannerFormData {
   name: string
@@ -970,6 +971,8 @@ export default function AdminPage() {
         {activeTab === 'analytics' && (
           <AnalyticsTab activeTab={activeTab} onTabChange={setActiveTab} />
         )}
+
+        {activeTab === 'blacklist' && <BlacklistTab />}
       </div>
 
       <ScrollToTop />
