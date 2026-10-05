@@ -411,7 +411,7 @@ describe("KodikPlayer: плашка «Озвучка не найдена»", () 
   })
 })
 
-describe("KodikPlayer: защита от сканеров (прямые ссылки не видны)", () => {
+describe("KodikPlayer: непрозрачная ссылка на плеер", () => {
   let mounted: MountResult | null = null
 
   beforeEach(() => {
@@ -435,7 +435,7 @@ describe("KodikPlayer: защита от сканеров (прямые ссыл
     expect(mounted.container.querySelector("iframe")).toBeNull()
   })
 
-  it("после клика «Смотреть» вставляется наш /embed/<токен>, а не внешний плеер", async () => {
+  it("после клика «Смотреть» iframe получает /embed/<токен>, а не URL провайдера", async () => {
     mounted = await mountPlayer({ shikimoriId: "21", title: "One Piece", episode: 3 })
     clickButton(mounted.container, "Смотреть 3 серию")
 
