@@ -105,3 +105,55 @@ describe("isNoIndexAnime — 18+ не идут в индекс", () => {
     expect(isNoIndexAnime(makeAnime({ isNsfw: false, shikimoriRating: "pg_13" }))).toBe(false)
   })
 })
+
+describe("совместимость защиты плеера и индексации тайтлов", () => {
+  it("страницы /watch недостижимы для фильтра сканеров (проверка смотрит только на плеер)", async () => {
+    // Защита от сканеров живёт в трёх роутах: /embed/[token],
+    // /api/player/session, /api/player/translations. Страница /watch в этот
+    // список НЕ входит — иначе робот не смог бы прочитать ни title, ни
+    // JSON-LD. Тест фиксирует границу, чтобы её не расширили случайно.
+    const { readFileSync } = await import("node:fs")
+    const files = [
+      "app/embed/[token]/route.ts",
+      "app/api/player/session/route.ts",
+      "app/api/player/translations/route.ts",
+    ]
+    for (const file of files) {
+      expect(readFileSync(file, "utf8")).toContain("isCrawlerRequest")
+    }
+
+    // А на самой странице тайтла такой проверки быть не должно.
+    const watchPage = readFileSync("app/watch/[id]/page.tsx", "utf8")
+    expect(watchPage).not.toContain("isCrawlerRequest")
+  })
+
+  it("боты из BOT_UA_PATTERNS остаются заблокированными для плеера", async () => {
+    const { isCrawlerRequest } = await import("@/lib/player-protect")
+    const h = (ua: string) => new Headers({ "user-agent": ua })
+    for (const ua of [
+      "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+      "Mozilla/5.0 (compatible; YandexBot/3.0; +http://yandex.com/bots)",
+      "curl/8.0",
+      "python-requests/2.31",
+    ]) {
+      expect(isCrawlerRequest(h(ua)), ua).toBe(true)
+    }
+    // Реальный браузер проходит
+    expect(
+      isCrawlerRequest(
+        h("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"),
+      ),
+    ).toBe(false)
+  })
+
+  it("чёрный список IP не должен закрывать robots.txt и sitemap.xml", async () => {
+    // Бан подсети (/24, /64) не должен иметь возможности отрезать робота
+    // от инфраструктуры поиска: middleware обязан иметь исключения.
+    const middleware = (await import("node:fs")).readFileSync("middleware.ts", "utf8")
+    expect(middleware).toContain("IP_BLOCKLIST_EXEMPT_PATHS")
+    expect(middleware).toContain('"/robots.txt"')
+    expect(middleware).toContain('"/sitemap.xml"')
+    // И эта проверка должна стоять в условии блокировки по IP
+    expect(middleware).toMatch(/!isAdminSurface\(pathname\)\s*&&\s*!IP_BLOCKLIST_EXEMPT_PATHS\.includes\(pathname\)/)
+  })
+})

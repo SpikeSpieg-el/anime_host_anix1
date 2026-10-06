@@ -28,6 +28,19 @@ const SECURITY_HEADERS_EXEMPT_PATHS = [
 // Paths that are API routes (for header checks)
 const API_PATH_PREFIX = "/api/"
 
+/**
+ * Пути, которые НИКОГДА не отдаём как 404 из чёрного списка IP.
+ *
+ * Это инфраструктура поиска: если робот получит 404 на robots.txt или
+ * sitemap.xml, он не увидит ни правил обхода, ни списка страниц — сайт
+ * пропадёт из выдачи, причём молча. Антисканерного смысла в их блокировке
+ * нет (там нет ни плеера, ни контента), а риск самострела — максимальный.
+ */
+const IP_BLOCKLIST_EXEMPT_PATHS = ["/robots.txt", "/sitemap.xml"]
+
+/** User-Agent'ы поисковых роботов — только для диагностики в логах. */
+const SEARCH_BOT_UA_RE = /googlebot|yandexbot|bingbot|applebot|duckduckbot/i
+
 // Umami (self-hosted analytics in Coolify): the browser must be allowed to load
 // the tracker script (<umami>/script.js) and to POST events to the same origin.
 // Значение по умолчанию совпадает с DEFAULT_UMAMI_ORIGIN в lib/analytics.ts,
@@ -182,12 +195,24 @@ export async function middleware(request: NextRequest, event?: NextFetchEvent) {
   // Чёрный список IP: сканерам и забаненным адресам отдаём обычный 404,
   // не раскрывая факт блокировки. Админку не трогаем, чтобы случайно не
   // запереть самих себя (там свой вход по паролю + TOTP + белый список).
-  if (!isAdminSurface(pathname)) {
+  if (!isAdminSurface(pathname) && !IP_BLOCKLIST_EXEMPT_PATHS.includes(pathname)) {
     const clientIp = getClientIp(request.headers)
     if (clientIp) {
       const targets = await getBlockedIpTargets()
       for (const target of targets) {
         if (ipMatchesTarget(clientIp, target)) {
+          // Диагностика: бан подсети (/24 или /64 — их выдаёт кнопка
+          // «забанить подсеть» в админке) может накрыть краулера поисковика.
+          // Тогда сайт получает 404 для Googlebot/YandexBot на всех страницах
+          // и выпадает из выдачи, а причина не видна ни в Search Console,
+          // ни в отчётах. Такой случай должен быть заметен в логах Coolify.
+          const ua = request.headers.get("user-agent") || ""
+          if (SEARCH_BOT_UA_RE.test(ua)) {
+            console.warn(
+              `[ip-blocklist] ЗАБЛОКИРОВАН ПОИСКОВЫЙ РОБОТ: ip=${clientIp} ` +
+                `target=${target} ua="${ua}" path=${pathname}`,
+            )
+          }
           return new NextResponse("Not Found", { status: 404 })
         }
       }
