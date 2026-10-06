@@ -77,17 +77,29 @@ const SCORE_OPTIONS = [
   { value: '6', label: '6★+' },
 ]
 
-export function CatalogClient({ initialFilters }: { initialFilters: CatalogFilters }) {
+export function CatalogClient({
+  initialFilters,
+  initialAnimes = [],
+}: {
+  initialFilters: CatalogFilters
+  /**
+   * Данные, отрендеренные на сервере. Позволяют отдать в HTML реальные ссылки
+   * на /watch/* ещё до выполнения JS — иначе Google не видит ни одного тайтла.
+   */
+  initialAnimes?: Anime[]
+}) {
   const router = useRouter()
   const { profile } = useAuth()
-  
+
   const [mounted, setMounted] = useState(false)
   const [isPending, startTransition] = useTransition()
-  
-  const [animes, setAnimes] = useState<Anime[]>([])
-  const [loading, setLoading] = useState(true)
+
+  const [animes, setAnimes] = useState<Anime[]>(initialAnimes)
+  // Если сервер уже отдал первую страницу, скелетон не нужен — сразу рендерим
+  // карточки (и ссылки в них) в HTML.
+  const [loading, setLoading] = useState(initialAnimes.length === 0)
   const [loadingMore, setLoadingMore] = useState(false)
-  const [hasMore, setHasMore] = useState(true)
+  const [hasMore, setHasMore] = useState(initialAnimes.length > 0)
   
   const normalizeGenre = (g: string | string[] | undefined): string | string[] | undefined => {
     if (!g || (Array.isArray(g) && g.length === 0) || g === 'all') return 'all'
@@ -170,6 +182,12 @@ export function CatalogClient({ initialFilters }: { initialFilters: CatalogFilte
     }
   }, [])
 
+  // Первый запрос из браузера не нужен, если ту же страницу уже отрисовал
+  // сервер: иначе мы дважды дёргаем Shikimori и мигаем скелетоном. Флаг
+  // снимается один раз, дальше поведение прежнее (например, при получении
+  // профиля, чтобы учесть allow_nsfw_search).
+  const skipFirstFetch = useRef(initialAnimes.length > 0)
+
   useEffect(() => {
     const updatedFilters = {
       ...initialFilters,
@@ -177,8 +195,14 @@ export function CatalogClient({ initialFilters }: { initialFilters: CatalogFilte
       allowNsfw: profile?.allow_nsfw_search || false
     }
     setFilters(updatedFilters)
-    fetchAnimes(updatedFilters, false)
     isInitialMount.current = false
+
+    if (skipFirstFetch.current) {
+      skipFirstFetch.current = false
+      return
+    }
+
+    fetchAnimes(updatedFilters, false)
   }, [initialFilters, profile?.allow_nsfw_search, fetchAnimes])
 
   const applyFilters = () => {

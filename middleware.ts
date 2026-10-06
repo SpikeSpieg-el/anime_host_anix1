@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import type { NextFetchEvent, NextRequest } from "next/server"
 import { createClient } from "@supabase/supabase-js"
-import { getWatchRedirectPath } from "@/lib/seo/watch-redirect"
+import { doesWatchAnimeExist, getWatchRedirectPath } from "@/lib/seo/watch-redirect"
 import { isValidAdminRequestOrigin } from "@/lib/admin-origin"
 import { getClientIp, ipMatchesTarget, parseBlocklistEnv } from "@/lib/ip-block"
 
@@ -201,11 +201,13 @@ export async function middleware(request: NextRequest, event?: NextFetchEvent) {
   // (app/loading.tsx оборачивает в Suspense ВСЕ страницы, так что это касается
   // любого redirect()/notFound() внутри page.tsx, не только /watch.)
   if ((method === "GET" || method === "HEAD") && pathname.startsWith("/watch/")) {
+    const schedule = event ? (task: Promise<unknown>) => event.waitUntil(task) : undefined
+
     const redirectPath = await getWatchRedirectPath(
       pathname,
       request.nextUrl.search,
       fetch,
-      event ? (task) => event.waitUntil(task) : undefined,
+      schedule,
     )
     if (redirectPath) {
       const url = request.nextUrl.clone()
@@ -215,6 +217,33 @@ export async function middleware(request: NextRequest, event?: NextFetchEvent) {
       const response = NextResponse.redirect(url, 301)
       response.headers.set("Cache-Control", "public, max-age=3600")
       return applySecurityHeaders(response, pathname)
+    }
+
+    // Честный 404 для несуществующих тайтлов.
+    //
+    // В page.tsx этого не сделать: из-за app/loading.tsx заголовки уже ушли
+    // со статусом 200, и notFound() оставляет только <meta robots=noindex> —
+    // для Google это «мягкая 404». Middleware отвечает до рендера, поэтому
+    // здесь статус настоящий. Результат запроса к Shikimori кэшируется
+    // (POSITIVE/NEGATIVE TTL в lib/seo/watch-redirect.ts), так что
+    // подавляющее большинство запросов обходится без сети.
+    const watchMatch = /^\/watch\/(\d+)(?:-([^/]*))?\/?$/.exec(pathname)
+    if (watchMatch) {
+      const exists = await doesWatchAnimeExist(
+        watchMatch[1],
+        watchMatch[2] !== undefined,
+        fetch,
+        schedule,
+      )
+      if (exists === false) {
+        const response = new NextResponse("Not Found", {
+          status: 404,
+          headers: { "Content-Type": "text/plain; charset=utf-8" },
+        })
+        // Негативный ответ не кэшируем надолго на CDN: тайтл может появиться.
+        response.headers.set("Cache-Control", "public, max-age=600")
+        return applySecurityHeaders(response, pathname)
+      }
     }
   }
 

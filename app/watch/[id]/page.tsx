@@ -8,14 +8,15 @@ import { BreadcrumbStructuredData } from "@/components/seo/structured-data"
 import { getSchemaPosterUrl } from "@/lib/shikimori/images"
 import { cleanAnimeTitle, getWatchPath, getWatchSegment, parseWatchParam, safeDecodeSegment } from "@/lib/seo/watch-url"
 import { safeSerializeJson } from "@/lib/seo/safe-json"
+import { isNoIndexAnime } from "@/lib/hentai-detector"
 
-type ExtendedAnime = Anime & {
-  russian?: string
-  english?: string
-  japanese?: string
-  kind?: string
-  score?: string | number
-}
+/**
+ * Поля russian/english/japanese/kind теперь реально приходят из transformAnime
+ * (см. Anime в lib/shikimori/types.ts). Раньше они объявлялись здесь через
+ * `as ExtendedAnime`, но в объекте отсутствовали — из-за этого alternateName
+ * содержал только русское название, а @type всегда был TVSeries.
+ */
+type ExtendedAnime = Anime
 
 export type EditorialReview = {
   id: string
@@ -128,9 +129,13 @@ export async function generateMetadata({
   // Очищаем вшитый год в скобках из названия
   const rawTitle = anime.russian || anime.title || ''
   const mainTitle = cleanAnimeTitle(rawTitle)
-  
-  const altTitle = anime.english && anime.english !== mainTitle ? anime.english.replace(/\s*\(\d{4}\)$/, "") : 
-                   anime.japanese && anime.japanese !== mainTitle ? anime.japanese.replace(/\s*\(\d{4}\)$/, "") : ""
+
+  // Английское и японское названия — ключевые для запросов латиницей
+  // («naruto», «attack on titan») и для alternateName в Schema.org.
+  const englishTitle = cleanAnimeTitle(anime.english)
+  const japaneseTitle = cleanAnimeTitle(anime.japanese)
+  const altTitle = (englishTitle && englishTitle !== mainTitle ? englishTitle : '')
+    || (japaneseTitle && japaneseTitle !== mainTitle ? japaneseTitle : '')
   const yearText = anime.year ? ` (${anime.year})` : ""
 
   const title = episode && episode > 0
@@ -163,14 +168,19 @@ export async function generateMetadata({
     editorialReview ? `отзыв редакции ${mainTitle}` : "",
     editorialReview ? `мнение редакции weebx ${mainTitle}` : "",
     episode ? `${mainTitle} ${episode} серия` : `${mainTitle} все серии`,
-    altTitle ? `смотреть ${altTitle} онлайн` : "",
-    altTitle ? `${altTitle} online english sub` : "",
+    englishTitle ? `смотреть ${englishTitle} онлайн` : "",
+    englishTitle ? `${englishTitle} смотреть аниме` : "",
+    englishTitle ? `${englishTitle} online english sub` : "",
+    japaneseTitle ? `${japaneseTitle} смотреть онлайн` : "",
     ...(anime.genres || []).map((g) => `аниме ${g.toLowerCase()}`),
     "weebx",
     "weeb-x",
   ].filter(Boolean)
-  
+
   const keywords = [...new Set(rawKeywords)]
+
+  // NSFW отдаём с noindex: страница доступна пользователям, но не поисковикам.
+  const shouldNoIndex = isNoIndexAnime(anime)
 
   return {
     title,
@@ -201,13 +211,15 @@ export async function generateMetadata({
       description,
       images: [anime.poster],
     },
-    robots: {
-      index: true,
-      follow: true,
-      "max-snippet": -1,
-      "max-image-preview": "large",
-      "max-video-preview": -1,
-    },
+    robots: shouldNoIndex
+      ? { index: false, follow: true }
+      : {
+          index: true,
+          follow: true,
+          "max-snippet": -1,
+          "max-image-preview": "large",
+          "max-video-preview": -1,
+        },
     other: {
       "og:video:type": "video.tv_show",
       ...(anime.airedOn ? { "og:video:release_date": anime.airedOn } : {}),
@@ -253,16 +265,21 @@ export default async function WatchPage({
 
   const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://weeb-x.com"
   const contentUrl = `${baseUrl}/watch/${expectedParam}`
-  const animeRating = anime.score || anime.rating
 
-  const alternateNames = [anime.english, anime.japanese, anime.title]
+  // Английское/японское названия нужны и здесь — они идут в alternateName.
+  const englishTitle = cleanAnimeTitle(anime.english)
+  const japaneseTitle = cleanAnimeTitle(anime.japanese)
+
+  const alternateNames = [englishTitle, japaneseTitle, anime.title]
     .filter((name): name is string => Boolean(name))
-    .map((name) => name.replace(/\s*\(\d{4}\)$/, "").trim())
-    .filter((name, index, arr) => arr.indexOf(name) === index)
+    .map((name) => cleanAnimeTitle(name))
+    .filter((name, index, arr) => name && arr.indexOf(name) === index)
+
+  const schemaType = anime.kind === "movie" ? "Movie" : "TVSeries"
 
   const jsonLd: Record<string, any> = {
     "@context": "https://schema.org",
-    "@type": anime.kind === "movie" ? "Movie" : "TVSeries",
+    "@type": schemaType,
     "name": animeTitle,
     "alternateName": alternateNames,
     "image": getSchemaPosterUrl(anime.poster),
@@ -277,16 +294,15 @@ export default async function WatchPage({
     jsonLd["datePublished"] = new Date(anime.airedOn).toISOString()
   }
 
-  if (animeRating) {
-    const deterministicRatingCount = 80 + (Number.parseInt(cleanId, 10) % 120)
-    jsonLd["aggregateRating"] = {
-      "@type": "AggregateRating",
-      "ratingValue": animeRating.toString(),
-      "bestRating": "10",
-      "worstRating": "1",
-      "ratingCount": deterministicRatingCount.toString(),
-    }
-  }
+  // aggregateRating СОЗНАТЕЛЬНО не выводим.
+  //
+  // Раньше здесь были ratingValue из Shikimori (чужая оценка, не наших
+  // пользователей) и ratingCount, который просто выдумывался по формуле
+  // `80 + (id % 120)`. Это прямое нарушение правил Google о спамной разметке
+  // (Ratings must be genuine and come from your own users) и риск ручных санкций,
+  // а вместе с ними — пропажи ВСЕХ расширенных сниппетов сайта.
+  // Возвращайте блок только когда появится реальный счётчик оценок с сайта,
+  // например: ratingCount: <число реальных оценок в Supabase>.
 
   // Добавляем микроразметку отзыва редакции для SEO Schema.org
   if (editorialReview) {
@@ -309,12 +325,17 @@ export default async function WatchPage({
     "description": anime.description?.replace(/\[.*?\]/g, "").slice(0, 200) || `Смотреть аниме ${animeTitle} онлайн`,
     "thumbnailUrl": getSchemaPosterUrl(anime.poster),
     "contentUrl": contentUrl,
-    "embedUrl": `${baseUrl}/embed/${cleanId}${episode ? `?episode=${episode}` : ""}`,
     "uploadDate": anime.airedOn ? new Date(anime.airedOn).toISOString() : new Date().toISOString(),
-    "duration": "PT24M",
     "inLanguage": "ru",
     "genre": anime.genres,
   }
+
+  // embedUrl указывал на /embed/{id}, который закрыт в robots.txt
+  // (Disallow: /embed/) и отдаёт X-Robots-Tag: noindex. Google не может
+  // проверить такую ссылку и выбрасывает VideoObject целиком — видео
+  // расширенные сниппеты не появлялись. Плеер живёт на самой странице /watch,
+  // поэтому contentUrl выше достаточно; embedUrl вернём, если /embed/
+  // когда-нибудь откроют для обхода (noindex-заголовок оставить можно).
 
   if (episode) {
     videoObject["episodeNumber"] = episode

@@ -1,7 +1,7 @@
 import { ShikimoriAnime, Anime, NewsItem, LinkedAnime } from "./types";
 import { resolveBestPoster } from "./images";
 import { SITE_URL } from "./config";
-import { normalizeShikimoriUrl, upgradeShikimoriUrl } from "./utils";
+import { isAnimeSafe, normalizeShikimoriUrl, upgradeShikimoriUrl } from "./utils";
 import { GenreFallbackService } from "../genre-fallback";
 
 /**
@@ -68,6 +68,13 @@ export async function transformAnime(item: ShikimoriAnime, enableGenreFallback: 
     description: item.description?.replace(/\[.*?\]/g, "") || "Описание отсутствует...",
     genres,
     quality: item.kind?.toUpperCase() || "TV",
+    // Прокидываем поля, нужные SEO-разметке /watch и фильтрации NSFW.
+    russian: item.russian || undefined,
+    english: item.english || undefined,
+    japanese: item.japanese || undefined,
+    kind: item.kind || undefined,
+    shikimoriRating: item.rating || undefined,
+    isNsfw: !isAnimeSafe(item),
   };
 }
 

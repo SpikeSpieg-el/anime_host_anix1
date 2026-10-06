@@ -66,14 +66,22 @@ export function isAnimeSafe(item: ShikimoriAnime): boolean {
   }
 
   // 2. Проверка жанров
+  // ВАЖНО: Shikimori может вернуть genre без russian/name, поэтому обращаемся
+  // через optional chaining — функция вызывается из transformAnime на каждом
+  // тайтле, и падение здесь ломало бы всю страницу.
   if (item.genres && Array.isArray(item.genres)) {
-    const hasNsfwGenre = item.genres.some(g => 
-      NSFW_GENRE_IDS.includes(g.id) || 
-      g.name.toLowerCase() === 'hentai' || 
-      g.name.toLowerCase() === 'erotica' ||
-      g.russian.toLowerCase() === 'эротика' ||
-      g.russian.toLowerCase() === 'хентай'
-    );
+    const hasNsfwGenre = item.genres.some(g => {
+      if (!g) return false;
+      const name = (g.name || '').toLowerCase();
+      const russian = (g.russian || '').toLowerCase();
+      return (
+        NSFW_GENRE_IDS.includes(g.id) ||
+        name === 'hentai' ||
+        name === 'erotica' ||
+        russian === 'эротика' ||
+        russian === 'хентай'
+      );
+    });
     if (hasNsfwGenre) return false;
   }
 

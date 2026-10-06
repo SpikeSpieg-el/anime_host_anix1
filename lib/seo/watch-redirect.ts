@@ -129,6 +129,43 @@ export async function getWatchRedirectPath(
   return `/watch/${canonical}${search}`
 }
 
+/**
+ * Существует ли тайтл вообще.
+ *
+ * Нужна, чтобы отдать честный HTTP 404 на /watch/{несуществующий-id}.
+ * Без этого страница отдаёт «200 OK + <meta robots=noindex>»: у /watch есть
+ * app/loading.tsx, из-за которого Next успевает отправить заголовки раньше,
+ * чем вызовется notFound(), и статус уже не поменять. В Search Console такие
+ * адреса копятся как «Мягкая 404» и жгут краулинговый бюджет.
+ *
+ * Возвращает:
+ *   true  — тайтл есть;
+ *   false — Shikimori уверенно ответил 404 (кэшируется, повторно не спрашиваем);
+ *   null  — неизвестно (сеть/429) — тогда ничего не блокируем.
+ *
+ * Для адресов со slug'ом результат берётся из кэша: если его там нет, обход
+ * откладывается в фон (schedule), чтобы не добавлять задержку живым страницам.
+ */
+export async function doesWatchAnimeExist(
+  id: string,
+  hasSlugPart: boolean,
+  fetchImpl: typeof fetch = fetch,
+  schedule?: (task: Promise<unknown>) => void,
+): Promise<boolean | null> {
+  let segment = getCachedWatchSegment(id)
+
+  if (segment === undefined) {
+    if (hasSlugPart) {
+      if (schedule) schedule(lookupWatchSegment(id, fetchImpl).catch(() => undefined))
+      return null
+    }
+    segment = await lookupWatchSegment(id, fetchImpl)
+  }
+
+  if (segment === undefined) return null
+  return segment !== null
+}
+
 /** Только для тестов. */
 export function __resetWatchRedirectCache() {
   segmentCache.clear()
