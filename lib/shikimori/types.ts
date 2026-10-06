@@ -2,6 +2,8 @@ export interface ShikimoriAnime {
   id: number;
   name: string;
   russian: string;
+  english?: string;
+  japanese?: string;
   image: {
     original: string;
     preview: string;
@@ -35,6 +37,21 @@ export interface Anime {
   description: string;
   genres: string[];
   quality: string;
+  /**
+   * Поля ниже нужны SEO-разметке страницы /watch (alternateName, @type),
+   * возрастной фильтрации и определению хентая. Раньше transformAnime их
+   * выбрасывал, из-за чего `anime.english`/`anime.japanese`/`anime.kind`
+   * всегда были undefined, а детектор хентая никогда не срабатывал по рейтингу.
+   */
+  russian?: string;
+  english?: string;
+  japanese?: string;
+  /** Тип из Shikimori: tv | movie | ova | ona | special | music */
+  kind?: string;
+  /** Исходный строковый рейтинг Shikimori: g | pg | pg_13 | r | r_plus | rx */
+  shikimoriRating?: string;
+  /** true, если тайтл помечен как NSFW (r_plus/rx или жанры 12/33/34) */
+  isNsfw?: boolean;
 }
 
 export interface RecommendationReason {

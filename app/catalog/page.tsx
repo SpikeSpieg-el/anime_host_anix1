@@ -1,6 +1,6 @@
 import { Navbar } from "@/components/layout/navbar"
 import { CatalogPageWrapper } from "@/components/catalog/catalog-page-wrapper"
-import { CatalogFilters } from "@/lib/shikimori"
+import { CatalogFilters, getAnimeCatalog, type Anime } from "@/lib/shikimori"
 import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { Footer } from "@/components/layout/footer"
@@ -192,6 +192,17 @@ export default async function CatalogPage({ searchParams }: CatalogPageProps) {
   // Создаем уникальный ключ для React при переходе по фильтрам
   const clientKey = JSON.stringify(initialFilters)
 
+  // Первая страница каталога рендерится на сервере.
+  //
+  // Раньше CatalogClient получал пустой массив и грузил всё через server action
+  // уже после гидратации. Googlebot такие запросы не выполняет, поэтому в HTML
+  // /catalog не было НИ ОДНОЙ ссылки на /watch/*: единственными путями обхода
+  // оставались главная (~30 карточек) и sitemap. Отсюда и «тайтла нет в поиске».
+  const initialAnimes: Anime[] = await getAnimeCatalog(initialFilters).catch((error) => {
+    console.error('[catalog] Не удалось получить первую страницу на сервере:', error)
+    return []
+  })
+
   // Schema.org разметка каталога (CollectionPage + BreadcrumbList)
   const collectionJsonLd = {
     "@context": "https://schema.org",
@@ -244,7 +255,11 @@ export default async function CatalogPage({ searchParams }: CatalogPageProps) {
 
       <Navbar />
       <div className="pt-0 relative z-10">
-        <CatalogPageWrapper key={clientKey} initialFilters={initialFilters} />
+        <CatalogPageWrapper
+          key={clientKey}
+          initialFilters={initialFilters}
+          initialAnimes={initialAnimes}
+        />
       </div>
       <ScrollToTop />
       <Footer />
