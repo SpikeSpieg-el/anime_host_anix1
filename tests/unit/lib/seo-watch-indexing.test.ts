@@ -3,6 +3,7 @@ import { __resetWatchRedirectCache, doesWatchAnimeExist } from "@/lib/seo/watch-
 import { transformAnime } from "@/lib/shikimori/transformers"
 import { isAnimeSafe } from "@/lib/shikimori/utils"
 import { isNoIndexAnime } from "@/lib/hentai-detector"
+import { cleanAnimeTitle } from "@/lib/seo/watch-url"
 import { makeAnime, makeShikimoriAnime } from "../../fixtures/anime"
 
 describe("doesWatchAnimeExist — честный 404 вместо мягкой 404", () => {
@@ -58,6 +59,34 @@ describe("transformAnime — поля для SEO-разметки /watch", () =>
     expect(anime.japanese).toBe("進撃の巨人")
     // именно из kind берётся @type: Movie vs TVSeries в JSON-LD
     expect(anime.kind).toBe("movie")
+  })
+
+  // Регресс: реальный Shikimori отдаёт english/japanese массивами
+  // (`english: ["Attack on Titan"]`). Если отдать массив в anime.english,
+  // страница /watch падает на .replace (cleanAnimeTitle) и показывает
+  // «Что-то пошло не так» вместо плеера.
+  it("нормализует массивные english / japanese в одну строку", async () => {
+    const anime = await transformAnime(
+      makeShikimoriAnime({
+        english: ["Attack on Titan", "Shingeki no Kyojin"],
+        japanese: ["進撃の巨人"],
+      }),
+      false,
+      true,
+    )
+    expect(anime.english).toBe("Attack on Titan")
+    expect(anime.japanese).toBe("進撃の巨人")
+    expect(typeof anime.english).toBe("string")
+    // то, что раньше падало на странице /watch
+    expect(cleanAnimeTitle(anime.english)).toBe("Attack on Titan")
+    expect(cleanAnimeTitle(anime.japanese)).toBe("進撃の巨人")
+  })
+
+  it("пустой массив не превращается в строку «undefined»", async () => {
+    const anime = await transformAnime(makeShikimoriAnime({ english: [], japanese: [] }), false, true)
+    expect(anime.english).toBeUndefined()
+    expect(anime.japanese).toBeUndefined()
+    expect(cleanAnimeTitle(anime.english)).toBe("")
   })
 
   it("прокидывает строковый рейтинг Shikimori и флаг NSFW", async () => {
