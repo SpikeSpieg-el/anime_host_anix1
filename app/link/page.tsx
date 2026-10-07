@@ -17,7 +17,7 @@ import {
 
 const CODE_PATTERN = /^[A-HJ-NP-Z2-9]{8}$/
 // Укажите имя вашего бота без @
-const BOT_USERNAME = process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME || "WeebxBot"
+const BOT_USERNAME = process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME || "weebx_bot"
 
 const ERROR_TEXTS: Record<string, string> = {
   "Code not found or already used": "Код не найден или уже использован. Получите новый командой /link в боте.",
