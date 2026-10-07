@@ -46,6 +46,21 @@ export function containsCyrillic(text: string): boolean {
   return /[а-яёА-ЯЁ]/.test(text);
 }
 
+/**
+ * Первое непустое название из значения Shikimori.
+ *
+ * `english`/`japanese` в API — это МАССИВ альтернативных названий
+ * (`["Attack on Titan"]`), поэтому строку нельзя использовать напрямую:
+ * `.replace` на массиве роняет рендер страницы /watch.
+ */
+export function firstTitleValue(value: string | string[] | null | undefined): string {
+  const candidates = Array.isArray(value) ? value : [value]
+  for (const candidate of candidates) {
+    if (typeof candidate === "string" && candidate.trim() !== "") return candidate.trim()
+  }
+  return ""
+}
+
 export function generateSearchVariants(query: string): string[] {
   const variants: string[] = [query.trim()];
   if (containsCyrillic(query)) {

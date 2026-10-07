@@ -13,13 +13,28 @@ const RU_TO_LAT: Record<string, string> = {
   ч: "ch", ш: "sh", щ: "shch", ъ: "", ы: "y", ь: "", э: "e", ю: "yu", я: "ya",
 }
 
-/** Убирает вшитый в конец названия год: «Наруто (2002)» → «Наруто». */
-export function cleanAnimeTitle(title: string | null | undefined): string {
-  return (title || "").replace(/\s*\(\d{4}\)$/, "").trim()
+/**
+ * Shikimori отдаёт `english`/`japanese` МАССИВОМ альтернативных названий
+ * (`english: ["Attack on Titan"]`), а не строкой. Одно время поле объявлялось
+ * строкой, и `.replace` на массиве ронял страницу /watch целиком
+ * (`TypeError: (a || "").replace is not a function`). Модуль без зависимостей,
+ * поэтому нормализация живёт прямо здесь.
+ */
+function pickTitle(value: string | string[] | null | undefined): string {
+  if (Array.isArray(value)) {
+    const first = value.find((item) => typeof item === "string" && item.trim() !== "")
+    return first ? first.trim() : ""
+  }
+  return typeof value === "string" ? value : ""
+}
+
+/** Убирает вшитый в конец названия год: «Наруто (2002)» → «Наруто». Принимает строку или массив из Shikimori. */
+export function cleanAnimeTitle(title: string | string[] | null | undefined): string {
+  return pickTitle(title).replace(/\s*\(\d{4}\)$/, "").trim()
 }
 
 /** Транслитерация + нормализация в slug: «Путешествие к бессмертию 5» → «puteshestvie-k-bessmertiyu-5». */
-export function slugifyAnimeTitle(title: string | null | undefined): string {
+export function slugifyAnimeTitle(title: string | string[] | null | undefined): string {
   return cleanAnimeTitle(title)
     .toLowerCase()
     .split("")

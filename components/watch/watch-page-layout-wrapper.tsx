@@ -7,6 +7,7 @@ import { Footer } from '@/components/layout/footer'
 import { WatchPageClient } from './watch-page-client'
 import { WatchOrderSection } from './watch-order-section'
 import { CoverProvider } from '@/components/providers/cover-provider'
+import { cleanAnimeTitle } from '@/lib/seo/watch-url'
 import type { Anime, FranchiseItem } from '@/lib/shikimori'
 import { PlayCircle, Tv, Film, Calendar, Star, Users, Sparkles, Info } from 'lucide-react'
 
@@ -311,7 +312,9 @@ export function WatchPageLayoutWrapper({
   const score = typeof anime.score === 'number' ? anime.score.toFixed(2) : (anime.score?.toString() || '')
 
   const rawTitle = (anime as any).russian || anime.title || ''
-  const animeTitle = rawTitle.replace(/\s*\(\d{4}\)$/, "").trim()
+  const animeTitle = cleanAnimeTitle(rawTitle)
+  const originalTitle = cleanAnimeTitle((anime as any).originalTitle)
+  const englishTitle = cleanAnimeTitle((anime as any).english)
   const yearText = anime.year ? ` (${anime.year})` : ''
 
   const cleanDescription = anime.description 
@@ -422,8 +425,10 @@ export function WatchPageLayoutWrapper({
             <p className="text-xs sm:text-sm text-muted-foreground/80 leading-relaxed">
               <strong className="text-foreground">{animeTitle}{yearText}</strong> — смотреть аниме онлайн бесплатно в хорошем качестве HD на сайте Weebx. 
               Все серии с русской озвучкой и субтитрами доступны без регистрации.
-              {(anime as any).originalTitle && (anime as any).originalTitle !== animeTitle ? ` Оригинальное название: ${(anime as any).originalTitle.replace(/\s*\(\d{4}\)$/, "")}.` : ''}
-              {(anime as any).english && (anime as any).english !== animeTitle ? ` Английское название: ${(anime as any).english.replace(/\s*\(\d{4}\)$/, "")}.` : ''}
+              {/* cleanAnimeTitle, а не .replace: Shikimori отдаёт english/japanese массивом,
+                  и прямой .replace на массиве ронял страницу /watch целиком. */}
+              {originalTitle && originalTitle !== animeTitle ? ` Оригинальное название: ${originalTitle}.` : ''}
+              {englishTitle && englishTitle !== animeTitle ? ` Английское название: ${englishTitle}.` : ''}
             </p>
           </div>
         </article>

@@ -1,7 +1,7 @@
 import { ShikimoriAnime, Anime, NewsItem, LinkedAnime } from "./types";
 import { resolveBestPoster } from "./images";
 import { SITE_URL } from "./config";
-import { isAnimeSafe, normalizeShikimoriUrl, upgradeShikimoriUrl } from "./utils";
+import { firstTitleValue, isAnimeSafe, normalizeShikimoriUrl, upgradeShikimoriUrl } from "./utils";
 import { GenreFallbackService } from "../genre-fallback";
 
 /**
@@ -69,9 +69,11 @@ export async function transformAnime(item: ShikimoriAnime, enableGenreFallback: 
     genres,
     quality: item.kind?.toUpperCase() || "TV",
     // Прокидываем поля, нужные SEO-разметке /watch и фильтрации NSFW.
+    // english/japanese у Shikimori — массивы альтернативных названий,
+    // наружу отдаём одну строку (иначе страница /watch падает на .replace).
     russian: item.russian || undefined,
-    english: item.english || undefined,
-    japanese: item.japanese || undefined,
+    english: firstTitleValue(item.english) || undefined,
+    japanese: firstTitleValue(item.japanese) || undefined,
     kind: item.kind || undefined,
     shikimoriRating: item.rating || undefined,
     isNsfw: !isAnimeSafe(item),

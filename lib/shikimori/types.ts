@@ -2,8 +2,13 @@ export interface ShikimoriAnime {
   id: number;
   name: string;
   russian: string;
-  english?: string;
-  japanese?: string;
+  /**
+   * Shikimori отдаёт альтернативные названия МАССИВОМ строк
+   * (`english: ["Attack on Titan"]`), иногда там несколько вариантов.
+   * В Anime (см. ниже) поля уже нормализованы в одну строку в transformAnime.
+   */
+  english?: string | string[];
+  japanese?: string | string[];
   image: {
     original: string;
     preview: string;
@@ -44,7 +49,9 @@ export interface Anime {
    * всегда были undefined, а детектор хентая никогда не срабатывал по рейтингу.
    */
   russian?: string;
+  /** Английское название одной строкой (массив из Shikimori нормализует transformAnime). */
   english?: string;
+  /** Японское название одной строкой (массив из Shikimori нормализует transformAnime). */
   japanese?: string;
   /** Тип из Shikimori: tv | movie | ova | ona | special | music */
   kind?: string;

@@ -20,6 +20,19 @@ describe("watch-url", () => {
     expect(slugifyAnimeTitle("Наруто (2002)")).toBe("naruto")
   })
 
+  // Регресс: Shikimori отдаёт english/japanese массивом альтернативных названий.
+  // Раньше cleanAnimeTitle делал `(title || "").replace(...)` и падал с
+  // `TypeError: replace is not a function`, роняя всю страницу /watch.
+  it("принимает массив альтернативных названий из Shikimori", () => {
+    expect(cleanAnimeTitle(["Attack on Titan"])).toBe("Attack on Titan")
+    expect(cleanAnimeTitle(["Attack on Titan (2013)"])).toBe("Attack on Titan")
+    expect(cleanAnimeTitle(["", "   ", "Naruto"])).toBe("Naruto")
+    expect(cleanAnimeTitle([])).toBe("")
+    expect(cleanAnimeTitle([null as unknown as string, "Naruto"] as string[])).toBe("Naruto")
+    expect(slugifyAnimeTitle(["Attack on Titan"])).toBe("attack-on-titan")
+    expect(getWatchSegment("16498", ["Attack on Titan"] as unknown as string)).toBe("16498-attack-on-titan")
+  })
+
   it("строит канонический путь, в т.ч. с серией", () => {
     expect(getWatchPath("48820", "Девочка-волшебница")).toBe("/watch/48820-devochka-volshebnitsa")
     expect(getWatchPath(48820, "Девочка-волшебница", 3)).toBe("/watch/48820-devochka-volshebnitsa?episode=3")
