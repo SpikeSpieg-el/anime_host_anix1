@@ -4,6 +4,7 @@ import * as React from "react"
 import { Button } from "@/components/ui/button"
 import { AlertTriangle, RefreshCw, Home } from "lucide-react"
 import { loggers } from "@/lib/logger"
+import { isChunkLoadError } from "@/lib/chunk-load-error"
 
 interface ErrorBoundaryProps {
   children: React.ReactNode
@@ -14,6 +15,26 @@ interface ErrorBoundaryProps {
 interface ErrorBoundaryState {
   error: Error | null
   errorInfo: React.ErrorInfo | null
+}
+
+const CHUNK_RELOAD_RETRY_WINDOW_MS = 60_000
+
+/** Reload once when a deployment leaves the browser holding stale chunk URLs. */
+function reloadForChunkLoadErrorOnce(): boolean {
+  try {
+    const key = `weebx:chunk-load-retry:${window.location.pathname}`
+    const lastAttempt = Number(window.sessionStorage.getItem(key) || 0)
+    const now = Date.now()
+    if (lastAttempt > 0 && now - lastAttempt < CHUNK_RELOAD_RETRY_WINDOW_MS) return false
+
+    window.sessionStorage.setItem(key, String(now))
+    window.location.reload()
+    return true
+  } catch {
+    // Storage can be disabled in private/restricted browser contexts. Leave the
+    // regular error UI available rather than risking an unbounded reload loop.
+    return false
+  }
 }
 
 export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
@@ -31,10 +52,26 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     this.setState({ errorInfo })
-    loggers.critical.critical(`ErrorBoundary caught error in ${this.props.name || "unknown component"}: ${error.message}`)
+    const boundaryName = this.props.name || "unknown component"
+    // Keep the stack and component trace: the production UI intentionally hides
+    // internals, so these logs are the only reliable way to diagnose reports.
+    loggers.critical.critical(`ErrorBoundary caught error in ${boundaryName}: ${error.message}`, error)
+    if (errorInfo.componentStack) {
+      loggers.critical.critical(`ErrorBoundary component stack in ${boundaryName}`, new Error(errorInfo.componentStack))
+    }
+
+    // Next.js can retain stale references to lazily loaded chunks after a
+    // deployment. One guarded hard reload usually fetches the matching build;
+    // the session guard leaves the fallback visible if the retry also fails.
+    if (isChunkLoadError(error)) reloadForChunkLoadErrorOnce()
   }
 
   handleReset = () => {
+    if (this.state.error && isChunkLoadError(this.state.error)) {
+      window.location.reload()
+      return
+    }
+
     this.setState({
       error: null,
       errorInfo: null,
