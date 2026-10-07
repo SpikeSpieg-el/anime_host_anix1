@@ -134,7 +134,7 @@ export default function RootLayout({
         ))}
         <script
           dangerouslySetInnerHTML={{
-            __html: `if(localStorage.getItem('lite-mode')==='true')document.documentElement.classList.add('lite-mode');`,
+            __html: `try{if(localStorage.getItem('lite-mode')==='true')document.documentElement.classList.add('lite-mode')}catch{}`,
           }}
         />
         {/* Google Fonts с улучшенной конфигурацией */}

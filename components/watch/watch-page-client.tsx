@@ -124,21 +124,19 @@ export function WatchPageClient({ anime, initialEpisode }: WatchPageClientProps)
     }
   }, [showExitPrompt, user])
 
-  // Загрузка сохранённого прогресса из localStorage
+  // Загрузка сохранённого прогресса из localStorage. Не блокируем плеер,
+  // если браузер запретил доступ к хранилищу.
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const storageKey = `last-watched-${anime.id}`
-      const stored = localStorage.getItem(storageKey)
-      if (stored) {
-        try {
-          const data = JSON.parse(stored)
-          if (data && typeof data.episode === 'number') {
-            setLastWatchedInfo(data)
-          }
-        } catch {
-          // ignore
-        }
+    try {
+      const stored = window.localStorage.getItem(`last-watched-${anime.id}`)
+      if (!stored) return
+
+      const data = JSON.parse(stored)
+      if (data && typeof data.episode === 'number') {
+        setLastWatchedInfo(data)
       }
+    } catch {
+      // Storage/JSON can be unavailable or corrupt; viewing still works.
     }
   }, [anime.id])
 
@@ -239,8 +237,10 @@ export function WatchPageClient({ anime, initialEpisode }: WatchPageClientProps)
     translation?: string
   }) => {
     setLastWatchedInfo(info)
-    if (typeof window !== 'undefined') {
-      localStorage.setItem(`last-watched-${anime.id}`, JSON.stringify(info))
+    try {
+      window.localStorage.setItem(`last-watched-${anime.id}`, JSON.stringify(info))
+    } catch {
+      // Progress remains available in memory even if persistence is blocked.
     }
   }
 

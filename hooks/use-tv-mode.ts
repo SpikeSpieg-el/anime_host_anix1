@@ -21,8 +21,16 @@ export function useTVMode() {
       const isHeadless = userAgent.includes('headless') || userAgent.includes('lighthouse')
       const isLargeScreen = window.innerWidth >= 1280 && window.innerHeight >= 720
 
-      const storedPreference = localStorage.getItem('tv-mode-enabled')
-      
+      // Storage access can throw when a browser blocks site data. TV mode is a
+      // preference, so failure to read it should fall back to device detection
+      // instead of taking down the watch page.
+      let storedPreference: string | null = null
+      try {
+        storedPreference = window.localStorage.getItem('tv-mode-enabled')
+      } catch {
+        // Ignore unavailable localStorage.
+      }
+
       if (storedPreference !== null) {
         return storedPreference === 'true'
       }
@@ -38,7 +46,11 @@ export function useTVMode() {
 
   const toggleTVMode = (enabled: boolean) => {
     setIsTVMode(enabled)
-    localStorage.setItem('tv-mode-enabled', enabled.toString())
+    try {
+      window.localStorage.setItem('tv-mode-enabled', enabled.toString())
+    } catch {
+      // Keep the in-memory preference for the current page session.
+    }
   }
 
   return { isTVMode, isLoading, toggleTVMode }
