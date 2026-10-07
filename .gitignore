@@ -10,6 +10,11 @@ node_modules/
 .env
 .env.local
 .env.*
+# ...но примеры версионируем: без них не разобраться, какие переменные нужны
+# сервисам. Раньше правило `.env.*` съедало и *.example, из-за чего
+# .env.local.example и .env.image-service.example в репозиторий не попадали.
+!.env.example
+!.env.*.example
 
 # Editors
 .vscode/
