@@ -632,7 +632,8 @@ export function CatalogClient({
                   selected={Array.isArray(filters.genre) ? filters.genre : (filters.genre && filters.genre !== 'all' ? [filters.genre] : [])}
                   onChange={(selected: string[]) => updateFilter('genre', selected.includes('all') ? [] : selected)}
                   placeholder="Выберите жанры"
-                  className="w-full bg-zinc-900/90 border-zinc-800/80 text-zinc-200 min-h-[2.5rem] rounded-xl text-xs" 
+                  className="w-full bg-zinc-900/90 border-zinc-800/80 text-zinc-200 min-h-[2.5rem] rounded-xl text-xs"
+                  contentClassName="z-[100000] border-zinc-800 bg-zinc-950 text-zinc-200 shadow-2xl"
                 />
               </div>
 
@@ -647,6 +648,7 @@ export function CatalogClient({
                   onChange={(selected: string[]) => updateFilter('year', selected.includes('all') ? [] : selected)}
                   placeholder="Выберите годы"
                   className="w-full bg-zinc-900/90 border-zinc-800/80 text-zinc-200 min-h-[2.5rem] rounded-xl text-xs"
+                  contentClassName="z-[100000] border-zinc-800 bg-zinc-950 text-zinc-200 shadow-2xl"
                 />
               </div>
 

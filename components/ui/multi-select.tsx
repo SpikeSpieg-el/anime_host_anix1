@@ -14,9 +14,18 @@ interface MultiSelectProps {
   onChange: (selected: string[]) => void
   placeholder?: string
   className?: string
+  /** Дополнительные классы для выпадающего списка (он рендерится в Portal). */
+  contentClassName?: string
 }
 
-export function MultiSelect({ options, selected, onChange, placeholder = "Выберите...", className }: MultiSelectProps) {
+export function MultiSelect({
+  options,
+  selected,
+  onChange,
+  placeholder = "Выберите...",
+  className,
+  contentClassName,
+}: MultiSelectProps) {
   const [open, setOpen] = React.useState(false)
 
   const handleUnselect = (item: string) => {
@@ -77,7 +86,14 @@ export function MultiSelect({ options, selected, onChange, placeholder = "Выб
           <div className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-full p-0" align="start">
+      <PopoverContent
+        className={cn(
+          "w-[var(--radix-popover-trigger-width)] max-w-[calc(100vw-2rem)] p-0",
+          contentClassName
+        )}
+        align="start"
+        collisionPadding={16}
+      >
         <Command>
           <CommandInput placeholder="Поиск..." />
           <CommandList>
