@@ -1,7 +1,7 @@
 import { ShikimoriAnime, Anime, NewsItem, LinkedAnime } from "./types";
 import { resolveBestPoster } from "./images";
 import { SITE_URL } from "./config";
-import { firstTitleValue, isAnimeSafe, normalizeShikimoriUrl, upgradeShikimoriUrl } from "./utils";
+import { firstTitleValue, isAnimeSafe, isHentaiShikimoriAnime, normalizeShikimoriUrl, upgradeShikimoriUrl } from "./utils";
 import { GenreFallbackService } from "../genre-fallback";
 
 /**
@@ -77,6 +77,7 @@ export async function transformAnime(item: ShikimoriAnime, enableGenreFallback: 
     kind: item.kind || undefined,
     shikimoriRating: item.rating || undefined,
     isNsfw: !isAnimeSafe(item),
+    isHentai: isHentaiShikimoriAnime(item),
   };
 }
 

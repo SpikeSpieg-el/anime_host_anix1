@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import { __resetWatchRedirectCache, doesWatchAnimeExist } from "@/lib/seo/watch-redirect"
 import { transformAnime } from "@/lib/shikimori/transformers"
 import { isAnimeSafe } from "@/lib/shikimori/utils"
-import { isNoIndexAnime } from "@/lib/hentai-detector"
+import { isNoIndexAnime, isHentaiContent } from "@/lib/hentai-detector"
 import { cleanAnimeTitle } from "@/lib/seo/watch-url"
 import { makeAnime, makeShikimoriAnime } from "../../fixtures/anime"
 
@@ -113,9 +113,17 @@ describe("isAnimeSafe — фильтр NSFW для sitemap", () => {
     expect(isAnimeSafe(makeShikimoriAnime({ rating: "x" }))).toBe(false)
   })
 
-  it("отбраковывает жанры 12/33/34", () => {
+  it("отбраковывает хентай-жанры (12/59/61/539/540)", () => {
     expect(isAnimeSafe(makeShikimoriAnime({ genres: [{ id: 12, name: "Hentai", russian: "Хентай" }] }))).toBe(false)
-    expect(isAnimeSafe(makeShikimoriAnime({ genres: [{ id: 33, name: "Erotica", russian: "Эротика" }] }))).toBe(false)
+    expect(isAnimeSafe(makeShikimoriAnime({ genres: [{ id: 540, name: "Erotica", russian: "Эротика" }] }))).toBe(false)
+    expect(isAnimeSafe(makeShikimoriAnime({ genres: [{ id: 61, name: "Doujinshi", russian: "Додзинси" }] }))).toBe(false)
+  })
+
+  // 33/34 в Shikimori — «Яой» и «Юри», а не эротика. Раньше тест закреплял
+  // неверную трактовку этих id как NSFW-жанров.
+  it("НЕ отбраковывает яой/юри", () => {
+    expect(isAnimeSafe(makeShikimoriAnime({ genres: [{ id: 33, name: "Yaoi", russian: "Яой" }] }))).toBe(true)
+    expect(isAnimeSafe(makeShikimoriAnime({ genres: [{ id: 34, name: "Yuri", russian: "Юри" }] }))).toBe(true)
   })
 
   it("пропускает обычные тайтлы", () => {
@@ -127,6 +135,14 @@ describe("isNoIndexAnime — 18+ не идут в индекс", () => {
   it("noindex для NSFW-тайтла", () => {
     expect(isNoIndexAnime(makeAnime({ isNsfw: true }))).toBe(true)
     expect(isNoIndexAnime(makeAnime({ shikimoriRating: "rx" }))).toBe(true)
+  })
+
+  // Граница noindex шире, чем граница хентая: этти (r_plus) тоже не индексируем,
+  // но в хентай-плеер при этом не уходит.
+  it("noindex для r_plus, хотя это не хентай", () => {
+    const ecchi = makeAnime({ shikimoriRating: "r_plus", isNsfw: true, isHentai: false })
+    expect(isNoIndexAnime(ecchi)).toBe(true)
+    expect(isHentaiContent(ecchi)).toBe(false)
   })
 
   it("обычные тайтлы индексируются", () => {
