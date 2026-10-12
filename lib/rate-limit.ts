@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { LRUCache } from "lru-cache"
+import { isValidIp } from "@/lib/ip-block"
 
 interface RateLimitOptions {
   interval: number // Time window in ms
@@ -72,19 +73,56 @@ export const rateLimiters = {
   proxy: createRateLimiter({ interval: 60000, maxRequests: 30 }),
 }
 
-export function getClientIP(request: NextRequest): string {
+/**
+ * Реальный адрес клиента для рейт-лимита.
+ *
+ * ВАЖНО: возвращает `null`, когда адрес определить не удалось, и НЕ
+ * подставляет заглушку вида `127.0.0.1`.
+ *
+ * Раньше здесь был возврат `"127.0.0.1"`, и это была мина замедленного
+ * действия: если прокси не передал ни один из заголовков, ВСЕ посетители
+ * сайта получали один и тот же ключ. Значит общий лимит делился между
+ * всеми — при 20 запросах в минуту на ключ плеер переставал открываться у
+ * всех, кто зашёл после, и «не работает» видели бы десятки живых людей
+ * вместо сканера.
+ *
+ * Приоритет заголовков повторяет `getClientIp` из `lib/ip-block`: там же
+ * адрес нужен для чёрного списка, и расхождение двух реализаций означало бы
+ * «банят по одному адресу, а лимитуем по другому».
+ *
+ * `null` означает «не знаю, кто пришёл». Вызывающая сторона обязана в этом
+ * случае ПРОПУСТИТЬ ограничение, а не блокировать всех подряд: отсутствие
+ * лимита для неизвестного адреса — небольшая потеря, отказ обслуживать
+ * живых зрителей — нет.
+ */
+export function getClientIP(request: NextRequest): string | null {
   const forwarded = request.headers.get("x-forwarded-for")
-  const realIP = request.headers.get("x-real-ip")
-  
   if (forwarded) {
-    return forwarded.split(",")[0].trim()
+    // За прокси адрес клиента — первым в списке; дальше идут адреса
+    // промежуточных хопов, они клиенту не принадлежат.
+    const first = forwarded.split(",")[0]?.trim()
+    if (first && isValidIp(first)) return first
   }
-  
-  if (realIP) {
-    return realIP
-  }
-  
-  return "127.0.0.1" // Fallback for local development
+
+  // Cloudflare отдаёт исходный адрес здесь и не обязательно дублирует его в
+  // x-forwarded-for.
+  const cfIp = request.headers.get("cf-connecting-ip")?.trim()
+  if (cfIp && isValidIp(cfIp)) return cfIp
+
+  const realIp = request.headers.get("x-real-ip")?.trim()
+  if (realIp && isValidIp(realIp)) return realIp
+
+  return null
+}
+
+/**
+ * Ключ рейт-лимита для запроса.
+ *
+ * `null`, если адрес неизвестен: вызывающий код обязан трактовать это как
+ * «пропустить ограничение», а не подставлять общий ключ для всех.
+ */
+export function getRateLimitKey(request: NextRequest): string | null {
+  return getClientIP(request)
 }
 
 export function createRateLimitResponse(resetTime: number): NextResponse {

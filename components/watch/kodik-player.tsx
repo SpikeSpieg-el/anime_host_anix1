@@ -76,6 +76,18 @@ const UI_HIDE_DELAY = 3500
 const NOTICE_HIDE_DELAY = 5000
 const NEXT_EPISODE_CONFIRM_TIMEOUT = 9000
 
+/**
+ * Когда обновлять список озвучек, в нём же лежит и `/embed/<токен>`.
+ *
+ * Сервер выдаёт токен на 2 часа (PLAYER_TOKEN_TTL_SEC). Обновляем через
+ * 80 минут — запас в 40 минут покрывает и уход вкладки в фон, и задержку
+ * таймера в браузере. Проверяем раз в 5 минут: за время жизни токена это
+ * около 16 проверок, каждая — не чаще одного сетевого запроса только если
+ * список действительно старый.
+ */
+const TRANSLATIONS_REFRESH_AFTER_MS = 80 * 60 * 1000
+const TRANSLATIONS_REFRESH_CHECK_MS = 5 * 60 * 1000
+
 function getSavedTranslationId(shikimoriId: string): string | null {
   if (typeof window === "undefined") return null
   try {
@@ -202,6 +214,13 @@ export function KodikPlayer({
 
   const [loadTimeout, setLoadTimeout] = useState<ReturnType<typeof setTimeout> | null>(null)
 
+  /**
+   * Когда последний раз пришёл список озвучек — то есть когда был получен
+   * свежий `/embed/<токен>`. Ref, а не state: значение нужно только внутри
+   * таймера, перерисовывать из-за него плеер незачем.
+   */
+  const translationsFetchedAtRef = useRef<number>(0)
+
   /** Сколько секунд реально идёт просмотр (запасной сигнал конца серии). */
   const watchedWallSeconds = useCallback(() => {
     if (!playbackStartedAtRef.current) return null
@@ -270,6 +289,11 @@ export function KodikPlayer({
       const list: KodikTranslation[] = data.translations || []
       setTranslations(list)
       setTranslationsFailed(data.ok === false)
+      // Свежий список с новым токеном получен — отсюда и считаем TTL.
+      // Ставим именно здесь, а не в finally: при ошибке прежний список с уже
+      // протухшим токеном остаётся в состоянии, и время его получения должно
+      // остаться честным, иначе проверка обновления решит, что всё в порядке.
+      translationsFetchedAtRef.current = Date.now()
 
       const savedId = getSavedTranslationId(shikimoriId)
       const saved = savedId ? list.find((t) => t.translationId === savedId) : null
@@ -300,6 +324,42 @@ export function KodikPlayer({
   useEffect(() => {
     loadTranslations()
   }, [loadTranslations])
+
+  /**
+   * Токен в `playerLink` живёт недолго (PLAYER_TOKEN_TTL_SEC), а список
+   * озвучек мы держим в состоянии и переиспользуем при каждой смене серии.
+   * Поэтому вкладка, оставленная открытой, рано или поздно доберётся до
+   * протухшего токена: `/embed/<токен>` начнёт отдавать 404, iframe покажет
+   * пустоту, и серия не откроется.
+   *
+   * Раньше это не проявлялось только потому, что токен жил 48 часов — то
+   * ценой слишком широкого окна для сканера. Теперь окно короткое, поэтому
+   * обновление списка должно быть штатным поведением, а не аварийным.
+   *
+   * Обновляемся ДО истечения, а не по факту 404: iframe об ошибке не
+   * сообщает (404 — это успешная загрузка страницы, `onLoad` срабатывает),
+   * и разбираться пришлось бы по таймеру. Здесь — обычная профилактика.
+   */
+  useEffect(() => {
+    // Список пуст — нечего обновлять, этим занимается loadTranslations.
+    if (translations.length === 0) return
+
+    const tick = () => {
+      // Запас до истечения: страница может уйти в фон, таймер встать,
+      // а пользователь вернуться через час.
+      const ageMs = Date.now() - translationsFetchedAtRef.current
+      if (ageMs > TRANSLATIONS_REFRESH_AFTER_MS) {
+        void fetchTranslations()
+      }
+    }
+
+    // Первая проверка сразу, дальше — раз в 5 минут. Таймер намеренно
+    // короче TTL: за 2 часа жизни токена это 24 проверки, то есть почти
+    // даром, зато список не протухает незаметно.
+    tick()
+    const timer = setInterval(tick, TRANSLATIONS_REFRESH_CHECK_MS)
+    return () => clearInterval(timer)
+  }, [translations.length, fetchTranslations])
 
   /**
    * Озвучка появилась, пока пользователь смотрел на плашку «Скоро».

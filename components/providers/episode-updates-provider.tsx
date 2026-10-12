@@ -12,6 +12,14 @@ import {
   shouldRunAlertsCheck,
   type TranslationAlert,
 } from "@/lib/translation-alerts"
+import {
+  hasNewEpisode,
+  isStaleSubscriptionUpdate,
+  keepLiveSubscriptionUpdates,
+  mapSubscriptionRow,
+  type TitleSubscription,
+  type TitleSubscriptionRow,
+} from "@/lib/title-subscriptions"
 
 export interface EpisodeUpdate {
   animeId: string
@@ -21,7 +29,22 @@ export interface EpisodeUpdate {
   newEpisode: number
   totalEpisodes?: number
   updatedAt: string
+  /**
+   * Кто записал уведомление.
+   *
+   * `shikimori` — браузер, «вышла новая серия» по episodes_aired.
+   * `dub` — сервер или бот, «появилась озвучка» по Kodik, и `new_episode`
+   * там означает сколько серий доступно в материале.
+   *
+   * Числа эти несопоставимы: для одного и того же тайтла Kodik может показать
+   * 12 серий, а Shikimori — 3 вышло. Именно поэтому клинер не имеет права
+   * перезаписывать запись с `source: 'dub'` своим числом.
+   */
+  source: EpisodeUpdateSource
 }
+
+/** Источник уведомления. См. `episode_updates.source`. */
+export type EpisodeUpdateSource = "shikimori" | "dub"
 
 interface EpisodeUpdatesContextValue {
   updates: EpisodeUpdate[]
@@ -43,12 +66,7 @@ const EpisodeUpdatesContext = createContext<EpisodeUpdatesContextValue | null>(n
 interface AlertsState {
   /** Ожидания, которые ещё не закрыты (уведомление не отправлено). */
   active: TranslationAlert[]
-  /** Тайтлы, уведомления по которым нельзя затирать клиентским клинером. */
-  protectedIds: Set<string>
 }
-
-/** Сколько дней держим защиту уведомления по уже закрытому ожиданию. */
-const ALERT_PROTECTION_WINDOW_MS = 30 * 24 * 60 * 60 * 1000
 
 const EPISODE_UPDATES_KEY = "episode_updates_v1"
 const LAST_CHECK_KEY = "last_episode_check_ts"
@@ -99,6 +117,10 @@ export function EpisodeUpdatesProvider({ children }: { children: React.ReactNode
           newEpisode: row.new_episode,
           totalEpisodes: row.total_episodes,
           updatedAt: row.updated_at,
+          // Источник решает, можно ли этой записи вообще что-то делать
+          // клинеру ниже. Без него «свои» и «чужие» выглядят одинаково, и
+          // браузер затирал записи сервера.
+          source: (row.source === "dub" ? "dub" : "shikimori") as EpisodeUpdateSource,
         }))
         setUpdates(mapped)
       } else {
@@ -117,27 +139,31 @@ export function EpisodeUpdatesProvider({ children }: { children: React.ReactNode
   }, [user])
 
   /**
-   * Состояние ожиданий озвучки пользователя (public.translation_alerts).
+   * Активные ожидания озвучки пользователя (public.translation_alerts).
    *
-   * Это отдельный от закладок и истории список: на тайтл без озвучки нельзя
-   * ни подписаться через историю (смотреть нечего), ни рассчитывать на
+   * Это отдельный от подписок список: на тайтл без озвучки нельзя ни
+   * подписаться через историю (смотреть нечего), ни рассчитывать на
    * «догадался положить в закладки». Именно он гарантирует, что уведомление
-   * о появлении озвучки/серии действительно придёт.
+   * о появлении озвучки действительно придёт.
    *
-   * `protectedIds` — тайтлы, уведомления по которым клиентскому клинеру
-   * трогать нельзя. Сюда входят и уже закрытые ожидания (озвучка нашлась,
-   * сервер записал серию в episode_updates): иначе проверка онгоингов, не
-   * найдя тайтл в закладках/истории, тут же затёрла бы свежее уведомление.
+   * Раньше отсюда же возвращался `protectedIds` — список тайтлов, записи по
+   * которым клинеру трогать нельзя. Он держался на окне в 30 дней и не
+   * защищал ровно то, что требовалось: не удалить запись, а не перезаписать
+   * её своим числом. Теперь это решает поле `source` в самой строке
+   * уведомления, и список не нужен вовсе.
    */
   const fetchAlertsState = useCallback(async (): Promise<AlertsState> => {
-    const empty: AlertsState = { active: [], protectedIds: new Set<string>() }
+    const empty: AlertsState = { active: [] }
     if (!user) return empty
 
     try {
+      // Только ждущие: закрытые ожидания нужны были ради `protectedIds`,
+      // а он удалён вместе с необходимостью в нём.
       const { data, error } = await supabase
         .from("translation_alerts")
         .select("*")
         .eq("user_id", user.id)
+        .is("notified_at", null)
         .order("created_at", { ascending: false })
         .limit(200)
 
@@ -147,32 +173,13 @@ export function EpisodeUpdatesProvider({ children }: { children: React.ReactNode
         return empty
       }
 
-      const now = Date.now()
       const active: TranslationAlert[] = []
-      const protectedIds = new Set<string>()
-
       for (const row of data as any[]) {
-        const animeId = row?.anime_id !== undefined && row?.anime_id !== null ? String(row.anime_id) : ""
-        if (!animeId) continue
-
-        const notifiedAt = row?.notified_at ? Date.parse(String(row.notified_at)) : NaN
-        const isActive = !row?.notified_at
-
-        if (isActive) {
-          const alert = mapAlertRow(row)
-          if (alert) active.push(alert)
-        }
-
-        // Ждущие — всегда; закрытые — пока уведомление актуально (30 дней).
-        if (
-          isActive ||
-          (Number.isFinite(notifiedAt) && now - notifiedAt < ALERT_PROTECTION_WINDOW_MS)
-        ) {
-          protectedIds.add(animeId)
-        }
+        const alert = mapAlertRow(row)
+        if (alert) active.push(alert)
       }
 
-      return { active, protectedIds }
+      return { active }
     } catch (e) {
       console.warn("[EpisodeUpdates] translation_alerts error:", e)
       return empty
@@ -308,14 +315,23 @@ export function EpisodeUpdatesProvider({ children }: { children: React.ReactNode
     setIsChecking(true)
 
     try {
+      // Тайтлы, за которыми человек ЯВНО подписан на новые серии.
+      //
+      // Раньше здесь стояло `watch_history ∪ bookmarks`, и это была главная
+      // причина, почему уведомлениями нельзя было управлять: подписки не
+      // существовало как сущности, а тайтл попадал в проверку сам собой. Убрать
+      // из закладок было мало — `watch_history` живёт вечно, и уведомления
+      // продолжали приходить. Теперь список берётся из `title_subscriptions`
+      // с каналом notify_new_episodes: подписался — получаешь, отписался —
+      // нет. Закладки и история больше не являются триггером уведомлений.
       let idsToCheck: string[] = []
       type HistoryItem = { id: string; episode?: number }
       let watchHistory: HistoryItem[] = []
-
-      let bookmarks: { id: string }[] = []
+      /** Подписки по тайтлу: из них берётся точка отсчёта в hasNewEpisode. */
+      const subscriptionsByAnime = new Map<string, TitleSubscription>()
 
       if (user) {
-        const [historyRes, bookmarksRes] = await Promise.all([
+        const [historyRes, subsRes] = await Promise.all([
           supabase
             .from("watch_history")
             .select("anime_id, episode")
@@ -323,9 +339,11 @@ export function EpisodeUpdatesProvider({ children }: { children: React.ReactNode
             .order("timestamp", { ascending: false })
             .limit(100),
           supabase
-            .from("bookmarks")
-            .select("anime_id")
-            .eq("user_id", user.id),
+            .from("title_subscriptions")
+            .select("*")
+            .eq("user_id", user.id)
+            .eq("notify_new_episodes", true)
+            .limit(200),
         ])
 
         if (!historyRes.error && historyRes.data) {
@@ -334,32 +352,33 @@ export function EpisodeUpdatesProvider({ children }: { children: React.ReactNode
             episode: row.episode ?? 0,
           }))
         }
-        if (!bookmarksRes.error && bookmarksRes.data) {
-          bookmarks = bookmarksRes.data.map((row: { anime_id: string }) => ({
-            id: String(row.anime_id),
-          }))
+
+        // Таблицы может не быть до применения миграции. Тогда подписок нет,
+        // и проверять нечего — но молча падать нельзя: это единственный путь
+        // к уведомлениям, и ошибка должна быть видна в консоли.
+        if (subsRes.error) {
+          console.warn("[EpisodeUpdates] title_subscriptions read failed:", subsRes.error.message)
+        } else if (subsRes.data) {
+          for (const row of subsRes.data as TitleSubscriptionRow[]) {
+            const subscription = mapSubscriptionRow(row)
+            if (subscription) subscriptionsByAnime.set(subscription.animeId, subscription)
+          }
+          idsToCheck = Array.from(subscriptionsByAnime.keys())
         }
       } else {
         watchHistory = JSON.parse(localStorage.getItem("watch-history") || "[]")
-        bookmarks = JSON.parse(localStorage.getItem("bookmarks_v1") || "[]")
+        // У гостя подписок нет: они живут в аккаунте (кнопка предлагает вход,
+        // намерение подхватывается после). Поэтому гостю эта проверка не
+        // приносит ничего — и раньше не приносила: без аккаунта строки
+        // `episode_updates` всё равно оставались в localStorage.
+        idsToCheck = []
       }
-
-      const idSet = new Set<string>()
-      watchHistory.forEach((i: HistoryItem) => i.id && idSet.add(String(i.id)))
-      bookmarks.forEach((i: { id: string }) => i.id && idSet.add(String(i.id)))
-      idsToCheck = Array.from(idSet)
 
       if (idsToCheck.length === 0) {
         isCheckingRef.current = false
         setIsChecking(false)
         return
       }
-
-      // Тайтлы, которых пользователь ЖДЁТ (озвучка ещё не вышла), в историю и
-      // закладки попасть не могли — их проверяет сервер (POST /api/alerts/check)
-      // и кладёт результат в episode_updates. Ниже клинер «убрать уведомления
-      // по тайтлам не из списка» не должен такие записи затирать.
-      const { protectedIds } = await fetchAlertsState()
 
       const freshData = await getFreshAnimeData(idsToCheck)
 
@@ -387,15 +406,25 @@ export function EpisodeUpdatesProvider({ children }: { children: React.ReactNode
       const freshIds = new Set(freshData.map((a) => String(a.id)))
 
       freshData.forEach((anime) => {
-        const isProtected = protectedIds.has(String(anime.id))
+        const animeId = String(anime.id)
+        const existingIdx = newUpdatesList.findIndex((u) => u.animeId === animeId)
 
-        // Fix #1: For non-ongoing anime, remove any existing notification instead of skipping.
-        // Кроме тайтлов из ожиданий озвучки: у них уведомление создал сервер
-        // (озвучка нашлась), и статус «released» тут ни при чём — сносить его
-        // можно только вместе с самим ожиданием.
+        // Запись, которую записал не браузер. Такую нельзя ни перезаписать, ни
+        // удалить: её числа (сколько серий доступно в Kodik) и её смысл
+        // («появилась озвучка») клинер не вычисляет и вычислить не может.
+        //
+        // Раньше это регулировалось `protectedIds` — списком тайтлов из
+        // `translation_alerts` с окном в 30 дней. Окно заканчивалось, и запись
+        // снова становилась доступной затиранию. Поле `source` отвечает на тот
+        // же вопрос точно и навсегда.
+        const existing = existingIdx !== -1 ? newUpdatesList[existingIdx] : null
+        if (existing && existing.source === "dub") return
+
+        // Статус «released» больше не приговор: уведомление мог появиться,
+        // пока тайтл был онгоингом, а завершился он уже после. Но и оставлять
+        // его навсегда нельзя — иначе колокольчик вечно показывает то, что
+        // человек давно посмотрел. Ршение: убираем, как раньше.
         if (anime.status !== "ongoing") {
-          if (isProtected) return
-          const existingIdx = newUpdatesList.findIndex((u) => u.animeId === String(anime.id))
           if (existingIdx !== -1) {
             newUpdatesList.splice(existingIdx, 1)
             hasChanges = true
@@ -403,17 +432,44 @@ export function EpisodeUpdatesProvider({ children }: { children: React.ReactNode
           return
         }
 
+        // Точка отсчёта: сколько серий человек уже знает про этот тайтл.
+        //
+        // Раньше здесь бралась только история просмотров, из-за чего уведомления
+        // приходили о сериях, которые человек не смотрел и не собирался. И
+        // обратная проблема: подписавшись на давно вышедший тайтл, человек
+        // мгновенно получал «вышла серия 12».
+        //
+        // Берём максимум из трёх источников, потому что они означают разное:
+        //   baseline_episode  — что человек видел на момент подписки;
+        //   last_notified     — что мы уже сообщали (иначе повтор);
+        //   история/snapshot  — что он фактически досмотрел после подписки,
+        //                       чтобы не слать «серия 4», которую он уже посмотрел.
+        const subscription = subscriptionsByAnime.get(String(anime.id))
         const historyItem = watchHistory.find((h: HistoryItem) => String(h.id) === String(anime.id))
-        let watchedEp = historyItem ? historyItem.episode || 0 : 0
 
+        let watchedEp = Math.max(
+          subscription?.baselineEpisode ?? 0,
+          subscription?.lastNotifiedEpisode ?? 0,
+        )
+        if (historyItem) {
+          watchedEp = Math.max(watchedEp, historyItem.episode || 0)
+        }
         if (snapshot[anime.id]) {
           watchedEp = Math.max(watchedEp, snapshot[anime.id])
         }
 
-        if (anime.episodesCurrent > watchedEp) {
-          const existingIdx = newUpdatesList.findIndex((u) => u.animeId === anime.id)
-
-          if (existingIdx === -1 || newUpdatesList[existingIdx].newEpisode < anime.episodesCurrent || !newUpdatesList[existingIdx].poster) {
+        // Само правило «вышла ли новая серия» — из lib/title-subscriptions,
+        // тем же кодом, что крутит бот. Сравнение написано здесь и здесь
+        // расходилось бы при первой же правке одного из двух мест.
+        if (
+          subscription &&
+          hasNewEpisode({ ...subscription, baselineEpisode: watchedEp }, anime.episodesCurrent)
+        ) {
+          if (
+            existingIdx === -1 ||
+            newUpdatesList[existingIdx].newEpisode < anime.episodesCurrent ||
+            !newUpdatesList[existingIdx].poster
+          ) {
             const updateObj: EpisodeUpdate = {
               animeId: anime.id,
               animeTitle: anime.title,
@@ -422,6 +478,7 @@ export function EpisodeUpdatesProvider({ children }: { children: React.ReactNode
               newEpisode: anime.episodesCurrent,
               totalEpisodes: anime.episodesTotal,
               updatedAt: new Date().toISOString(),
+              source: "shikimori",
             }
 
             if (existingIdx !== -1) {
@@ -431,38 +488,46 @@ export function EpisodeUpdatesProvider({ children }: { children: React.ReactNode
             }
             hasChanges = true
           }
-        } else if (!isProtected) {
-          const existingIdx = newUpdatesList.findIndex((u) => u.animeId === anime.id)
-          if (existingIdx !== -1) {
-            newUpdatesList.splice(existingIdx, 1)
-            hasChanges = true
-          }
+        } else if (existingIdx !== -1) {
+          // Новой серии нет — уведомление потеряло смысл.
+          newUpdatesList.splice(existingIdx, 1)
+          hasChanges = true
         }
       })
 
-      // Fix #1 (continued): Also remove notifications for IDs that the API didn't return at all
-      // (anime may have been deleted from Shikimori or API failed for those IDs)
-      // Only remove if we got a successful response (freshData.length > 0)
+      // Записи, которых нет в ответе Shikimori: тайтл мог удалиться или
+      // запрос мог упасть. Убирать имеет смысл только при успешном ответе,
+      // и только записи, которые записал сам браузер — записи сервера про
+      // озвучку к Shikimori отношения не имеют.
       if (freshData.length > 0) {
-        const isStaleFromApi = (animeId: string) =>
-          idsToCheck.includes(String(animeId)) &&
-          !freshIds.has(String(animeId)) &&
-          !protectedIds.has(String(animeId))
+        const isStaleFromApi = (update: EpisodeUpdate) =>
+          update.source === "shikimori" &&
+          idsToCheck.includes(String(update.animeId)) &&
+          !freshIds.has(String(update.animeId))
 
-        const staleFromApi = newUpdatesList.filter((u) => isStaleFromApi(String(u.animeId)))
+        const staleFromApi = newUpdatesList.filter(isStaleFromApi)
         if (staleFromApi.length > 0) {
-          newUpdatesList = newUpdatesList.filter((u) => !isStaleFromApi(String(u.animeId)))
+          newUpdatesList = newUpdatesList.filter((u) => !isStaleFromApi(u))
           hasChanges = true
         }
       }
 
-      // Remove notifications for anime no longer in history or bookmarks.
-      // Ожидаемые тайтлы считаем валидными: они попали в список сервером.
-      const validIds = new Set(idsToCheck.map(String))
-      protectedIds.forEach((id) => validIds.add(id))
-      const staleUpdates = newUpdatesList.filter((u) => !validIds.has(String(u.animeId)))
+      // Убираем всё, на что человек больше не подписан. Раньше здесь
+      // подставлялся `protectedIds`, и это был последний оплот костыля:
+      // чужую запись он защищал, но список «кем человек подписан» всё равно
+      // строили не по подпискам.
+      //
+      // Правило живёт в `lib/title-subscriptions`, а не здесь: это единственное
+      // место, где известно, что `idsToCheck` — тайтлы с каналом
+      // `notify_new_episodes`, и что запись `source: 'dub'` в этом смысле
+      // ничего общего с проверкой не имеет. Раньше проверки источника не
+      // было вовсе, и уведомление об озвучке у человека, подписавшегося
+      // ТОЛЬКО на озвучку, молча пропадало из колокольчика.
+      const staleUpdates = newUpdatesList.filter((u) =>
+        isStaleSubscriptionUpdate(u, idsToCheck),
+      )
       if (staleUpdates.length > 0) {
-        newUpdatesList = newUpdatesList.filter((u) => validIds.has(String(u.animeId)))
+        newUpdatesList = keepLiveSubscriptionUpdates(newUpdatesList, idsToCheck)
         hasChanges = true
 
         try {
@@ -487,7 +552,14 @@ export function EpisodeUpdatesProvider({ children }: { children: React.ReactNode
 
       if (hasChanges) {
         if (user) {
-          const payload = newUpdatesList.map((u) => ({
+          // В БД пишем ТОЛЬКО свои записи. Записи с source='dub' в payload не
+          // попадают намеренно: upsert по (user_id, anime_id) заменил бы строку
+          // целиком и записал бы `new_episode` по episodes_aired Shikimori
+          // поверх «12 серий доступно в Kodik» — то есть тихо испортил бы
+          // ровно то уведомление, ради которого человек и подписался.
+          const ownUpdates = newUpdatesList.filter((u) => u.source === "shikimori")
+
+          const payload = ownUpdates.map((u) => ({
             user_id: user.id,
             anime_id: u.animeId,
             anime_title: u.animeTitle,
@@ -495,15 +567,23 @@ export function EpisodeUpdatesProvider({ children }: { children: React.ReactNode
             new_episode: u.newEpisode,
             total_episodes: u.totalEpisodes,
             updated_at: u.updatedAt,
+            source: "shikimori",
           }))
 
-          const keepIds = new Set(newUpdatesList.map((u) => u.animeId))
-          const toDelete = updatesRef.current.filter((u) => !keepIds.has(u.animeId)).map((u) => u.animeId)
+          // Удаляем тоже только свои: чужая запись, по которой клиент
+          // случайно решил, что тайтла «больше нет», забрала бы у человека
+          // уведомление о найденной озвучке.
+          const ownIds = new Set(ownUpdates.map((u) => u.animeId))
+          const toDelete = updatesRef.current
+            .filter((u) => u.source === "shikimori" && !ownIds.has(u.animeId))
+            .map((u) => u.animeId)
+
           if (toDelete.length > 0) {
             const { error: delError } = await supabase
               .from("episode_updates")
               .delete()
               .eq("user_id", user.id)
+              .eq("source", "shikimori")
               .in("anime_id", toDelete)
             if (delError) {
               console.error("Failed to delete stale episode updates:", delError)
@@ -520,21 +600,25 @@ export function EpisodeUpdatesProvider({ children }: { children: React.ReactNode
 
           setUpdates(newUpdatesList)
 
-          const newOnly = newUpdatesList.filter(
-            (u) => !updatesRef.current.some((old) => old.animeId === u.animeId)
+          // Пуш шлём по своей находке, а не по «первой строке списка»:
+          // раньше бралась newUpdatesList[0], и в уведомление могла попасть
+          // чужая запись про озвучку с текстом «вышла серия N».
+          const newOnly = ownUpdates.filter(
+            (u) => !updatesRef.current.some((old) => old.animeId === u.animeId),
           )
           if (newOnly.length > 0) {
-            const topUpdate = newUpdatesList[0]
-            fetch("/api/push/send", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                userId: user.id,
-                title: `Weebx — Новая серия: ${topUpdate.animeTitle}`,
-                message: `Вышла серия ${topUpdate.newEpisode}${topUpdate.totalEpisodes ? ` из ${topUpdate.totalEpisodes}` : ""}`,
-                url: getWatchPath(topUpdate.animeId, topUpdate.animeTitle),
-              }),
-            }).catch((e) => console.warn("Push send failed:", e))
+            for (const update of newOnly) {
+              fetch("/api/push/send", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  userId: user.id,
+                  title: `Weebx — Новая серия: ${update.animeTitle}`,
+                  message: `Вышла серия ${update.newEpisode}${update.totalEpisodes ? ` из ${update.totalEpisodes}` : ""}`,
+                  url: getWatchPath(update.animeId, update.animeTitle),
+                }),
+              }).catch((e) => console.warn("Push send failed:", e))
+            }
           }
         } else {
           localStorage.setItem(EPISODE_UPDATES_KEY, JSON.stringify(newUpdatesList))

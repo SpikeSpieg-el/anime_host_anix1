@@ -179,6 +179,73 @@ export async function POST(request: Request) {
   }
 }
 
+/**
+ * PATCH — включить/выключить уведомления в Telegram.
+ *
+ * Зачем это отдельный метод, а не `POST` с флагом
+ * -----------------------------------------------
+ * Флаг `notifications_enabled` существует, читается ботом и никем не менялся:
+ * при привязке записывался `true`, и всё. Человек не мог ни заглушить
+ * Telegram, ни включить его обратно — единственным способом было отвязать
+ * аккаунт, то есть потерять и привязку, и подписки.
+ *
+ * Семантика флага
+ * ---------------
+ * Он управляет ТОЛЬКО каналом Telegram. Web-push живёт отдельно и
+ * разрешается самим браузером (`push_subscriptions`), колокольчик на сайте —
+ * тоже отдельная вещь. Поэтому выключение здесь не значит «уведомлений не
+ * будет»: колокольчик и push продолжат приходить, а сообщения в Telegram
+ * перестанут. Так и написано в интерфейсе, чтобы человек не гадал.
+ *
+ * Тело: `{ "notificationsEnabled": boolean }`.
+ */
+export async function PATCH(request: Request) {
+  try {
+    const user = await getAuthenticatedUser(request)
+    if (!user) {
+      return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 })
+    }
+
+    let body: unknown
+    try {
+      body = await request.json()
+    } catch {
+      return NextResponse.json({ success: false, error: "Invalid JSON" }, { status: 400 })
+    }
+
+    // Строго boolean: `notificationsEnabled: "false"` — это строка, и её
+    // неявное приведение к true означало бы, что человек нажал «выключить»,
+    // а уведомления остались включены. Тихий отказ от действия хуже ошибки.
+    const value = (body as { notificationsEnabled?: unknown } | null)?.notificationsEnabled
+    if (typeof value !== "boolean") {
+      return NextResponse.json(
+        { success: false, error: "notificationsEnabled must be a boolean" },
+        { status: 400 },
+      )
+    }
+
+    const supabaseAdmin = getSupabaseAdmin()
+    if (!supabaseAdmin) {
+      return NextResponse.json({ success: false, error: "Server configuration error" }, { status: 500 })
+    }
+
+    const { error } = await supabaseAdmin
+      .from("telegram_links")
+      .update({ notifications_enabled: value })
+      .eq("user_id", user.id)
+
+    if (error) {
+      console.error("[telegram/link] PATCH failed:", error)
+      return NextResponse.json({ success: false, error: "Failed to update" }, { status: 500 })
+    }
+
+    return NextResponse.json({ success: true, notificationsEnabled: value })
+  } catch (error) {
+    console.error("[telegram/link] PATCH error:", error)
+    return NextResponse.json({ success: false, error: "Internal error" }, { status: 500 })
+  }
+}
+
 /** DELETE — отвязать Telegram от текущего аккаунта */
 export async function DELETE(request: Request) {
   try {

@@ -46,6 +46,7 @@ export const PAGES: PageRegistryEntry[] = [
   { route: "/market-dashboard", name: "Дашборд рынка", auth: "optional", smokePath: "/market-dashboard" },
   { route: "/account-stats", name: "Статистика аккаунта", auth: "required", smokePath: "/account-stats" },
   { route: "/activate", name: "Активация Lampa", auth: "public", smokePath: "/activate" },
+  { route: "/link", name: "Привязка Telegram", auth: "public", smokePath: "/link", notes: "подтверждение одноразового кода из бота (?code=); без кода показывает инструкцию" },
   { route: "/auth/register", name: "Регистрация", auth: "public", smokePath: "/auth/register" },
   { route: "/reset-password", name: "Сброс пароля", auth: "public", smokePath: "/reset-password" },
   { route: "/admin", name: "Админ-панель", auth: "admin", smokePath: "/admin" },

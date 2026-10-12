@@ -3,6 +3,7 @@
 import { Suspense, useCallback, useEffect, useState } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
 import { useAuth } from "@/components/auth/auth-provider"
+import { Switch } from "@/components/ui/switch"
 import {
   Loader2,
   CheckCircle2,
@@ -13,6 +14,8 @@ import {
   ShieldCheck,
   ArrowRight,
   RefreshCw,
+  BellRing,
+  BellOff,
 } from "lucide-react"
 
 const CODE_PATTERN = /^[A-HJ-NP-Z2-9]{8}$/
@@ -54,6 +57,8 @@ function LinkAccountInner() {
   const [currentLink, setCurrentLink] = useState<LinkStatus | null>(null)
   const [loadingStatus, setLoadingStatus] = useState(false)
   const [unlinking, setUnlinking] = useState(false)
+  /** Сохраняем ли переключатель уведомлений прямо сейчас. */
+  const [savingNotifications, setSavingNotifications] = useState(false)
 
   const normalizedCode = inputCode.trim().toUpperCase()
   const isCodeValid = CODE_PATTERN.test(normalizedCode)
@@ -143,7 +148,51 @@ function LinkAccountInner() {
     }
   }
 
-  // Отвязка аккаунта
+  /**
+ * Включить/выключить уведомления в Telegram.
+ *
+ * Переключатель меняет ТОЛЬКО канал Telegram: колокольчик на сайте и
+ * web-push остаются как есть. Поэтому в интерфейсе под ним написано прямо,
+ * что именно выключается — иначе человек решит, что отключил уведомления
+ * вообще, и потом удивится, что они всё равно приходят.
+ *
+ * Оптимистичное обновление здесь НЕ применяется: при ошибке человек должен
+ * увидеть правду. Молча вернувшийся переключатель выглядел бы как «Saving…»
+ * навечно и выглядел бы поломанным.
+ */
+const handleNotificationsToggle = async (enabled: boolean) => {
+  if (!session?.access_token || !currentLink) return
+
+  setSavingNotifications(true)
+  try {
+    const res = await fetch("/api/telegram/link", {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({ notificationsEnabled: enabled }),
+    })
+    const data = await res.json()
+
+    if (!res.ok || !data.success) {
+      setMessage(describeError(data?.error))
+      setStatus("error")
+      return
+    }
+
+    setCurrentLink((prev) => (prev ? { ...prev, notificationsEnabled: enabled } : prev))
+    setStatus("idle")
+    setMessage("")
+  } catch {
+    setMessage("Не удалось сохранить настройку. Проверь соединение.")
+    setStatus("error")
+  } finally {
+    setSavingNotifications(false)
+  }
+}
+
+// Отвязка аккаунта
   const handleUnlink = async () => {
     if (!confirm("Вы действительно хотите отвязать Telegram? Уведомления перестанут приходить.")) {
       return
@@ -263,6 +312,37 @@ function LinkAccountInner() {
               ) : (
                 "Telegram-аккаунт успешно сопряжён с профилем"
               )}
+            </div>
+
+            {/* Отдельный переключатель канала Telegram.
+                Его не было вообще: флаг в базе существовал, писался как
+                `true` при привязке и не менялся больше нигде. Заглушить
+                уведомления можно было только отвязкой аккаунта. */}
+            <div className="border-t border-border/70 pt-3 flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <label
+                  htmlFor="telegram-notifications"
+                  className="flex items-center gap-1.5 text-sm font-medium cursor-pointer"
+                >
+                  {currentLink.notificationsEnabled ? (
+                    <BellRing className="w-3.5 h-3.5 text-primary flex-shrink-0" />
+                  ) : (
+                    <BellOff className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                  )}
+                  Уведомления в Telegram
+                </label>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Отключает только сообщения в Telegram. Колокольчик на сайте и уведомления
+                  браузера продолжат работать — ими управляет сам браузер.
+                </p>
+              </div>
+              <Switch
+                id="telegram-notifications"
+                checked={currentLink.notificationsEnabled}
+                disabled={savingNotifications}
+                onCheckedChange={handleNotificationsToggle}
+                aria-label="Уведомления в Telegram"
+              />
             </div>
           </div>
         )}

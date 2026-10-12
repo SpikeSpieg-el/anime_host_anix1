@@ -608,6 +608,11 @@ export const AnalyticsEvent = {
   SEARCH_QUERY: "search_query",
   BOOKMARK_ADD: "bookmark_add",
   BOOKMARK_REMOVE: "bookmark_remove",
+  /** Явная подписка на тайтл (title_subscriptions) — раньше подписок не было. */
+  TITLE_SUBSCRIBE: "title_subscribe",
+  TITLE_UNSUBSCRIBE: "title_unsubscribe",
+  /** Гость нажал «следить», но не вошёл — открылась регистрация. */
+  TITLE_SUBSCRIBE_AUTH_PROMPT: "title_subscribe_auth_prompt",
   HISTORY_CLEAR: "history_clear",
   HISTORY_REMOVE: "history_remove",
   EPISODE_PLAY: "episode_play",

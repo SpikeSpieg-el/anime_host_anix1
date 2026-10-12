@@ -234,7 +234,12 @@ export function GuestHookBanner({
           <button
             type="button"
             onClick={handleDismiss}
-            className="group absolute top-3 right-3 p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-white/10 transition-colors z-10"
+            // z-20, а не z-10: контент ниже объявлен как `relative z-10`, и при
+            // равном z-index поверх оказывается более поздний элемент — то есть
+            // блок текста. Из-за этого elementFromPoint в центре крестика
+            // возвращал `div.flex-1`, и клик по «Закрыть» не доходил до кнопки.
+            // В guest-hook-modal.tsx здесь уже z-20 — там баг не проявлялся.
+            className="group absolute top-3 right-3 p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-white/10 transition-colors z-20"
             aria-label="Закрыть"
           >
             <X className="w-4 h-4 transition-transform duration-200 group-hover:rotate-90" />

@@ -282,7 +282,9 @@ export default async function WatchPage({
     "@type": schemaType,
     "name": animeTitle,
     "alternateName": alternateNames,
-    "image": getSchemaPosterUrl(anime.poster),
+    // baseUrl обязателен: без него разметка получила бы относительный путь к
+    // прокси, и Google не засчитал бы изображение. См. getSchemaPosterUrl.
+    "image": getSchemaPosterUrl(anime.poster, baseUrl),
     "description": anime.description?.replace(/\[.*?\]/g, "").slice(0, 200) || `Смотреть аниме ${animeTitle} онлайн`,
     "genre": anime.genres,
     "inLanguage": "ru",
@@ -323,7 +325,7 @@ export default async function WatchPage({
     "@type": "VideoObject",
     "name": episode ? `${animeTitle} - Серия ${episode}` : animeTitle,
     "description": anime.description?.replace(/\[.*?\]/g, "").slice(0, 200) || `Смотреть аниме ${animeTitle} онлайн`,
-    "thumbnailUrl": getSchemaPosterUrl(anime.poster),
+    "thumbnailUrl": getSchemaPosterUrl(anime.poster, baseUrl),
     "contentUrl": contentUrl,
     "uploadDate": anime.airedOn ? new Date(anime.airedOn).toISOString() : new Date().toISOString(),
     "inLanguage": "ru",

@@ -96,6 +96,7 @@ export const API_ROUTES: ApiRegistryEntry[] = [
   { path: "/api/recommendations/web-search", methods: ["POST"], auth: "public" },
   { path: "/api/referrals", methods: ["POST"], auth: "bearer" },
   { path: "/api/region", methods: ["GET"], auth: "public" },
+  { path: "/api/telegram/link", methods: ["GET", "POST"], auth: "bearer", notes: "Привязка Telegram-бота: GET — статус, POST — подтверждение одноразового кода, выданного ботом (/link)" },
   { path: "/api/translate", methods: ["POST"], auth: "public" },
   { path: "/api/vk-video", methods: ["GET"], auth: "public" },
 ]

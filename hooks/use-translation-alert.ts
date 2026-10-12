@@ -11,6 +11,19 @@
  * Ожидание привязано к аккаунту, поэтому для гостей хук ничего не делает:
  * их кнопка сначала открывает регистрацию (воронка), а после входа подписка
  * создаётся автоматически.
+ *
+ * Про `title_subscriptions`
+ * -------------------------
+ * Здесь и в подписке об одном и том же намерении — «я слежу за этим тайтлом»,
+ * и раньше они были двумя независимыми сущностями, из-за чего расходились.
+ * Поэтому любая запись и удаление ожидания дублируется в `title_subscriptions`
+ * с каналом `notify_dub`: иначе плашка в плеере могла показать «подписан»,
+ * а страница тайтла — «не слежу», и отписка от одной не трогала другую.
+ *
+ * `notify_new_episodes` здесь НЕ включается: кнопка «Уведомить меня» обещает
+ * только озвучку, и включать сверху ещё и ожидание новых серий значило бы
+ * расширять обещание без спроса. Канал серий включается кнопкой
+ * «Следить за тайтлом» на странице тайтла и из бота.
  */
 
 import { useCallback, useEffect, useRef, useState } from "react"
@@ -22,6 +35,12 @@ import {
   toAlertRow,
   type TranslationAlert,
 } from "@/lib/translation-alerts"
+import {
+  SUBSCRIPTIONS_CHANGED_EVENT,
+  mapSubscriptionRow,
+  mergeSubscriptionChannels,
+  toSubscriptionRow,
+} from "@/lib/title-subscriptions"
 
 export interface UseTranslationAlertResult {
   /** Активное ожидание по этому тайтлу (null — не подписан). */
@@ -145,9 +164,67 @@ export function useTranslationAlert(animeId?: string | null): UseTranslationAler
           return false
         }
 
+        // Отражаем то же намерение в общем списке подписок.
+        //
+        // Именно чтение перед записью, а не слепой upsert: плашка обещает
+        // только озвучку, и полная запись стёрла бы `notify_new_episodes` у
+        // человека, который уже подписался на новые серии с этой страницы.
+        // Ошибку здесь не поднимаем: ожидание озвучки уже записано, и оно
+        // важнее косметики списка.
+        const { data: existingRows } = await supabase
+          .from("title_subscriptions")
+          .select("notify_new_episodes, notify_dub")
+          .eq("user_id", userId)
+          .eq("anime_id", String(animeId))
+          .limit(1)
+
+        const existingRow = existingRows?.[0] ?? null
+
+        // Строки нет — значит и обещания по сериям не было.
+        //
+        // Раньше здесь подставлялся синтетический ряд с `null` в колонках, а
+        // `mapSubscriptionRow` читает `null` как «значение неизвестно» и
+        // трактует его как `true`. В итоге первый же клик по «Уведомить меня»
+        // в плеере молча включал ожидание новых серий: человек просил сообщить
+        // про озвучку, а получал ещё и «вышла серия 13» на тайтл, за которым
+        // не следил. Ровно то расширение обещания, которого плашка не делает.
+        const existing = existingRow
+          ? mapSubscriptionRow({
+              anime_id: String(animeId),
+              notify_new_episodes: existingRow.notify_new_episodes,
+              notify_dub: existingRow.notify_dub,
+            })
+          : null
+
+        const channels = mergeSubscriptionChannels(existing, {
+          notifyNewEpisodes: false,
+          notifyDub: true,
+        })
+
+        const { error: subscriptionError } = await supabase.from("title_subscriptions").upsert(
+          {
+            ...toSubscriptionRow(
+              userId,
+              {
+                animeId: String(animeId),
+                animeTitle: next.animeTitle,
+                poster: next.poster ?? null,
+                ...channels,
+                baselineEpisode: next.baselineEpisode,
+              },
+              { source: "translation_alert" },
+            ),
+          },
+          { onConflict: "user_id,anime_id" },
+        )
+        if (subscriptionError) {
+          console.warn("[translation-alert] подписка не отражена в списке:", subscriptionError.message)
+        }
+
         // `next` уже доменная модель — нормализуем только id тайтла.
         setAlert({ ...next, animeId: String(animeId), episode: Math.max(1, Math.floor(next.episode) || 1) })
         setLoaded(true)
+        window.dispatchEvent(new CustomEvent(SUBSCRIPTIONS_CHANGED_EVENT))
         return true
       } catch (e) {
         console.error("[translation-alert] subscribe error:", e)
@@ -179,6 +256,35 @@ export function useTranslationAlert(animeId?: string | null): UseTranslationAler
         console.error("[translation-alert] unsubscribe failed:", deleteError.message)
         setError(deleteError.message)
         return false
+      }
+
+      // Гасим и подписку, но только если её единственный канал — озвучка.
+      //
+      // «Отменить уведомление» на плашке обещает отменить ожидание озвучки.
+      // Если человек дополнительно подписан на новые серии с этой страницы,
+      // молча сносить и это было бы враньём — про серии он не говорил. Поэтому
+      // строка удаляется целиком только когда других каналов нет.
+      const { data: existingRows } = await supabase
+        .from("title_subscriptions")
+        .select("notify_new_episodes")
+        .eq("user_id", userId)
+        .eq("anime_id", String(animeId))
+        .limit(1)
+
+      if (!existingRows?.[0]?.notify_new_episodes) {
+        const { error: subscriptionError } = await supabase
+          .from("title_subscriptions")
+          .delete()
+          .eq("user_id", userId)
+          .eq("anime_id", String(animeId))
+
+        if (subscriptionError) {
+          // Ожидание уже удалено, и это главное. Ошибку здесь не поднимаем:
+          // человек нажал «отменить уведомление» и получил бы отказ, хотя всё
+          // обещанное уже выполнено.
+          console.warn("[translation-alert] подписка не убрана:", subscriptionError.message)
+        }
+        window.dispatchEvent(new CustomEvent(SUBSCRIPTIONS_CHANGED_EVENT))
       }
 
       setAlert(null)

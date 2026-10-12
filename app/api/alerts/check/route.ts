@@ -294,7 +294,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 })
     }
 
-    const limitResult = checkLimiter.checkLimit(`alerts-check:${auth.userId}:${getClientIP(request)}`)
+    // Ключ уже включает user_id, поэтому склейка адресов разных людей здесь
+    // невозможна: даже без адреса ограничение остаётся персональным.
+    const limitResult = checkLimiter.checkLimit(`alerts-check:${auth.userId}:${getClientIP(request) ?? "unknown"}`)
     if (!limitResult.success) {
       return NextResponse.json(
         { ok: false, error: "Too many requests", retryAfter: Math.ceil((limitResult.reset - Date.now()) / 1000) },
@@ -372,7 +374,41 @@ export async function POST(request: NextRequest) {
         const totalEpisodes = shikimori?.episodesTotal || null
         const notification = buildAlertNotification(alert, resolution, totalEpisodes)
 
-        // 1. Колокольчик на сайте: та же таблица, что и для онгоингов, поэтому
+        // 1. Забираем ожидание себе, ДО рассылки.
+        //
+        //    Тот же `translation_alerts` разбирает и телеграм-бот, и вторая
+        //    вкладка того же человека. Оба берут строки с `notified_at IS NULL`
+        //    и оба рассылают уведомление — если оба успевают раньше, чем
+        //    закроют. Человек получает два одинаковых пуша.
+        //
+        //    Условие `.is("notified_at", null)` в UPDATE делает проверку
+        //    атомарной: закрыть может только тот, кто выполнил условие первым,
+        //    а проигравший получит 0 затронутых строк и уйдёт, ничего не
+        //    отправив. Гонка разрешается базой, а не тем, что «вряд ли».
+        const closedAt = new Date(now).toISOString()
+
+        const { data: claimed, error: claimError } = await auth.admin
+          .from("translation_alerts")
+          .update({ notified_at: closedAt })
+          .eq("id", alertId)
+          .eq("user_id", auth.userId)
+          .is("notified_at", null)
+          .select("id")
+
+        if (claimError) {
+          // Сбой записи, а не «озвучки нет»: оставляем ожидание открытым,
+          // чтобы следующая проверка попробовала снова.
+          console.error("[alerts/check] не удалось закрыть ожидание:", claimError)
+          continue
+        }
+
+        if (!claimed || claimed.length === 0) {
+          // Ожидание уже закрыто — нами или ботом секунду назад. Молча
+          // уходим: второе одинаковое уведомление было бы дубликатом.
+          continue
+        }
+
+        // 2. Колокольчик на сайте: та же таблица, что и для онгоингов, поэтому
         //    уведомление видно на всех устройствах, а не только в этом браузере.
         const { error: updateError } = await auth.admin.from("episode_updates").upsert(
           {
@@ -382,27 +418,28 @@ export async function POST(request: NextRequest) {
             old_episode: Math.max(0, alert.baselineEpisode),
             new_episode: resolution.availableEpisode,
             total_episodes: totalEpisodes,
-            updated_at: new Date(now).toISOString(),
+            updated_at: closedAt,
+            // 'dub', а не 'shikimori': число здесь означает «сколько серий
+            // доступно в Kodik», и браузер не имеет права заменить его на
+            // episodes_aired. Раньше он это делал, и человек видел «3» вместо
+            // «12» в уведомлении, ради которого и подписался.
+            source: "dub",
           },
           { onConflict: "user_id,anime_id" },
         )
         if (updateError) {
-          // Ожидание НЕ закрываем: следующая проверка попробует снова.
-          // Иначе уведомление потерялось бы молча — ровно тот баг, который чиним.
           console.error("[alerts/check] episode_updates upsert failed:", updateError)
+          // Возвращаем ожидание в очередь: колокольчик не записан, значит
+          // человек ничего не увидит. Без отката уведомление исчезло бы молча.
+          await auth.admin
+            .from("translation_alerts")
+            .update({ notified_at: null })
+            .eq("id", alertId)
+            .eq("user_id", auth.userId)
+            .eq("notified_at", closedAt)
           continue
         }
 
-        // 2. Закрываем ожидание ДО пуша: если рассылка упадёт, пользователь
-        //    всё равно увидит серию в колокольчике, а повторных пушей не будет.
-        const { error: closeError } = await auth.admin
-          .from("translation_alerts")
-          .update({ notified_at: new Date(now).toISOString() })
-          .eq("id", alertId)
-          .eq("user_id", auth.userId)
-        if (closeError) {
-          console.error("[alerts/check] close alert failed:", closeError)
-        }
 
         // 3. Пуш на все устройства.
         let pushSent = 0

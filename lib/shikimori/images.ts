@@ -56,18 +56,52 @@ export function proxyImage(url: string | null | undefined, forSchema: boolean = 
 }
 
 /**
- * Get a schema-ready poster URL that proxies external images
- * This ensures Google can access thumbnails for video indexing
+ * URL постера, пригодный для schema.org-разметки.
+ *
+ * Зачем прокси
+ * ------------
+ * Googlebot не ходит на shikimori.one и anilist.co за картинками: у чужих
+ * сайтов `robots.txt` закрывает /system, и разметка осталась бы без
+ * изображения. Поэтому наружу отдаём свой прокси.
+ *
+ * Почему обязательно абсолютный URL
+ * --------------------------------
+ * Google требует в `image` и `thumbnailUrl` полный адрес с протоколом и
+ * хостом. Относительный путь (`/api/thumbnail-proxy?url=…`) он не
+ * разворачивает: подставлять относительные адреса умеет только Next в
+ * тегах `<meta property="og:image">`, а JSON-LD уходит в `<script>` как
+ * есть. С относительным адресом картинка в разметке просто не засчитывалась
+ * — то есть видео-сниппеты не могли появиться в принципе.
+ *
+ * `baseUrl` обязателен именно поэтому: без него функция вернула бы
+ * относительный путь и проблема осталась бы незаметной в коде.
  */
-export function getSchemaPosterUrl(posterUrl: string | null | undefined): string {
+export function getSchemaPosterUrl(posterUrl: string | null | undefined, baseUrl?: string): string {
   if (!posterUrl) return '';
-  
+
   // Use local proxy for external images to avoid robots.txt blocking
-  if (isExternalImageUrl(posterUrl)) {
-    return `/api/thumbnail-proxy?url=${encodeURIComponent(posterUrl)}`;
-  }
-  
-  return posterUrl;
+  const resolved = isExternalImageUrl(posterUrl)
+    ? `/api/thumbnail-proxy?url=${encodeURIComponent(posterUrl)}`
+    : posterUrl;
+
+  return toAbsoluteUrl(resolved, baseUrl);
+}
+
+/**
+ * Развернуть относительный адрес в абсолютный.
+ *
+ * Уже абсолютные (http/https, `data:`) не трогаем: `new URL(dataUri, base)`
+ * вернул бы мусор, а `data:` в разметке всё равно бесполезен, но ломать его
+ * незачем.
+ */
+function toAbsoluteUrl(value: string, baseUrl?: string | null): string {
+  const trimmed = value.trim()
+  if (!trimmed) return ''
+  if (!baseUrl) return trimmed
+  if (/^(https?:)?\/\//i.test(trimmed) || /^data:/i.test(trimmed)) return trimmed
+
+  const origin = baseUrl.replace(/\/+$/, '')
+  return trimmed.startsWith('/') ? `${origin}${trimmed}` : `${origin}/${trimmed}`
 }
 
 function delayRequest(): Promise<void> {

@@ -76,7 +76,11 @@ export function AnimeCard({ anime, className, variant = 'default', showUpdateBad
   // Table variant - horizontal layout
   if (isTable) {
     return (
-      <Link href={getWatchPath(anime.id, anime.title)} className={cn("group relative block bg-secondary/50 rounded-lg border hover:border-primary/50 transition-all p-3", className, "border-border dark:bg-zinc-900/50 dark:border-zinc-800 dark:hover:border-orange-500/50")}>
+      // Внешний элемент — div, а НЕ Link: кнопки действий должны быть
+      // соседями ссылки, а не её потомками. Объяснение — в конце файла,
+      // там же причина, по которой раньше клик по кнопке уводил на /watch.
+      <div className={cn("group relative block bg-secondary/50 rounded-lg border hover:border-primary/50 transition-all p-3", className, "border-border dark:bg-zinc-900/50 dark:border-zinc-800 dark:hover:border-orange-500/50")}>
+        <Link href={getWatchPath(anime.id, anime.title)} className="block">
         <div className="flex gap-3">
           {/* Poster */}
           <div className="relative w-16 h-20 sm:w-20 sm:h-28 flex-shrink-0 overflow-hidden rounded-md bg-secondary dark:bg-zinc-800">
@@ -142,7 +146,7 @@ export function AnimeCard({ anime, className, variant = 'default', showUpdateBad
               </p>
             </div>
             
-            {/* Footer with rating and bookmark */}
+            {/* Footer with rating — рейтинг внутри ссылки */}
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1">
                 <Star className="w-3 h-3 fill-yellow-500 text-yellow-500" />
@@ -150,33 +154,38 @@ export function AnimeCard({ anime, className, variant = 'default', showUpdateBad
                   {anime.rating}
                 </span>
               </div>
-              
-              <Button
-                type="button"
-                variant="secondary"
-                size="icon-sm"
-                className="bg-secondary/60 hover:bg-secondary/70 text-foreground border border-border backdrop-blur-sm h-6 w-6 dark:bg-black/60 dark:hover:bg-black/70 dark:text-white dark:border-white/10"
-                aria-label={saved ? "Убрать из закладок" : "Сохранить на потом"}
-                onClick={(e) => {
-                  e.preventDefault()
-                  e.stopPropagation()
-                  toggle(anime)
-                }}
-              >
-                <Bookmark className={cn(
-                  saved ? "fill-primary text-primary dark:fill-orange-500 dark:text-orange-500" : "text-foreground dark:text-white",
-                  "w-3 h-3"
-                )} />
-              </Button>
+            </div>
             </div>
           </div>
-        </div>
       </Link>
+
+      {/* Кнопка — сосед ссылки, а не её потомок. Причина та же, что и в
+          варианте постером: клик до гидрации React уходил в навигацию. */}
+      <div className="absolute bottom-3 right-3 z-20 flex items-center gap-1">
+        <Button
+          type="button"
+          variant="secondary"
+          size="icon-sm"
+          className="bg-secondary/60 hover:bg-secondary/70 text-foreground border border-border backdrop-blur-sm h-6 w-6 dark:bg-black/60 dark:hover:bg-black/70 dark:text-white dark:border-white/10"
+          aria-label={saved ? "Убрать из закладок" : "Сохранить на потом"}
+          onClick={() => toggle(anime)}
+        >
+          <Bookmark className={cn(
+            saved ? "fill-primary text-primary dark:fill-orange-500 dark:text-orange-500" : "text-foreground dark:text-white",
+            "w-3 h-3"
+          )} />
+        </Button>
+        </div>
+    </div>
     )
   }
 
   return (
-    <Link href={getWatchPath(anime.id, anime.title)} className={cn("group relative block h-full flex flex-col", className)}>
+    // Внешний элемент — div, а НЕ Link. Кнопки действий вынесены из ссылки
+    // в конец разметки (см. там комментарий): внутри <a> клик по кнопке до
+    // гидрации уходил в навигацию на /watch.
+    <div className={cn("group relative block h-full flex flex-col", className)}>
+      <Link href={getWatchPath(anime.id, anime.title)} className="flex flex-col h-full">
       <div className={`relative aspect-[2/3] w-full overflow-hidden rounded-lg bg-secondary shadow-lg dark:bg-zinc-900 ${maxHeight ? `max-h-[${maxHeight}]` : ''}`}>
         <Image
           src={posterSrc}
@@ -223,29 +232,6 @@ export function AnimeCard({ anime, className, variant = 'default', showUpdateBad
           )}
         </div>
 
-        <div className="absolute top-2 left-2">
-          <Button
-            type="button"
-            variant="secondary"
-            size="icon-sm"
-            className={cn(
-              "bg-secondary/60 hover:bg-secondary/70 text-foreground border border-border backdrop-blur-sm dark:bg-black/60 dark:hover:bg-black/70 dark:text-white dark:border-white/10",
-              isCompact ? "h-6 w-6" : "h-7 w-7"
-            )}
-            aria-label={saved ? "Убрать из закладок" : "Сохранить на потом"}
-            onClick={(e) => {
-              e.preventDefault()
-              e.stopPropagation()
-              toggle(anime)
-            }}
-          >
-            <Bookmark className={cn(
-              saved ? "fill-primary text-primary dark:fill-orange-500 dark:text-orange-500" : "text-foreground dark:text-white",
-              isCompact ? "w-3 h-3" : "w-4 h-4"
-            )} />
-          </Button>
-        </div>
-
         {/* Рейтинг (внизу) */}
         <div className="absolute bottom-2 left-2 flex items-center gap-1">
            <Star className="w-3 h-3 fill-yellow-500 text-yellow-500" />
@@ -285,6 +271,48 @@ export function AnimeCard({ anime, className, variant = 'default', showUpdateBad
           })()}
         </p>
       </div>
-    </Link>
+      </Link>
+
+      {/*
+        Кнопки действий — СОСЕДИ ссылки, а не её потомки.
+
+        Почему не внутри <Link>: <button> внутри <a> — невалидная разметка, и
+        главное, клик по кнопке до гидрации React уходит в навигацию. Браузер
+        отдаёт клик ближайшему <a>, а обработчика на кнопке ещё нет — значит
+        `preventDefault()` в `onClick` не выполняется, и человек уезжает на
+        /watch вместо того, чтобы сохранить тайл. На каталоге окно между
+        отрисовкой карточек и гидратацией — сотни миллисекунд, на главной с
+        десятками карточек больше.
+
+        Раньше здесь была ещё и кнопка подписки на уведомления — она убрана,
+        см. комментарий ниже.
+      */}
+      <div className="absolute top-2 left-2 z-20 flex flex-col gap-1.5">
+        <Button
+          type="button"
+          variant="secondary"
+          size="icon-sm"
+          className={cn(
+            "bg-secondary/60 hover:bg-secondary/70 text-foreground border border-border backdrop-blur-sm dark:bg-black/60 dark:hover:bg-black/70 dark:text-white dark:border-white/10",
+            isCompact ? "h-6 w-6" : "h-7 w-7"
+          )}
+          aria-label={saved ? "Убрать из закладок" : "Сохранить на потом"}
+          onClick={() => toggle(anime)}
+        >
+          <Bookmark className={cn(
+            saved ? "fill-primary text-primary dark:fill-orange-500 dark:text-orange-500" : "text-foreground dark:text-white",
+            isCompact ? "w-3 h-3" : "w-4 h-4"
+          )} />
+        </Button>
+        {/*
+          Подписки на уведомления здесь нет намеренно: колокольчик на
+          постере обещал пользу даже для давно вышедшего тайтла, хотя
+          подписываться на «новые серии» для завершённого аниме бессмысленно.
+          Кнопка «Следить за тайтлом» живёт только на странице просмотра
+          (`components/watch/watch-page-client.tsx`) — там, где человек уже
+          смотрит тайтл и осознанно хочет узнавать о продолжении.
+        */}
+      </div>
+    </div>
   )
 }

@@ -32,10 +32,14 @@ export async function GET(request: NextRequest) {
     return new NextResponse("Invalid or unauthorized URL", { status: 403 })
   }
 
-  // Rate limiting
+  // Rate limiting. Неизвестный адрес → пропускаем ограничение: общий
+  // ключ на всех посетителей обрушил бы видеопоток разом.
   const clientIP = getClientIP(request)
-  const rateLimitResult = rateLimiters.proxy.checkLimit(clientIP)
-
+  const rateLimitResult = clientIP
+    ? rateLimiters.proxy.checkLimit(clientIP)
+    : // Заглушка нужна только ради заголовков ответа: сам лимит не
+      // применялся, и честнее не сообщать о нём как о сработавшем.
+      { success: true, remaining: 0, reset: Date.now() }
   if (!rateLimitResult.success) {
     return createRateLimitResponse(rateLimitResult.reset)
   }

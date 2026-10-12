@@ -25,6 +25,10 @@ import { CoverModal } from "@/components/watch/cover-modal"
 import { FloatingNav } from "@/components/layout/floating-nav"
 import { AuthPromptBanner } from "@/components/watch/auth-prompt-banner"
 import { BoostyBanner } from "@/components/watch/boosty-banner"
+import {
+  PendingSubscribeOnMount,
+  TitleSubscribeButton,
+} from "@/components/shared/title-subscribe-button"
 import { cn } from "@/lib/utils"
 import { Eye } from "lucide-react"
 import { AnalyticsEvent, trackEvent } from "@/lib/analytics"
@@ -290,21 +294,41 @@ export function WatchPageClient({ anime, initialEpisode }: WatchPageClientProps)
           <span>Назад</span>
         </Button>
 
-        <div className="flex items-center gap-2">
+        {/* Закладка и подписка стоят рядом намеренно.
+            Это два ответа на вопрос «что мне делать с этим тайтлом», и
+            разносить их по разным углам экрана незачем: человек, который
+            хочет следить за новыми сериями, ищет «следить» рядом с
+            «сохранить», а не в шапке тайтла между жанрами.
+
+            Обе кнопки означают разное и друг без друга не работают:
+            закладка — «открыть потом», подписка — «напиши, когда выйдет».
+
+            baseline_episode = availableEpisodes, а не выбранная серия:
+            человек мог открыть тайтл, посмотреть первую серию и уйти — и всё
+            равно не хочет получать «вышла 2». Точка отсчёта — это «сколько
+            уже вышло», а не «где он остановился». */}
+        <div className="flex flex-wrap items-center gap-2">
           <Button
             size="sm"
             variant="ghost"
             onClick={() => toggle(anime)}
             className={cn(
               "gap-2 transition-all border",
-              saved 
-                ? "bg-primary/10 border-primary/50 text-primary hover:bg-primary/20" 
+              saved
+                ? "bg-primary/10 border-primary/50 text-primary hover:bg-primary/20"
                 : "bg-card border-border text-muted-foreground hover:text-foreground hover:bg-card/80"
             )}
           >
             <Bookmark className={cn("w-4 h-4", saved && "fill-current")} />
             <span>{saved ? "Сохранено" : "В закладки"}</span>
           </Button>
+
+          <TitleSubscribeButton
+            animeId={String(anime.shikimoriId || anime.id)}
+            animeTitle={anime.title}
+            poster={anime.poster}
+            baselineEpisode={availableEpisodes}
+          />
         </div>
       </div>
 
@@ -371,6 +395,11 @@ export function WatchPageClient({ anime, initialEpisode }: WatchPageClientProps)
               {anime.title}
             </h1>
             
+            {/* Жанров здесь нет — они идут кнопками ниже. Раньше они были в
+                обоих местах одновременно («Экшен, Приключения, Фэнтези» в
+                строке метаданных и те же три кнопкой ниже), то есть один и
+                тот же список показывался дважды подряд. Кнопки полезнее: они
+                кликабельны и ведут в каталог, а текст — нет. */}
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs md:text-sm text-muted-foreground font-medium">
               <span className="px-2 py-0.5 rounded-md bg-muted text-foreground">
                 {anime.year}
@@ -379,15 +408,6 @@ export function WatchPageClient({ anime, initialEpisode }: WatchPageClientProps)
               <span>
                 {availableEpisodes} / {totalPlannedEpisodes} {getEpisodeText(totalPlannedEpisodes)}
               </span>
-              
-              {anime.genres && anime.genres.length > 0 && (
-                <>
-                  <span className="hidden sm:block w-1 h-1 rounded-full bg-border" />
-                  <span className="hidden sm:block text-muted-foreground">
-                    {anime.genres.slice(0, 3).join(", ")}
-                  </span>
-                </>
-              )}
             </div>
 
             <div className="mt-1 md:mt-2 inline-flex items-center gap-2 text-primary text-sm md:text-base font-semibold">
@@ -414,6 +434,15 @@ export function WatchPageClient({ anime, initialEpisode }: WatchPageClientProps)
           </div>
         </div>
       </div>
+
+      {/* Человек пришёл по ссылке от бота (`/watch/<id>?sub=1`) — подписываем
+          без лишнего клика. Молчаливый компонент, рендерится в пустоту. */}
+      <PendingSubscribeOnMount
+        animeId={String(anime.shikimoriId || anime.id)}
+        animeTitle={anime.title}
+        poster={anime.poster}
+        baselineEpisode={availableEpisodes}
+      />
 
       {/* Player Section */}
       <div id="player" ref={playerRef} className="w-full scroll-mt-24">

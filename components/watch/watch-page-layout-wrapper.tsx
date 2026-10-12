@@ -9,7 +9,7 @@ import { WatchOrderSection } from './watch-order-section'
 import { CoverProvider } from '@/components/providers/cover-provider'
 import { cleanAnimeTitle } from '@/lib/seo/watch-url'
 import type { Anime, FranchiseItem } from '@/lib/shikimori'
-import { PlayCircle, Tv, Film, Calendar, Star, Users, Sparkles, Info } from 'lucide-react'
+import { PlayCircle, Tv, Film, Calendar, Star, Sparkles, Info } from 'lucide-react'
 
 function getEpisodeText(count: number): string {
   if (count === 1) return "Серия"
@@ -353,16 +353,36 @@ export function WatchPageLayoutWrapper({
           initialEpisode={initialEpisode}
         />
 
-        <article 
-          className="mt-8 p-5 md:p-7 rounded-2xl bg-card/30 border border-border/60 backdrop-blur-sm shadow-xl"
-          itemScope 
-          itemProp="about"
-        >
+        {/* Микроразметка (itemScope/itemProp) с этого блока убрана.
+            Здесь была вторая, «видимая» копия сущности тайтла: тот же
+            `<article>` объявлял себя через `itemProp="about"`, а заголовок
+            внутри — через `itemProp="name"`.
+
+            Два независимых основания проблемы:
+
+            1. `itemProp` без окружающего `itemScope`, который объявлял бы
+               родительскую сущность (например WebPage), ничего не значит.
+               Здесь `itemScope` стоял на самом `<article>`, то есть
+               `itemProp="about"` описывал сам элемент, который этот же
+               itemScope и объявляет. Разметка не выражала ничего.
+
+            2. Имя в ней не совпадало с JSON-LD. Здесь было
+               «Ван-Пис (1999) — смотреть онлайн бесплатно в HD», в JSON-LD —
+               «Ван-Пис». Одна сущность описана дважды и по-разному.
+
+            JSON-LD из `generateMetadata` уже отдаёт полный набор
+            TVSeries/VideoObject/BreadcrumbList, поэтому микроразметка была
+            не дополнением, а конкурирующим и противоречивым дублем. */}
+        <article className="mt-8 p-5 md:p-7 rounded-2xl bg-card/30 border border-border/60 backdrop-blur-sm shadow-xl">
           <header className="mb-5 border-b border-border/50 pb-4">
-            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-foreground mb-3 flex items-center gap-2" itemProp="name">
+            {/* Это h2, а не h1: единственный h1 страницы — заголовок тайтла
+                в шапке рядом с обложкой (WatchPageClient). Два h1 означали
+                для робота, что у страницы два равноправных заголовка, и
+                какой из них главный — решалось наугад. */}
+            <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-foreground mb-3 flex items-center gap-2">
               <Info className="w-6 h-6 text-primary shrink-0" />
               {animeTitle}{yearText} — смотреть онлайн бесплатно в HD
-            </h1>
+            </h2>
             
             <div className="flex flex-wrap items-center gap-2 text-xs sm:text-sm text-muted-foreground">
               {kindLabel && (
@@ -393,33 +413,18 @@ export function WatchPageLayoutWrapper({
           </header>
 
           {cleanDescription && (
-            <div className="mb-6" itemProp="description">
+            <div className="mb-6">
               <p className="text-muted-foreground leading-relaxed whitespace-pre-line text-base sm:text-lg">
                 {cleanDescription}
               </p>
             </div>
           )}
 
-          {anime.genres && anime.genres.length > 0 && (
-            <div className="mb-6">
-              <h2 className="text-xs uppercase tracking-wider font-bold text-foreground mb-3 flex items-center gap-1.5">
-                <Users className="w-4 h-4 text-primary" />
-                Жанры:
-              </h2>
-              <ul className="flex flex-wrap gap-2">
-                {anime.genres.map((genre) => (
-                  <li key={genre}>
-                    <a 
-                      href={`/catalog?genre=${encodeURIComponent(genre)}`}
-                      className="inline-block px-3.5 py-1.5 rounded-full bg-secondary/60 border border-border/80 text-muted-foreground hover:text-primary hover:border-primary/40 text-xs sm:text-sm font-medium transition-all"
-                    >
-                      {genre}
-                    </a>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
+          {/* Жанров здесь не было бы смысла повторять: кликабельные кнопки
+              стоят в шапке тайтла выше (WatchPageClient), и до них полэкрана
+              прокрутки. Второй набор тех же ссылок под заголовком «Жанры:»
+              читался как дубль, а для краулеров ссылки никуда не делись — они
+              остались в шапке, просто один раз. */}
 
           <div className="pt-4 border-t border-border/50">
             <p className="text-xs sm:text-sm text-muted-foreground/80 leading-relaxed">
