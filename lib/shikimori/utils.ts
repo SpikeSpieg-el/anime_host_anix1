@@ -1,5 +1,5 @@
 import { ShikimoriAnime } from "./types";
-import { NSFW_GENRE_IDS } from "./config";
+import { HENTAI_GENRE_IDS } from "./config";
 import { SITE_URL } from "./config";
 
 // --- URL Utilities ---
@@ -73,10 +73,50 @@ export function generateSearchVariants(query: string): string[] {
 }
 
 // --- STRICT SAFETY CHECK (Исправление проблемы с пародией) ---
+
+/**
+ * Рейтинги Shikimori, которые не попадают в «безопасную» выдачу
+ * (каталог без 18+, поиск, sitemap). Шире, чем хентай: сюда входит и r_plus.
+ */
+const ADULT_RATINGS = ["rx", "x", "r_plus"];
+
+/**
+ * Хентай или нет — строгая проверка для выбора плеера.
+ *
+ * Ключевое отличие от isAnimeSafe: рейтинг `r_plus` здесь НЕ считается хентаем.
+ * `r_plus` в Shikimori — это «этти» (лёгкая эротика, фан-сервис), такие тайтлы
+ * лежат в обычном плеере Kodik. Хентаем является только `rx` (и старое `x`).
+ * Например, «Даже у студсовета есть косяки!» (Seitokai ni mo Ana wa Aru, 61578)
+ * имеет рейтинг r_plus, и раньше из-за этого уходил в хентай-плеер.
+ */
+export function isHentaiShikimoriAnime(item: ShikimoriAnime): boolean {
+  const rating = (item.rating || "").toLowerCase();
+
+  // rx = хентай, x = старое обозначение хентая
+  if (rating === "rx" || rating === "x") return true;
+
+  const genres = Array.isArray(item.genres) ? item.genres : [];
+  return genres.some((g) => {
+    if (!g) return false;
+    if (HENTAI_GENRE_IDS.includes(g.id)) return true;
+    const name = (g.name || "").toLowerCase();
+    const russian = (g.russian || "").toLowerCase();
+    return (
+      name === "hentai" ||
+      name === "doujinshi" ||
+      name === "erotica" ||
+      russian === "хентай" ||
+      russian === "додзинси" ||
+      russian === "эротика"
+    );
+  });
+}
+
+/** true, если тайтл не показываем в «безопасной» выдаче (каталог, sitemap, поиск). */
 export function isAnimeSafe(item: ShikimoriAnime): boolean {
   // 1. Проверка рейтинга (самая надежная)
   // rx = Hentai, x = Hentai (old notation), r_plus = Mild Nudity (Borderline)
-  if (item.rating === 'rx' || item.rating === 'x' || item.rating === 'r_plus') {
+  if (ADULT_RATINGS.includes((item.rating || "").toLowerCase())) {
     return false;
   }
 
@@ -87,14 +127,16 @@ export function isAnimeSafe(item: ShikimoriAnime): boolean {
   if (item.genres && Array.isArray(item.genres)) {
     const hasNsfwGenre = item.genres.some(g => {
       if (!g) return false;
+      if (HENTAI_GENRE_IDS.includes(g.id)) return true;
       const name = (g.name || '').toLowerCase();
       const russian = (g.russian || '').toLowerCase();
       return (
-        NSFW_GENRE_IDS.includes(g.id) ||
         name === 'hentai' ||
+        name === 'doujinshi' ||
         name === 'erotica' ||
         russian === 'эротика' ||
-        russian === 'хентай'
+        russian === 'хентай' ||
+        russian === 'додзинси'
       );
     });
     if (hasNsfwGenre) return false;

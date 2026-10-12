@@ -6,6 +6,7 @@ import {
   containsCyrillic,
   generateSearchVariants,
   isAnimeSafe,
+  isHentaiShikimoriAnime,
   generateArtPoster,
 } from "@/lib/shikimori/utils"
 import { transformAnimeCalendar, toLinkedAnimeFromShikimori, transformTopic } from "@/lib/shikimori/transformers"
@@ -14,7 +15,7 @@ import {
   isImageUrlFresh,
   isImageUrlSafeToPersist,
 } from "@/lib/signed-image-url"
-import { BASE_URL, SITE_URL, GENRES_MAP, NSFW_GENRE_IDS } from "@/lib/shikimori/config"
+import { BASE_URL, SITE_URL, GENRES_MAP, HENTAI_GENRE_IDS } from "@/lib/shikimori/config"
 import { makeShikimoriAnime } from "../../fixtures/anime"
 
 describe("shikimori config", () => {
@@ -26,7 +27,17 @@ describe("shikimori config", () => {
   it("maps core russian genres to ids", () => {
     expect(GENRES_MAP["Экшен"]).toBe("1")
     expect(GENRES_MAP["Хентай"]).toBe("12")
-    expect(NSFW_GENRE_IDS).toContain(12)
+    expect(HENTAI_GENRE_IDS).toContain(12)
+  })
+
+  // Регресс: id 33 = «Яой», id 34 = «Юри» — это BL-жанры, а не NSFW.
+  // Раньше они стояли в списке хентай-жанров, и любой яой/юри-тайтл уезжал
+  // в хентай-плеер и получал noindex. Настоящие хентай-жанры Shikimori:
+  // 12/59 (Hentai), 61 (Doujinshi), 539/540 (Erotica).
+  it("не считает яой/юри хентайскими жанрами", () => {
+    expect(HENTAI_GENRE_IDS).not.toContain(33)
+    expect(HENTAI_GENRE_IDS).not.toContain(34)
+    expect(HENTAI_GENRE_IDS).toEqual(expect.arrayContaining([12, 59, 61, 539, 540]))
   })
 })
 
@@ -122,6 +133,56 @@ describe("isAnimeSafe", () => {
           genres: [{ id: 99, name: "erotica", russian: "эротика" }],
         }),
       ),
+    ).toBe(false)
+  })
+
+  // Яой/юри — не NSFW. Раньше их id (33/34) стояли в списке хентай-жанров.
+  it("пропускает яой/юри", () => {
+    expect(isAnimeSafe(makeShikimoriAnime({ genres: [{ id: 33, name: "Yaoi", russian: "Яой" }] }))).toBe(true)
+    expect(isAnimeSafe(makeShikimoriAnime({ genres: [{ id: 34, name: "Yuri", russian: "Юри" }] }))).toBe(true)
+  })
+})
+
+describe("isHentaiShikimoriAnime", () => {
+  it("считает rx/x и хентай-жанры хентаем", () => {
+    expect(isHentaiShikimoriAnime(makeShikimoriAnime({ rating: "rx" }))).toBe(true)
+    expect(isHentaiShikimoriAnime(makeShikimoriAnime({ rating: "x" }))).toBe(true)
+    expect(
+      isHentaiShikimoriAnime(
+        makeShikimoriAnime({ genres: [{ id: 59, name: "Hentai", russian: "Хентай" }] }),
+      ),
+    ).toBe(true)
+    expect(
+      isHentaiShikimoriAnime(
+        makeShikimoriAnime({ genres: [{ id: 540, name: "Erotica", russian: "Эротика" }] }),
+      ),
+    ).toBe(true)
+  })
+
+  // Регресс на https://weeb-x.com/watch/61578-dazhe-u-studsoveta-est-kosyaki
+  // «Даже у студсовета есть косяки!» = Seitokai ni mo Ana wa Aru, рейтинг r_plus.
+  // Это этти, а не хентай: r_plus в hentai-плеер уводить нельзя.
+  it("НЕ считает хентаем r_plus (этти)", () => {
+    expect(isHentaiShikimoriAnime(makeShikimoriAnime({ rating: "r_plus" }))).toBe(false)
+    expect(
+      isHentaiShikimoriAnime(
+        makeShikimoriAnime({
+          rating: "r_plus",
+          genres: [{ id: 9, name: "Ecchi", russian: "Этти" }],
+        }),
+      ),
+    ).toBe(false)
+  })
+
+  it("НЕ считает хентаем яой/юри/этти", () => {
+    expect(
+      isHentaiShikimoriAnime(makeShikimoriAnime({ genres: [{ id: 33, name: "Yaoi", russian: "Яой" }] })),
+    ).toBe(false)
+    expect(
+      isHentaiShikimoriAnime(makeShikimoriAnime({ genres: [{ id: 34, name: "Yuri", russian: "Юри" }] })),
+    ).toBe(false)
+    expect(
+      isHentaiShikimoriAnime(makeShikimoriAnime({ genres: [{ id: 51, name: "Ecchi", russian: "Этти" }] })),
     ).toBe(false)
   })
 })

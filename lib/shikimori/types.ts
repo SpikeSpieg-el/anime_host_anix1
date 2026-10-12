@@ -57,8 +57,17 @@ export interface Anime {
   kind?: string;
   /** Исходный строковый рейтинг Shikimori: g | pg | pg_13 | r | r_plus | rx */
   shikimoriRating?: string;
-  /** true, если тайтл помечен как NSFW (r_plus/rx или жанры 12/33/34) */
+  /**
+   * true, если тайтл помечен как NSFW (r_plus/rx или жанры хентая/эротики).
+   * Широкий флаг: он решает судьбу тайтла в каталоге/поиске/sitemap.
+   */
   isNsfw?: boolean;
+  /**
+   * true ТОЛЬКО для настоящего хентая (рейтинг rx/x или жанры хентая/эротики).
+   * Определяет, какой плеер показывать на /watch. В отличие от isNsfw, сюда
+   * НЕ попадает r_plus — это обычное этти, оно играется через KodikPlayer.
+   */
+  isHentai?: boolean;
 }
 
 export interface RecommendationReason {
