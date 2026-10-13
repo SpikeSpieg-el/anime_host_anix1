@@ -4,9 +4,8 @@ import { useState, useEffect, useMemo, useRef, useCallback } from "react"
 import { Anime } from "@/lib/shikimori"
 import { AnimeCard } from "@/components/shared/anime-card"
 import { ScheduleSkeleton } from "@/components/shared/skeleton"
-import { Calendar, Clock, AlertCircle, ArrowLeft, Filter, Bookmark, Loader2 } from "lucide-react"
+import { Calendar, Clock, AlertCircle, Filter, Bookmark, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
-import Link from "next/link"
 import { useBookmarks } from "@/components/providers/bookmarks-provider"
 import { useCover } from "@/components/providers/cover-provider"
 
@@ -191,13 +190,8 @@ export function ScheduleClient({ schedule: initialSchedule }: ScheduleClientProp
 
   return (
     <div className="space-y-8">
-      {/* Навигация сверху */}
-      <div className="flex justify-start">
-        <Link href="/" className="inline-flex items-center gap-2 px-4 py-2 bg-card hover:bg-card/80 border border-border hover:border-primary text-muted-foreground hover:text-foreground font-medium rounded-xl transition-all">
-          <ArrowLeft className="w-4 h-4" />
-          На главную
-        </Link>
-      </div>
+      {/* Кнопки «Назад» здесь больше нет: её рисует <PageBreadcrumbs/> в
+          app/schedule/page.tsx. Две такие кнопки подряд — дубль. */}
 
       {/* Заголовок */}
       <div className="flex flex-col md:flex-row items-start md:items-end justify-between gap-4">

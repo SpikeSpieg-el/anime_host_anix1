@@ -1,3 +1,4 @@
+import { PageBreadcrumbs } from "@/components/shared/page-breadcrumbs"
 import { Navbar } from "@/components/layout/navbar"
 import { AnimeCard } from "@/components/shared/anime-card"
 import { searchAnime, Anime } from "@/lib/shikimori"
@@ -6,7 +7,6 @@ import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { ScrollToTop } from "@/components/layout/scroll-to-top"
 import type { Metadata } from "next"
-import { BreadcrumbStructuredData } from "@/components/seo/structured-data"
 
 async function getUserProfile() {
   try {
@@ -129,16 +129,16 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <BreadcrumbStructuredData
-        items={[
-          { name: "Главная", url: "https://weeb-x.com" },
-          { name: "Поиск аниме", url: "https://weeb-x.com/search" },
-          ...(query ? [{ name: query, url: `https://weeb-x.com/search?q=${encodeURIComponent(query)}` }] : []),
-        ]}
-      />
       <Navbar />
-      
+
       <div className="container mx-auto px-4 py-12">
+        <PageBreadcrumbs
+          className="mb-6"
+          items={[
+            { label: "Главная", href: "/" },
+            { label: "Поиск" },
+          ]}
+        />
         <h1 className="text-3xl font-bold mb-2 flex items-center gap-2">
           {query ? (
             <>Результаты поиска: <span className="text-orange-500">"{query}"</span></>

@@ -1,8 +1,9 @@
 import { Metadata } from "next"
 import Link from "next/link"
-import { ArrowLeft, HelpCircle, Sparkles, PlayCircle, ArrowRight } from "lucide-react"
+import { HelpCircle, Sparkles, PlayCircle, ArrowRight } from "lucide-react"
+import { PageBreadcrumbs } from "@/components/shared/page-breadcrumbs"
 import { Footer } from "@/components/layout/footer"
-import { FAQStructuredData, BreadcrumbStructuredData } from "@/components/seo/structured-data"
+import { FAQStructuredData } from "@/components/seo/structured-data"
 import { TranslateButton } from "@/components/shared/translate-button"
 import { Button } from "@/components/ui/button" 
 
@@ -311,25 +312,18 @@ export default function FAQPage() {
     category.questions.map(q => ({ question: q.question, answer: q.answer }))
   )
 
-  const breadcrumbItems = [
-    { name: "Главная", url: "https://weeb-x.com" },
-    { name: "FAQ", url: "https://weeb-x.com/faq" },
-  ]
-
   return (
     <div className="min-h-screen bg-background text-foreground">
       <FAQStructuredData items={faqItems} />
-      <BreadcrumbStructuredData items={breadcrumbItems} />
+      {/* BreadcrumbList приходит из <PageBreadcrumbs/> ниже — второй такой же
+          блок был бы дубликатом разметки в отчёте Google. */}
       <div className="container mx-auto px-4 py-8 max-w-4xl">
         <div className="mb-8">
-          <div className="flex items-center justify-between gap-4 mb-4">
-            <Link
-              href="/"
-              className="inline-flex items-center gap-2 px-4 py-2 bg-muted hover:bg-accent border hover:border-primary text-muted-foreground hover:text-foreground font-medium rounded-xl transition-all"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              На главную
-            </Link>
+          <PageBreadcrumbs
+            className="mb-6"
+            items={[{ label: "Главная", href: "/" }, { label: "Часто задаваемые вопросы" }]}
+          />
+          <div className="flex items-center justify-end mb-4">
             <TranslateButton />
           </div>
           <div className="flex items-center gap-3 mb-2">
@@ -340,17 +334,6 @@ export default function FAQPage() {
             Подробные ответы о всех функциях Weebx: просмотр аниме, гача-система, PvP- и PVE-битвы, Lampa TV-синхронизация и многое другое.
           </p>
         </div>
-
-        <nav className="text-sm text-muted-foreground mb-8" aria-label="Хлебные крошки">
-          <ol className="flex items-center gap-2 flex-wrap">
-            <li>
-              <Link href="/" className="hover:text-foreground transition-colors">Главная</Link>
-            </li>
-            <li aria-hidden="true">/</li>
-            <li className="text-foreground font-medium">FAQ</li>
-          </ol>
-        </nav>
-
 
          {/* Баннер для конвертации трафика из поиска */}
         <div className="mb-8 p-6 rounded-2xl bg-gradient-to-r from-orange-500/15 via-orange-500/5 to-transparent border border-orange-500/20 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-lg backdrop-blur-sm">

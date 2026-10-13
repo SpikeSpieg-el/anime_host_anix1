@@ -6,6 +6,7 @@ import { Search, Flame, Sparkles, ChevronLeft, ChevronRight, BookOpen, Filter, X
 import { cn } from '@/lib/utils';
 import { MultiSelect } from '@/components/ui/multi-select';
 import { MANGADEX_TAGS_MAP } from '@/lib/mangadex/api';
+import { PageBreadcrumbs } from "@/components/shared/page-breadcrumbs"
 import { Footer } from '@/components/layout/footer';
 import { getProxiedSrc } from '@/lib/image-loader';
 import { AnalyticsEvent, trackEvent } from '@/lib/analytics';
@@ -177,6 +178,13 @@ export default function MangaClient() {
       <div className="absolute top-1/4 right-1/4 w-[400px] h-[400px] bg-indigo-500/5 rounded-full blur-3xl -z-10 pointer-events-none" />
 
       <div className="container mx-auto px-4 py-8 max-w-6xl relative z-10">
+        <PageBreadcrumbs
+          className="mb-8"
+          items={[
+            { label: "Главная", href: "/" },
+            { label: "Манга" },
+          ]}
+        />
         {/* Title Badge */}
         <div className="flex flex-col items-center text-center gap-2 mb-10">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-xs font-bold text-primary tracking-wide uppercase animate-pulse">

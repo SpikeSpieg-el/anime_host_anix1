@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation"
 import { useState, useEffect, useCallback, useRef } from "react"
+import { PageBreadcrumbs } from "@/components/shared/page-breadcrumbs"
 import { Navbar } from "@/components/layout/navbar"
 import { Footer } from "@/components/layout/footer"
 import { Sparkles, Star, Heart, Loader2, X, ZoomIn, ExternalLink, RefreshCcw, Trash, Trash2, Crown, Package, Coins, Search, Database, Store, Share, Swords, Wrench, Move, Mail, Calendar, ChevronDown, Flame } from "lucide-react"
@@ -476,6 +477,15 @@ export default function GachaPage() {
       <div className="fixed bottom-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-purple-900/10 blur-[120px] pointer-events-none" />
       
       <Navbar />
+
+      <div className="relative z-20 mx-auto max-w-6xl px-4 pt-6">
+        <PageBreadcrumbs
+          items={[
+            { label: "Главная", href: "/" },
+            { label: "Гача" },
+          ]}
+        />
+      </div>
 
       {/* Гостевой крючок: стартовый бонус + стартовый пак */}
       {showGuestStarter && !session?.user && (

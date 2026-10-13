@@ -22,6 +22,8 @@ export interface PageRegistryEntry {
 export const PAGES: PageRegistryEntry[] = [
   { route: "/", name: "Главная", auth: "public", smokePath: "/" },
   { route: "/catalog", name: "Каталог", auth: "public", smokePath: "/catalog" },
+  { route: "/genre", name: "Жанры аниме", auth: "public", smokePath: "/genre" },
+  { route: "/genre/:slug", name: "Аниме по жанру", auth: "public", smokePath: "/genre/isekai", notes: "динамическая; slug'ы из GENRES_MAP, 18+ отдают noindex" },
   { route: "/search", name: "Поиск", auth: "public", smokePath: "/search" },
   { route: "/schedule", name: "Расписание", auth: "public", smokePath: "/schedule" },
   { route: "/news", name: "Новости", auth: "public", smokePath: "/news" },

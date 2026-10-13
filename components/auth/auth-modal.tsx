@@ -6,10 +6,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { AnimeSliderCaptcha } from "@/components/auth/anime-slider-captcha"
-import { Loader2, Mail, Lock, LogIn, UserPlus, AlertCircle, KeyRound, CheckCircle2, ArrowLeft } from "lucide-react"
+import { Loader2, Mail, Lock, LogIn, UserPlus, AlertCircle, KeyRound, CheckCircle2, ArrowLeft, AtSign, ShieldCheck } from "lucide-react"
 import { loggers } from "@/lib/logger"
 import { useToast } from "@/hooks/use-toast"
 import { useConsent } from "@/components/providers/consent-provider"
+import { useAuth } from "@/components/auth/auth-provider"
 import { dispatchGiftCardReceived } from "@/lib/gift-card-events"
 import { AnalyticsEvent, getSignupAttribution, identifyUser, trackEvent } from "@/lib/analytics"
 import { consumeGuestHookAuthSource } from "@/lib/guest-hooks"
@@ -87,6 +88,22 @@ function userFacingAuthError(err: unknown): string {
   return msg || "Не удалось выполнить вход. Проверьте данные или настройки Supabase Auth"
 }
 
+/**
+ * Шаги формы.
+ *
+ * captcha     — пазл показывается ПЕРВЫМ, до полей ввода. Так его нельзя
+ *              пропустить, не потеряв введённые данные, и бот упирается в
+ *              пазл, а не в форму (парсенгулярные бота чаще чинят email'ы).
+ * credentials — email и пароль.
+ * nickname    — необязательный ник сразу после создания аккаунта. Без него
+ *              profiles.username остаётся равен email, и в шапке сайта потом
+ *              светится почтовый адрес вместо имени.
+ */
+type AuthStep = "captcha" | "credentials" | "nickname"
+
+const NICKNAME_MIN = 2
+const NICKNAME_MAX = 24
+
 interface AuthModalProps {
   isOpen?: boolean
   onClose?: (open: boolean) => void
@@ -103,6 +120,16 @@ export function AuthModal({
   const [internalIsOpen, setInternalIsOpen] = useState(false)
   const [isLogin, setIsLogin] = useState(initialMode === "login")
   const [isForgot, setIsForgot] = useState(false)
+  const [step, setStep] = useState<AuthStep>("captcha")
+  /**
+   * Меняется, чтобы перемонтировать <AnimeSliderCaptcha/> и получить новый
+   * пазл. Ключ react, а не ref: у капчи нет публичного сброса, а пересоздать
+   * компонент — единственный способ сбросить и картинку, и токен.
+   */
+  const [captchaNonce, setCaptchaNonce] = useState(0)
+  const [nickname, setNickname] = useState("")
+  /** id свежесозданного пользователя — для записи ника в profiles. */
+  const [pendingUserId, setPendingUserId] = useState<string | null>(null)
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [captchaToken, setCaptchaToken] = useState<string | null>(null)
@@ -111,6 +138,7 @@ export function AuthModal({
   const [resetSent, setResetSent] = useState(false)
   const { toast } = useToast()
   const { consent, hasConsent } = useConsent()
+  const { refreshProfile } = useAuth()
 
   const isOpen = externalIsOpen !== undefined ? externalIsOpen : internalIsOpen
   const setIsOpen = onClose || setInternalIsOpen
@@ -121,17 +149,60 @@ export function AuthModal({
     if (isOpen) {
       setIsLogin(initialMode === "login")
       setIsForgot(false)
+      setStep("captcha")
+      setCaptchaToken(null)
+      setCaptchaNonce((n) => n + 1)
     }
   }, [isOpen, initialMode])
 
+  /** Полный сброс формы — при закрытии модалки. */
   const resetForm = () => {
     setEmail("")
     setPassword("")
     setCaptchaToken(null)
+    setCaptchaNonce((n) => n + 1)
+    setNickname("")
+    setPendingUserId(null)
+    setStep("captcha")
     setError(null)
     setLoading(false)
     setResetSent(false)
     setIsForgot(false)
+  }
+
+  /** Вернуться к пазлу: он пересоздаётся, иначе остаётся уже решённым. */
+  const backToCaptcha = () => {
+    setStep("captcha")
+    setCaptchaToken(null)
+    setCaptchaNonce((n) => n + 1)
+    setError(null)
+  }
+
+  const finishAuth = () => {
+    setIsOpen(false)
+  }
+
+  /** Запись ника в profiles. Ошибка не блокирует выход — ник необязательный. */
+  const saveNickname = async (userId: string) => {
+    const name = nickname.trim().replace(/\s+/g, " ")
+    if (name.length >= NICKNAME_MIN) {
+      try {
+        const { error: updateError } = await supabase
+          .from("profiles")
+          .update({ username: name, updated_at: new Date().toISOString() })
+          .eq("id", userId)
+
+        if (updateError) {
+          // Не роняем регистрацию из-за ника: аккаунт уже создан.
+          loggers.auth.warn("saveNickname", updateError.message)
+        } else {
+          await refreshProfile()
+        }
+      } catch (updateError) {
+        loggers.auth.warn("saveNickname", updateError)
+      }
+    }
+    finishAuth()
   }
 
   const handleAuth = async (e: React.FormEvent) => {
@@ -161,8 +232,10 @@ export function AuthModal({
     }
 
     if (!captchaToken) {
-      setError("Соберите пазл для защиты от ботов, прежде чем продолжить.")
-      setLoading(false)
+      // Капча — первый шаг, поэтому сюда мы попадать не должны. Но если
+      // токен протух (TTL 5 минут) — возвращаем на пазл, а не ругаемся
+      // в форме, где его и не видно.
+      backToCaptcha()
       return
     }
 
@@ -306,7 +379,19 @@ export function AuthModal({
           if (!rawGiftCardToken || giftCardClaimed) {
             document.cookie = "gift_card=; path=/; max-age=0"
           }
-          setIsOpen(false)
+
+          // Ник предлагаем только когда есть сессия — то есть подтверждение
+          // email отключено и мы можем писать в profiles от его имени.
+          // При включённом подтверждении пользователь ещё не вошёл, и RLS
+          // (auth.uid() = id) не пустит UPDATE: тогда просто закрываем окно,
+          // ник можно будет задать в настройках.
+          if (data.session) {
+            setPendingUserId(data.user.id)
+            setNickname("")
+            setStep("nickname")
+          } else {
+            setIsOpen(false)
+          }
         } else {
           setError("Не удалось создать аккаунт. Попробуйте снова.")
         }
@@ -323,6 +408,8 @@ export function AuthModal({
     setIsLogin(!isLogin)
     setError(null)
     setPassword("")
+    // Смена режима тоже возвращает на пазл: токен второй раз не пройдёт.
+    backToCaptcha()
   }
 
   const handleResetPassword = async (e: React.FormEvent) => {
@@ -491,22 +578,83 @@ export function AuthModal({
             <>
               <DialogHeader className="mb-4 sm:mb-6 text-center">
                 <div className="mx-auto w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-white/5 flex items-center justify-center mb-2.5 sm:mb-3 border border-white/10 ring-1 ring-white/5">
-                  {isLogin ? (
+                  {step === "captcha" ? (
+                    <ShieldCheck className="w-5 h-5 sm:w-6 sm:h-6 text-orange-500" />
+                  ) : step === "nickname" ? (
+                    <AtSign className="w-5 h-5 sm:w-6 sm:h-6 text-orange-500" />
+                  ) : isLogin ? (
                     <LogIn className="w-5 h-5 sm:w-6 sm:h-6 text-orange-500" />
                   ) : (
                     <UserPlus className="w-5 h-5 sm:w-6 sm:h-6 text-orange-500" />
                   )}
                 </div>
                 <DialogTitle className="text-xl sm:text-2xl font-bold tracking-tight text-white">
-                  {isLogin ? "Добро пожаловать" : "Создать аккаунт"}
+                  {step === "captcha"
+                    ? "Проверка безопасности"
+                    : step === "nickname"
+                      ? "Как вас зовут?"
+                      : isLogin
+                        ? "Добро пожаловать"
+                        : "Создать аккаунт"}
                 </DialogTitle>
                 <p className="text-zinc-400 text-xs sm:text-sm mt-1 sm:mt-2">
-                  {isLogin
-                    ? "Введите свои данные для входа в систему"
-                    : "Зарегистрируйтесь, чтобы получить доступ ко всем функциям"}
+                  {step === "captcha"
+                    ? "Соберите пазл — и сразу перейдём к полям"
+                    : step === "nickname"
+                      ? "Придумайте ник, его увидят другие зрители"
+                      : isLogin
+                        ? "Введите свои данные для входа в систему"
+                        : "Зарегистрируйтесь, чтобы получить доступ ко всем функциям"}
                 </p>
+
+                {/* Индикатор шагов: у входа их два, у регистрации — три. */}
+                {step !== "nickname" && (
+                  <div className="mt-3 flex items-center justify-center gap-1.5" aria-hidden>
+                    {(isLogin ? ["captcha", "credentials"] : ["captcha", "credentials"]).map(
+                      (s) => (
+                        <span
+                          key={s}
+                          className={`h-1 rounded-full transition-all ${
+                            s === step ? "w-6 bg-orange-500" : "w-3 bg-white/15"
+                          }`}
+                        />
+                      ),
+                    )}
+                  </div>
+                )}
               </DialogHeader>
 
+              {step === "captcha" && (
+                <div className="space-y-3.5 sm:space-y-4">
+                  <div className="flex justify-center pt-1">
+                    <AnimeSliderCaptcha
+                      key={captchaNonce}
+                      onSuccess={(token) => {
+                        setCaptchaToken(token)
+                        setError(null)
+                      }}
+                      disabled={loading}
+                    />
+                  </div>
+
+                  <Button
+                    type="button"
+                    onClick={() => setStep("credentials")}
+                    disabled={!captchaToken}
+                    className="w-full h-11 sm:h-12 bg-white text-black hover:bg-zinc-200 font-semibold text-sm sm:text-base rounded-xl shadow-lg shadow-white/10 transition-all hover:scale-[1.01] active:scale-[0.98] disabled:opacity-40 disabled:hover:scale-100"
+                  >
+                    Продолжить
+                  </Button>
+
+                  {!captchaToken && (
+                    <p className="text-center text-xs text-zinc-500">
+                      Сначала соберите пазл — потом откроются поля
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {step === "credentials" && (
               <form onSubmit={handleAuth} className="space-y-3.5 sm:space-y-4">
                 {error && (
                   <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg flex items-start gap-3 text-red-400 text-xs sm:text-sm animate-in fade-in slide-in-from-top-2">
@@ -550,14 +698,7 @@ export function AuthModal({
                   </div>
                 </div>
 
-                {/* Блок капчи с центровкой и защитой от переполнения */}
-                {!isForgot && (
-                  <div className="w-full flex flex-col items-center justify-center pt-1 overflow-hidden">
-                    <AnimeSliderCaptcha onSuccess={(token) => setCaptchaToken(token)} disabled={loading} />
-                  </div>
-                )}
-
-                {(isLogin || isForgot) && (
+                {isLogin && (
                   <div className="text-right">
                     <button
                       type="button"
@@ -585,23 +726,94 @@ export function AuthModal({
                   ) : isLogin ? (
                     "Войти"
                   ) : (
-                    "Зарегистрироваться"
+                    "Создать аккаунт"
                   )}
                 </Button>
-              </form>
 
-              <div className="mt-4 sm:mt-6 text-center">
-                <button
-                  type="button"
-                  onClick={toggleMode}
-                  className="text-xs sm:text-sm text-zinc-400 hover:text-white transition-colors font-medium"
-                >
-                  {isLogin ? "Нет аккаунта? " : "Уже есть аккаунт? "}
-                  <span className="text-orange-500 hover:text-orange-400">
-                    {isLogin ? "Создать" : "Войти"}
-                  </span>
-                </button>
-              </div>
+                <div className="text-center">
+                  <button
+                    type="button"
+                    onClick={backToCaptcha}
+                    className="text-xs sm:text-sm text-zinc-500 hover:text-zinc-200 transition-colors font-medium"
+                  >
+                    <ArrowLeft className="w-3.5 h-3.5 sm:w-4 sm:h-4 inline mr-1" />
+                    К проверке безопасности
+                  </button>
+                </div>
+              </form>
+              )}
+
+              {step === "nickname" && pendingUserId && (
+                <div className="space-y-3.5 sm:space-y-4">
+                  <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-lg flex items-start gap-3 text-emerald-400 text-xs sm:text-sm">
+                    <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                    <span>Аккаунт создан. Остался последний штрих — ник.</span>
+                  </div>
+
+                  <div className="space-y-1 group">
+                    <label
+                      htmlFor="auth-nickname"
+                      className="text-xs font-medium text-zinc-500 ml-1 group-focus-within:text-orange-500 transition-colors"
+                    >
+                      Никнейм
+                    </label>
+                    <div className="relative">
+                      <AtSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 sm:h-5 sm:w-5 text-zinc-500 group-focus-within:text-orange-500 transition-colors" />
+                      <Input
+                        id="auth-nickname"
+                        type="text"
+                        placeholder="Например, Satoru"
+                        value={nickname}
+                        onChange={(e) => setNickname(e.target.value)}
+                        maxLength={NICKNAME_MAX}
+                        autoFocus
+                        className="pl-10 h-11 sm:h-12 bg-white/5 border-white/10 text-white placeholder:text-zinc-600 focus:bg-white/10 focus:border-orange-500/50 focus:ring-orange-500/20 transition-all rounded-xl text-sm sm:text-base"
+                      />
+                    </div>
+                    <div className="flex items-center justify-between px-1">
+                      <span className="text-[11px] text-zinc-600">
+                        От {NICKNAME_MIN} до {NICKNAME_MAX} символов
+                      </span>
+                      <span className="text-[11px] text-zinc-600 tabular-nums">
+                        {nickname.length}/{NICKNAME_MAX}
+                      </span>
+                    </div>
+                  </div>
+
+                  <Button
+                    type="button"
+                    onClick={() => saveNickname(pendingUserId)}
+                    className="w-full h-11 sm:h-12 bg-white text-black hover:bg-zinc-200 font-semibold text-sm sm:text-base rounded-xl shadow-lg shadow-white/10 transition-all hover:scale-[1.01] active:scale-[0.98]"
+                  >
+                    Сохранить и войти
+                  </Button>
+
+                  <div className="text-center">
+                    <button
+                      type="button"
+                      onClick={finishAuth}
+                      className="text-xs sm:text-sm text-zinc-500 hover:text-zinc-200 transition-colors font-medium"
+                    >
+                      Пропустить — задам позже
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {step !== "nickname" && (
+                <div className="mt-4 sm:mt-6 text-center">
+                  <button
+                    type="button"
+                    onClick={toggleMode}
+                    className="text-xs sm:text-sm text-zinc-400 hover:text-white transition-colors font-medium"
+                  >
+                    {isLogin ? "Нет аккаунта? " : "Уже есть аккаунт? "}
+                    <span className="text-orange-500 hover:text-orange-400">
+                      {isLogin ? "Создать" : "Войти"}
+                    </span>
+                  </button>
+                </div>
+              )}
             </>
           )}
         </div>

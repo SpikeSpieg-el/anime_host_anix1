@@ -4,9 +4,8 @@ import { useEffect, useState, useRef, useCallback, useMemo } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import Image from "next/image"
 import Link from "next/link"
-import { 
-  ArrowLeft, 
-  Bookmark, 
+import {
+  Bookmark,
   PlayCircle
 } from "lucide-react"
 import type { Anime } from "@/lib/shikimori"
@@ -20,6 +19,8 @@ import { Button } from "@/components/ui/button"
 import { useBookmarks } from "@/components/providers/bookmarks-provider"
 import { useAuth } from "@/components/auth/auth-provider"
 import { isHentaiContent } from "@/lib/hentai-detector"
+import { cleanAnimeTitle } from "@/lib/seo/watch-url"
+import { PageBreadcrumbs } from "@/components/shared/page-breadcrumbs"
 import { WatchPageGallery } from "@/components/watch/watch-page-gallery"
 import { CoverModal } from "@/components/watch/cover-modal"
 import { FloatingNav } from "@/components/layout/floating-nav"
@@ -198,14 +199,6 @@ export function WatchPageClient({ anime, initialEpisode }: WatchPageClientProps)
     scrollToPlayer()
   }
 
-  const handleGoBack = () => {
-    if (typeof window !== 'undefined' && window.history.length > 1) {
-      router.back()
-    } else {
-      router.push('/catalog')
-    }
-  }
-
   const handleCountryChange = (country: string) => {
     setSelectedCountry(country)
     setIsRegionDetected(true)
@@ -284,15 +277,17 @@ export function WatchPageClient({ anime, initialEpisode }: WatchPageClientProps)
     <div className="flex flex-col gap-6 pt-4 mx-auto">
       {/* Navigation & Actions Toolbar */}
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <Button
-          onClick={handleGoBack}
-          size="sm"
-          variant="ghost"
-          className="gap-2 bg-card border border-border text-muted-foreground hover:text-foreground hover:bg-card/80 transition-all"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          <span>Назад</span>
-        </Button>
+        {/* Кнопка «Назад» раньше жила здесь отдельной <Button>. Теперь её
+            рисует <PageBreadcrumbs/> — вместе с крошками Главная / Каталог /
+            тайтл и с тем же fallback'ом на /catalog при пустой истории. */}
+        <PageBreadcrumbs
+          backFallback="/catalog"
+          items={[
+            { label: "Главная", href: "/" },
+            { label: "Каталог", href: "/catalog" },
+            { label: cleanAnimeTitle(anime.russian || anime.title) || anime.title },
+          ]}
+        />
 
         {/* Закладка и подписка стоят рядом намеренно.
             Это два ответа на вопрос «что мне делать с этим тайтлом», и

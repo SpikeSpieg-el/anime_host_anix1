@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { PageBreadcrumbs } from "@/components/shared/page-breadcrumbs"
 import { Navbar } from "@/components/layout/navbar"
 import { easterEggs, type EasterEgg } from "@/lib/easter-eggs"
 import { Sparkles, Skull, Moon, Music, BookOpen, ClipboardList, Zap, Heart, Terminal, AlertTriangle, ExternalLink, CloudRain, Ghost, Bug, Wand2, Flame } from "lucide-react"
@@ -75,6 +76,13 @@ export default function EasterEggsPage() {
       <FloatingNav />
       
       <div className="container mx-auto px-4 py-12 max-w-4xl">
+        <PageBreadcrumbs
+          className="mb-8"
+          items={[
+            { label: "Главная", href: "/" },
+            { label: "Пасхалки" },
+          ]}
+        />
         {/* Header */}
         <div className="text-center mb-12">
           <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-br from-orange-500 to-pink-500 mb-6 shadow-lg shadow-orange-500/25">

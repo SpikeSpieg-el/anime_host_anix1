@@ -1,3 +1,4 @@
+import { PageBreadcrumbs } from "@/components/shared/page-breadcrumbs"
 import { Navbar } from "@/components/layout/navbar"
 import { Footer } from "@/components/layout/footer"
 import { ScheduleClient } from "@/components/shared/schedule-client"
@@ -64,6 +65,13 @@ export default async function SchedulePage() {
       <Navbar />
 
       <div className="container mx-auto px-3 sm:px-4 py-8 relative z-10">
+        <PageBreadcrumbs
+          className="mb-6"
+          items={[
+            { label: "Главная", href: "/" },
+            { label: "Расписание" },
+          ]}
+        />
         <CoverProvider>
           <ScheduleClient schedule={schedule} />
         </CoverProvider>

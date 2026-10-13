@@ -7,6 +7,7 @@ import {
   Maximize, Minimize, Settings, Sparkles, Calendar, Star, Info
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { PageBreadcrumbs } from '@/components/shared/page-breadcrumbs';
 import { Footer } from '@/components/layout/footer';
 import { getProxiedSrc } from '@/lib/image-loader';
 import { AnalyticsEvent, trackEvent } from "@/lib/analytics"
@@ -600,13 +601,15 @@ export default function MangaDetailClient({ mangaId }: MangaDetailClientProps) {
       <div className="absolute top-1/3 right-1/4 w-[400px] h-[400px] bg-indigo-500/5 rounded-full blur-3xl -z-10 pointer-events-none" />
 
       <div className="container mx-auto px-4 py-8 max-w-6xl">
-        <Link 
-          href="/manga" 
-          className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-primary transition-colors mb-8 group"
-        >
-          <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-          Назад к списку
-        </Link>
+        <PageBreadcrumbs
+          className="mb-8"
+          backFallback="/manga"
+          items={[
+            { label: "Главная", href: "/" },
+            { label: "Манга", href: "/manga" },
+            { label: manga.title },
+          ]}
+        />
 
         {/* Info Grid */}
         <div className="grid grid-cols-1 md:grid-cols-12 gap-8 md:gap-12">

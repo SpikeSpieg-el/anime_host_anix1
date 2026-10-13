@@ -1,3 +1,4 @@
+import { PageBreadcrumbs } from "@/components/shared/page-breadcrumbs"
 import { Navbar } from "@/components/layout/navbar"
 import { CatalogPageWrapper } from "@/components/catalog/catalog-page-wrapper"
 import { CatalogFilters, getAnimeCatalog, type Anime } from "@/lib/shikimori"
@@ -7,6 +8,10 @@ import { Footer } from "@/components/layout/footer"
 import { ScrollToTop } from "@/components/layout/scroll-to-top"
 import type { Metadata } from "next"
 import { safeSerializeJson } from "@/lib/seo/safe-json"
+import {
+  buildCatalogCanonical,
+  resolveGenreParam,
+} from "@/lib/seo/catalog-filters"
 
 async function getUserProfile() {
   try {
@@ -62,11 +67,15 @@ export async function generateMetadata({
   const params = await searchParams
   
   const search = typeof params.search === 'string' ? params.search : undefined
-  const genre = typeof params.genre === 'string' 
-    ? (params.genre.includes(',') ? params.genre.split(',').join(', ') : params.genre) 
+  // Значение genre приходит как угодно: русское название из GENRES_MAP,
+  // числовой ID Shikimori или латинский slug. Приводим к названию жанра,
+  // иначе в title уезжало «Аниме в жанре 543 смотреть…».
+  const genreLanding = typeof params.genre === 'string'
+    ? resolveGenreParam(params.genre)
     : undefined
-  const year = typeof params.year === 'string' 
-    ? (params.year.includes(',') ? params.year.split(',').join(', ') : params.year) 
+  const genre = genreLanding?.name
+  const year = typeof params.year === 'string'
+    ? (params.year.includes(',') ? params.year.split(',').join(', ') : params.year)
     : undefined
   const kind = typeof params.kind === 'string' ? params.kind : undefined
 
@@ -117,8 +126,28 @@ export async function generateMetadata({
     "weebx каталог",
   ].filter(Boolean)
 
-  // Формируем правильный Canonical URL без мусорных сервисных параметров
-  const canonicalUrl = "https://weeb-x.com/catalog"
+  // Canonical по фильтрам, а не всегда /catalog.
+  //
+  // Раньше здесь жёстко стояло `https://weeb-x.com/catalog`, и Google
+  // отбрасывал из индекса ВСЕ отфильтрованные страницы вместе с их тайтлами:
+  // страница с чужим canonical не ранжируется, а тайтлы под «Аниме в жанре
+  // Исекай смотреть онлайн» были написаны впустую.
+  //
+  // Теперь buildCatalogCanonical сама решает:
+  //   - фильтры genre+year (или один year) → self-canonical, это длинный хвост;
+  //   - всё остальное (sort, kind, status, score, search, страницы) → /catalog,
+  //     чтобы не плодить тысячи тонких дублей.
+  // Один жанр без других фильтров сюда не доходит: middleware отдаёт на него
+  // 301 на /genre/<slug>.
+  const canonicalUrl = buildCatalogCanonical(new URLSearchParams(
+    Object.entries(params).flatMap(([key, value]) =>
+      typeof value === 'string'
+        ? [[key, value] as [string, string]]
+        : Array.isArray(value)
+          ? value.map((item) => [key, item] as [string, string])
+          : [],
+    ),
+  ))
 
   return {
     title,
@@ -217,35 +246,14 @@ export default async function CatalogPage({ searchParams }: CatalogPageProps) {
     }
   }
 
-  const breadcrumbJsonLd = {
-    "@context": "https://schema.org",
-    "@type": "BreadcrumbList",
-    "itemListElement": [
-      {
-        "@type": "ListItem",
-        "position": 1,
-        "name": "Главная",
-        "item": "https://weeb-x.com"
-      },
-      {
-        "@type": "ListItem",
-        "position": 2,
-        "name": "Каталог",
-        "item": "https://weeb-x.com/catalog"
-      }
-    ]
-  }
-
   return (
     <main className="min-h-screen bg-background text-foreground pb-20 md:pb-24 relative">
-      {/* Schema.org Микроразметка для поисковиков */}
+      {/* Schema.org разметка каталога (CollectionPage).
+          BreadcrumbList отдаёт <PageBreadcrumbs/> ниже: свой блок здесь
+          давал бы дубликат разметки в отчёте Google. */}
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: safeSerializeJson(collectionJsonLd) }}
-      />
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: safeSerializeJson(breadcrumbJsonLd) }}
       />
 
       {/* Dot Pattern Background */}
@@ -255,6 +263,15 @@ export default async function CatalogPage({ searchParams }: CatalogPageProps) {
 
       <Navbar />
       <div className="pt-0 relative z-10">
+        <div className="container mx-auto px-3 sm:px-4 pt-6">
+          <PageBreadcrumbs
+            className="mb-5"
+            items={[
+              { label: "Главная", href: "/" },
+              { label: "Каталог аниме" },
+            ]}
+          />
+        </div>
         <CatalogPageWrapper
           key={clientKey}
           initialFilters={initialFilters}

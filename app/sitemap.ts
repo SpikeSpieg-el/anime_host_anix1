@@ -9,6 +9,7 @@ import {
 import { BASE_URL } from '@/lib/shikimori/config'
 import { shikimoriJson } from '@/lib/shikimori/client'
 import { getWatchPath } from "@/lib/seo/watch-url"
+import { INDEXABLE_GENRE_LANDINGS, getGenrePath } from '@/lib/seo/genre-landings'
 import { clampLastmod, escapeXml, isSitemapSafeUrl } from '@/lib/seo/sitemap-utils'
 import { isAnimeSafe } from '@/lib/shikimori/utils'
 import type { ShikimoriAnime } from '@/lib/shikimori/types'
@@ -42,6 +43,21 @@ const CATALOG_PAGES = Math.max(
 
 const CATALOG_PAGE_SIZE = 50
 
+/**
+ * Пауза между страницами каталога, мс.
+ *
+ * Комментарий выше обещает последовательные запросы с паузой 200 мс, но код их
+ * отправлял через Promise.all — 40 одновременных обращений к Shikimori. В логах
+ * это выглядело как «Response status: 429 … No cache available, returning
+ * fallback»: половина страниц молча возвращала по нулям, и sitemap терял
+ * тысячи URL. Теперь запросы действительно последовательные.
+ */
+const CATALOG_PAGE_DELAY_MS = 200
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
 /** Одна страница каталога Shikimori (для «хвоста» карты сайта). */
 async function getCatalogPage(page: number): Promise<ShikimoriAnime[]> {
   try {
@@ -55,6 +71,22 @@ async function getCatalogPage(page: number): Promise<ShikimoriAnime[]> {
     // Пропущенная страница = меньше URL, но не падение всего маршрута
     return []
   }
+}
+
+/**
+ * «Хвост» карты сайта: страницы каталога строго по очереди.
+ *
+ * Последовательность — не для красоты: Shikimori режет лимит и на пачке
+ * одновременных запросов отдаёт 429 без кэша, и страницы молча выпадают из
+ * sitemap. При CATALOG_PAGES=40 это 40 запросов, то есть ~8 секунд на сборку.
+ */
+async function getCatalogPagesSequential(count: number): Promise<ShikimoriAnime[][]> {
+  const pages: ShikimoriAnime[][] = []
+  for (let index = 0; index < count; index++) {
+    pages.push(await getCatalogPage(index + 1))
+    if (index < count - 1) await sleep(CATALOG_PAGE_DELAY_MS)
+  }
+  return pages
 }
 
 // Стабильная дата для статичных страниц (дата последнего обновления контента)
@@ -138,6 +170,15 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       lastModified: NOW,
       changeFrequency: 'daily',
       priority: 0.9,
+    },
+    {
+      // Хаб жанров: из него робот попадает на все 38 жанровых лендингов одной
+      // перелинковкой, поэтому его приоритет выше, чем у обычных статичных
+      // страниц вроде /faq.
+      url: `${SITE_URL}/genre`,
+      lastModified: NOW,
+      changeFrequency: 'weekly',
+      priority: 0.8,
     },
     {
       url: `${SITE_URL}/search`,
@@ -226,11 +267,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   ]
 
   try {
-    // Параллельно загружаем все динамические данные.
+    // Параллельно загружаем «витринные» данные.
     // getTopOfWeek убран: он возвращал ровно тот же закэшированный список,
     // что и getPopularNow (одинаковый URL запроса), то есть не добавлял ни одной
     // новой ссылки.
-    const [popularNow, popularAlways, ongoing, announcements, mangaList, newsIds, ...catalogPages] =
+    const [popularNow, popularAlways, ongoing, announcements, mangaList, newsIds] =
       await Promise.all([
         getPopularNow(50),
         getPopularAlways(50),
@@ -238,8 +279,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         getAnnouncements(50),
         getPopularMangaIds(100),
         getNewsIds(),
-        ...Array.from({ length: CATALOG_PAGES }, (_, i) => getCatalogPage(i + 1)),
       ])
+
+    // «Хвост» каталога — строго последовательно, с паузой. Одновременные
+    // запросы к Shikimori упираются в 429, и страницы молча выпадают из
+    // sitemap (см. getCatalogPagesSequential).
+    const catalogPages = await getCatalogPagesSequential(CATALOG_PAGES)
 
     // --- Страницы аниме ---
     const seenAnimeIds = new Set<string>()
@@ -349,10 +394,32 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       }))
       .filter((page) => isSitemapSafeUrl(page.url))
 
+    // --- Жанровые лендинги ---
+    //
+    // Без них в карте сайта не было ни одного адреса, написанного под жанровый
+    // запрос («смотреть исекай»): /catalog?genre=... туда не попадает, а
+    // страницы фильтров Google отбрасывал из-за чужого canonical.
+    // 18+ жанры (indexable: false) в sitemap не кладутся — их страницы
+    // отдают noindex, и робот лишь зря потратил бы краулинговый бюджет.
+    const genrePages: MetadataRoute.Sitemap = INDEXABLE_GENRE_LANDINGS.map(
+      (genre) => ({
+        url: `${SITE_URL}${getGenrePath(genre.slug)}`,
+        lastModified: NOW,
+        changeFrequency: 'weekly' as const,
+        priority: 0.7,
+      }),
+    )
+
     // Next.js вставляет url в <loc> как есть, без XML-экранирования
     // (resolve-route-data.ts: `content += `<loc>${item.url}</loc>\n``), поэтому
     // экранируем сами: иначе один `&` в любом URL ломает весь файл.
-    return [...staticPages, ...animePages, ...mangaPages, ...newsPages].map((entry) => ({
+    return [
+      ...staticPages,
+      ...genrePages,
+      ...animePages,
+      ...mangaPages,
+      ...newsPages,
+    ].map((entry) => ({
       ...entry,
       url: escapeXml(entry.url),
       images: entry.images?.map((image) => escapeXml(image)),

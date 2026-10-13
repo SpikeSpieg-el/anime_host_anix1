@@ -42,8 +42,17 @@ Disallow: /*?search=
 
 # Yandex: Clean param для борьбы с дубликатами URL-параметров
 # Яндекс игнорирует Disallow: /*?param= по-другому, ему нужна Clean-param
-Clean-param: sort&filter&page&search&q&genre&year&status&kind&score&episode /
-Clean-param: sort&filter&page&search&q&genre&year&status&kind&score /catalog
+#
+# ВАЖНО: genre и year УБРАНЫ из этих списков. Они меняют содержимое страницы
+# (/catalog?genre=Исекай&year=2024 — это другая выдача и другой запрос), и
+# страницы под них обязаны индексироваться с self-canonical. Когда genre стоял
+# в Clean-param, Яндекс срезал параметр и видел только голый /catalog — то есть
+# жанровые страницы для него просто не существовали.
+#
+# sort/page/search/q/filter и служебные status/kind/score остаются: их страницы
+# закрыты от индексации (см. Disallow выше и canonical на /catalog).
+Clean-param: sort&page&search&q /
+Clean-param: sort&page&search&q&status&kind&score /catalog
 Clean-param: episode /watch
 
 # Sitemap

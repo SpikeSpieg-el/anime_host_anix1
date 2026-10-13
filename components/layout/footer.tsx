@@ -133,6 +133,9 @@ export function Footer() {
             <h4 className="text-foreground font-black uppercase tracking-widest text-[10px] sm:text-xs mb-4 sm:mb-6 dark:text-white">Навигация</h4>
             <ul className="space-y-3 sm:space-y-4">
               <li><a className="text-muted-foreground hover:text-primary transition-colors text-sm sm:text-[15px] font-bold dark:text-zinc-500 dark:hover:text-orange-500" href="/catalog" onClick={() => trackEvent(AnalyticsEvent.NAVIGATION_CLICK, { target: "catalog", location: "footer" })}>Каталог аниме</a></li>
+              {/* Хаб жанровых лендингов: на нём держится перелинковка /genre/*,
+                  без него робот находит жанровые страницы только из sitemap. */}
+              <li><a className="text-muted-foreground hover:text-primary transition-colors text-sm sm:text-[15px] font-bold dark:text-zinc-500 dark:hover:text-orange-500" href="/genre" onClick={() => trackEvent(AnalyticsEvent.NAVIGATION_CLICK, { target: "genres", location: "footer" })}>Жанры аниме</a></li>
               <li><a className="text-zinc-500 hover:text-orange-500 transition-colors text-sm sm:text-[15px] font-bold" href="/manga" onClick={() => trackEvent(AnalyticsEvent.NAVIGATION_CLICK, { target: "manga", location: "footer" })}>Манга</a></li>
               <li><a className="text-zinc-500 hover:text-orange-500 transition-colors text-sm sm:text-[15px] font-bold" href="/catalog?status=ongoing" onClick={() => trackEvent(AnalyticsEvent.NAVIGATION_CLICK, { target: "ongoing", location: "footer" })}>Расписание онгоингов</a></li>
               <li><a className="text-zinc-500 hover:text-orange-500 transition-colors text-sm sm:text-[15px] font-bold" href="/catalog?sort=popular" onClick={() => trackEvent(AnalyticsEvent.NAVIGATION_CLICK, { target: "popular", location: "footer" })}>Популярные хиты</a></li>

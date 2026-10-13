@@ -23,7 +23,6 @@ import {
   LayoutGrid,
   Grid3x3,
   Table,
-  ArrowLeft,
   Sparkles,
   Check
 } from 'lucide-react'
@@ -313,16 +312,6 @@ export function CatalogClient({
       router.push('/catalog', { scroll: false })
     })
     setShowFilters(false)
-  }
-
-  const handleGoBack = () => {
-    startTransition(() => {
-      if (typeof window !== 'undefined' && window.history.length > 1) {
-        router.back()
-      } else {
-        router.push('/')
-      }
-    })
   }
 
   const showRandomAnime = async () => {
@@ -669,20 +658,6 @@ export function CatalogClient({
         </div>,
         document.body
       )}
-
-      {/* ========================================================================= */}
-      {/* 3. ОСНОВНОЙ КОНТЕНТ СТРАНИЦЫ */}
-      {/* ========================================================================= */}
-
-      <div className="container mx-auto px-3 sm:px-4 pt-3 sm:pt-4 max-w-7xl">
-        <button
-          onClick={handleGoBack}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs bg-secondary/50 hover:bg-secondary border border-border/40 text-muted-foreground hover:text-foreground font-medium rounded-lg transition-all dark:bg-zinc-900/50 dark:hover:bg-zinc-900"
-        >
-          <ArrowLeft className="w-3.5 h-3.5" />
-          Назад
-        </button>
-      </div>
 
       <div className="container mx-auto px-3 sm:px-4 py-3 sm:py-5 max-w-7xl">
         

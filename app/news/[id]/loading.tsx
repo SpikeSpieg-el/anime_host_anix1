@@ -13,11 +13,6 @@ export default function NewsItemLoading() {
         <div className="absolute inset-0 bg-gradient-to-t from-background via-background/70 to-transparent" />
         <div className="absolute inset-0 flex flex-col justify-end">
           <div className="container mx-auto px-4 pb-6 sm:pb-8 max-w-4xl">
-            {/* Кнопка назад */}
-            <div className="mb-4">
-              <div className="w-24 h-9 bg-zinc-800 rounded-xl" />
-            </div>
-
             {/* Бейджи */}
             <div className="flex flex-wrap items-center gap-2 mb-3">
               <div className="w-20 h-6 bg-zinc-800 rounded-full" />

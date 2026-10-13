@@ -2,6 +2,8 @@ import { NextResponse } from "next/server"
 import type { NextFetchEvent, NextRequest } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { doesWatchAnimeExist, getWatchRedirectPath } from "@/lib/seo/watch-redirect"
+import { resolveGenreAlias } from "@/lib/seo/genre-landings"
+import { resolveCatalogGenreRedirect } from "@/lib/seo/catalog-filters"
 import { isValidAdminRequestOrigin } from "@/lib/admin-origin"
 import { getClientIp, ipMatchesTarget, parseBlocklistEnv } from "@/lib/ip-block"
 
@@ -215,6 +217,44 @@ export async function middleware(request: NextRequest, event?: NextFetchEvent) {
           }
           return new NextResponse("Not Found", { status: 404 })
         }
+      }
+    }
+  }
+
+  // SEO: короткие адреса жанров /isekai → /genre/isekai (301).
+  //
+  // Зачем: в выдаче по «смотреть исекай» конкуренты сидят именно на /isekai,
+  // /isekay, /isjekaj. Мы отвечали на такие адреса 404 и теряли ссылки,
+  // которые на нас уже поставили. Редирект отдаём тут, а не через
+  // redirect() в page.tsx: из-за app/loading.tsx страница успевает уйти с
+  // 200, и Next подставил бы <meta refresh> — поисковики считают его временным.
+  if ((method === "GET" || method === "HEAD")) {
+    const genreTarget = resolveGenreAlias(pathname)
+    if (genreTarget) {
+      const url = request.nextUrl.clone()
+      url.pathname = genreTarget
+      url.search = ""
+      const response = NextResponse.redirect(url, 301)
+      response.headers.set("Cache-Control", "public, max-age=3600")
+      return applySecurityHeaders(response, pathname)
+    }
+
+    // SEO: /catalog с ОДНИМ жанром → 301 на жанровый лендинг.
+    //
+    // Обе страницы отвечали на один и тот же запрос, но canonical у /catalog
+    // был жёстко прописан на /catalog, поэтому жанровые тайтлы отфильтрованных
+    // страниц в индекс не попадали. Теперь у жанра есть собственный адрес, и
+    // фильтр на него просто перенаправляет. Комбинации с годом/статусом не
+    // трогаем — это длинный хвост, у него self-canonical (см. app/catalog).
+    if (pathname === "/catalog") {
+      const catalogTarget = resolveCatalogGenreRedirect(request.nextUrl.searchParams)
+      if (catalogTarget) {
+        const url = request.nextUrl.clone()
+        url.pathname = catalogTarget
+        url.search = ""
+        const response = NextResponse.redirect(url, 301)
+        response.headers.set("Cache-Control", "public, max-age=3600")
+        return applySecurityHeaders(response, pathname)
       }
     }
   }

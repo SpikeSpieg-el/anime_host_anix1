@@ -4,7 +4,6 @@ import { getAnimeById, getAnimeFranchise, type Anime } from "@/lib/shikimori"
 import dynamic from "next/dynamic"
 import { WatchPageHeaderSkeleton, PlayerSkeleton, EpisodeSelectorSkeleton, TextSkeleton } from "@/components/shared/skeleton"
 import type { Metadata } from "next"
-import { BreadcrumbStructuredData } from "@/components/seo/structured-data"
 import { getSchemaPosterUrl } from "@/lib/shikimori/images"
 import { cleanAnimeTitle, getWatchPath, getWatchSegment, parseWatchParam, safeDecodeSegment } from "@/lib/seo/watch-url"
 import { safeSerializeJson } from "@/lib/seo/safe-json"
@@ -360,14 +359,6 @@ export default async function WatchPage({
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: safeSerializeJson(videoObject) }}
       />
-      <BreadcrumbStructuredData
-        items={[
-          { name: "Главная", url: baseUrl },
-          { name: "Каталог", url: `${baseUrl}/catalog` },
-          { name: animeTitle, url: contentUrl },
-        ]}
-      />
-
       <WatchPageLayoutWrapper
         anime={rawAnime}
         initialEpisode={Number.isFinite(episode) && (episode as number) > 0 ? (episode as number) : undefined}

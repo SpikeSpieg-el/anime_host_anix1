@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import MangaDetailClient from './manga-detail-client';
-import { BreadcrumbStructuredData, StructuredData } from '@/components/seo/structured-data';
+import { StructuredData } from '@/components/seo/structured-data';
 import { getMangaDexInfo } from '@/lib/mangadex/api';
 
 interface PageProps {
@@ -73,13 +73,6 @@ export default async function MangaDetailPage({ params }: PageProps) {
           }}
         />
       )}
-      <BreadcrumbStructuredData
-        items={[
-          { name: "Главная", url: "https://weeb-x.com" },
-          { name: "Манга", url: "https://weeb-x.com/manga" },
-          { name: mangaTitle, url: mangaUrl },
-        ]}
-      />
       <MangaDetailClient mangaId={id} />
     </>
   );

@@ -12,6 +12,7 @@ import {
   Send,
   HelpCircle
 } from "lucide-react"
+import { PageBreadcrumbs } from "@/components/shared/page-breadcrumbs"
 import { Navbar } from "@/components/layout/navbar"
 import { Footer } from "@/components/layout/footer"
 import { Button } from "@/components/ui/button"
@@ -108,6 +109,13 @@ export default function ContactsPage() {
       <Navbar />
 
       <main className="flex-1 container mx-auto px-4 py-8 max-w-4xl">
+        <PageBreadcrumbs
+          className="mb-8"
+          items={[
+            { label: "Главная", href: "/" },
+            { label: "Контакты" },
+          ]}
+        />
         
         {/* Баннер для конвертации трафика из поиска */}
         <div className="mb-8 p-6 rounded-2xl bg-gradient-to-r from-orange-500/15 via-orange-500/5 to-transparent border border-orange-500/20 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-lg backdrop-blur-sm">

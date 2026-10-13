@@ -42,6 +42,7 @@ import {
   Smartphone,
   HardDrive
 } from "lucide-react"
+import { PageBreadcrumbs } from "@/components/shared/page-breadcrumbs"
 import { Navbar } from "@/components/layout/navbar"
 import { Footer } from "@/components/layout/footer"
 import { ScrollToTop } from "@/components/layout/scroll-to-top"
@@ -106,6 +107,13 @@ export default function BeginnersPage() {
       <Navbar />
 
       <div className="container mx-auto px-4 pt-8 pb-12 max-w-7xl relative z-10">
+        <PageBreadcrumbs
+          className="mb-6"
+          items={[
+            { label: "Главная", href: "/" },
+            { label: "Гайд для новичков" },
+          ]}
+        />
 
         {/* --- Hero Header --- */}
         <section className="mb-16 relative">
@@ -113,14 +121,6 @@ export default function BeginnersPage() {
           
           <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-orange-500/10 via-background to-purple-500/10 border border-orange-500/20 p-8 md:p-12">
             <div className="absolute top-0 right-0 w-64 h-64 bg-orange-500/10 rounded-full blur-3xl" />
-            
-            <Link
-              href="/"
-              className="inline-flex items-center gap-2 px-4 py-2 bg-secondary/80 hover:bg-secondary border border-border hover:border-orange-500/50 text-muted-foreground hover:text-foreground font-medium rounded-xl transition-all mb-6 group backdrop-blur-sm"
-            >
-              <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-              На главную
-            </Link>
 
             <div className="flex flex-col md:flex-row md:items-center gap-6">
               <div className="relative">

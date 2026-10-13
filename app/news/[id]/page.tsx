@@ -1,11 +1,11 @@
 import { getAnimeById } from "@/lib/shikimori"
 import { getAggregatedNewsById } from "@/lib/news/aggregator"
+import { PageBreadcrumbs } from "@/components/shared/page-breadcrumbs"
 import { Navbar } from "@/components/layout/navbar"
 import { Footer } from "@/components/layout/footer"
 import { notFound } from "next/navigation"
 import { Calendar, User, MessageSquare, Newspaper, ExternalLink, Globe } from "lucide-react"
 import type { Metadata } from "next"
-import { BackButton } from "./back-button"
 import { LinkedAnimeCard } from "./linked-anime-card"
 import { TranslateButton } from "./translate-button"
 import { getProxiedSrc } from "@/lib/image-loader"
@@ -365,10 +365,6 @@ export default async function NewsItemPage({ params }: Props) {
 
         <div className="absolute inset-0 flex flex-col justify-end">
           <div className="container mx-auto px-4 pb-6 sm:pb-8 max-w-4xl">
-            <div className="mb-4">
-              <BackButton />
-            </div>
-
             <div className="flex flex-wrap items-center gap-2 mb-3">
               <span className="news-pill news-pill-accent">
                 <Newspaper className="w-3.5 h-3.5" />
@@ -418,6 +414,15 @@ export default async function NewsItemPage({ params }: Props) {
 
       {/* Article Container */}
       <div className="container mx-auto px-4 pt-6 sm:pt-8 pb-16 sm:pb-20 relative z-10 max-w-4xl">
+        <PageBreadcrumbs
+          className="mb-6"
+          backFallback="/news"
+          items={[
+            { label: "Главная", href: "/" },
+            { label: "Новости", href: "/news" },
+            { label: cleanTitle },
+          ]}
+        />
         <article className="news-article-card">
           {/* Обложка аниме для новостей Jikan (MyAnimeList) */}
           {isJikan && !bodyHtml && news.animeImage && (
