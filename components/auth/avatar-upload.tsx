@@ -67,6 +67,9 @@ interface AvatarUploadProps {
   username?: string
   onAvatarChange?: (avatarUrl: string | null) => void
   size?: "sm" | "md" | "lg"
+  autoSave?: boolean
+  onBusyChange?: (busy: boolean) => void
+  onPendingChange?: (pending: boolean) => void
 }
 
 export function AvatarUpload({ 
@@ -74,7 +77,10 @@ export function AvatarUpload({
   userId, 
   username,
   onAvatarChange,
-  size = "md" 
+  size = "md",
+  autoSave = false,
+  onBusyChange,
+  onPendingChange,
 }: AvatarUploadProps) {
   const [uploading, setUploading] = useState(false)
   const [previewUrl, setPreviewUrl] = useState<string | null>(currentAvatarUrl || null)
@@ -89,6 +95,9 @@ export function AvatarUpload({
   
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { toast } = useToast()
+
+  useEffect(() => { onBusyChange?.(uploading) }, [uploading, onBusyChange])
+  useEffect(() => { onPendingChange?.(!!pendingFile) }, [pendingFile, onPendingChange])
 
   // Update previewUrl when currentAvatarUrl changes
   useEffect(() => {
@@ -179,6 +188,7 @@ export function AvatarUpload({
     try {
       if (!imageSrc || !croppedAreaPixels) return
 
+      if (autoSave) setUploading(true)
       const croppedBlob = await getCroppedImg(imageSrc, croppedAreaPixels)
       
       const objectUrl = URL.createObjectURL(croppedBlob)
@@ -187,6 +197,7 @@ export function AvatarUpload({
       setPendingFile(croppedBlob)
       
       setIsDialogOpen(false)
+      if (autoSave) await handleSaveAvatar(croppedBlob)
     } catch (e) {
       console.error(e)
       toast({
@@ -194,11 +205,13 @@ export function AvatarUpload({
         description: "Не удалось обработать изображение",
         variant: "destructive"
       })
+    } finally {
+      if (autoSave) setUploading(false)
     }
   }
 
-  const handleSaveAvatar = async () => {
-    if (!pendingFile) return
+  const handleSaveAvatar = async (file = pendingFile) => {
+    if (!file) return
 
     setUploading(true)
 
@@ -206,7 +219,7 @@ export function AvatarUpload({
       const fileExt = 'jpg' 
       const fileName = `${userId}/avatar-${Date.now()}.${fileExt}`
       
-      const fileToUpload = new File([pendingFile], "avatar.jpg", { type: "image/jpeg" })
+      const fileToUpload = new File([file], "avatar.jpg", { type: "image/jpeg" })
 
       const { error: uploadError } = await supabase.storage
         .from('avatars')
@@ -308,6 +321,7 @@ export function AvatarUpload({
           
           {/* Кнопка загрузки по клику на аватар */}
           <button
+            aria-label="Загрузить аватар"
             onClick={() => fileInputRef.current?.click()}
             disabled={uploading}
             className="absolute inset-0 flex items-center justify-center bg-black/60 rounded-full opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer disabled:cursor-not-allowed z-10"
@@ -337,7 +351,7 @@ export function AvatarUpload({
             <>
               <Button
                 size="sm"
-                onClick={handleSaveAvatar}
+                onClick={() => void handleSaveAvatar()}
                 disabled={uploading}
                 className="bg-green-600 hover:bg-green-700 text-white"
               >
@@ -453,7 +467,7 @@ export function AvatarUpload({
             <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
               Отмена
             </Button>
-            <Button onClick={handleCropSave}>
+            <Button onClick={handleCropSave} disabled={uploading || !croppedAreaPixels}>
               Применить
             </Button>
           </DialogFooter>

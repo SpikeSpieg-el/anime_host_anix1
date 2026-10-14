@@ -13,7 +13,6 @@ import {
   type LucideIcon,
 } from "lucide-react"
 import { useAuth } from "@/components/auth/auth-provider"
-import { AuthModal } from "@/components/auth/auth-modal"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import {
@@ -114,10 +113,6 @@ export function GuestHookBanner({
   const { user } = useAuth()
   const [visible, setVisible] = useState(false)
   const [closing, setClosing] = useState(false)
-  const [authOpen, setAuthOpen] = useState(false)
-  const [authMode, setAuthMode] = useState<"login" | "register">("register")
-  /** CTA нажат — прячем плашку под модалкой авторизации, но держим её смонтированной. */
-  const [ctaEngaged, setCtaEngaged] = useState(false)
   const trackedView = useRef(false)
   const dismissTimer = useRef<number | null>(null)
 
@@ -189,25 +184,14 @@ export function GuestHookBanner({
   }
 
   const openAuth = (mode: "login" | "register") => {
-    openAuthFromGuestHook(hookId, { mode, trigger, surface, openGlobalModal: false })
-    setAuthMode(mode)
-    setAuthOpen(true)
-    // Плашку прячем визуально, но НЕ анмаунтим компонент — внутри живёт AuthModal.
-    setCtaEngaged(true)
-  }
-
-  const handleAuthOpenChange = (next: boolean) => {
-    setAuthOpen(next)
-    if (!next) {
-      // Крючок конвертировал (пользователь дошёл до формы) — плашку убираем без cooldown dismiss.
-      setVisible(false)
-      onDismiss?.()
-    }
+    openAuthFromGuestHook(hookId, { mode, trigger, surface })
+    // Глобальная форма остаётся открытой после исчезновения гостевой плашки.
+    setVisible(false)
+    onDismiss?.()
   }
 
   return (
     <>
-      {!ctaEngaged && (
         <div
           role="region"
           aria-label={copy.title}
@@ -297,13 +281,6 @@ export function GuestHookBanner({
             </div>
           </div>
         </div>
-      )}
-
-      <AuthModal
-        isOpen={authOpen}
-        onClose={handleAuthOpenChange}
-        initialMode={authMode}
-      />
     </>
   )
 }

@@ -56,10 +56,18 @@ export function LogoutLoadingScreen() {
       sessionStorage.setItem('logout-in-progress', 'true')
     }
 
+    const handleLogoutEnd = () => {
+      sessionStorage.removeItem('logout-in-progress')
+      setShow(false)
+      setWasOnGacha(false)
+    }
+
     window.addEventListener('logout-start', handleLogoutStart)
+    window.addEventListener('logout-end', handleLogoutEnd)
     
     return () => {
       window.removeEventListener('logout-start', handleLogoutStart)
+      window.removeEventListener('logout-end', handleLogoutEnd)
     }
   }, [])
 

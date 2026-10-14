@@ -5,7 +5,7 @@
  * Показывает ценность сезонной арены + CTA «Создать профиль игрока».
  */
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useRef } from "react"
 import {
   ArrowRight,
   LogIn,
@@ -14,7 +14,6 @@ import {
   Trophy,
   Users,
 } from "lucide-react"
-import { AuthModal } from "@/components/auth/auth-modal"
 import { Button } from "@/components/ui/button"
 import {
   GUEST_HOOK_COPY,
@@ -56,8 +55,6 @@ const STAT_ROWS = [
 ] as const
 
 export function GuestArenaGate({ variant = "pvp", className }: GuestArenaGateProps) {
-  const [authOpen, setAuthOpen] = useState(false)
-  const [authMode, setAuthMode] = useState<"login" | "register">("register")
   const tracked = useRef(false)
 
   const copy = GUEST_HOOK_COPY[GuestHookId.ARENA_MARKET]
@@ -82,10 +79,7 @@ export function GuestArenaGate({ variant = "pvp", className }: GuestArenaGatePro
       mode,
       trigger,
       surface: "gate",
-      openGlobalModal: false,
     })
-    setAuthMode(mode)
-    setAuthOpen(true)
   }
 
   return (
@@ -170,12 +164,6 @@ export function GuestArenaGate({ variant = "pvp", className }: GuestArenaGatePro
           </div>
         </div>
       </div>
-
-      <AuthModal
-        isOpen={authOpen}
-        onClose={(open) => setAuthOpen(open)}
-        initialMode={authMode}
-      />
     </>
   )
 }

@@ -1,10 +1,11 @@
 "use client"
 
-import { createContext, useContext, useEffect, useState, useCallback, useMemo } from "react"
+import { createContext, useContext, useEffect, useState, useCallback, useMemo, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { User, Session } from "@supabase/supabase-js"
 import { supabase, syncLocalDataToAccount } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
+import { signOutLocalWithTimeout } from "@/lib/auth-session"
 import { loggers } from "@/lib/logger"
 import { AnalyticsEvent, trackEvent } from "@/lib/analytics"
 
@@ -47,6 +48,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true)
   const [sessionLoading, setSessionLoading] = useState(true) // Отдельное состояние для сессии
   const [profileLoading, setProfileLoading] = useState(false)
+  const signingOut = useRef(false)
+  const currentUserId = useRef<string | null>(null)
+  const profileRequest = useRef(0)
   const router = useRouter()
   const { toast } = useToast()
 
@@ -77,48 +81,52 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  const isAuthSessionMissingError = (error: any) => {
-    const name = error?.name
-    const message = error?.message
-    return name === "AuthSessionMissingError" || (typeof message === "string" && message.includes("Auth session missing"))
-  }
-
-  const safeSupabaseSignOutLocal = async () => {
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) return
-
-    try {
-      await supabase.auth.signOut({ scope: "local" })
-    } catch (error: any) {
-      if (!isAuthSessionMissingError(error)) throw error
-    }
-  }
-
   const hardSignOut = useCallback(async () => {
+    if (signingOut.current) return
+    signingOut.current = true
+    currentUserId.current = null
+    profileRequest.current++ // Ignore profile responses/retries started before logout.
+    let resetClient = false
+    window.dispatchEvent(new Event("logout-start"))
+    setLoading(true)
     try {
       trackEvent(AnalyticsEvent.AUTH_SIGN_OUT)
-      // Отправляем событие начала выхода для оверлея
-      window.dispatchEvent(new Event("logout-start"))
-      
-      await safeSupabaseSignOutLocal()
+      await signOutLocalWithTimeout(supabase.auth)
+    } catch (error) {
+      loggers.auth.error("Sign out error:", error)
+      // Clearing storage alone does not clear GoTrue's in-memory session/lock.
+      // Recreate the client via navigation only on this exceptional path.
+      resetClient = true
     } finally {
       forceClearSupabaseAuthStorage()
+      clearGuestLocalData()
       setSession(null)
       setUser(null)
       setProfile(null)
       setLoading(false)
-      router.push("/")
-      router.refresh()
+      setSessionLoading(false)
+      setProfileLoading(false)
+      window.dispatchEvent(new Event("logout-end"))
+      if (resetClient) {
+        window.location.replace("/")
+      } else {
+        signingOut.current = false
+        router.replace("/")
+        router.refresh()
+      }
     }
-  }, [router]);
+  }, [router])
 
   const refreshProfile = useCallback(async () => {
-    if (!user) return
+    if (!user || signingOut.current) return
+    const requestId = ++profileRequest.current
+    const isCurrent = () => requestId === profileRequest.current && currentUserId.current === user.id && !signingOut.current
     console.log('[Auth] refreshProfile started for user:', user.id, 'session:', !!session)
     setProfileLoading(true)
 
     // Увеличенный timeout для продакшена (холодные подключения, задержки сети)
     const timeoutId = setTimeout(() => {
+      if (!isCurrent()) return
       console.warn('[Auth] Profile loading timeout, forcing loading to false')
       setProfileLoading(false)
     }, 25000) // 25 секунд для продакшена
@@ -130,6 +138,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     let currentToken = session?.access_token
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      if (!isCurrent()) { clearTimeout(timeoutId); return }
       try {
         console.log(`[Auth] Profile fetch attempt ${attempt}/${maxRetries}...`)
         const fetchStart = Date.now()
@@ -155,6 +164,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
         
         const result = await res.json()
+        if (!isCurrent()) { clearTimeout(timeoutId); return }
         
         // API возвращает { success: true, profile: data }
         if (!result.success || !result.profile) {
@@ -169,6 +179,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setProfileLoading(false)
         return // Успех, выходим из цикла
       } catch (error: any) {
+        if (!isCurrent()) { clearTimeout(timeoutId); return }
         loggers.auth.error(`Error fetching profile (attempt ${attempt}/${maxRetries}):`, error)
 
         // Если последняя попытка - выходим с ошибкой
@@ -197,6 +208,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (error.message?.includes('401')) {
           loggers.auth.info('Got 401, attempting session refresh...')
           const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession()
+          if (!isCurrent()) { clearTimeout(timeoutId); return }
           if (refreshError || !refreshData.session) {
             loggers.auth.error('Session refresh failed:', refreshError)
             clearTimeout(timeoutId)
@@ -223,7 +235,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         await new Promise(resolve => setTimeout(resolve, delay))
       }
     }
-  }, [user?.id, session?.access_token, toast]);
+  }, [user?.id, session?.access_token, toast, hardSignOut]);
 
   useEffect(() => {
     if (user) {
@@ -244,58 +256,78 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [user?.id, sessionLoading])
 
   useEffect(() => {
+    let active = true
+    let authRevision = 0
+    const syncTimers = new Set<ReturnType<typeof setTimeout>>()
+
+    const applySession = (nextSession: Session | null) => {
+      if (!active || signingOut.current) return
+      const nextId = nextSession?.user.id ?? null
+      if (currentUserId.current !== nextId) {
+        profileRequest.current++
+        setProfile(null)
+        setProfileLoading(false)
+      }
+      currentUserId.current = nextId
+      setSession(nextSession)
+      setUser(nextSession?.user ?? null)
+      setLoading(false)
+      setSessionLoading(false)
+    }
+
     const checkSession = async () => {
+      const revision = authRevision
       try {
         const { data: { session } } = await supabase.auth.getSession()
-        setSession(session)
-        setUser(session?.user ?? null)
+        if (revision === authRevision) applySession(session)
       } catch (err) {
-        console.error('[Auth] Failed to re-verify session on focus:', err)
+        loggers.auth.error("Failed to check session", err)
+        if (active && !signingOut.current && revision === authRevision) {
+          setLoading(false)
+          setSessionLoading(false)
+        }
       }
     }
 
-    supabase.auth.getSession().then(({ data: { session } }: { data: { session: any } }) => {
-      setSession(session)
-      setUser(session?.user ?? null)
-      setLoading(false)
-      setSessionLoading(false) // Сессия загружена
-    })
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event: any, session: any) => {
-      setSession(session)
-      setUser(session?.user ?? null)
-      setLoading(false)
-      setSessionLoading(false) // Сессия обновлена
-
-      if (_event === 'SIGNED_IN' && session?.user) {
-        try {
-          await syncLocalDataToAccount(session.user.id)
-          window.dispatchEvent(new Event("auth-synced"))
-          toast({ title: "Вход выполнен", description: "Данные синхронизированы" })
-        } catch (e) {
-          loggers.auth.error("Sync error", e)
-        }
+    void checkSession()
+    // Supabase holds its auth lock while invoking subscribers. Never await a
+    // Supabase query here: it requests that same lock and deadlocks logout/login.
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event: string, session: Session | null) => {
+      authRevision++
+      applySession(session)
+      if (event === "SIGNED_IN" && session?.user && !signingOut.current) {
+        const userId = session.user.id
+        const timer = setTimeout(async () => {
+          syncTimers.delete(timer)
+          if (!active || signingOut.current || currentUserId.current !== userId) return
+          try {
+            await syncLocalDataToAccount(userId)
+            if (!active || signingOut.current || currentUserId.current !== userId) return
+            window.dispatchEvent(new Event("auth-synced"))
+            toast({ title: "Вход выполнен", description: "Данные синхронизированы" })
+          } catch (e) {
+            loggers.auth.error("Sync error", e)
+          }
+        }, 0)
+        syncTimers.add(timer)
       }
     })
 
     const handleFocus = () => {
-      if (document.visibilityState === "visible") {
-        console.log('[Auth] Tab became visible, checking session...')
-        checkSession()
-      }
+      if (document.visibilityState === "visible" && !signingOut.current) void checkSession()
     }
-
     document.addEventListener("visibilitychange", handleFocus)
     window.addEventListener("focus", handleFocus)
-
     return () => {
+      active = false
+      for (const timer of syncTimers) clearTimeout(timer)
       subscription.unsubscribe()
       document.removeEventListener("visibilitychange", handleFocus)
       window.removeEventListener("focus", handleFocus)
     }
-  }, [])
+  }, [toast])
 
-  const clearGuestLocalData = () => {
+  function clearGuestLocalData() {
     if (typeof window === "undefined") return
     try {
       window.localStorage.removeItem("watch-history")
@@ -311,31 +343,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  const signOut = useCallback(async () => {
-    try {
-      // Отправляем событие начала выхода для оверлея
-      window.dispatchEvent(new Event("logout-start"))
-      
-      setLoading(true)
-      await safeSupabaseSignOutLocal()
-      forceClearSupabaseAuthStorage()
-    } catch (error: any) {
-      loggers.auth.error("Sign out error:", error)
-      toast({
-        title: "Ошибка",
-        description: error?.message || "Не удалось выйти из аккаунта",
-        variant: "destructive",
-      })
-    } finally {
-      clearGuestLocalData()
-      setSession(null)
-      setUser(null)
-      setProfile(null)
-      setLoading(false)
-      router.push("/")
-      router.refresh()
-    }
-  }, [router, toast]);
+  const signOut = hardSignOut
 
   // Мемоизация значения контекста
   const contextValue = useMemo(() => ({
