@@ -220,24 +220,23 @@ function sanitizeShikimoriFooter(html: string): string {
   result = result.replace(/<img[^>]*src="[^"]*(?:img\.youtube\.com|i\.ytimg\.com)[^"]*"[^>]*>/gi, '')
 
   // Преобразование блоков .b-video в ссылки
+  //
+  // YouTube-блоки у Shikimori ведут на /embed/<id> — это адрес для встраивания,
+  // а не страница видео: по клику открывается плеер вне контекста, и человеку
+  // это выглядит как «видео недоступно». Кнопку убрали целиком, а не переделывали
+  // формат ссылки. Видео с других хостиков остаются как были.
   const isYoutubeUrl = (url: string) => /(?:youtube\.com|youtu\.be)/i.test(url)
+  const videoLink = (url: string) =>
+    isYoutubeUrl(url)
+      ? ''
+      : `<a href="${url}" target="_blank" rel="noopener noreferrer" class="news-video-link">▶ Смотреть видео</a>`
   result = result.replace(
     /<div[^>]*class="[^"]*b-video[^"]*"[^>]*>([\s\S]*?)<\/div>/gi,
     (_fullMatch, inner) => {
       const dataHrefMatch = inner.match(/data-href="([^"]+)"/)
-      if (dataHrefMatch) {
-        const url = dataHrefMatch[1].replace(/&amp;/g, '&')
-        return isYoutubeUrl(url)
-          ? `<a href="${url}" target="_blank" rel="noopener noreferrer" class="news-youtube-link">▶ Смотреть на YouTube</a>`
-          : `<a href="${url}" target="_blank" rel="noopener noreferrer" class="news-video-link">▶ Смотреть видео</a>`
-      }
+      if (dataHrefMatch) return videoLink(dataHrefMatch[1].replace(/&amp;/g, '&'))
       const hrefMatch = inner.match(/href="([^"]+)"/)
-      if (hrefMatch) {
-        const url = hrefMatch[1].replace(/&amp;/g, '&')
-        return isYoutubeUrl(url)
-          ? `<a href="${url}" target="_blank" rel="noopener noreferrer" class="news-youtube-link">▶ Смотреть на YouTube</a>`
-          : `<a href="${url}" target="_blank" rel="noopener noreferrer" class="news-video-link">▶ Смотреть видео</a>`
-      }
+      if (hrefMatch) return videoLink(hrefMatch[1].replace(/&amp;/g, '&'))
       return ''
     }
   )
@@ -331,7 +330,15 @@ export default async function NewsItemPage({ params }: Props) {
   const cleanTitle = cleanText(news.title)
 
   const linked = news.linkedAnime
-  const linkedPoster = linked ? getLinkedAnimePoster(linked) : undefined
+  // Обложка из самой новости предпочтительнее, но у Shikimori она есть далеко
+  // не всегда: у анонсов image часто содержит заглушки missing_*.jpg, и
+  // getLinkedAnimePoster честно возвращает undefined. Раньше карточка в этом
+  // случае показывала иконку-заглушку, хотя выше (строкой выше) тот же
+  // getAnimeById уже положил в animePosters нормальную обложку — resolveBestPoster
+  // отбросил missing и дошёл до Anilist. Брать её оттуда.
+  const linkedPoster = linked
+    ? (getLinkedAnimePoster(linked) ?? animePosters.get(linked.id))
+    : undefined
   const kindLabel = linked ? getKindLabel(linked?.kind) : ''
   const statusLabel = linked ? getStatusLabel(linked?.status) : ''
 
