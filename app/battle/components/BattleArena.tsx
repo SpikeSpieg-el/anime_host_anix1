@@ -1,11 +1,27 @@
 import React, { useState, useEffect, useRef } from "react"
-import { Swords, ArrowRight, BookOpen, Clock, Zap, X, TrendingUp, Crown, Bot, Users, Trophy, Flame } from "lucide-react"
+import { Swords, Sword, Shield, ArrowRight, BookOpen, Clock, Zap, X, TrendingUp, Crown, Bot, Users, Trophy, Flame } from "lucide-react"
 import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, DragMoveEvent, useDraggable, useDroppable, pointerWithin, PointerSensor, useSensor, useSensors } from "@dnd-kit/core"
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable"
 import { BattleZone, CCGBattleState, CardRole, Card, DeckContext } from "../types"
 import { getCardBasePower, getCardRole, getDeckPowerModifier, getTerritoryBuff, calculateCardPowerOnZone } from "../utils"
+import { ROLE_CONFIG } from "../config"
 import { BattleCard } from "./BattleCard"
 import { rarityConfig } from "@/types/gacha"
+
+// Справочник КНБ: кто кого бьёт (+50% силы).
+// Порядок и направление соответствуют getKNBBonusMultiplier в ../utils.ts.
+const KNB_MATCHUPS = [
+  { from: "vanguard", to: "trickster" },
+  { from: "guard", to: "vanguard" },
+  { from: "trickster", to: "guard" },
+] as const
+
+// Иконки ролей дублируют их боевую метафору: клинок, щит, разряд.
+const KNB_ROLE_ICONS = {
+  vanguard: Sword,
+  guard: Shield,
+  trickster: Zap,
+} as const
 
 interface DraggableCardProps {
   card: Card
@@ -715,31 +731,73 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
 
       {/* КРАТКИЙ СПРАВОЧНИК КНБ */}
       {showRules && (
-        <div className="bg-slate-950/95 border-b border-white/10 p-3.5 absolute top-[52px] left-0 right-0 z-40 animate-in slide-in-from-top-3 duration-200">
-          <h4 className="text-[10px] font-black text-indigo-400 uppercase tracking-wider mb-3">🔥 Бонус ролей (КНБ): победитель получает +50% к силе!</h4>
-          <div className="flex flex-col items-center gap-1 text-[8px] font-extrabold text-center relative py-2">
-            <div className="relative">
-              <div className="p-1.5 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-300">
-                🗡️ Авангард
-              </div>
-              <span className="absolute -right-3 top-1/2 -translate-y-1/2 text-rose-400 text-[10px]">↘</span>
-            </div>
-            <div className="flex items-center gap-8">
-              <div className="relative">
-                <div className="p-1.5 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-300">
-                  🛡️ Страж
+        <>
+          {/* Клик по затемнению закрывает справку */}
+          <button
+            onClick={() => setShowRules(false)}
+            aria-label="Закрыть справку"
+            className="absolute inset-x-0 top-[52px] bottom-0 z-30 bg-slate-950/70 backdrop-blur-[2px] animate-in fade-in duration-150"
+          />
+          <div className="absolute top-[52px] left-0 right-0 z-40 px-2 animate-in slide-in-from-top-3 duration-200">
+            <div className="mx-auto max-w-sm rounded-2xl border border-white/10 bg-slate-900/95 p-3.5 shadow-2xl shadow-black/70">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <h4 className="text-xs sm:text-sm font-black text-indigo-300 uppercase tracking-wide">
+                    Бонус ролей (КНБ)
+                  </h4>
+                  <p className="mt-1 text-[11px] sm:text-xs leading-snug text-slate-400">
+                    Роль, которая бьёт другую, получает{' '}
+                    <span className="font-black text-emerald-400">+50% силы</span>
+                  </p>
                 </div>
-                <span className="absolute -top-3 left-1/2 -translate-x-1/2 text-blue-400 text-[10px]">↗</span>
+                <button
+                  onClick={() => setShowRules(false)}
+                  aria-label="Закрыть"
+                  className="shrink-0 rounded-lg border border-white/10 bg-white/5 p-1.5 text-slate-400 transition-all hover:bg-white/10 hover:text-white active:scale-90"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
               </div>
-              <div className="relative">
-                <div className="p-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-300">
-                  ⚡ Плут
-                </div>
-                <span className="absolute -left-3 top-1/2 -translate-y-1/2 text-amber-400 text-[10px]">←</span>
-              </div>
+
+              <ul className="mt-3 flex flex-col gap-1.5">
+                {KNB_MATCHUPS.map(({ from, to }) => {
+                  const a = ROLE_CONFIG[from]
+                  const b = ROLE_CONFIG[to]
+                  const IconA = KNB_ROLE_ICONS[from]
+                  const IconB = KNB_ROLE_ICONS[to]
+                  return (
+                    <li
+                      key={from}
+                      className="flex items-center gap-1.5 sm:gap-2"
+                    >
+                      <span
+                        className={`flex shrink-0 items-center gap-1.5 rounded-lg border px-2 py-1 text-[11px] sm:text-xs font-black ${a.bg} ${a.border} ${a.color}`}
+                      >
+                        <IconA className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                        {a.name}
+                      </span>
+                      <span className="flex shrink-0 items-center gap-1 text-[10px] sm:text-[11px] font-black text-emerald-400">
+                        <span aria-hidden>&rarr;</span>
+                        50%
+                      </span>
+                      <span
+                        className={`flex shrink-0 items-center gap-1.5 rounded-lg border px-2 py-1 text-[11px] sm:text-xs font-black ${b.bg} ${b.border} ${b.color}`}
+                      >
+                        <IconB className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                        {b.name}
+                      </span>
+                    </li>
+                  )
+                })}
+              </ul>
+
+              <p className="mt-3 rounded-xl border border-white/5 bg-white/[0.03] px-3 py-2 text-[11px] sm:text-xs leading-snug text-slate-400">
+                В колоде нужны <span className="font-bold text-slate-200">все три роли</span> —
+                иначе часть карт останется без бонуса.
+              </p>
             </div>
           </div>
-        </div>
+        </>
       )}
 
       {/* СТАТУС МАТЧА ВО ВРЕМЯ ВСКРЫТИЯ */}
