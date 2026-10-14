@@ -5,6 +5,7 @@ import { UserHistory } from '@/components/shared/user-history'
 import { BookmarksSection } from '@/components/shared/bookmarks-section'
 import { AiAdvisor } from '@/components/shared/ai-advisor'
 import { UpdatesBanner } from '@/components/home/updates-banner'
+import { WhatToWatch } from '@/components/home/what-to-watch'
 import { UpdatesBannerSkeleton } from '@/components/shared/skeleton'
 import type { Anime } from '@/lib/shikimori'
 import Link from "next/link"
@@ -12,6 +13,7 @@ import { MessageSquare, User, ChevronRight, Newspaper, TrendingUp, Play, Star} f
 import { useEffect, useState } from "react"
 import { useSearchParams } from "next/navigation"
 import { easterEggs } from "@/lib/easter-eggs"
+import { getProxiedSrc } from "@/lib/image-loader"
 import { GridSkeleton, NewsSkeleton } from '@/components/shared/skeleton'
 
 interface HomePageClientProps {
@@ -140,19 +142,38 @@ export function HomePageClient({ initialData }: HomePageClientProps) {
                       <Link 
                          key={news.id} 
                          href={`/news/${news.id}`} 
-                         className="group flex flex-col h-full bg-secondary/40 border rounded-xl sm:rounded-2xl p-4 sm:p-5 hover:border-accent transition-all hover:bg-secondary active:scale-[0.98] sm:hover:-translate-y-1 hover:shadow-xl hover:shadow-black/50 dark:bg-zinc-900/40 dark:border-zinc-800 dark:hover:border-zinc-600 dark:hover:bg-zinc-900"
+                         className="group flex flex-row sm:flex-col h-full bg-secondary/40 border rounded-xl sm:rounded-2xl overflow-hidden hover:border-accent transition-all hover:bg-secondary active:scale-[0.98] sm:hover:-translate-y-1 hover:shadow-xl hover:shadow-black/50 dark:bg-zinc-900/40 dark:border-zinc-800 dark:hover:border-zinc-600 dark:hover:bg-zinc-900"
                       >
-                          <div className="flex items-center justify-between mb-2 sm:mb-3">
-                              <span className="text-[10px] sm:text-xs font-medium text-muted-foreground bg-secondary/50 px-2 py-1 rounded-md dark:text-zinc-500 dark:bg-zinc-800/50">
-                                  {news.date}
-                              </span>
-                          </div>
+                          {news.imageUrl && (
+                              <div className="relative w-24 sm:w-full aspect-[3/4] sm:aspect-[16/10] overflow-hidden bg-zinc-800 shrink-0 dark:bg-zinc-800/60">
+                                  <img
+                                      src={getProxiedSrc(news.imageUrl)}
+                                      alt=""
+                                      loading="lazy"
+                                      decoding="async"
+                                      className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                                  />
+                                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+                                  <span className="absolute bottom-1.5 left-1.5 sm:bottom-2 sm:left-2 text-[9px] sm:text-xs font-medium text-white bg-black/60 backdrop-blur-sm px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-md">
+                                      {news.date}
+                                  </span>
+                              </div>
+                          )}
+
+                          <div className="flex flex-col flex-1 min-w-0 p-3 sm:p-5">
+                          {!news.imageUrl && (
+                              <div className="flex items-center justify-between mb-2 sm:mb-3">
+                                  <span className="text-[10px] sm:text-xs font-medium text-muted-foreground bg-secondary/50 px-2 py-1 rounded-md dark:text-zinc-500 dark:bg-zinc-800/50">
+                                      {news.date}
+                                  </span>
+                              </div>
+                          )}
 
                           <h3 className="font-bold text-sm sm:text-base text-foreground leading-snug mb-2 group-hover:text-primary transition-colors line-clamp-2 sm:line-clamp-3 dark:text-zinc-100 dark:group-hover:text-blue-400">
                               {news.title}
                           </h3>
                           
-                          <p className="text-xs sm:text-sm text-muted-foreground line-clamp-3 mb-3 sm:mb-4 flex-1 leading-relaxed dark:text-zinc-400">
+                          <p className="text-xs sm:text-sm text-muted-foreground line-clamp-1 sm:line-clamp-2 mb-3 sm:mb-4 leading-relaxed dark:text-zinc-400">
                               {news.excerpt.replace(/\[.*?\]/g, "")}
                           </p>
 
@@ -166,13 +187,17 @@ export function HomePageClient({ initialData }: HomePageClientProps) {
                                   <span>{news.comments}</span>
                               </div>
                           </div>
+                          </div>
                       </Link>
                   ))}
               </div>
             )}
         </section>
 
-        {/* 5. ПОПУЛЯРНОЕ СЕЙЧАС */}
+        {/* 5. ЧТО ПОСМОТРЕТЬ — жанры как вход в каталог */}
+        <WhatToWatch />
+
+        {/* 6. ПОПУЛЯРНОЕ СЕЙЧАС */}
         <section id="popular" className="mb-12 sm:mb-20">
           <div className="flex items-center justify-between mb-4 sm:mb-6">
             <div>
@@ -208,7 +233,7 @@ export function HomePageClient({ initialData }: HomePageClientProps) {
           ) : null}
         </section>
 
-        {/* 6. ОНГОИНГИ */}
+        {/* 7. ОНГОИНГИ */}
         <section id="ongoing" className="mb-12 sm:mb-20">
           <div className="flex items-center justify-between mb-4 sm:mb-6">
              <div className="flex items-center gap-2 sm:gap-3">
@@ -244,7 +269,7 @@ export function HomePageClient({ initialData }: HomePageClientProps) {
           ) : null}
         </section>
 
-        {/* 7. ПОПУЛЯРНЫЕ ВСЕГДА */}
+        {/* 8. ПОПУЛЯРНЫЕ ВСЕГДА */}
         <section id="legendary" className="mb-14 sm:mb-20">
           <div className="flex items-center justify-between mb-4 sm:mb-6">
             <div>
