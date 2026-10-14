@@ -12,7 +12,6 @@ import {
   type LucideIcon,
 } from "lucide-react"
 import { useAuth } from "@/components/auth/auth-provider"
-import { AuthModal } from "@/components/auth/auth-modal"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -86,11 +85,7 @@ export function GuestHookModal({
   respectFrequency = true,
 }: GuestHookModalProps) {
   const { user } = useAuth()
-  const [authOpen, setAuthOpen] = useState(false)
-  const [authMode, setAuthMode] = useState<"login" | "register">("register")
   const [allowed, setAllowed] = useState(true)
-  /** CTA нажат — hook-диалог скрыт, поверх только модалка авторизации. */
-  const [ctaEngaged, setCtaEngaged] = useState(false)
   const trackedView = useRef(false)
 
   useEffect(() => {
@@ -140,23 +135,13 @@ export function GuestHookModal({
   }
 
   const openAuth = (mode: "login" | "register") => {
-    openAuthFromGuestHook(hookId, { mode, trigger, surface: "modal", openGlobalModal: false })
-    setAuthMode(mode)
-    setAuthOpen(true)
-    // Прячем hook-диалог (без dismiss-cooldown), чтобы не было двойных оверлеев.
-    setCtaEngaged(true)
-  }
-
-  const handleAuthOpenChange = (next: boolean) => {
-    setAuthOpen(next)
-    if (!next) {
-      // Крючок отработал — после закрытия формы модалку крючка не возвращаем.
-      onOpenChange(false)
-    }
+    openAuthFromGuestHook(hookId, { mode, trigger, surface: "modal" })
+    // Авторизация живёт в Navbar и не исчезнет вместе с гостевым блоком.
+    onOpenChange(false)
   }
 
   // Gate-модалки battle/pvp: всегда показываем, frequency только влияет на analytics cap
-  const show = open && (allowed || !respectFrequency) && !ctaEngaged
+  const show = open && (allowed || !respectFrequency)
 
   return (
     <>
@@ -273,12 +258,6 @@ export function GuestHookModal({
           </div>
         </DialogContent>
       </Dialog>
-
-      <AuthModal
-        isOpen={authOpen}
-        onClose={handleAuthOpenChange}
-        initialMode={authMode}
-      />
     </>
   )
 }

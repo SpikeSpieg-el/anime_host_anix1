@@ -6,6 +6,7 @@ import { friendlyAuthError } from "@/lib/auth-errors"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { AvatarUpload } from "@/components/auth/avatar-upload"
 import { AnimeSliderCaptcha } from "@/components/auth/anime-slider-captcha"
 import { Loader2, Mail, Lock, LogIn, UserPlus, AlertCircle, KeyRound, CheckCircle2, ArrowLeft, AtSign, ShieldCheck, Eye, EyeOff } from "lucide-react"
 import { loggers } from "@/lib/logger"
@@ -78,11 +79,10 @@ function userFacingAuthError(err: unknown, mode: "login" | "register" = "login")
  *              пропустить, не потеряв введённые данные, и бот упирается в
  *              пазл, а не в форму (парсенгулярные бота чаще чинят email'ы).
  * credentials — email и пароль.
- * nickname    — необязательный ник сразу после создания аккаунта. Без него
- *              profiles.username остаётся равен email, и в шапке сайта потом
- *              светится почтовый адрес вместо имени.
+ * profile     — необязательные ник и аватар после создания аккаунта.
+ * confirmation — письмо для подтверждения email, если сессии ещё нет.
  */
-type AuthStep = "captcha" | "credentials" | "nickname"
+type AuthStep = "captcha" | "credentials" | "profile" | "confirmation"
 
 const NICKNAME_MIN = 2
 const NICKNAME_MAX = 24
@@ -139,6 +139,9 @@ export function AuthModal({
    */
   const [captchaNonce, setCaptchaNonce] = useState(0)
   const [nickname, setNickname] = useState("")
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
+  const [avatarBusy, setAvatarBusy] = useState(false)
+  const [avatarPending, setAvatarPending] = useState(false)
   /** id свежесозданного пользователя — для записи ника в profiles. */
   const [pendingUserId, setPendingUserId] = useState<string | null>(null)
   const [email, setEmail] = useState("")
@@ -181,6 +184,9 @@ export function AuthModal({
     setCaptchaToken(null)
     setCaptchaNonce((n) => n + 1)
     setNickname("")
+    setAvatarUrl(null)
+    setAvatarBusy(false)
+    setAvatarPending(false)
     setPendingUserId(null)
     setStep("captcha")
     setError(null)
@@ -199,29 +205,34 @@ export function AuthModal({
 
   const finishAuth = () => {
     setIsOpen(false)
+    resetForm()
   }
 
-  /** Запись ника в profiles. Ошибка не блокирует выход — ник необязательный. */
-  const saveNickname = async (userId: string) => {
+  const saveProfile = async (userId: string) => {
+    if (loading || avatarBusy || avatarPending) return
     const name = nickname.trim().replace(/\s+/g, " ")
-    if (name.length >= NICKNAME_MIN) {
-      try {
+    if (name && (name.length < NICKNAME_MIN || name.length > NICKNAME_MAX)) {
+      setError(`Ник должен содержать от ${NICKNAME_MIN} до ${NICKNAME_MAX} символов`)
+      return
+    }
+    setLoading(true)
+    setError(null)
+    try {
+      if (name) {
         const { error: updateError } = await supabase
           .from("profiles")
           .update({ username: name, updated_at: new Date().toISOString() })
           .eq("id", userId)
-
-        if (updateError) {
-          // Не роняем регистрацию из-за ника: аккаунт уже создан.
-          loggers.auth.warn("saveNickname", updateError.message)
-        } else {
-          await refreshProfile()
-        }
-      } catch (updateError) {
-        loggers.auth.warn("saveNickname", updateError)
+        if (updateError) throw updateError
       }
+      await refreshProfile()
+      finishAuth()
+    } catch (updateError) {
+      loggers.auth.warn("saveProfile", updateError)
+      setError("Не удалось сохранить ник. Попробуйте ещё раз или пропустите этот шаг — аккаунт уже создан.")
+    } finally {
+      setLoading(false)
     }
-    finishAuth()
   }
 
   const handleAuth = async (e: React.FormEvent) => {
@@ -375,8 +386,8 @@ export function AuthModal({
         }
 
         // При включённом подтверждении email Supabase отвечает без сессии —
-        // тогда остаётся только закрыть окно и ждать ссылки из письма.
-        const hasSession =
+        // показываем инструкцию вместо попытки записать профиль без авторизации.
+        let hasSession =
           typeof registrationData.access_token === "string" &&
           typeof registrationData.refresh_token === "string"
 
@@ -386,13 +397,14 @@ export function AuthModal({
             refresh_token: registrationData.refresh_token,
           })
           if (sessionError) {
+            hasSession = false
             loggers.auth.warn("setSession after register", {
               message: sessionError.message,
             })
           }
         }
 
-        const user = registrationData.user ?? null
+        const user = registrationData.user ?? (registrationData.id ? registrationData : null)
 
         if (user) {
           if (hasSession) identifyUser(`supabase:${user.id}`)
@@ -433,7 +445,6 @@ export function AuthModal({
               setError(
                 "Аккаунт создан, но подарочную карту не удалось добавить. Откройте ссылку ещё раз после входа."
               )
-              return
             }
           }
 
@@ -442,18 +453,16 @@ export function AuthModal({
             document.cookie = "gift_card=; path=/; max-age=0"
           }
 
-          // Ник предлагаем только когда есть сессия — то есть подтверждение
-          // email отключено и мы можем писать в profiles от его имени.
-          // При включённом подтверждении пользователь ещё не вошёл, и RLS
-          // (auth.uid() = id) не пустит UPDATE: тогда просто закрываем окно,
-          // ник можно будет задать в настройках.
           if (hasSession) {
             setPendingUserId(user.id)
             setNickname("")
-            setStep("nickname")
+            setAvatarUrl(null)
+            setStep("profile")
           } else {
-            setIsOpen(false)
+            setStep("confirmation")
           }
+          setPassword("")
+          setShowPassword(false)
         } else {
           setError(friendlyAuthError(null, "register"))
         }
@@ -518,6 +527,7 @@ export function AuthModal({
     <Dialog
       open={isOpen}
       onOpenChange={(open) => {
+        if (!open && (loading || avatarBusy)) return
         setIsOpen(open)
         if (!open) resetForm()
       }}
@@ -650,7 +660,7 @@ export function AuthModal({
                 <div className="mx-auto w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-white/5 flex items-center justify-center mb-2.5 sm:mb-3 border border-white/10 ring-1 ring-white/5">
                   {step === "captcha" ? (
                     <ShieldCheck className="w-5 h-5 sm:w-6 sm:h-6 text-orange-500" />
-                  ) : step === "nickname" ? (
+                  ) : step === "profile" ? (
                     <AtSign className="w-5 h-5 sm:w-6 sm:h-6 text-orange-500" />
                   ) : isLogin ? (
                     <LogIn className="w-5 h-5 sm:w-6 sm:h-6 text-orange-500" />
@@ -661,26 +671,30 @@ export function AuthModal({
                 <DialogTitle className="text-xl sm:text-2xl font-bold tracking-tight text-white">
                   {step === "captcha"
                     ? "Проверка безопасности"
-                    : step === "nickname"
-                      ? "Как вас зовут?"
-                      : isLogin
-                        ? "Добро пожаловать"
-                        : "Создать аккаунт"}
+                    : step === "profile"
+                      ? "Настройте профиль"
+                      : step === "confirmation"
+                        ? "Аккаунт создан"
+                        : isLogin
+                          ? "Добро пожаловать"
+                          : "Создать аккаунт"}
                 </DialogTitle>
                 <p className="text-zinc-400 text-xs sm:text-sm mt-1 sm:mt-2">
                   {step === "captcha"
                     ? "Соберите пазл — и сразу перейдём к полям"
-                    : step === "nickname"
-                      ? "Придумайте ник, его увидят другие зрители"
-                      : isLogin
-                        ? "Введите свои данные для входа в систему"
-                        : "Зарегистрируйтесь, чтобы получить доступ ко всем функциям"}
+                    : step === "profile"
+                      ? "Добавьте ник и аватар — или пропустите этот шаг"
+                      : step === "confirmation"
+                        ? "Проверьте почту и подтвердите регистрацию"
+                        : isLogin
+                          ? "Введите свои данные для входа в систему"
+                          : "Зарегистрируйтесь, чтобы получить доступ ко всем функциям"}
                 </p>
 
                 {/* Индикатор шагов: у входа их два, у регистрации — три. */}
-                {step !== "nickname" && (
+                {(step === "captcha" || step === "credentials") && (
                   <div className="mt-3 flex items-center justify-center gap-1.5" aria-hidden>
-                    {(isLogin ? ["captcha", "credentials"] : ["captcha", "credentials"]).map(
+                    {(isLogin ? ["captcha", "credentials"] : ["captcha", "credentials", "profile"]).map(
                       (s) => (
                         <span
                           key={s}
@@ -915,12 +929,42 @@ export function AuthModal({
               </form>
               )}
 
-              {step === "nickname" && pendingUserId && (
+              {step === "confirmation" && (
+                <div className="space-y-4 text-sm text-zinc-400">
+                  <p>Если требуется подтверждение, перейдите по ссылке в письме на <span className="text-white break-all">{email}</span>, затем войдите в аккаунт.</p>
+                  <p>Ник и аватар можно добавить в настройках аккаунта после входа.</p>
+                  <Button type="button" onClick={finishAuth} className="w-full">Понятно</Button>
+                </div>
+              )}
+
+              {step === "profile" && pendingUserId && (
                 <div className="space-y-3.5 sm:space-y-4">
+                  {error && <p role="alert" className="text-sm text-red-400">{error}</p>}
                   <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-lg flex items-start gap-3 text-emerald-400 text-xs sm:text-sm">
                     <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                    <span>Аккаунт создан. Остался последний штрих — ник.</span>
+                    <span>Аккаунт создан! Ник и аватар можно изменить позже в настройках аккаунта.</span>
                   </div>
+
+                  <AvatarUpload
+                    userId={pendingUserId}
+                    currentAvatarUrl={avatarUrl}
+                    username={nickname || "Новый пользователь"}
+                    autoSave
+                    onBusyChange={setAvatarBusy}
+                    onPendingChange={setAvatarPending}
+                    onAvatarChange={(url) => {
+                      setAvatarUrl(url)
+                      void refreshProfile()
+                    }}
+                  />
+                  <p className="text-center text-xs text-zinc-500">
+                    Изображение до 3 МБ. Аватар сохраняется после обрезки.
+                  </p>
+                  {avatarPending && !avatarBusy && (
+                    <p role="status" className="text-xs text-amber-400">
+                      Сохраните аватар кнопкой выше или отмените его выбор.
+                    </p>
+                  )}
 
                   <div className="space-y-1 group">
                     <label
@@ -936,7 +980,10 @@ export function AuthModal({
                         type="text"
                         placeholder="Например, Satoru"
                         value={nickname}
-                        onChange={(e) => setNickname(e.target.value)}
+                        onChange={(e) => { setNickname(e.target.value); setError(null) }}
+                        autoComplete="nickname"
+                        disabled={loading}
+                        onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void saveProfile(pendingUserId) } }}
                         maxLength={NICKNAME_MAX}
                         autoFocus
                         className="pl-10 h-11 sm:h-12 bg-white/5 border-white/10 text-white placeholder:text-zinc-600 focus:bg-white/10 focus:border-orange-500/50 focus:ring-orange-500/20 transition-all rounded-xl text-sm sm:text-base"
@@ -954,16 +1001,18 @@ export function AuthModal({
 
                   <Button
                     type="button"
-                    onClick={() => saveNickname(pendingUserId)}
+                    onClick={() => void saveProfile(pendingUserId)}
+                    disabled={loading || avatarBusy || avatarPending}
                     className="w-full h-11 sm:h-12 bg-white text-black hover:bg-zinc-200 font-semibold text-sm sm:text-base rounded-xl shadow-lg shadow-white/10 transition-all hover:scale-[1.01] active:scale-[0.98]"
                   >
-                    Сохранить и войти
+                    {loading || avatarBusy ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Сохранение...</> : "Сохранить и продолжить"}
                   </Button>
 
                   <div className="text-center">
                     <button
                       type="button"
                       onClick={finishAuth}
+                      disabled={loading || avatarBusy}
                       className="text-xs sm:text-sm text-zinc-500 hover:text-zinc-200 transition-colors font-medium"
                     >
                       Пропустить — задам позже
@@ -972,7 +1021,7 @@ export function AuthModal({
                 </div>
               )}
 
-              {step !== "nickname" && (
+              {(step === "captcha" || step === "credentials") && (
                 <div className="mt-4 sm:mt-6 text-center">
                   <button
                     type="button"

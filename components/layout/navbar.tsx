@@ -221,8 +221,17 @@ export function Navbar() {
     window.scrollTo({ top: 0, behavior: "smooth" })
   }
 
+  // Keep auth available on arena pages even though their navigation is hidden.
+  const authModal = (
+    <AuthModal
+      key={authInitialMode}
+      isOpen={authModalOpen}
+      onClose={handleAuthModalChange}
+      initialMode={authInitialMode}
+    />
+  )
   if (pathname === "/battle" || pathname === "/pvp") {
-    return null
+    return authModal
   }
 
   // Общие классы для иконок навигации
@@ -457,30 +466,26 @@ export function Navbar() {
                 </DropdownMenuContent>
               </DropdownMenu>
             ) : (
-              <AuthModal
-                key={authInitialMode}
-                isOpen={authModalOpen}
-                onClose={handleAuthModalChange}
-                initialMode={authInitialMode}
+              <button
+                type="button"
+                onClick={() => {
+                  setAuthInitialMode("login")
+                  setAuthModalOpen(true)
+                }}
+                className="w-9 h-9 md:w-10 md:h-10 gap-2 text-zinc-400 hover:text-white transition-colors rounded-full inline-flex items-center justify-center"
+                aria-label="Войти"
               >
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAuthInitialMode("login")
-                    setAuthModalOpen(true)
-                  }}
-                  className="w-9 h-9 md:w-10 md:h-10 gap-2 text-zinc-400 hover:text-white transition-colors rounded-full inline-flex items-center justify-center"
-                  aria-label="Войти"
-                >
-                  <LogIn className="w-4 h-4" />
-                  <span className="hidden sm:inline font-medium">Войти</span>
-                </button>
-              </AuthModal>
+                <LogIn className="w-4 h-4" />
+                <span className="hidden sm:inline font-medium">Войти</span>
+              </button>
             )}
           </div>
         </div>
       </header>
       
+      {/* Keep registration onboarding mounted after SIGNED_IN. */}
+      {authModal}
+
       {/* Spacer под фиксированный хедер */}
       <div className="h-16 md:h-20" aria-hidden="true" />
 
