@@ -13,6 +13,8 @@ const CSRF_PROTECTED_PATHS = [
   "/api/bookmarks",
   "/api/history",
   "/api/admin",
+  // Регистрация создаёт аккаунт и сбрасывает куки — тоже state-changing.
+  "/api/auth/register",
 ]
 
 // Paths that are exempt from CSRF checks (external app integrations with their own auth)

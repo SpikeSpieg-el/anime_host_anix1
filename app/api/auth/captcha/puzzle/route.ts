@@ -1,127 +1,216 @@
-import { NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
 import crypto from "crypto"
+
+import {
+  BACKGROUNDS,
+  MATCH_TOLERANCE_FRAC,
+  PUZZLE_TTL_MS,
+  analyzeTrajectory,
+  generateVerificationToken,
+  sanitizeContainerSize,
+  sealPuzzle,
+  unsealPuzzle,
+} from "@/lib/captcha-puzzle"
+import type { TrajectoryPoint } from "@/lib/captcha-puzzle"
+import {
+  TARGET_X_MAX,
+  TARGET_X_MIN,
+  TARGET_Y_MAX,
+  TARGET_Y_MIN,
+} from "@/lib/captcha-geometry"
 import { loggers } from "@/lib/logger"
-import { analyzeTrajectory, generateVerificationToken, PUZZLE_TTL_MS } from "@/lib/captcha-puzzle"
+import {
+  createRateLimiter,
+  createRateLimitResponse,
+  getRateLimitKey,
+} from "@/lib/rate-limit"
 
 const SECRET = process.env.CAPTCHA_SECRET || "anime-gacha-slider-secret-key-2026"
 
-const BACKGROUNDS = [
-  "/captcha/bg (1).webp",
-  "/captcha/bg (2).webp",
-  "/captcha/bg (3).webp",
-  "/captcha/bg (4).webp",
-]
+/** Отдельный лимит на выдачу пазла: его можно крутить, пока не найдёшь дырку. */
+const puzzleGetLimiter = createRateLimiter({ interval: 60_000, maxRequests: 20 })
 
-interface Point {
-  x: number
-  y: number
-  t: number
+/** И на попытки решения — тут важнее частота, чем абсолютное число. */
+const puzzlePostLimiter = createRateLimiter({ interval: 60_000, maxRequests: 15 })
+
+/** Случайное целое в диапазоне [min, max] через CSPRNG, а не `Math.random()`. */
+function randomIntInclusive(min: number, max: number): number {
+  return crypto.randomInt(min, max + 1)
 }
 
-// 1. GET: Генерация пазла с безопасными границами
-export async function GET() {
-  const bgUrl = BACKGROUNDS[Math.floor(Math.random() * BACKGROUNDS.length)]
-
-  // Доли контейнера:
-  // X от 0.30 до 0.75 (чтобы вырез не был в самом начале и помещался до правого края)
-  // Y от 0.15 до 0.60 (чтобы не прилипал к верхней и нижней границе)
-  const targetXFrac = Number(((Math.floor(Math.random() * 46) + 30) / 100).toFixed(2))
-  const targetYFrac = Number(((Math.floor(Math.random() * 46) + 15) / 100).toFixed(2))
-
-  const timestamp = Date.now()
-  const nonce = crypto.randomBytes(8).toString("hex")
-
-  // Храним в токене в промилле (целые числа от 0 до 1000)
-  const tX = Math.round(targetXFrac * 1000)
-  const tY = Math.round(targetYFrac * 1000)
-
-  const signature = crypto
-    .createHmac("sha256", SECRET)
-    .update(`${tX}:${tY}:${timestamp}:${nonce}`)
-    .digest("hex")
-
-  const token = `${tX}.${tY}.${timestamp}.${nonce}.${signature}`
-
-  loggers?.api?.debug?.("captcha puzzle generated", { targetXFrac, targetYFrac })
-
-  return NextResponse.json({
-    bgUrl,
-    targetX: targetXFrac,
-    targetY: targetYFrac,
-    token,
-  })
+/**
+ * Случайная доля с шагом 0.01.
+ *
+ * Раньше позиция бралась из `Math.random()` — это не криптостойкий ГПСЧ, и по
+ * нескольким пазлам подряд восстанавливалось состояние генератора.
+ */
+function randomFraction(min: number, max: number): number {
+  const steps = Math.round((max - min) * 100)
+  const step = randomIntInclusive(0, steps)
+  return Number((min + step / 100).toFixed(2))
 }
 
-// 2. POST: Проверка решения
-export async function POST(request: Request) {
+/** 1. GET: пазл с дыркой, уже выжженной в картинку. */
+export async function GET(request: NextRequest) {
+  const rateKey = getRateLimitKey(request)
+  if (rateKey) {
+    const limit = puzzleGetLimiter.checkLimit(rateKey)
+    if (!limit.success) return createRateLimitResponse(limit.reset)
+  }
+
+  try {
+    const backgroundIndex = randomIntInclusive(0, BACKGROUNDS.length - 1)
+
+    // Доли контейнера. Границы берутся из captcha-geometry и завязаны на то,
+    // чтобы кусочек целиком помещался в окно.
+    const targetXFrac = randomFraction(TARGET_X_MIN, TARGET_X_MAX)
+    const targetYFrac = randomFraction(TARGET_Y_MIN, TARGET_Y_MAX)
+
+    const size = sanitizeContainerSize(
+      request.nextUrl.searchParams.get("w"),
+      request.nextUrl.searchParams.get("h")
+    )
+
+    const token = sealPuzzle(
+      {
+        tX: Math.round(targetXFrac * 1000),
+        tY: Math.round(targetYFrac * 1000),
+        ts: Date.now(),
+        nonce: crypto.randomBytes(12).toString("hex"),
+        bg: backgroundIndex,
+        w: size.width,
+        h: size.height,
+      },
+      SECRET
+    )
+
+    loggers?.api?.debug?.("captcha puzzle generated", {
+      targetXFrac,
+      targetYFrac,
+      backgroundIndex,
+      container: size,
+    })
+
+    // В ответе нет ни targetX, ни ссылки на чистую картинку: только адреса двух
+    // готовых картинок (фон с дыркой и сам кусочек), вертикальная координата
+    // (по ней клиент ведёт кусочек) и запечатанный токен.
+    //
+    // Адреса относительные, чтобы всегда совпадать с origin страницы: origin,
+    // собранный из request.url, за прокси и при обращении через 127.0.0.1
+    // расходился с тем, откуда реально открыта страница.
+    const imageUrl = `/api/auth/captcha/puzzle/image?token=${encodeURIComponent(token)}`
+
+    return NextResponse.json(
+      {
+        puzzle: imageUrl,
+        piece: `${imageUrl}&part=piece`,
+        targetY: targetYFrac,
+        token,
+      },
+      { headers: { "Cache-Control": "no-store" } }
+    )
+  } catch (err) {
+    loggers?.api?.error?.("captcha puzzle GET error", err)
+    return NextResponse.json(
+      { error: "Не удалось загрузить пазл. Обновите страницу и попробуйте снова." },
+      { status: 500 }
+    )
+  }
+}
+
+/**
+ * Ответ с ошибкой.
+ *
+ * `reason` нужен клиенту, чтобы решить, подменять ли пазл. Раньше любой отказ
+ * приводил к новому пазлу через 1.2 секунды, и промах стоил пользователю всей
+ * работы: он видел «не совпало» и через мгновение получал другую картинку и
+ * другую дырку. Теперь `reason: 'position'` и `'trajectory'` оставляют пазл на
+ * месте — человек просто чуть сдвигает кусочек и пробует снова.
+ */
+function fail(
+  error: string,
+  reason: "position" | "trajectory" | "token" | "expired" | "invalid",
+  status = 200
+) {
+  return NextResponse.json({ success: false, error, reason }, { status })
+}
+
+/** 2. POST: проверка решения. */
+export async function POST(request: NextRequest) {
+  const rateKey = getRateLimitKey(request)
+  if (rateKey) {
+    const limit = puzzlePostLimiter.checkLimit(rateKey)
+    if (!limit.success) return createRateLimitResponse(limit.reset)
+  }
+
   try {
     const body = (await request.json()) as {
       token?: string
       userFraction?: number
-      trajectory?: Point[]
+      trajectory?: TrajectoryPoint[]
     }
-
-    if (!body.token || typeof body.userFraction !== "number" || !Array.isArray(body.trajectory)) {
-      return NextResponse.json({ success: false, error: "Неверные данные" }, { status: 400 })
-    }
-
-    const parts = body.token.split(".")
-    if (parts.length !== 5) {
-      return NextResponse.json({ success: false, error: "Неверный формат токена" }, { status: 400 })
-    }
-
-    const [tXStr, tYStr, timestampStr, nonce, signature] = parts
-    const tX = parseInt(tXStr, 10)
-    const tY = parseInt(tYStr, 10)
-    const timestamp = parseInt(timestampStr, 10)
 
     if (
-      Number.isNaN(tX) ||
-      Number.isNaN(tY) ||
-      Number.isNaN(timestamp) ||
-      tX < 0 ||
-      tX > 1000 ||
-      tY < 0 ||
-      tY > 1000
+      !body.token ||
+      typeof body.userFraction !== "number" ||
+      !Array.isArray(body.trajectory)
     ) {
-      return NextResponse.json({ success: false, error: "Поврежденный токен" }, { status: 400 })
+      return fail("Проверка не пройдена. Попробуйте ещё раз.", "invalid", 400)
     }
 
-    // 1. Проверка срока жизни
-    if (Date.now() - timestamp > PUZZLE_TTL_MS) {
-      return NextResponse.json({ success: false, error: "Время истекло, обновите пазл" })
+    const payload = unsealPuzzle(body.token, SECRET)
+    if (!payload) {
+      return fail(
+        "Проверка не пройдена. Обновите пазл и попробуйте снова.",
+        "token",
+        403
+      )
     }
 
-    // 2. Проверка HMAC подписи (исправлено обращение к переменным)
-    const expectedSig = crypto
-      .createHmac("sha256", SECRET)
-      .update(`${tX}:${tY}:${timestamp}:${nonce}`)
-      .digest("hex")
-
-    if (signature !== expectedSig) {
-      return NextResponse.json({ success: false, error: "Поддельный токен" }, { status: 403 })
+    if (payload.tX < 0 || payload.tX > 1000 || payload.tY < 0 || payload.tY > 1000) {
+      return fail(
+        "Проверка не пройдена. Обновите пазл и попробуйте снова.",
+        "token",
+        400
+      )
     }
 
-    // 3. Проверка точности попадания (допуск ±5% ширины контейнера)
-    const targetXFrac = tX / 1000
-    if (Math.abs(body.userFraction - targetXFrac) > 0.05) {
-      return NextResponse.json({ success: false, error: "Пазл не встал на место" })
+    // 1. Срок жизни пазла.
+    if (Date.now() - payload.ts > PUZZLE_TTL_MS) {
+      return fail("Пазл устарел. Обновите его и попробуйте ещё раз.", "expired")
     }
 
-    // 4. Проверка биометрии движения
-    if (typeof analyzeTrajectory === "function") {
-      const isValidHuman = analyzeTrajectory(body.trajectory)
-      if (!isValidHuman) {
-        return NextResponse.json({ success: false, error: "Обнаружено неестественное движение" })
-      }
+    // 2. Точность попадания.
+    const targetXFrac = payload.tX / 1000
+    if (Math.abs(body.userFraction - targetXFrac) > MATCH_TOLERANCE_FRAC) {
+      return fail("Кусочек не совпал с дыркой. Попробуйте ещё раз.", "position")
     }
 
-    const verificationToken = generateVerificationToken(timestamp, nonce, SECRET)
+    // 3. Биометрия движения.
+    //
+    // Про «неестественное движение» пользователю говорить незачем: он не
+    // обвиняется, он просто не смог перетащить кусочек так, как это сделала бы
+    // рука. Формулировка намеренно нейтральная.
+    if (!analyzeTrajectory(body.trajectory)) {
+      return fail(
+        "Проверка не пройдена. Попробуйте перетащить кусочек ещё раз.",
+        "trajectory"
+      )
+    }
 
-    return NextResponse.json({ success: true, verificationToken })
+    const verificationToken = generateVerificationToken(
+      Date.now(),
+      payload.nonce,
+      SECRET
+    )
+
+    return NextResponse.json(
+      { success: true, verificationToken },
+      { headers: { "Cache-Control": "no-store" } }
+    )
   } catch (err) {
     loggers?.api?.error?.("captcha puzzle verify error", err)
     console.error("Captcha error:", err)
-    return NextResponse.json({ success: false, error: "Внутренняя ошибка сервера" }, { status: 500 })
+    return fail("Что-то пошло не так. Попробуйте ещё раз.", "invalid", 500)
   }
 }

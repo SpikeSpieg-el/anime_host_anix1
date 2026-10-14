@@ -1,7 +1,11 @@
 "use client"
 
-import React, { useState, useEffect, useRef, useCallback, useId } from "react"
+import React, { useState, useEffect, useRef, useCallback } from "react"
 import { RefreshCcw, CheckCircle2, ChevronRight, ShieldCheck, AlertCircle } from "lucide-react"
+
+import {
+  PUZZLE_BOX,
+} from "@/lib/captcha-geometry"
 
 interface AnimeSliderCaptchaProps {
   onSuccess: (verificationToken: string) => void
@@ -14,24 +18,67 @@ interface Point {
   t: number
 }
 
-// Стандартный размер кусочка пазла
-const PUZZLE_SIZE = 44
-// SVG-контур классического ушка пазла
-const PUZZLE_PATH =
-  "M 0,0 L 14,0 C 14,6 18,9 22,9 C 26,9 30,6 30,0 L 44,0 L 44,14 C 50,14 53,18 53,22 C 53,26 50,30 44,30 L 44,44 L 30,44 C 30,38 26,35 22,35 C 18,35 14,38 14,44 L 0,44 L 0,30 C 6,30 9,26 9,22 C 9,18 6,14 0,14 Z"
+/**
+ * Текст ошибки для показа в оверлее пазла.
+ *
+ * Серверные сообщения о проверке приходят готовыми («Кусочек не совпал с
+ * дыркой»), но ответ общего рейт-лимита остаётся машинным и английским
+ * («Too many requests»). Поэтому сообщение сервера берём только если оно
+ * действительно наше, русское, а всё остальное заменяем нейтральной
+ * формулировкой: пользователю незачем видеть внутренние коды и статусы.
+ */
+function puzzleErrorMessage(serverMessage: unknown, fallbackText: string): string {
+  if (typeof serverMessage !== "string") return fallbackText
+  const trimmed = serverMessage.trim()
+  return /[\u0400-\u04FF]/.test(trimmed) ? trimmed : fallbackText
+}
 
+/** Запасной текст по статусу ответа: про лимит нужно говорить про лимит. */
+function puzzleFallback(status: number, kind: "load" | "solve"): string {
+  if (status === 429) {
+    return "Слишком много попыток. Подождите немного и попробуйте снова."
+  }
+  if (status >= 500) {
+    return "Что-то пошло не так на нашей стороне. Попробуйте позже."
+  }
+  return kind === "load"
+    ? "Не получилось загрузить пазл. Попробуйте обновить его."
+    : "Кусочек не совпал с дыркой. Попробуйте ещё раз."
+}
+
+/**
+ * Отметка времени события для траектории.
+ *
+ * Берётся `event.timeStamp` — у него субмиллисекундное разрешение и общая
+ * шкала для всех событий страницы. `Date.now()` для этой задачи не годится:
+ * два события внутри одной миллисекунды получают одинаковую метку, а
+ * скорость, посчитанная по такой дельте, превращается в деление на ноль.
+ */
+function eventTime(e: { timeStamp?: number }): number {
+  const ts = e.timeStamp
+  return typeof ts === "number" && Number.isFinite(ts) && ts > 0 ? ts : Date.now()
+}
+
+/**
+ * Пазл с дыркой, выжженной в картинку на сервере.
+ *
+ * Клиент НЕ знает, где дырка по X: в ответе только два адреса готовых
+ * картинок (фон с дыркой и сам кусочек), `targetY` — по нему кусочек
+ * выравнивается по вертикали — и запечатанный токен.
+ */
 export function AnimeSliderCaptcha({ onSuccess, disabled }: AnimeSliderCaptchaProps) {
-  const clipId = useId()
   const [data, setData] = useState<{
-    bgUrl: string
-    targetX: number
+    puzzle: string
+    piece: string
     targetY: number
     token: string
   } | null>(null)
 
   const [sliderX, setSliderX] = useState(0)
   const [isDragging, setIsDragging] = useState(false)
-  const [status, setStatus] = useState<"idle" | "loading" | "verifying" | "success" | "error">("loading")
+  const [status, setStatus] = useState<"idle" | "loading" | "verifying" | "success" | "error">(
+    "loading"
+  )
   const [errorMessage, setErrorMessage] = useState("")
   const [containerDimensions, setContainerDimensions] = useState({ width: 0, height: 0 })
 
@@ -40,7 +87,9 @@ export function AnimeSliderCaptcha({ onSuccess, disabled }: AnimeSliderCaptchaPr
   const startClientX = useRef<number>(0)
   const trajectoryRef = useRef<Point[]>([])
 
-  // Отслеживаем реальные пиксельные размеры окна пазла
+  // Отслеживаем реальные пиксельные размеры окна пазла: серверу они нужны,
+  // чтобы выжечь дырку под те же пропорции, которые браузер покажет через
+  // object-cover.
   useEffect(() => {
     const el = containerRef.current
     if (!el) return
@@ -59,8 +108,11 @@ export function AnimeSliderCaptcha({ onSuccess, disabled }: AnimeSliderCaptchaPr
     return () => observer.disconnect()
   }, [])
 
-  // Загрузка нового пазла
   const fetchPuzzle = useCallback(async () => {
+    const el = containerRef.current
+    const width = el?.clientWidth ?? 0
+    const height = el?.clientHeight ?? 0
+
     try {
       setStatus("loading")
       setSliderX(0)
@@ -68,53 +120,91 @@ export function AnimeSliderCaptcha({ onSuccess, disabled }: AnimeSliderCaptchaPr
       setErrorMessage("")
       trajectoryRef.current = []
 
-      const res = await fetch("/api/auth/captcha/puzzle")
+      const params = new URLSearchParams()
+      if (width > 0) params.set("w", String(Math.round(width)))
+      if (height > 0) params.set("h", String(Math.round(height)))
+      const query = params.toString()
+
+      const res = await fetch(`/api/auth/captcha/puzzle${query ? `?${query}` : ""}`)
       const json = await res.json()
-      if (res.ok && json.token) {
-        setData(json)
+      if (res.ok && json.token && json.puzzle && json.piece) {
+        setData({
+          puzzle: json.puzzle,
+          piece: json.piece,
+          targetY: json.targetY,
+          token: json.token,
+        })
         setStatus("idle")
       } else {
         setStatus("error")
-        setErrorMessage("Не удалось загрузить пазл")
+        setErrorMessage(
+          puzzleErrorMessage(json.error, puzzleFallback(res.status, "load"))
+        )
       }
     } catch {
       setStatus("error")
-      setErrorMessage("Ошибка сети")
+      setErrorMessage("Нет связи с сервером. Проверьте интернет и попробуйте ещё раз.")
     }
   }, [])
 
+  // Первый пазл берём только когда размеры контейнера известны — иначе сервер
+  // выжигает дырку под дефолт 360×160, а на телефоне она уезжает за кадр.
+  const requestedFor = useRef<string>("")
   useEffect(() => {
-    fetchPuzzle()
-  }, [fetchPuzzle])
+    const { width, height } = containerDimensions
+    if (width === 0 || height === 0) return
 
-  // Пиксельные координаты цели
-  const targetPxX = data ? data.targetX * containerDimensions.width : 0
+    // Не перезапрашиваем на каждый чих ресайза: пазл живёт 2 минуты, а
+    // перезапуск посреди перетаскивания сбрасывает траекторию.
+    const key = `${Math.round(width / 20)}:${Math.round(height / 20)}`
+    if (requestedFor.current === key) return
+    requestedFor.current = key
+
+    fetchPuzzle()
+  }, [containerDimensions, fetchPuzzle])
+
+  // Вертикальная позиция кусочка в пикселях контейнера.
   const targetPxY = data ? data.targetY * containerDimensions.height : 0
 
-  // Начало перетаскивания
-  const handleStart = (clientX: number, clientY: number) => {
+  // Начало перетаскивания.
+  const handleStart = (clientX: number, clientY: number, at: number) => {
     if (status === "success" || status === "verifying" || disabled || !data) return
     setIsDragging(true)
     startClientX.current = clientX - sliderXRef.current
-    trajectoryRef.current = [{ x: clientX, y: clientY, t: Date.now() }]
+    trajectoryRef.current = [{ x: clientX, y: clientY, t: at }]
   }
 
-  // Движение ползунка
+  // Движение кусочка.
   const handleMove = useCallback(
-    (clientX: number, clientY: number) => {
+    (clientX: number, clientY: number, at: number, coalesced?: Point[]) => {
       if (!isDragging || !containerRef.current) return
 
-      const maxDrag = containerRef.current.clientWidth - PUZZLE_SIZE
+      const maxDrag = containerRef.current.clientWidth - PUZZLE_BOX
       const newX = Math.max(0, Math.min(clientX - startClientX.current, maxDrag))
 
       sliderXRef.current = newX
       setSliderX(newX)
-      trajectoryRef.current.push({ x: clientX, y: clientY, t: Date.now() })
+
+      if (coalesced && coalesced.length > 0) {
+        // PointerEvent'ы приходят пачками по 4–8 точек за кадр: это реальная
+        // траектория пера/мыши, а не синтетика.
+        //
+        // Время у каждой точки своё — из её собственного события. Раньше здесь
+        // стояло `Date.now()` для всех точек пакета, и все они получали одну
+        // отметку: чем быстрее и точнее шёл человек, тем длиннее пакет и тем
+        // вернее сервер считал траекторию подделанной. Именно на этом
+        // ломалось место с «Проверка не пройдена» при очень аккуратном drag'е.
+        for (const p of coalesced) {
+          trajectoryRef.current.push({ x: p.x, y: p.y, t: p.t })
+        }
+      } else {
+        trajectoryRef.current.push({ x: clientX, y: clientY, t: at })
+      }
     },
     [isDragging],
   )
 
-  // Завершение движения и отправка решения
+  // Завершение движения и отправка решения.
   const handleEnd = useCallback(async () => {
     if (!isDragging || !data || !containerRef.current) return
     setIsDragging(false)
@@ -141,42 +231,77 @@ export function AnimeSliderCaptcha({ onSuccess, disabled }: AnimeSliderCaptchaPr
         onSuccess(result.verificationToken)
       } else {
         setStatus("error")
-        setErrorMessage(result.error || "Пазл не совпал")
-        setTimeout(() => {
-          fetchPuzzle()
-        }, 1200)
+        setErrorMessage(
+          puzzleErrorMessage(result.error, puzzleFallback(res.status, "solve"))
+        )
+
+        // Промах больше не выбрасывает всю работу: пазл остаётся, кусочек
+        // возвращается в ноль, и человек просто пробует снова. Раньше любой
+        // отказ через 1.2 секунды подменялся новым пазлом — десять попыток
+        // означали десять разных картинок, и придраться было не к чему.
+        const keepPuzzle = result.reason === "position" || result.reason === "trajectory"
+        setSliderX(0)
+        sliderXRef.current = 0
+
+        if (keepPuzzle) {
+          // Показываем причину и убираем красную плёнку: человек должен видеть
+          // дырку, чтобы сдвинуть кусочек точнее.
+          setTimeout(() => setStatus("idle"), 1800)
+        } else {
+          setTimeout(() => {
+            requestedFor.current = ""
+            fetchPuzzle()
+          }, 1200)
+        }
       }
     } catch {
       setStatus("error")
-      setErrorMessage("Ошибка верификации")
-      setTimeout(() => fetchPuzzle(), 1200)
+      setErrorMessage("Нет связи с сервером. Проверьте интернет и попробуйте ещё раз.")
+      setTimeout(() => {
+        requestedFor.current = ""
+        fetchPuzzle()
+      }, 1200)
     }
   }, [isDragging, data, fetchPuzzle, onSuccess])
 
-  // Слушатели мыши и тача на window
+  // Слушатели указателя на window.
   useEffect(() => {
     if (!isDragging) return
 
-    const onMouseMove = (e: MouseEvent) => handleMove(e.clientX, e.clientY)
-    const onMouseUp = () => handleEnd()
-
-    const onTouchMove = (e: TouchEvent) => {
-      if (e.touches[0]) {
-        handleMove(e.touches[0].clientX, e.touches[0].clientY)
+    const onPointerMove = (e: PointerEvent) => {
+      // Склеенные события — реальная траектория, а не один сэмпл на кадр.
+      // Время берём у каждого события своё (`event.timeStamp`): у пакета
+      // событий отметки разные, и именно поэтому их можно различать.
+      const native = e as PointerEvent & {
+        getCoalescedEvents?: () => PointerEvent[]
       }
+      const coalesced = native.getCoalescedEvents?.() ?? []
+      const points: Point[] | undefined =
+        coalesced.length > 0
+          ? coalesced.map((c) => ({ x: c.clientX, y: c.clientY, t: c.timeStamp }))
+          : undefined
+      handleMove(e.clientX, e.clientY, eventTime(e), points)
     }
-    const onTouchEnd = () => handleEnd()
 
-    window.addEventListener("mousemove", onMouseMove)
-    window.addEventListener("mouseup", onMouseUp)
-    window.addEventListener("touchmove", onTouchMove, { passive: true })
-    window.addEventListener("touchend", onTouchEnd)
+    const onPointerUp = () => handleEnd()
+    // pointercancel означает, что жест отменён системой (скролл, палец увели
+    // за край). Отправлять обрезанную траекторию бессмысленно — сервер
+    // справедливо скажет «не пройдена». Молча откатываем перетаскивание.
+    const onPointerCancel = () => {
+      setIsDragging(false)
+      setSliderX(0)
+      sliderXRef.current = 0
+      trajectoryRef.current = []
+    }
+
+    window.addEventListener("pointermove", onPointerMove)
+    window.addEventListener("pointerup", onPointerUp)
+    window.addEventListener("pointercancel", onPointerCancel)
 
     return () => {
-      window.removeEventListener("mousemove", onMouseMove)
-      window.removeEventListener("mouseup", onMouseUp)
-      window.removeEventListener("touchmove", onTouchMove)
-      window.removeEventListener("touchend", onTouchEnd)
+      window.removeEventListener("pointermove", onPointerMove)
+      window.removeEventListener("pointerup", onPointerUp)
+      window.removeEventListener("pointercancel", onPointerCancel)
     }
   }, [isDragging, handleMove, handleEnd])
 
@@ -200,65 +325,36 @@ export function AnimeSliderCaptcha({ onSuccess, disabled }: AnimeSliderCaptchaPr
       >
         {data && containerDimensions.width > 0 && (
           <>
-            {/* 1. Исходная картинка фона */}
+            {/* 1. Картинка с дыркой, выжженной на сервере */}
             <img
-              src={data.bgUrl}
+              src={data.puzzle}
               alt="Captcha Background"
               className="absolute inset-0 w-full h-full object-cover pointer-events-none"
             />
 
-            {/* 2. Темная неподвижная дырка (целевая позиция) */}
-            <svg className="absolute inset-0 w-full h-full pointer-events-none">
-              <path
-                d={PUZZLE_PATH}
-                transform={`translate(${targetPxX}, ${targetPxY})`}
-                fill="rgba(5, 7, 13, 0.75)"
-                stroke="rgba(255, 255, 255, 0.4)"
-                strokeWidth="1.5"
-                strokeDasharray="4 2"
-              />
-            </svg>
-
-            {/* 3. Движущийся кусочек пазла */}
+            {/* 2. Кусочек. Это кадр из-под дырки, отрисованный на сервере:
+                   при попадании встык он заполняет её, и «зажившую» картинку
+                   видно сразу. Вариант с полупрозрачным стеклом не годился:
+                   дырка просвечивала даже при правильном положении, и совпадение
+                   было невозможно увидеть глазами. */}
             <div
               className="absolute inset-0 pointer-events-none"
               style={{
-                // Смещаем весь слой так, чтобы при sliderX = targetPxX кусочек вставал точно в паз
-                transform: `translateX(${sliderX - targetPxX}px)`,
+                transform: `translateX(${sliderX}px)`,
                 transition: isDragging ? "none" : "transform 0.25s ease-out",
               }}
             >
-              <svg className="w-full h-full">
-                <defs>
-                  <clipPath id={clipId}>
-                    <path d={PUZZLE_PATH} transform={`translate(${targetPxX}, ${targetPxY})`} />
-                  </clipPath>
-                </defs>
-
-                {/* Вырезанный фрагмент картинки */}
-                <image
-                  href={data.bgUrl}
-                  width="100%"
-                  height="100%"
-                  preserveAspectRatio="xMidYMid slice"
-                  clipPath={`url(#${clipId})`}
-                />
-
-                {/* Контур кусочка */}
-                <path
-                  d={PUZZLE_PATH}
-                  transform={`translate(${targetPxX}, ${targetPxY})`}
-                  fill="none"
-                  stroke={status === "success" ? "#34d399" : "#38bdf8"}
-                  strokeWidth="2"
-                  style={{
-                    filter:
-                      status === "success"
-                        ? "drop-shadow(0 0 8px rgba(52, 211, 153, 0.8))"
-                        : "drop-shadow(0 2px 6px rgba(0, 0, 0, 0.9))",
-                  }}
-                />
-              </svg>
+              <img
+                src={
+                  status === "success"
+                    ? `${data.piece}&solved=1`
+                    : data.piece
+                }
+                alt="Кусочек пазла"
+                draggable={false}
+                className="absolute left-0 pointer-events-none select-none"
+                style={{ top: targetPxY }}
+              />
             </div>
           </>
         )}
@@ -266,7 +362,10 @@ export function AnimeSliderCaptcha({ onSuccess, disabled }: AnimeSliderCaptchaPr
         {/* Кнопка обновления */}
         <button
           type="button"
-          onClick={fetchPuzzle}
+          onClick={() => {
+            requestedFor.current = ""
+            fetchPuzzle()
+          }}
           disabled={isDragging || status === "success" || disabled}
           className="absolute top-2 right-2 p-1.5 rounded-lg bg-black/60 backdrop-blur-md text-white/80 hover:text-white transition-all hover:bg-black/80 disabled:opacity-50"
           title="Обновить пазл"
@@ -298,7 +397,7 @@ export function AnimeSliderCaptcha({ onSuccess, disabled }: AnimeSliderCaptchaPr
           className={`absolute left-0 top-0 bottom-0 transition-colors ${
             status === "success" ? "bg-emerald-500/20" : "bg-indigo-500/20"
           }`}
-          style={{ width: `${sliderX + PUZZLE_SIZE}px` }}
+          style={{ width: `${sliderX + PUZZLE_BOX}px` }}
         />
 
         {/* Подсказка */}
@@ -308,19 +407,21 @@ export function AnimeSliderCaptcha({ onSuccess, disabled }: AnimeSliderCaptchaPr
 
         {/* Ручка слайдера */}
         <div
-          onMouseDown={(e) => handleStart(e.clientX, e.clientY)}
-          onTouchStart={(e) => e.touches[0] && handleStart(e.touches[0].clientX, e.touches[0].clientY)}
-          className={`relative z-10 h-9 w-11 rounded-lg flex items-center justify-center cursor-grab active:cursor-grabbing transition-shadow touch-none ${
+          onPointerDown={(e) => handleStart(e.clientX, e.clientY, eventTime(e))}
+          style={{
+            transform: `translateX(${sliderX}px)`,
+            transition: isDragging ? "none" : "transform 0.25s ease-out",
+          }}
+          // touch-action не наследуется от трека: без него палец на телефоне
+          // начинает скроллить страницу вместо перетаскивания, и жест
+          // прерывается pointercancel'ом на середине.
+          className={`relative z-10 h-9 w-11 rounded-lg flex items-center justify-center cursor-grab active:cursor-grabbing transition-shadow touch-none select-none ${
             status === "success"
               ? "bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/30"
               : isDragging
               ? "bg-indigo-500 text-white shadow-lg shadow-indigo-500/40 scale-105"
               : "bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white"
           }`}
-          style={{
-            transform: `translateX(${sliderX}px)`,
-            transition: isDragging ? "none" : "transform 0.25s ease-out",
-          }}
         >
           {status === "success" ? (
             <CheckCircle2 className="w-4 h-4" />

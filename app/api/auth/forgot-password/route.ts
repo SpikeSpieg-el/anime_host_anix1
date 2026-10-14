@@ -6,7 +6,7 @@ export async function POST(request: Request) {
     const { email } = await request.json()
 
     if (!email || !email.includes("@") || !email.includes(".")) {
-      return NextResponse.json({ error: "Введите корректный email" }, { status: 400 })
+      return NextResponse.json({ error: "Введите корректный email адрес" }, { status: 400 })
     }
 
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -17,8 +17,10 @@ export async function POST(request: Request) {
         hasUrl: !!supabaseUrl,
         hasKey: !!supabaseServiceKey,
       })
+      // Наружу нельзя отдавать `supabaseUrl=true, serviceKey=false`: это
+      // описание внутренней конфигурации, а человек звонил восстановить пароль.
       return NextResponse.json(
-        { error: `Server misconfigured: supabaseUrl=${!!supabaseUrl}, serviceKey=${!!supabaseServiceKey}` },
+        { error: "Не получилось отправить письмо. Попробуйте позже." },
         { status: 500 }
       )
     }
@@ -44,7 +46,10 @@ export async function POST(request: Request) {
 
     if (!data?.properties?.action_link) {
       console.error("[forgot-password] No action_link in response")
-      return NextResponse.json({ error: "Failed to generate reset link" }, { status: 500 })
+      return NextResponse.json(
+        { error: "Не получилось отправить письмо. Попробуйте позже." },
+        { status: 500 }
+      )
     }
 
     const resetLink = data.properties.action_link
@@ -269,6 +274,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: true })
   } catch (err: any) {
     console.error("[forgot-password] Internal error:", err?.message || err)
-    return NextResponse.json({ error: `Internal error: ${err?.message || String(err)}` }, { status: 500 })
+    // Детали ошибки — в лог, а не в ответ: сырое `Internal error: ...` с
+    // внутренними именами и статусами пользователю не помогает.
+    return NextResponse.json(
+      { error: "Не получилось отправить письмо. Попробуйте позже." },
+      { status: 500 }
+    )
   }
 }

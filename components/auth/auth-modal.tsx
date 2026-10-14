@@ -2,11 +2,12 @@
 
 import { useEffect, useState } from "react"
 import { supabase } from "@/lib/supabase"
+import { friendlyAuthError } from "@/lib/auth-errors"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { AnimeSliderCaptcha } from "@/components/auth/anime-slider-captcha"
-import { Loader2, Mail, Lock, LogIn, UserPlus, AlertCircle, KeyRound, CheckCircle2, ArrowLeft, AtSign, ShieldCheck } from "lucide-react"
+import { Loader2, Mail, Lock, LogIn, UserPlus, AlertCircle, KeyRound, CheckCircle2, ArrowLeft, AtSign, ShieldCheck, Eye, EyeOff } from "lucide-react"
 import { loggers } from "@/lib/logger"
 import { useToast } from "@/hooks/use-toast"
 import { useConsent } from "@/components/providers/consent-provider"
@@ -58,34 +59,16 @@ async function claimGiftCard(token: string, accessToken: string) {
   return response.json() as Promise<{ alreadyClaimed?: boolean; card?: Card }>
 }
 
-function userFacingAuthError(err: unknown): string {
-  const e = err as { message?: string; status?: number; code?: string } | null
-  const msg = (e?.message || "").trim()
-  const lower = msg.toLowerCase()
-
-  if (
-    lower.includes("invalid login credentials") ||
-    lower.includes("invalid_grant") ||
-    e?.code === "invalid_credentials"
-  ) {
-    return "Неверный email или пароль"
-  }
-  if (lower.includes("email not confirmed")) {
-    return "Подтвердите email по ссылке из письма (или отключите подтверждение в Supabase для разработки)"
-  }
-  if (lower.includes("user already registered")) {
-    return "Пользователь с таким email уже зарегистрирован"
-  }
-  if (lower.includes("password should be") || lower.includes("password is known to be weak")) {
-    return "Пароль слишком слабый. Задайте более длинный пароль"
-  }
-  if (lower.includes("signup is disabled") || lower.includes("email signups are disabled")) {
-    return "Регистрация по email отключена в настройках проекта Supabase"
-  }
-  if (e?.status === 400 && !msg) {
-    return "Запрос отклонён (400). Проверьте URL проекта и ключи в .env, включите Email в Authentication → Providers"
-  }
-  return msg || "Не удалось выполнить вход. Проверьте данные или настройки Supabase Auth"
+/**
+ * Текст ошибки для пользователя.
+ *
+ * Вся работа с формулировками — в `lib/auth-errors`: там же лежит правило, что
+ * наружу не выходит ни одна английская фраза Supabase. Здесь остаётся только тон и
+ * режим (вход или регистрация), потому что при входе нельзя подтверждать
+ * существование аккаунта.
+ */
+function userFacingAuthError(err: unknown, mode: "login" | "register" = "login"): string {
+  return friendlyAuthError(err as { message?: string; status?: number; code?: string }, mode)
 }
 
 /**
@@ -103,6 +86,34 @@ type AuthStep = "captcha" | "credentials" | "nickname"
 
 const NICKNAME_MIN = 2
 const NICKNAME_MAX = 24
+
+/**
+ * Покадровые ошибки полей.
+ *
+ * Раньше пустые email/пароль ловил сам браузер: `required` на `<input>`
+ * останавливает отправку раньше нашего обработчика, и человек видел штатный
+ * браузерный тултип. Он не переводится, выглядит как чужое окно поверх
+ * тёмного интерфейса, а на телефоне закрывает половину экрана.
+ *
+ * Теперь форма объявлена `noValidate`, а сообщения свои — в том же стиле, что
+ * остальные ошибки в модалке.
+ */
+type FieldErrors = { email?: string; password?: string }
+
+function validateEmail(value: string): string | undefined {
+  const trimmed = value.trim()
+  if (!trimmed) return "Введите email"
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+    return "Проверьте email — похоже, в нём опечатка."
+  }
+  return undefined
+}
+
+function validatePassword(value: string): string | undefined {
+  if (!value) return "Введите пароль"
+  if (value.length < 6) return "Пароль должен содержать минимум 6 символов"
+  return undefined
+}
 
 interface AuthModalProps {
   isOpen?: boolean
@@ -136,6 +147,10 @@ export function AuthModal({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [resetSent, setResetSent] = useState(false)
+  /** Показывать ли пароль открытым текстом. Одно поле на вход и регистрацию. */
+  const [showPassword, setShowPassword] = useState(false)
+  /** Ошибки конкретных полей — вместо браузерных тултипов. */
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({})
   const { toast } = useToast()
   const { consent, hasConsent } = useConsent()
   const { refreshProfile } = useAuth()
@@ -159,6 +174,10 @@ export function AuthModal({
   const resetForm = () => {
     setEmail("")
     setPassword("")
+    // Гасим и «показать пароль»: закрывать окно с открытым паролем на виду —
+    // неприятный сюрприз, особенно если модалку открывают поверх всего.
+    setShowPassword(false)
+    setFieldErrors({})
     setCaptchaToken(null)
     setCaptchaNonce((n) => n + 1)
     setNickname("")
@@ -213,20 +232,15 @@ export function AuthModal({
     const emailTrim = email.trim()
     const passwordTrim = password.trim()
 
-    if (!emailTrim || !passwordTrim) {
-      setError("Email и пароль обязательны")
-      setLoading(false)
-      return
+    // Покадровая проверка вместо браузерного тултипа: `required` в полях
+    // останавливал отправку раньше этого места, и человек видел штатное
+    // окно браузера вместо сообщения в интерфейсе.
+    const nextErrors: FieldErrors = {
+      email: validateEmail(emailTrim),
+      password: validatePassword(passwordTrim),
     }
-
-    if (!emailTrim.includes("@") || !emailTrim.includes(".")) {
-      setError("Введите корректный email адрес")
-      setLoading(false)
-      return
-    }
-
-    if (passwordTrim.length < 6) {
-      setError("Пароль должен содержать минимум 6 символов")
+    setFieldErrors(nextErrors)
+    if (nextErrors.email || nextErrors.password) {
       setLoading(false)
       return
     }
@@ -252,7 +266,7 @@ export function AuthModal({
             status: error.status,
             code: (error as { code?: string }).code,
           })
-          setError(userFacingAuthError(error))
+          setError(userFacingAuthError(error, "login"))
           return
         }
 
@@ -312,34 +326,79 @@ export function AuthModal({
             ? rawGiftCardToken
             : decodeGiftCardToken(rawGiftCardToken)
 
-        const { data, error } = await supabase.auth.signUp({
-          email: emailTrim,
-          password: passwordTrim,
-          options: {
-            data: {
-              referral_code: referralCode,
-              gift_card: giftCardValue ? JSON.stringify(giftCardValue) : null,
-              // Store first-touch attribution only when the visitor opted into analytics.
-              ...(hasConsent && consent?.analytics ? getSignupAttribution() : {}),
-            },
-          },
+        // Регистрация идёт через /api/auth/register, а не напрямую в Supabase:
+        // только так сервер может проверить токен captcha. Прямой вызов
+        // supabase.auth.signUp() из браузера означал, что капчу можно было
+        // не проходить вовсе — anon-ключ публичен, а ручки на signup нет.
+        const registration = await fetch("/api/auth/register", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: emailTrim,
+            password: passwordTrim,
+            captchaToken,
+            referralCode,
+            giftCard: giftCardValue ? JSON.stringify(giftCardValue) : null,
+            // Store first-touch attribution only when the visitor opted into analytics.
+            attribution:
+              hasConsent && consent?.analytics ? getSignupAttribution() : null,
+          }),
         })
 
-        if (error) {
-          loggers.auth.warn("signUp", {
-            message: error.message,
-            status: error.status,
-            code: (error as { code?: string }).code,
+        const registrationData = await registration.json().catch(() => null)
+
+        if (!registration.ok || !registrationData) {
+          loggers.auth.warn("register", {
+            status: registration.status,
+            message: registrationData?.error,
           })
-          setError(userFacingAuthError(error))
+
+          // 403 от регистрации — это именно про капчу: протухла (TTL 10 минут)
+          // или уже использована. Возвращаем к пазлу, а не ругаемся в форме,
+          // где его и не видно. Введённые email и пароль при этом остаются.
+          if (registration.status === 403) {
+            backToCaptcha()
+            return
+          }
+
+          setError(
+            userFacingAuthError(
+              {
+                message: registrationData?.error,
+                status: registration.status,
+                code: registrationData?.code,
+              },
+              "register"
+            )
+          )
           return
         }
 
-        if (data.user) {
-          if (data.session) identifyUser(`supabase:${data.user.id}`)
+        // При включённом подтверждении email Supabase отвечает без сессии —
+        // тогда остаётся только закрыть окно и ждать ссылки из письма.
+        const hasSession =
+          typeof registrationData.access_token === "string" &&
+          typeof registrationData.refresh_token === "string"
+
+        if (hasSession) {
+          const { error: sessionError } = await supabase.auth.setSession({
+            access_token: registrationData.access_token,
+            refresh_token: registrationData.refresh_token,
+          })
+          if (sessionError) {
+            loggers.auth.warn("setSession after register", {
+              message: sessionError.message,
+            })
+          }
+        }
+
+        const user = registrationData.user ?? null
+
+        if (user) {
+          if (hasSession) identifyUser(`supabase:${user.id}`)
           const hookSource = consumeGuestHookAuthSource()
           trackEvent(AnalyticsEvent.AUTH_SIGN_UP, {
-            confirmation_required: !data.session,
+            confirmation_required: !hasSession,
             method: "email",
             has_referral: Boolean(referralCode),
             has_gift: Boolean(rawGiftCardToken),
@@ -348,9 +407,12 @@ export function AuthModal({
               : {}),
           })
           let giftCardClaimed = false
-          if (rawGiftCardToken && data.session?.access_token) {
+          if (rawGiftCardToken && hasSession) {
             try {
-              const claimResult = await claimGiftCard(rawGiftCardToken, data.session.access_token)
+              const claimResult = await claimGiftCard(
+                rawGiftCardToken,
+                registrationData.access_token
+              )
               trackEvent(
                 claimResult.alreadyClaimed
                   ? AnalyticsEvent.GIFT_CARD_ALREADY_CLAIMED
@@ -385,20 +447,20 @@ export function AuthModal({
           // При включённом подтверждении пользователь ещё не вошёл, и RLS
           // (auth.uid() = id) не пустит UPDATE: тогда просто закрываем окно,
           // ник можно будет задать в настройках.
-          if (data.session) {
-            setPendingUserId(data.user.id)
+          if (hasSession) {
+            setPendingUserId(user.id)
             setNickname("")
             setStep("nickname")
           } else {
             setIsOpen(false)
           }
         } else {
-          setError("Не удалось создать аккаунт. Попробуйте снова.")
+          setError(friendlyAuthError(null, "register"))
         }
       }
     } catch (err: any) {
       loggers.auth.warn("Auth error:", err)
-      setError(userFacingAuthError(err))
+      setError(userFacingAuthError(err, isLogin ? "login" : "register"))
     } finally {
       setLoading(false)
     }
@@ -408,6 +470,10 @@ export function AuthModal({
     setIsLogin(!isLogin)
     setError(null)
     setPassword("")
+    // Переключение «вход ↔ регистрация» тоже гасит показ пароля: оставить его
+    // включённым при смене режима — значит показать то, что человек уже стёр.
+    setShowPassword(false)
+    setFieldErrors({})
     // Смена режима тоже возвращает на пазл: токен второй раз не пройдёт.
     backToCaptcha()
   }
@@ -481,7 +547,11 @@ export function AuthModal({
         <div className="relative p-5 sm:p-7">
           {isForgot ? (
             <>
-              <DialogHeader className="mb-4 sm:mb-6 text-center">
+              {/* sm:text-center обязателен: в базовом DialogHeader зашито
+                  `text-center sm:text-left`, и без переопределения на десктопе
+                  заголовок уезжал влево. Заголовок одинаков для всех шагов
+                  (проверка → поля → ник), поэтому правило одно на весь блок. */}
+              <DialogHeader className="mb-4 sm:mb-6 text-center sm:text-center">
                 <div className="mx-auto w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-white/5 flex items-center justify-center mb-2.5 sm:mb-3 border border-white/10 ring-1 ring-white/5">
                   <KeyRound className="w-5 h-5 sm:w-6 sm:h-6 text-orange-500" />
                 </div>
@@ -576,7 +646,7 @@ export function AuthModal({
             </>
           ) : (
             <>
-              <DialogHeader className="mb-4 sm:mb-6 text-center">
+              <DialogHeader className="mb-4 sm:mb-6 text-center sm:text-center">
                 <div className="mx-auto w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-white/5 flex items-center justify-center mb-2.5 sm:mb-3 border border-white/10 ring-1 ring-white/5">
                   {step === "captcha" ? (
                     <ShieldCheck className="w-5 h-5 sm:w-6 sm:h-6 text-orange-500" />
@@ -655,7 +725,10 @@ export function AuthModal({
               )}
 
               {step === "credentials" && (
-              <form onSubmit={handleAuth} className="space-y-3.5 sm:space-y-4">
+              // noValidate: браузер не должен показывать свои тултипы про
+              // required/minlength — они не переводятся и ломают интерфейс.
+              // Валидация целиком наша, сообщения под полями.
+              <form onSubmit={handleAuth} noValidate className="space-y-3.5 sm:space-y-4">
                 {error && (
                   <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg flex items-start gap-3 text-red-400 text-xs sm:text-sm animate-in fade-in slide-in-from-top-2">
                     <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
@@ -664,38 +737,137 @@ export function AuthModal({
                 )}
 
                 <div className="space-y-1 group">
-                  <label className="text-xs font-medium text-zinc-500 ml-1 group-focus-within:text-orange-500 transition-colors">
+                  <label
+                    htmlFor="auth-email"
+                    className="text-xs font-medium text-zinc-500 ml-1 group-focus-within:text-orange-500 transition-colors"
+                  >
                     Email
                   </label>
                   <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 sm:h-5 sm:w-5 text-zinc-500 group-focus-within:text-orange-500 transition-colors" />
+                    <Mail
+                      className={`absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 sm:h-5 sm:w-5 transition-colors ${
+                        fieldErrors.email
+                          ? "text-red-400"
+                          : "text-zinc-500 group-focus-within:text-orange-500"
+                      }`}
+                    />
                     <Input
+                      id="auth-email"
                       type="email"
                       placeholder="name@example.com"
                       value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      className="pl-10 h-11 sm:h-12 bg-white/5 border-white/10 text-white placeholder:text-zinc-600 focus:bg-white/10 focus:border-orange-500/50 focus:ring-orange-500/20 transition-all rounded-xl text-sm sm:text-base"
-                      required
+                      // Ошибка исчезает по мере исправления, а не только после
+                      // новой отправки: человек не должен гадать, что именно
+                      // напечатать неверно.
+                      onChange={(e) => {
+                        setEmail(e.target.value)
+                        if (fieldErrors.email) {
+                          const next = validateEmail(e.target.value)
+                          setFieldErrors((prev) => ({ ...prev, email: next }))
+                        }
+                      }}
+                      onBlur={() =>
+                        setFieldErrors((prev) => ({
+                          ...prev,
+                          email: validateEmail(email),
+                        }))
+                      }
+                      aria-invalid={fieldErrors.email ? true : undefined}
+                      aria-describedby={fieldErrors.email ? "auth-email-error" : undefined}
+                      className={`pl-10 h-11 sm:h-12 text-white placeholder:text-zinc-600 transition-all rounded-xl text-sm sm:text-base ${
+                        fieldErrors.email
+                          ? "bg-red-500/5 border-red-500/50 focus:border-red-500/70 focus:ring-red-500/20"
+                          : "bg-white/5 border-white/10 focus:bg-white/10 focus:border-orange-500/50 focus:ring-orange-500/20"
+                      }`}
                     />
                   </div>
+                  {fieldErrors.email && (
+                    <p
+                      id="auth-email-error"
+                      role="alert"
+                      className="flex items-center gap-1.5 text-xs text-red-400 animate-in fade-in slide-in-from-top-1"
+                    >
+                      <AlertCircle className="h-3.5 w-3.5 flex-shrink-0" />
+                      {fieldErrors.email}
+                    </p>
+                  )}
                 </div>
 
                 <div className="space-y-1 group">
-                  <label className="text-xs font-medium text-zinc-500 ml-1 group-focus-within:text-orange-500 transition-colors">
+                  <label
+                    htmlFor="auth-password"
+                    className="text-xs font-medium text-zinc-500 ml-1 group-focus-within:text-orange-500 transition-colors"
+                  >
                     Пароль
                   </label>
                   <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 sm:h-5 sm:w-5 text-zinc-500 group-focus-within:text-orange-500 transition-colors" />
+                    <Lock
+                      className={`absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 sm:h-5 sm:w-5 transition-colors ${
+                        fieldErrors.password
+                          ? "text-red-400"
+                          : "text-zinc-500 group-focus-within:text-orange-500"
+                      }`}
+                    />
                     <Input
-                      type="password"
+                      id="auth-password"
+                      type={showPassword ? "text" : "password"}
                       placeholder="••••••••"
                       value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      className="pl-10 h-11 sm:h-12 bg-white/5 border-white/10 text-white placeholder:text-zinc-600 focus:bg-white/10 focus:border-orange-500/50 focus:ring-orange-500/20 transition-all rounded-xl text-sm sm:text-base"
-                      required
-                      minLength={6}
+                      onChange={(e) => {
+                        setPassword(e.target.value)
+                        if (fieldErrors.password) {
+                          const next = validatePassword(e.target.value)
+                          setFieldErrors((prev) => ({ ...prev, password: next }))
+                        }
+                      }}
+                      onBlur={() =>
+                        setFieldErrors((prev) => ({
+                          ...prev,
+                          password: validatePassword(password),
+                        }))
+                      }
+                      // Менеджеры паролей подставляют значение по полю и по
+                      // режиму: «текущий» для входа, «новый» для регистрации.
+                      autoComplete={isLogin ? "current-password" : "new-password"}
+                      aria-invalid={fieldErrors.password ? true : undefined}
+                      aria-describedby={
+                        fieldErrors.password ? "auth-password-error" : undefined
+                      }
+                      className={`pl-10 pr-11 h-11 sm:h-12 text-white placeholder:text-zinc-600 transition-all rounded-xl text-sm sm:text-base ${
+                        fieldErrors.password
+                          ? "bg-red-500/5 border-red-500/50 focus:border-red-500/70 focus:ring-red-500/20"
+                          : "bg-white/5 border-white/10 focus:bg-white/10 focus:border-orange-500/50 focus:ring-orange-500/20"
+                      }`}
                     />
+                    <button
+                      type="button"
+                      // Не даём кнопке забрать фокус: после нажатия человек
+                      // продолжает печатать в том же поле, а не ищет его
+                      // повторно. Клавиатуре кнопка по-прежнему доступна.
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => setShowPassword((v) => !v)}
+                      aria-label={showPassword ? "Скрыть пароль" : "Показать пароль"}
+                      aria-pressed={showPassword}
+                      title={showPassword ? "Скрыть пароль" : "Показать пароль"}
+                      className="absolute right-1.5 top-1/2 -translate-y-1/2 p-2 rounded-lg text-zinc-500 hover:text-white hover:bg-white/5 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/50"
+                    >
+                      {showPassword ? (
+                        <EyeOff className="h-4 w-4 sm:h-5 sm:w-5" />
+                      ) : (
+                        <Eye className="h-4 w-4 sm:h-5 sm:w-5" />
+                      )}
+                    </button>
                   </div>
+                  {fieldErrors.password && (
+                    <p
+                      id="auth-password-error"
+                      role="alert"
+                      className="flex items-center gap-1.5 text-xs text-red-400 animate-in fade-in slide-in-from-top-1"
+                    >
+                      <AlertCircle className="h-3.5 w-3.5 flex-shrink-0" />
+                      {fieldErrors.password}
+                    </p>
+                  )}
                 </div>
 
                 {isLogin && (
