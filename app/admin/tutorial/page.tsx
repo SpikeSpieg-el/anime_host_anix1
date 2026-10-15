@@ -1,8 +1,7 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
-import { Navbar } from "@/components/layout/navbar"
 import { Footer } from "@/components/layout/footer"
 import { ScrollToTop } from "@/components/layout/scroll-to-top"
 import {
@@ -15,13 +14,57 @@ import {
   CheckCircle,
 } from "lucide-react"
 import { tutorialSections } from "../components/constants"
+import { checkAdminAuth } from "../actions"
 
 export default function AdminTutorialPage() {
   const [expandedId, setExpandedId] = useState<string | null>("login")
+  // Страница отдавала ПОЛНУЮ инструкцию по эксплуатации админки любому
+  // посетителю без входа: названия вкладок, механику чёрного списка,
+  // имена переменных окружения и требования к TOTP/секретам в production.
+  // Данных там нет, но это готовый разведматериал для атакующего, поэтому
+  // контент отрисовывается только после подтверждения админ-сессии.
+  const [authChecked, setAuthChecked] = useState(false)
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
+
+  useEffect(() => {
+    checkAdminAuth()
+      .then((authenticated) => {
+        setIsAuthenticated(authenticated)
+        setAuthChecked(true)
+      })
+      .catch(() => setAuthChecked(true))
+  }, [])
+
+  if (!authChecked) {
+    return (
+      <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center">
+        <p className="text-slate-400 text-sm">Проверка доступа…</p>
+      </div>
+    )
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center px-4">
+        <div className="text-center max-w-md">
+          <h1 className="text-2xl font-black mb-3">Доступ закрыт</h1>
+          <p className="text-sm text-slate-400 mb-6">
+            Туториал админ-панели доступен только после входа.
+          </p>
+          <Link
+            href="/admin"
+            className="inline-flex items-center gap-2 px-5 py-3 bg-indigo-600 hover:bg-indigo-500 rounded-xl font-bold transition min-h-11"
+          >
+            <ArrowLeft size={16} className="shrink-0" />
+            На страницу входа
+          </Link>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-slate-950 text-white">
-      <Navbar />
       <ScrollToTop />
       <Footer />
 
@@ -30,14 +73,14 @@ export default function AdminTutorialPage() {
         <div className="mb-10">
           <Link
             href="/admin"
-            className="inline-flex items-center gap-2 text-sm text-slate-400 hover:text-white transition mb-4"
+            className="inline-flex items-center gap-2 text-sm text-slate-400 hover:text-white transition mb-4 min-h-11 -my-2"
           >
-            <ArrowLeft size={16} />
+            <ArrowLeft size={16} className="shrink-0" />
             Назад в админку
           </Link>
 
-          <div className="flex items-center gap-3 mb-3">
-            <div className="p-3 bg-indigo-500/20 rounded-xl border border-indigo-500/30">
+          <div className="flex items-start gap-3 mb-3">
+            <div className="p-3 bg-indigo-500/20 rounded-xl border border-indigo-500/30 shrink-0">
               <BookOpen className="w-8 h-8 text-indigo-400" />
             </div>
             <div>
@@ -47,13 +90,13 @@ export default function AdminTutorialPage() {
           </div>
 
           {/* Quick nav */}
-          <div className="flex flex-wrap gap-2 mt-6">
+          <div className="flex flex-nowrap gap-2 mt-6 overflow-x-auto overscroll-x-contain snap-x [scrollbar-width:none] [&::-webkit-scrollbar]:hidden -mx-1 px-1 pb-1">
             {tutorialSections.map((s) => (
               <a
                 key={s.id}
                 href={`#${s.id}`}
                 onClick={() => setExpandedId(s.id)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-900/50 hover:bg-slate-800 border border-white/5 rounded-lg text-xs font-bold uppercase tracking-wider text-slate-400 hover:text-white transition"
+                className="inline-flex shrink-0 snap-start items-center gap-1.5 px-3 py-1.5 min-h-11 sm:min-h-0 bg-slate-900/50 hover:bg-slate-800 border border-white/5 rounded-lg text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-400 hover:text-white transition whitespace-nowrap"
               >
                 {s.icon}
                 {s.title.split("—")[0].trim()}
@@ -75,7 +118,7 @@ export default function AdminTutorialPage() {
                 {/* Section header */}
                 <button
                   onClick={() => setExpandedId(isExpanded ? null : section.id)}
-                  className="w-full flex items-center justify-between p-5 hover:bg-slate-800/50 transition text-left"
+                  className="w-full flex items-center justify-between gap-3 p-4 sm:p-5 min-h-11 hover:bg-slate-800/50 transition text-left"
                 >
                   <div className="flex items-center gap-3 flex-1 min-w-0">
                     <div className="p-2 bg-indigo-500/10 rounded-lg border border-indigo-500/20 flex-shrink-0">
@@ -153,12 +196,12 @@ export default function AdminTutorialPage() {
         </div>
 
         {/* Footer note */}
-        <div className="mt-10 p-6 bg-slate-900/30 border border-white/5 rounded-2xl text-center">
+        <div className="mt-10 p-4 sm:p-6 bg-slate-900/30 border border-white/5 rounded-2xl text-center">
           <p className="text-sm text-slate-400">
-            Туториал покрывает все 11 вкладок админ-панели: Users (с фильтрами и сортировкой), PvP,
-            AI Battle, Battle Logs, Карты, Рассылка, События, Новости, Редакция, Туториал, Аналитика.
+            Туториал покрывает все {tutorialSections.length} разделов админ-панели.
             <br />
-            Для дополнительной информации смотрите код в <code className="text-indigo-400">app/admin/</code>.
+            Для дополнительной информации смотрите код в{" "}
+            <code className="text-indigo-400 break-all">app/admin/</code>.
           </p>
         </div>
       </main>

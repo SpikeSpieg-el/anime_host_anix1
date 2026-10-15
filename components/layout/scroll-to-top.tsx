@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
+import { usePathname } from "next/navigation"
 import { ArrowUp } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -8,6 +9,9 @@ export function ScrollToTop() {
   const [isVisible, setIsVisible] = useState(false)
   const [isScrollingDown, setIsScrollingDown] = useState(false)
   const lastScrollY = useRef(0)
+  // В админке плавающего дока навигации нет — позиционируемся по-обычному.
+  const pathname = usePathname()
+  const isAdminRoute = pathname === "/admin" || pathname.startsWith("/admin/")
 
   useEffect(() => {
     const handleScroll = () => {
@@ -49,14 +53,23 @@ export function ScrollToTop() {
           ? "translate-y-0 opacity-100 scale-100" 
           : "translate-y-20 opacity-0 scale-90 pointer-events-none",
         
-        // Специальное скрытие на мобилках при скролле ВВЕРХ (чтобы не пересекаться с доком)
-        !isScrollingDown && "md:translate-y-0 max-md:translate-y-24 max-md:opacity-0",
+        // Специальное скрытие на мобилках при скролле ВВЕРХ (чтобы не пересекаться с доком).
+        // В админке дока нет вообще, поэтому кнопка и при скролле вверх
+        // остаётся на месте — иначе она была бы «прикована» к правому
+        // нижнему углу и не появлялась там, где её ждут.
+        !isScrollingDown && !isAdminRoute && "md:translate-y-0 max-md:translate-y-24 max-md:opacity-0",
 
         /* Позиционирование */
-        // На мобилках: чуть выше, чтобы быть над зоной дока (bottom-24)
-        // На ПК: стандартно в углу (bottom-8)
-        "bottom-4 right-4 md:right-8 md:bottom-8",
-        
+        // На мобилках кнопка стояла на bottom-4 (16px) — ровно ВНУТРИ
+        // плавающего дока навигации (bottom-6, h-[68px] → зона 24…92px).
+        // Она рисуется позже Navbar в DOM, поэтому перехватывала тап по
+        // правому слоту дока. Поднимаем её над доком через готовый токен
+        // --bottom-nav-height. В админке дока нет — возвращаем обычный
+        // отступ, иначе кнопка болталась бы на 100px выше края экрана.
+        isAdminRoute
+          ? "bottom-4 right-4 md:right-8 md:bottom-8"
+          : "bottom-[calc(var(--bottom-nav-height)+0.75rem)] right-4 md:right-8 md:bottom-8",
+
         /* Стилизация (сохраняем вашу старую логику вида) */
         "w-12 h-12 rounded-xl bg-secondary/90 backdrop-blur-md border border-border shadow-2xl flex items-center justify-center active:scale-95",
         "text-muted-foreground hover:text-foreground hover:bg-secondary",

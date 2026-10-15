@@ -75,10 +75,17 @@ const PVP_SERVER_ORIGIN = (() => {
   }
 })()
 
+/**
+ * Базовые заголовки безопасности.
+ *
+ * X-XSS-Protection здесь больше НЕТ: его отключили все современные
+ * браузеры (Chrome 78+, Edge, Firefox), он ничего не защищал, но создавал
+ * ложное ощущение защищённости — и, что хуже, в некоторых старых сборках
+ * XSS Auditor отключал вывод в консоль, мешая диагностике.
+ */
 const SECURITY_HEADERS: Record<string, string> = {
   "X-Content-Type-Options": "nosniff",
   "X-Frame-Options": "DENY",
-  "X-XSS-Protection": "1; mode=block",
   // strict-origin-when-cross-origin вместо no-referrer: Umami берёт referrer
   // из document.referrer, а no-referrer всегда отдаёт пустую строку —
   // отчёт «Источники» в аналитике был бы пустым. Внешним сайтам при этом
@@ -328,6 +335,17 @@ export async function middleware(request: NextRequest, event?: NextFetchEvent) {
     isStateChangingMethod &&
     !isValidAdminRequestOrigin(request.headers.get("origin"), request.headers, request.url)
   ) {
+    // Серверный экшен, отклонённый по Origin, клиент Next не может
+    // отличить от сетевой ошибки: он показывает «TypeError: Failed to
+    // fetch» без единого слова о причине. Поэтому пишем в лог всё, что
+    // нужно для разбора, — включая то, что прислал клиент.
+    console.warn("[admin-origin] Отклонён state-changing запрос:", JSON.stringify({
+      pathname,
+      origin: request.headers.get("origin"),
+      host: request.headers.get("host"),
+      xForwardedProto: request.headers.get("x-forwarded-proto"),
+      requestUrl: request.url,
+    }))
     return applySecurityHeaders(new NextResponse("Forbidden", { status: 403 }), pathname)
   }
 

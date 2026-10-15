@@ -27,7 +27,7 @@ export function BattleLogsTab({
         </h2>
         <button
           onClick={onRefresh}
-          className="text-sm text-primary hover:underline w-fit"
+          className="text-sm text-primary hover:underline w-fit min-h-11 sm:min-h-0 px-2 -mx-2 sm:px-0 sm:mx-0"
           disabled={isLogsLoading}
         >
           Refresh
@@ -41,38 +41,40 @@ export function BattleLogsTab({
       ) : logsError ? (
         <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 mb-4">
           <p className="text-sm text-red-500 font-medium">Ошибка загрузки логов: {logsError}</p>
-          <button onClick={onRefresh} className="mt-2 text-xs text-red-400 hover:underline">Попробовать снова</button>
+          <button onClick={onRefresh} className="mt-2 text-xs text-red-400 hover:underline min-h-11 sm:min-h-0 px-2 -mx-2 sm:px-0 sm:mx-0">Попробовать снова</button>
         </div>
       ) : (
         <div className="bg-card border border-border rounded-xl overflow-hidden shadow-sm">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse min-w-[700px]">
+          <div className="overflow-x-auto overscroll-x-contain [scrollbar-width:thin]">
+            <table className="w-full text-left border-collapse min-w-[560px]">
               <thead className="bg-muted/50 text-xs uppercase tracking-wider text-muted-foreground">
                 <tr>
-                  <th className="px-3 sm:px-6 py-3 sm:py-4 font-semibold">Match ID / Time</th>
+                  <th className="px-3 sm:px-6 py-3 sm:py-4 font-semibold sticky left-0 bg-muted z-10">Match ID / Time</th>
                   <th className="px-3 sm:px-6 py-3 sm:py-4 font-semibold">Player 1</th>
                   <th className="px-3 sm:px-6 py-3 sm:py-4 font-semibold">Player 2</th>
                   <th className="px-3 sm:px-6 py-3 sm:py-4 font-semibold">Winner</th>
-                  <th className="px-3 sm:px-6 py-3 sm:py-4 font-semibold">Duration</th>
-                  <th className="px-3 sm:px-6 py-3 sm:py-4 font-semibold">Reason</th>
+                  <th className="px-3 sm:px-6 py-3 sm:py-4 font-semibold hidden lg:table-cell">Duration</th>
+                  <th className="px-3 sm:px-6 py-3 sm:py-4 font-semibold hidden sm:table-cell">Reason</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
                 {pvpLogs.map((log) => (
                   <tr key={log.id} className="hover:bg-muted/30 transition text-sm">
-                    <td className="px-3 sm:px-6 py-3 sm:py-4">
+                    <td className="px-3 sm:px-6 py-3 sm:py-4 sticky left-0 bg-card z-10">
                       <div className="font-mono text-[10px] text-muted-foreground mb-1 truncate max-w-[100px]">{log.id}</div>
-                      <div className="text-xs">{formatDate(log.created_at)}</div>
+                      <div className="text-xs whitespace-nowrap">{formatDate(log.created_at)}</div>
                     </td>
                     <td className="px-3 sm:px-6 py-3 sm:py-4">
                       <div className="flex items-center gap-2">
                         {log.player1.avatar_url && (
                           // eslint-disable-next-line @next/next/no-img-element
-                          <img src={log.player1.avatar_url} alt="" width={24} height={24} className="rounded-full" />
+                          <img src={log.player1.avatar_url} alt="" width={24} height={24} className="rounded-full shrink-0" />
                         )}
-                        <div className="flex flex-col">
-                          <span className="font-medium truncate max-w-[80px]">{log.player1.username || 'P1'}</span>
-                          <span className="text-[10px] text-muted-foreground">{log.player1_mmr_before} → {log.player1_mmr_after}</span>
+                        <div className="flex flex-col min-w-0">
+                          {/* 80px — это ~9 символов ника, то есть имя
+                              фактически не читалось. Расширяем. */}
+                          <span className="font-medium truncate max-w-[160px] sm:max-w-none">{log.player1.username || 'P1'}</span>
+                          <span className="text-[10px] text-muted-foreground whitespace-nowrap">{log.player1_mmr_before} → {log.player1_mmr_after}</span>
                         </div>
                       </div>
                     </td>
@@ -80,19 +82,19 @@ export function BattleLogsTab({
                       <div className="flex items-center gap-2">
                         {log.player2.avatar_url && (
                           // eslint-disable-next-line @next/next/no-img-element
-                          <img src={log.player2.avatar_url} alt="" width={24} height={24} className="rounded-full" />
+                          <img src={log.player2.avatar_url} alt="" width={24} height={24} className="rounded-full shrink-0" />
                         )}
-                        <div className="flex flex-col">
-                          <span className="font-medium truncate max-w-[80px]">{log.player2.username || 'P2'}</span>
-                          <span className="text-[10px] text-muted-foreground">{log.player2_mmr_before} → {log.player2_mmr_after}</span>
+                        <div className="flex flex-col min-w-0">
+                          <span className="font-medium truncate max-w-[160px] sm:max-w-none">{log.player2.username || 'P2'}</span>
+                          <span className="text-[10px] text-muted-foreground whitespace-nowrap">{log.player2_mmr_before} → {log.player2_mmr_after}</span>
                         </div>
                       </div>
                     </td>
                     <td className="px-3 sm:px-6 py-3 sm:py-4">
                       {log.winner_id ? (
                         <div className="flex items-center gap-1 text-emerald-500 font-bold">
-                          <Trophy size={14} />
-                          <span className="truncate max-w-[80px]">
+                          <Trophy size={14} className="shrink-0" />
+                          <span className="truncate max-w-[120px] sm:max-w-none">
                             {log.winner_id === log.player1_id ? (log.player1.username || 'P1') : (log.player2.username || 'P2')}
                           </span>
                         </div>
@@ -100,11 +102,11 @@ export function BattleLogsTab({
                         <span className="text-muted-foreground">Draw</span>
                       )}
                     </td>
-                    <td className="px-3 sm:px-6 py-3 sm:py-4 text-muted-foreground">
+                    <td className="px-3 sm:px-6 py-3 sm:py-4 text-muted-foreground whitespace-nowrap hidden lg:table-cell">
                       {log.duration_seconds}s
                     </td>
-                    <td className="px-3 sm:px-6 py-3 sm:py-4">
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                    <td className="px-3 sm:px-6 py-3 sm:py-4 hidden sm:table-cell">
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase whitespace-nowrap ${
                         log.battle_data?.reason === 'complete' ? 'bg-blue-500/10 text-blue-500 border border-blue-500/20' :
                         log.battle_data?.reason === 'disconnect' ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20' :
                         'bg-muted text-muted-foreground'

@@ -8,6 +8,7 @@ import { WatchPageClient } from './watch-page-client'
 import { WatchOrderSection } from './watch-order-section'
 import { CoverProvider } from '@/components/providers/cover-provider'
 import { cleanAnimeTitle } from '@/lib/seo/watch-url'
+import { sanitizeEditorialLink } from '@/lib/security/editorial-links'
 import type { Anime, FranchiseItem } from '@/lib/shikimori'
 import { PlayCircle, Tv, Film, Calendar, Star, Sparkles, Info } from 'lucide-react'
 
@@ -65,6 +66,13 @@ interface WatchPageLayoutWrapperProps {
   editorialReview?: EditorialReview | null
 }
 
+/**
+ * Разрешённые схемы для ссылок в тексте редакции.
+ *
+ * Правила и обоснование — в lib/security/editorial-links.ts: оттуда же
+ * импортируется сама функция.
+ */
+
 // Парсер встроенного Markdown (жирный **, курсив *, код `, ссылки [text](url))
 function parseInlineMarkdown(text: string) {
   // Добавлен паттерн \[[^\]]+\]\([^)]+\) для перехвата [текст](ссылка)
@@ -88,7 +96,11 @@ function parseInlineMarkdown(text: string) {
     if (part.match(/^\[[^\]]+\]\([^)]+\)$/)) {
       const match = part.match(/^\[([^\]]+)\]\(([^)]+)\)$/)
       if (match) {
-        const [, linkText, linkUrl] = match
+        const [, linkText, rawLinkUrl] = match
+        const linkUrl = sanitizeEditorialLink(rawLinkUrl)
+        // Ссылка с небезопасной схемой (javascript:, data:, vbscript: …)
+        // показывается как обычный текст — без href и без возможности клика.
+        if (!linkUrl) return <span key={i}>{linkText}</span>
         return (
           <a 
             key={i} 

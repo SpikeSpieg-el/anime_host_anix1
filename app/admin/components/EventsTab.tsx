@@ -102,17 +102,20 @@ export function EventsTab(props: EventsTabProps) {
   ) => (
     <form onSubmit={onSubmit} className="space-y-4">
       <div className="flex gap-2 p-1 bg-muted rounded-lg">
+        {/* min-w-0 + text-center: кнопки не могут сжаться, поэтому при
+            увеличенном системном шрифте «Ивент (Онгоинги)» вылезал за
+            свой flex-1 и налезал на соседнюю подпись. */}
         <button
           type="button"
           onClick={() => onFormChange({ ...form, banner_type: "standard" })}
-          className={`flex-1 px-3 py-2 rounded-md text-sm font-medium transition ${form.banner_type === "standard" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+          className={`flex-1 min-w-0 px-2 sm:px-3 py-2 min-h-11 sm:min-h-0 rounded-md text-xs sm:text-sm font-medium transition text-center ${form.banner_type === "standard" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
         >
           Стандартный
         </button>
         <button
           type="button"
           onClick={() => onFormChange({ ...form, banner_type: "dynamic" })}
-          className={`flex-1 px-3 py-2 rounded-md text-sm font-medium transition ${form.banner_type === "dynamic" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+          className={`flex-1 min-w-0 px-2 sm:px-3 py-2 min-h-11 sm:min-h-0 rounded-md text-xs sm:text-sm font-medium transition text-center ${form.banner_type === "dynamic" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
         >
           Ивент (Онгоинги)
         </button>
@@ -130,7 +133,7 @@ export function EventsTab(props: EventsTabProps) {
             required
             value={form.name}
             onChange={(e) => onFormChange({ ...form, name: e.target.value })}
-            className="w-full px-3 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-sm"
+            className="w-full px-3 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-base sm:text-sm"
           />
         </div>
         <div>
@@ -139,7 +142,7 @@ export function EventsTab(props: EventsTabProps) {
             type="text"
             value={form.image_url}
             onChange={(e) => onFormChange({ ...form, image_url: e.target.value })}
-            className="w-full px-3 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-sm"
+            className="w-full px-3 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-base sm:text-sm"
             placeholder="https://... (фон карточки баннера)"
           />
         </div>
@@ -151,7 +154,7 @@ export function EventsTab(props: EventsTabProps) {
           type="text"
           value={form.promo_image_url}
           onChange={(e) => onFormChange({ ...form, promo_image_url: e.target.value })}
-          className="w-full px-3 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-sm"
+          className="w-full px-3 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-base sm:text-sm"
           placeholder="https://... (промо-арт для шапки баннера, соотношение 7:5)"
         />
       </div>
@@ -161,7 +164,7 @@ export function EventsTab(props: EventsTabProps) {
         <textarea
           value={form.description}
           onChange={(e) => onFormChange({ ...form, description: e.target.value })}
-          className="w-full px-3 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-sm h-20"
+          className="w-full px-3 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-base sm:text-sm h-20"
         />
       </div>
 
@@ -173,7 +176,7 @@ export function EventsTab(props: EventsTabProps) {
             value={form.featured_anime_ids}
             onChange={(e) => onFormChange({ ...form, featured_anime_ids: e.target.value })}
             placeholder="1, 21, 5114"
-            className="w-full px-3 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-sm"
+            className="w-full px-3 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-base sm:text-sm"
           />
         </div>
         <div>
@@ -181,7 +184,7 @@ export function EventsTab(props: EventsTabProps) {
           <select
             value={form.boosted_rarity}
             onChange={(e) => onFormChange({ ...form, boosted_rarity: e.target.value as Rarity | "" })}
-            className="w-full px-3 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-sm"
+            className="w-full px-3 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-base sm:text-sm"
           >
             <option value="">Нет</option>
             {Object.entries(rarityConfig).map(([key, config]) => (
@@ -195,7 +198,7 @@ export function EventsTab(props: EventsTabProps) {
             type="number"
             value={form.price}
             onChange={(e) => onFormChange({ ...form, price: e.target.value })}
-            className="w-full px-3 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-sm"
+            className="w-full px-3 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-base sm:text-sm"
           />
         </div>
       </div>
@@ -223,7 +226,7 @@ export function EventsTab(props: EventsTabProps) {
             value={form.color}
             onChange={(e) => onFormChange({ ...form, color: e.target.value })}
             placeholder="from-purple-600 to-pink-700"
-            className="w-full mt-2 px-3 py-1.5 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-xs font-mono"
+            className="w-full mt-2 px-3 py-1.5 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-base sm:text-xs font-mono"
           />
         </div>
         <div>
@@ -232,7 +235,7 @@ export function EventsTab(props: EventsTabProps) {
             type="datetime-local"
             value={form.start_date}
             onChange={(e) => onFormChange({ ...form, start_date: e.target.value })}
-            className="w-full px-3 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-sm"
+            className="w-full px-3 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-base sm:text-sm"
           />
         </div>
         <div>
@@ -241,7 +244,7 @@ export function EventsTab(props: EventsTabProps) {
             type="datetime-local"
             value={form.end_date}
             onChange={(e) => onFormChange({ ...form, end_date: e.target.value })}
-            className="w-full px-3 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-sm"
+            className="w-full px-3 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-base sm:text-sm"
           />
         </div>
       </div>
@@ -262,7 +265,7 @@ export function EventsTab(props: EventsTabProps) {
             type="number"
             value={form.sort_order}
             onChange={(e) => onFormChange({ ...form, sort_order: parseInt(e.target.value) || 0 })}
-            className="w-full px-3 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-sm"
+            className="w-full px-3 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-base sm:text-sm"
           />
         </div>
       </div>
@@ -278,7 +281,7 @@ export function EventsTab(props: EventsTabProps) {
             value={form.guaranteed_card_json}
             onChange={(e) => onFormChange({ ...form, guaranteed_card_json: e.target.value })}
             placeholder="Вставьте объект Card в формате JSON. Можно получить в редакторе карт..."
-            className="w-full px-3 py-2 bg-muted border border-border rounded text-xs font-mono h-24"
+            className="w-full px-3 py-2 bg-muted border border-border rounded text-base sm:text-xs font-mono h-24"
           />
         </div>
         <div>
@@ -287,7 +290,7 @@ export function EventsTab(props: EventsTabProps) {
             value={form.guaranteed_cards_pool_json}
             onChange={(e) => onFormChange({ ...form, guaranteed_cards_pool_json: e.target.value })}
             placeholder='Массив карт: [{ "characterId": 1, "name": "...", ... }, ...]. При достижении pity выдаётся случайная невыбитая карта из пула. Когда все выбиты — пул сбрасывается.'
-            className="w-full px-3 py-2 bg-muted border border-border rounded text-xs font-mono h-32"
+            className="w-full px-3 py-2 bg-muted border border-border rounded text-base sm:text-xs font-mono h-32"
           />
           <p className="text-[10px] text-muted-foreground mt-1">
             Если пул заполнен, одиночная гарантированная карта игнорируется. Карты могут быть с одинаковым characterId.
@@ -300,22 +303,22 @@ export function EventsTab(props: EventsTabProps) {
             value={form.guaranteed_card_pity}
             onChange={(e) => onFormChange({ ...form, guaranteed_card_pity: e.target.value })}
             placeholder="Напр. 50 — гарантия через 50 круток"
-            className="w-full px-3 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-sm"
+            className="w-full px-3 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-base sm:text-sm"
           />
         </div>
       </div>
 
-      <div className="flex flex-col sm:flex-row justify-end gap-3 pt-2">
+      <div className="sticky bottom-0 -mx-3 sm:-mx-4 z-10 flex flex-col sm:flex-row justify-end gap-3 pt-3 pb-1 px-3 sm:px-4 bg-card/95 backdrop-blur border-t border-border">
         <button
           type="button"
           onClick={onCancel}
-          className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground transition"
+          className="px-4 py-2 min-h-11 sm:min-h-0 text-sm text-muted-foreground hover:text-foreground transition"
         >
           {isForm ? "Отмена" : "Отмена"}
         </button>
         <button
           type="submit"
-          className="px-6 py-2 bg-primary text-primary-foreground rounded-lg font-semibold hover:bg-primary/90 transition"
+          className="px-6 py-2 min-h-11 sm:min-h-0 bg-primary text-primary-foreground rounded-lg font-semibold hover:bg-primary/90 transition"
         >
           {submitLabel}
         </button>
@@ -359,19 +362,22 @@ export function EventsTab(props: EventsTabProps) {
             <div key={banner.id} className="bg-card border border-border rounded-xl p-4 sm:p-6 shadow-sm">
               <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2 mb-3">
                 <div className="flex-1 min-w-0">
-                  <h3 className="font-semibold text-lg flex items-center gap-2">
-                    {banner.name}
+                  {/* flex-wrap + break-words: два бейджа занимали ~172px, и на
+                      360px на имя баннера оставалось ~108px — длинное
+                      русское слово без переноса вылезало за карточку. */}
+                  <h3 className="font-semibold text-base sm:text-lg flex flex-wrap items-center gap-2 break-words min-w-0">
+                    <span className="break-words">{banner.name}</span>
                     {banner.banner_type === 'dynamic' && (
-                      <span className="text-[10px] px-2 py-0.5 rounded-full font-bold uppercase bg-cyan-500/10 text-cyan-500 border border-cyan-500/20">
+                      <span className="text-[10px] px-2 py-0.5 rounded-full font-bold uppercase bg-cyan-500/10 text-cyan-500 border border-cyan-500/20 shrink-0">
                         Ивент
                       </span>
                     )}
-                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${banner.is_active ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' : 'bg-muted text-muted-foreground'}`}>
+                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase shrink-0 ${banner.is_active ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' : 'bg-muted text-muted-foreground'}`}>
                       {banner.is_active ? 'Активен' : 'Неактивен'}
                     </span>
                   </h3>
                   {banner.description && (
-                    <p className="text-sm text-muted-foreground line-clamp-2 mt-1">{banner.description}</p>
+                    <p className="text-sm text-muted-foreground line-clamp-2 mt-1 break-words">{banner.description}</p>
                   )}
                   <div className="flex flex-wrap gap-3 mt-2 text-xs text-muted-foreground">
                     {banner.boosted_rarity && (
@@ -381,27 +387,33 @@ export function EventsTab(props: EventsTabProps) {
                     {banner.start_date && <span>С: {formatDate(banner.start_date)}</span>}
                     {banner.end_date && <span>До: {formatDate(banner.end_date)}</span>}
                     {banner.featured_anime_ids && banner.featured_anime_ids.length > 0 && (
-                      <span>Featured: {banner.featured_anime_ids.join(", ")}</span>
+                      <span className="break-all">Featured: {banner.featured_anime_ids.join(", ")}</span>
                     )}
                   </div>
                 </div>
                 <div className="flex gap-2 flex-shrink-0 self-end sm:self-auto">
                   <button
                     onClick={() => onStartEditBanner(banner)}
-                    className="p-2 text-muted-foreground hover:text-primary transition"
+                    className="p-2 min-h-11 min-w-11 sm:min-h-0 sm:min-w-0 text-muted-foreground hover:text-primary transition"
                     title="Редактировать баннер"
+                    aria-label="Редактировать баннер"
                   >
                     <Edit size={18} />
                   </button>
                   <button
+                    type="button"
+                    role="switch"
+                    aria-checked={banner.is_active}
+                    aria-label={`Баннер «${banner.name}»`}
                     onClick={() => onToggleBannerActive(banner)}
-                    className={`w-10 h-5 rounded-full relative transition-colors ${banner.is_active ? 'bg-primary' : 'bg-muted'}`}
+                    className={`w-10 h-5 rounded-full relative transition-colors before:absolute before:-inset-3 before:content-[''] ${banner.is_active ? 'bg-primary' : 'bg-muted'}`}
                   >
                     <div className={`absolute top-1 w-3 h-3 rounded-full bg-white transition-all ${banner.is_active ? 'left-6' : 'left-1'}`} />
                   </button>
                   <button
                     onClick={() => onDeleteBanner(banner.id)}
-                    className="p-2 text-muted-foreground hover:text-destructive transition"
+                    className="p-2 min-h-11 min-w-11 sm:min-h-0 sm:min-w-0 text-muted-foreground hover:text-destructive transition"
+                    aria-label="Удалить баннер"
                   >
                     <Trash2 size={18} />
                   </button>
@@ -428,10 +440,16 @@ export function EventsTab(props: EventsTabProps) {
               )}
 
               {editingBannerId === banner.id && editBanner && (
-                <div className="mt-4 pt-4 border-t border-border bg-muted/30 rounded-lg p-3 sm:p-4 space-y-4">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Edit size={16} className="text-primary" />
-                    <h4 className="font-semibold text-sm">Редактирование баннера</h4>
+                // Форма целиком рендерится в карточке: ~1200px высоты
+                // (палитра, два datetime-local, два textarea, число).
+                // На 360×640 кнопки «Отмена»/«Сохранить» оказывались за
+                // пределами экрана и до них было невозможно добраться.
+                // Ограничиваем высоту и прокручиваем только её, а сам ряд
+                // действий делаем липким — он всегда под рукой.
+                <div className="mt-4 pt-4 border-t border-border bg-muted/30 rounded-lg p-3 sm:p-4 space-y-4 max-h-[75dvh] overflow-y-auto overscroll-contain">
+                  <div className="flex items-center gap-2 mb-2 sticky top-0 bg-muted/95 backdrop-blur py-1 -my-1 z-10">
+                    <Edit size={16} className="text-primary shrink-0" />
+                    <h4 className="font-semibold text-sm min-w-0 break-words">Редактирование баннера</h4>
                   </div>
                   {renderBannerForm(editBanner, onEditBannerChange, (e) => { e.preventDefault(); onSaveEditBanner() }, onCancelEditBanner, "Сохранить", false)}
                 </div>
@@ -476,7 +494,7 @@ export function EventsTab(props: EventsTabProps) {
                                     const w = parseInt(e.target.value) || 0
                                     onBannerCardsChange(banner.id, (bannerCards[banner.id] || []).map(c => c.id === bc.id ? { ...c, weight: w } : c))
                                   }}
-                                  className="w-16 px-2 py-1 bg-muted border border-border rounded text-xs"
+                                  className="w-16 px-2 py-1 bg-muted border border-border rounded text-base sm:text-xs"
                                 />
                                 <label className="text-xs text-muted-foreground flex items-center gap-1">
                                   <input
@@ -513,7 +531,7 @@ export function EventsTab(props: EventsTabProps) {
                           value={newBannerCardJson[banner.id] || ""}
                           onChange={(e) => onNewBannerCardJsonChange(banner.id, e.target.value)}
                           placeholder="Вставьте объект Card в формате JSON..."
-                          className="w-full px-3 py-2 bg-muted border border-border rounded text-xs font-mono h-24"
+                          className="w-full px-3 py-2 bg-muted border border-border rounded text-base sm:text-xs font-mono h-24"
                         />
                         <div className="flex flex-wrap items-center gap-3">
                           <div className="flex items-center gap-2">
@@ -522,7 +540,7 @@ export function EventsTab(props: EventsTabProps) {
                               type="number"
                               value={newBannerCardWeight[banner.id] ?? 1}
                               onChange={(e) => onNewBannerCardWeightChange(banner.id, parseInt(e.target.value) || 1)}
-                              className="w-16 px-2 py-1 bg-muted border border-border rounded text-xs"
+                              className="w-16 px-2 py-1 bg-muted border border-border rounded text-base sm:text-xs"
                             />
                           </div>
                           <label className="text-xs text-muted-foreground flex items-center gap-1">

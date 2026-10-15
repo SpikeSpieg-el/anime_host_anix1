@@ -129,6 +129,26 @@
   body {
     @apply text-foreground;
     overflow-y: scroll !important;
+    /*
+      overflow-x: clip — страховка от горизонтального скролла всей страницы.
+      Раньше стоял только overflow-y, и один переполненный потомок (таблица,
+      длинный URL, фиксированная ширина) уводил вбок всю страницу целиком.
+
+      Именно clip, и именно ТОЛЬКО на body:
+       - clip не создаёт scroll-контейнер, поэтому position: sticky внутри
+         продолжает работать;
+       - правило «если одна ось clip, а другая — нет, то clip становится
+         hidden» здесь срабатывает (вторая ось overflow-y: scroll), и итоговое
+         значение для страницы всё равно hidden. Разница в том, что сам body
+         при этом не становится scroll-контейнером;
+       - на html overflow-x ставить НЕЛЬЗЯ: пока у корня значение visible,
+         браузер переносит overflow с body на вьюпорт, и всё работает как
+         было. Стоит только появиться у html своему не-visible overflow, перенос
+         прекращается, body становится scroll-контейнером, и position: sticky
+         ломается по всему сайту.
+    */
+    overflow-x: clip;
+    overscroll-behavior-x: none;
   }
 
   body[data-scroll-locked] {

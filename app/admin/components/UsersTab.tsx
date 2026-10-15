@@ -175,8 +175,12 @@ export function UsersTab({
     setSortOption("default")
   }
 
-  const selectClass =
-    "px-3 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-2 focus:ring-primary text-sm text-foreground"
+  // text-base на мобильных: при font-size < 16px iOS Safari зумит страницу
+// при фокусе на поле. max-w-[60vw] ограничивает нативный <select>, который
+// иначе раздувается по самому длинному варианту («Есть история просмотров»)
+// и выдавливает соседние элементы за пределы карточки.
+const selectClass =
+    "px-3 py-2 min-h-11 max-w-[100%] bg-muted border border-border rounded focus:outline-none focus:ring-2 focus:ring-primary text-base sm:text-sm sm:min-h-0 text-foreground"
 
   return (
     <>
@@ -194,8 +198,10 @@ export function UsersTab({
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center gap-1.5">
-              <Filter size={14} className="text-muted-foreground" />
+            {/* min-w-0 у обёрток: нативный select не умеет сжиматься
+                (min-width:auto), и без этого он выдавливал соседей. */}
+            <div className="flex items-center gap-1.5 min-w-0">
+              <Filter size={14} className="text-muted-foreground shrink-0" />
               <select
                 value={activityFilter}
                 onChange={(e) => setActivityFilter(e.target.value as ActivityFilter)}
@@ -208,8 +214,8 @@ export function UsersTab({
               </select>
             </div>
 
-            <div className="flex items-center gap-1.5">
-              <ArrowUpDown size={14} className="text-muted-foreground" />
+            <div className="flex items-center gap-1.5 min-w-0">
+              <ArrowUpDown size={14} className="text-muted-foreground shrink-0" />
               <select
                 value={sortOption}
                 onChange={(e) => setSortOption(e.target.value as SortOption)}
@@ -225,18 +231,18 @@ export function UsersTab({
             <button
               onClick={onRefresh}
               disabled={loading}
-              className="inline-flex items-center gap-1.5 px-3 py-2 text-sm text-foreground bg-muted/50 hover:bg-muted border border-border rounded transition disabled:opacity-60"
+              className="inline-flex items-center gap-1.5 px-3 py-2 min-h-11 sm:min-h-0 text-sm text-foreground bg-muted/50 hover:bg-muted border border-border rounded transition disabled:opacity-60"
             >
-              <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
+              <RefreshCw size={14} className={loading ? "animate-spin" : "shrink-0"} />
               Обновить список
             </button>
 
             {hasActiveFilters && (
               <button
                 onClick={resetFilters}
-                className="inline-flex items-center gap-1 px-2.5 py-2 text-xs text-muted-foreground hover:text-foreground bg-muted/50 hover:bg-muted border border-border rounded transition"
+                className="inline-flex items-center gap-1 px-2.5 py-2 min-h-11 sm:min-h-0 text-xs text-muted-foreground hover:text-foreground bg-muted/50 hover:bg-muted border border-border rounded transition"
               >
-                <X size={12} />
+                <X size={12} className="shrink-0" />
                 Сбросить
               </button>
             )}
@@ -272,7 +278,9 @@ export function UsersTab({
 
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <h3 className="font-semibold text-foreground">
+                    {/* break-words: логином может быть e-mail, а длинные
+                        имена без переноса распирали карточку. */}
+                    <h3 className="font-semibold text-foreground break-words min-w-0">
                       {user.username && !user.username.includes("@") ? user.username : user.email || user.username || "Без имени"}
                     </h3>
                     {user.is_banned && (
@@ -282,7 +290,7 @@ export function UsersTab({
                     )}
                   </div>
                   {user.email && user.username && user.username !== user.email && (
-                    <p className="text-xs text-muted-foreground">{user.email}</p>
+                    <p className="text-xs text-muted-foreground break-all">{user.email}</p>
                   )}
                   <p className="text-xs text-muted-foreground font-mono truncate" title={user.id}>ID: {user.id}</p>
                   <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1 text-xs text-muted-foreground">
@@ -291,14 +299,14 @@ export function UsersTab({
                     {user.last_sign_in_at && <span>Вход: {formatDate(user.last_sign_in_at)}</span>}
                   </div>
                   {user.referrerDomain && (
-                    <p className="mt-1 text-xs text-sky-500 flex items-center gap-1.5">
-                      <MapPin size={12} />Источник: <span className="font-mono">{user.referrerDomain}</span>
+                    <p className="mt-1 text-xs text-sky-500 flex items-center gap-1.5 min-w-0">
+                      <MapPin size={12} className="shrink-0" />Источник: <span className="font-mono truncate">{user.referrerDomain}</span>
                     </p>
                   )}
                 </div>
               </div>
 
-              <div className="flex gap-4 sm:gap-6 text-sm shrink-0">
+              <div className="flex flex-wrap gap-4 sm:gap-6 text-sm shrink-0">
                 <div className="text-center">
                   <div className="flex items-center gap-1 text-foreground font-semibold">
                     <Eye size={16} />{user.watchHistoryCount}
@@ -411,10 +419,10 @@ export function UsersTab({
                           Журнал не подключён: в Supabase не найдена таблица user_activity_events. После применения миграции события будут отображаться здесь.
                         </p>
                       ) : (user.activityEvents ?? []).length > 0 ? (
-                        <div className="space-y-2 max-h-80 overflow-y-auto">
+                        <div className="space-y-2 max-h-64 sm:max-h-80 overflow-y-auto overscroll-contain">
                           {(user.activityEvents ?? []).map((event) => (
                             <div key={event.id} className="flex items-start justify-between gap-3 rounded-lg bg-muted/50 p-3">
-                              <p className="text-sm text-foreground break-words">{describeActivity(event)}</p>
+                              <p className="text-sm text-foreground break-words min-w-0">{describeActivity(event)}</p>
                               <time className="shrink-0 text-[11px] text-muted-foreground">{formatDate(event.created_at)}</time>
                             </div>
                           ))}
@@ -440,7 +448,7 @@ export function UsersTab({
                         </button>
                       )}
                     </div>
-                    <div className="grid gap-2 max-h-80 sm:max-h-96 overflow-y-auto">
+                    <div className="grid gap-2 max-h-64 sm:max-h-96 overflow-y-auto overscroll-contain">
                       {(showAllHistory ? user.allHistory : user.recentHistory.slice(0, 5)).map((item) => (
                         <div key={item.id} className="flex items-center gap-2 sm:gap-3 p-2 bg-muted/50 rounded hover:bg-muted/70 transition">
                           {item.poster && (
@@ -480,7 +488,7 @@ export function UsersTab({
                         </button>
                       )}
                     </div>
-                    <div className="grid gap-2 max-h-80 sm:max-h-96 overflow-y-auto">
+                    <div className="grid gap-2 max-h-64 sm:max-h-96 overflow-y-auto overscroll-contain">
                       {(showAllBookmarks ? user.allBookmarks : user.recentBookmarks.slice(0, 5)).map((item) => (
                         <div key={item.id} className="flex items-center gap-2 sm:gap-3 p-2 bg-muted/50 rounded hover:bg-muted/70 transition">
                           {item.anime_data?.poster && (
@@ -593,7 +601,11 @@ export function UsersTab({
                       {user.aiStats.favorite_cards.length > 0 && (
                         <div>
                           <p className="text-xs text-muted-foreground mb-2">Любимые карты</p>
-                          <div className="space-y-2 max-h-48 overflow-y-auto">
+                          {/* Здесь всего 5 карточек, поэтому ограничение высоты было чистой
+                            ловушкой скролла: палец прокручивал внутренний
+                            блок вместо страницы, и список выглядел
+                            обрезанным. */}
+                          <div className="space-y-2">
                             {user.aiStats.favorite_cards.slice(0, 5).map((card: any) => (
                               <div key={card.cardId} className="flex items-center justify-between p-2 bg-muted rounded">
                                 <div className="flex-1 min-w-0">

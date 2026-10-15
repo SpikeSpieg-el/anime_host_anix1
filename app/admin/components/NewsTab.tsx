@@ -204,34 +204,34 @@ export function NewsTab({ news, isLoading, onCreateNews, onUpdateNews, onDeleteN
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between items-start gap-3">
         <h2 className="text-xl font-bold text-foreground">Управление новостями</h2>
         <button
           onClick={() => {
             setShowCreateForm(!showCreateForm)
             if (!showCreateForm) resetForm()
           }}
-          className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition shadow"
+          className="flex w-full sm:w-auto items-center justify-center gap-2 min-h-11 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition shadow"
         >
-          <Plus className="w-4 h-4" />
+          <Plus className="w-4 h-4 shrink-0" />
           Добавить новость
         </button>
       </div>
 
       {/* Form: Create News */}
       {showCreateForm && (
-        <form onSubmit={handleCreate} className="bg-card border border-border rounded-xl p-6 space-y-5 shadow-lg">
-          <div className="flex items-center justify-between border-b border-border pb-3">
-            <h3 className="text-lg font-semibold text-foreground">Новая новость</h3>
-            
+        <form onSubmit={handleCreate} className="bg-card border border-border rounded-xl p-4 sm:p-6 space-y-5 shadow-lg">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between items-start gap-2 border-b border-border pb-3">
+            <h3 className="text-base sm:text-lg font-semibold text-foreground">Новая новость</h3>
+
             {/* Переключатель Табов Редактор / Предпросмотр */}
-            <div className="flex bg-muted p-1 rounded-lg gap-1 border border-border">
+            <div className="flex shrink-0 w-full sm:w-auto bg-muted p-1 rounded-lg gap-1 border border-border">
               <button
                 type="button"
                 onClick={() => setCreateTab("edit")}
-                className={`flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-md transition ${createTab === 'edit' ? 'bg-card text-foreground shadow' : 'text-muted-foreground hover:text-foreground'}`}
+                className={`flex flex-1 sm:flex-none items-center justify-center gap-1.5 px-3 py-2 sm:py-1 min-h-11 sm:min-h-0 text-xs font-medium rounded-md transition ${createTab === 'edit' ? 'bg-card text-foreground shadow' : 'text-muted-foreground hover:text-foreground'}`}
               >
-                <FileText className="w-3.5 h-3.5" />
+                <FileText className="w-3.5 h-3.5 shrink-0" />
                 Редактор
               </button>
               <button
@@ -289,7 +289,7 @@ export function NewsTab({ news, isLoading, onCreateNews, onUpdateNews, onDeleteN
                   value={newBody}
                   onChange={(e) => setNewBody(e.target.value)}
                   rows={8}
-                  className="w-full px-3 py-2 bg-muted border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary text-foreground font-mono text-sm resize-none"
+                  className="w-full px-3 py-2 bg-muted border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary text-foreground font-mono text-base sm:text-sm resize-none"
                   placeholder="<p>Ваш текст...</p> <h2>Подзаголовок</h2>"
                 />
               </div>
@@ -297,11 +297,13 @@ export function NewsTab({ news, isLoading, onCreateNews, onUpdateNews, onDeleteN
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1">URL изображения баннера</label>
                 <div className="flex gap-2">
+                  {/* min-w-0 обязателен: у <input> min-width:auto, и без него
+                      flex-1 не мог сжать поле до ширины контейнера. */}
                   <input
                     type="text"
                     value={newImageUrl}
                     onChange={(e) => setNewImageUrl(e.target.value)}
-                    className="flex-1 px-3 py-2 bg-muted border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary text-foreground"
+                    className="flex-1 min-w-0 min-h-11 px-3 py-2 bg-muted border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary text-foreground"
                     placeholder="https://example.com/image.jpg"
                   />
                   {newImageUrl && (
@@ -372,26 +374,31 @@ export function NewsTab({ news, isLoading, onCreateNews, onUpdateNews, onDeleteN
               <div key={item.id} className="bg-card border border-border rounded-xl overflow-hidden transition shadow-sm">
                 {isEditing ? (
                   /* Form: Edit Mode */
-                  <div className="p-6 space-y-4">
-                    <div className="flex items-center justify-between border-b border-border pb-3">
-                      <h3 className="text-lg font-semibold text-foreground">Редактирование новости</h3>
-                      
+                  <div className="p-4 sm:p-6 space-y-4">
+                    {/* На 360px внутренняя ширина ~288px, а блок переключателя
+                        занимает ~250px — h3 с неразрывным словом
+                        «Редактирование» вылезал за карточку и обрезался по
+                        overflow-hidden. Переносим заголовок и переключатель
+                        на отдельные строки. */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between items-start gap-2 border-b border-border pb-3">
+                      <h3 className="text-base sm:text-lg font-semibold text-foreground">Редактирование новости</h3>
+
                       {/* Табы для редактирования */}
-                      <div className="flex bg-muted p-1 rounded-lg gap-1 border border-border">
+                      <div className="flex shrink-0 w-full sm:w-auto bg-muted p-1 rounded-lg gap-1 border border-border">
                         <button
                           type="button"
                           onClick={() => setEditTab("edit")}
-                          className={`flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-md transition ${editTab === 'edit' ? 'bg-card text-foreground shadow' : 'text-muted-foreground hover:text-foreground'}`}
+                          className={`flex flex-1 sm:flex-none items-center justify-center gap-1.5 px-3 py-2 sm:py-1 min-h-11 sm:min-h-0 text-xs font-medium rounded-md transition ${editTab === 'edit' ? 'bg-card text-foreground shadow' : 'text-muted-foreground hover:text-foreground'}`}
                         >
-                          <FileText className="w-3.5 h-3.5" />
+                          <FileText className="w-3.5 h-3.5 shrink-0" />
                           Редактор
                         </button>
                         <button
                           type="button"
                           onClick={() => setEditTab("preview")}
-                          className={`flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-md transition ${editTab === 'preview' ? 'bg-primary text-primary-foreground shadow' : 'text-muted-foreground hover:text-foreground'}`}
+                          className={`flex flex-1 sm:flex-none items-center justify-center gap-1.5 px-3 py-2 sm:py-1 min-h-11 sm:min-h-0 text-xs font-medium rounded-md transition ${editTab === 'preview' ? 'bg-primary text-primary-foreground shadow' : 'text-muted-foreground hover:text-foreground'}`}
                         >
-                          <Sparkles className="w-3.5 h-3.5" />
+                          <Sparkles className="w-3.5 h-3.5 shrink-0" />
                           Предпросмотр
                         </button>
                       </div>
@@ -434,7 +441,7 @@ export function NewsTab({ news, isLoading, onCreateNews, onUpdateNews, onDeleteN
                             value={newBody}
                             onChange={(e) => setNewBody(e.target.value)}
                             rows={8}
-                            className="w-full px-3 py-2 bg-muted border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary text-foreground font-mono text-sm resize-none"
+                            className="w-full px-3 py-2 bg-muted border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary text-foreground font-mono text-base sm:text-sm resize-none"
                           />
                         </div>
 
@@ -485,7 +492,7 @@ export function NewsTab({ news, isLoading, onCreateNews, onUpdateNews, onDeleteN
                 ) : (
                   /* View Mode */
                   <div>
-                    <div className="p-4 flex items-start gap-4">
+                    <div className="p-4 flex flex-col sm:flex-row sm:items-start gap-3 sm:gap-4">
                       {item.image_url && (
                         <img
                           src={item.image_url}
@@ -495,28 +502,35 @@ export function NewsTab({ news, isLoading, onCreateNews, onUpdateNews, onDeleteN
                         />
                       )}
 
-                      <div className="flex-1 min-w-0">
+                      <div className="flex-1 min-w-0 w-full">
                         <div className="flex items-center gap-2 mb-1 flex-wrap">
-                          <h3 className="font-semibold text-foreground truncate max-w-md">{item.title}</h3>
+                          <h3 className="font-semibold text-foreground truncate max-w-full sm:max-w-md">{item.title}</h3>
                           <span className={`text-xs px-2 py-0.5 rounded font-medium ${item.is_published ? 'bg-green-500/20 text-green-400' : 'bg-yellow-500/20 text-yellow-400'}`}>
                             {item.is_published ? 'Опубликовано' : 'Черновик'}
                           </span>
                         </div>
-                        
-                        <p className="text-sm text-muted-foreground line-clamp-2 mb-2">{item.excerpt}</p>
-                        
-                        <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                          {item.author && <span>Автор: {item.author}</span>}
-                          <span>{formatDate(item.created_at)}</span>
+
+                        <p className="text-sm text-muted-foreground line-clamp-2 mb-2 break-words">{item.excerpt}</p>
+
+                        {/* flex-wrap: строка «Автор + дата» не помещалась в
+                            остаток ширины и вылезала за карточку. */}
+                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                          {item.author && <span className="break-words">Автор: {item.author}</span>}
+                          <span className="whitespace-nowrap">{formatDate(item.created_at)}</span>
                         </div>
                       </div>
 
-                      {/* Кнопки действий */}
-                      <div className="flex items-center gap-1 flex-shrink-0">
+                      {/* Кнопки действий.
+                          На телефоне это 4 кнопки общей шириной ~160px, а на
+                          360px от колонки с заголовком оставалось ~48px —
+                          заголовок превращался в «Управ…», а строка с автором
+                          обрезалась. Поэтому на мобильном кнопки переносятся
+                          на отдельную строку под содержимым. */}
+                      <div className="flex items-center gap-1 flex-shrink-0 w-full sm:w-auto justify-end sm:justify-start -mb-1">
                         {/* КНОПКА РАЗВОРОТА ПРЕДПРОСМОТРА */}
                         <button
                           onClick={() => setExpandedId(isExpanded ? null : item.id)}
-                          className={`flex items-center gap-1 px-2.5 py-1.5 rounded text-xs font-medium transition ${
+                          className={`flex items-center gap-1 px-2.5 py-1.5 min-h-11 sm:min-h-0 rounded text-xs font-medium transition ${
                             isExpanded ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:text-foreground'
                           }`}
                           title={isExpanded ? "Свернуть" : "Развернуть предпросмотр"}
@@ -528,22 +542,25 @@ export function NewsTab({ news, isLoading, onCreateNews, onUpdateNews, onDeleteN
 
                         <button
                           onClick={() => onTogglePublished(item.id, item.is_published)}
-                          className="p-2 hover:bg-muted rounded transition"
+                          className="p-2 min-h-11 min-w-11 sm:min-h-0 sm:min-w-0 hover:bg-muted rounded transition"
                           title={item.is_published ? "Скрыть" : "Опубликовать"}
+                          aria-label={item.is_published ? "Скрыть новость" : "Опубликовать новость"}
                         >
                           {item.is_published ? <Eye className="w-4 h-4 text-green-400" /> : <EyeOff className="w-4 h-4 text-yellow-400" />}
                         </button>
                         <button
                           onClick={() => handleStartEdit(item)}
-                          className="p-2 hover:bg-muted rounded transition"
+                          className="p-2 min-h-11 min-w-11 sm:min-h-0 sm:min-w-0 hover:bg-muted rounded transition"
                           title="Редактировать"
+                          aria-label="Редактировать новость"
                         >
                           <Edit className="w-4 h-4 text-blue-400" />
                         </button>
                         <button
                           onClick={() => onDeleteNews(item.id)}
-                          className="p-2 hover:bg-muted rounded transition"
+                          className="p-2 min-h-11 min-w-11 sm:min-h-0 sm:min-w-0 hover:bg-muted rounded transition"
                           title="Удалить"
+                          aria-label="Удалить новость"
                         >
                           <Trash2 className="w-4 h-4 text-red-400" />
                         </button>

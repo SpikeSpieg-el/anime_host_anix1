@@ -125,15 +125,27 @@ export default function AdminPage() {
   const [newsLoaded, setNewsLoaded] = useState(false)
 
   useEffect(() => {
-    checkAdminAuth().then((authenticated) => {
-      setIsAuthenticated(authenticated)
-      if (authenticated) {
-        fetchUsers()
-        fetchPvPData()
-        fetchPvPLogs()
-        fetchBattleBackgrounds()
-      }
-    })
+    // Раньше здесь стоял .then() без .catch(). Любой отказ сетевого слоя
+    // (перезапуск dev-сервера, протухший action id, отклонённый по Origin
+    // middleware) давал unhandled rejection, который улетал в error
+    // boundary и показывал «TypeError: Failed to fetch» ВМЕСТО формы входа.
+    //
+    // Проверка авторизации не должна ронять страницу: если сервер не
+    // ответил, пользователь просто не авторизован и видит экран входа.
+    checkAdminAuth()
+      .then((authenticated) => {
+        setIsAuthenticated(authenticated)
+        if (authenticated) {
+          fetchUsers()
+          fetchPvPData()
+          fetchPvPLogs()
+          fetchBattleBackgrounds()
+        }
+      })
+      .catch((error) => {
+        console.error("[admin] Не удалось проверить авторизацию:", error)
+        setIsAuthenticated(false)
+      })
   }, [])
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -143,21 +155,34 @@ export default function AdminPage() {
       formData.set("username", username)
       formData.set("password", password)
       formData.set("totpCode", totpCode)
-      const result = await adminLogin(formData)
-      if (result?.error) {
-        setPassword("")
-        setTotpCode("")
-        setAuthError(result.error)
-      } else {
-        setAuthError("")
-        setIsAuthenticated(true)
-        fetchUsers()
+      try {
+        const result = await adminLogin(formData)
+        if (result?.error) {
+          setPassword("")
+          setTotpCode("")
+          setAuthError(result.error)
+        } else {
+          setAuthError("")
+          setIsAuthenticated(true)
+          fetchUsers()
+        }
+      } catch (error) {
+        // Сетевой обрыв или протухший action id после перезапуска dev-сервера.
+        // Раньше это было unhandled rejection внутри startTransition, и
+        // пользователь видел стектрейс вместо формы входа.
+        console.error("[admin] Ошибка входа:", error)
+        setAuthError("Не удалось связаться с сервером. Обновите страницу и попробуйте снова.")
       }
     })
   }
 
   const handleLogout = async () => {
-    await adminLogout()
+    try {
+      await adminLogout()
+    } catch (error) {
+      // Выход не должен падать: кука всё равно уйдёт по истечении.
+      console.error("[admin] Ошибка выхода:", error)
+    }
     setIsAuthenticated(false)
     setUsers([])
   }
@@ -739,18 +764,18 @@ export default function AdminPage() {
               )}
               <div>
                 <label htmlFor="admin-username" className="block text-sm font-medium text-foreground mb-2">Логин</label>
-                <input id="admin-username" name="username" type="text" autoComplete="username" value={username} onChange={(e) => setUsername(e.target.value)} className="w-full px-3 py-2 bg-muted border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary text-foreground" required />
+                <input id="admin-username" name="username" type="text" autoComplete="username" value={username} onChange={(e) => setUsername(e.target.value)} className="w-full min-h-11 px-3 py-2 bg-muted border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary text-foreground" required />
               </div>
               <div>
                 <label htmlFor="admin-password" className="block text-sm font-medium text-foreground mb-2">Пароль</label>
-                <input id="admin-password" name="password" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full px-3 py-2 bg-muted border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary text-foreground" required />
+                <input id="admin-password" name="password" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full min-h-11 px-3 py-2 bg-muted border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary text-foreground" required />
               </div>
               <div>
                 <label htmlFor="admin-totp" className="block text-sm font-medium text-foreground mb-2">Код из приложения-аутентификатора (TOTP)</label>
-                <input id="admin-totp" name="totpCode" type="text" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} value={totpCode} onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, "").slice(0, 6))} className="w-full px-3 py-2 bg-muted border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary text-foreground" aria-describedby="admin-totp-hint" />
+                <input id="admin-totp" name="totpCode" type="text" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} value={totpCode} onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, "").slice(0, 6))} className="w-full min-h-11 px-3 py-2 bg-muted border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary text-foreground" aria-describedby="admin-totp-hint" />
                 <p id="admin-totp-hint" className="mt-1 text-xs text-muted-foreground">Обязателен в production; в локальной разработке — если настроен.</p>
               </div>
-              <button type="submit" disabled={isPending} className="w-full py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors font-medium disabled:opacity-50">
+              <button type="submit" disabled={isPending} className="w-full min-h-11 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors font-medium disabled:opacity-50">
                 {isPending ? "Входим…" : "Войти"}
               </button>
             </form>
@@ -792,18 +817,23 @@ export default function AdminPage() {
 
   return (
     <div className="min-h-screen bg-background">
+      {/* pb под плавающий док навигации: без него Footer и последние
+          строки таблиц на телефоне оказывались под непрозрачной панелью. */}
+      {/* Отступ под плавающий док раньше был обязателен: док перекрывал
+          низ страницы. Теперь он скрыт на /admin (Navbar), поэтому
+          запас снизу не нужен. */}
       <div className="max-w-7xl mx-auto p-3 sm:p-4 md:p-6 lg:p-8">
         <div className="flex flex-col gap-4 mb-6 md:mb-8">
-          <div className="flex justify-between items-center">
-            <div>
-              <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-foreground mb-1 md:mb-2">Панель администратора</h1>
+          <div className="flex flex-wrap justify-between items-center gap-2">
+            <div className="min-w-0">
+              <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-foreground mb-1 md:mb-2 break-words">Панель администратора</h1>
             </div>
             <div className="flex gap-2 sm:gap-4 items-center">
               <div className="text-xs sm:text-sm text-muted-foreground hidden sm:block">
                 Пользователей: {users.length}
               </div>
-              <button onClick={handleLogout} className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-muted hover:bg-muted/80 rounded transition text-sm" disabled={isPending}>
-                <LogOut size={16} />
+              <button onClick={handleLogout} className="flex items-center gap-2 min-h-11 px-3 sm:px-4 py-2 bg-muted hover:bg-muted/80 rounded transition text-sm" disabled={isPending}>
+                <LogOut size={16} className="shrink-0" />
                 {isPending ? "…" : "Выйти"}
               </button>
             </div>

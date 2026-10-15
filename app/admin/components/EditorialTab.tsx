@@ -1,12 +1,16 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { supabase } from "@/lib/supabase"
 import { toast } from "sonner"
 import { Sparkles, Edit, Trash2, Plus, Loader2, Eye, FileText, HelpCircle, ChevronDown, ChevronUp, Copy, Check } from "lucide-react"
 import { FormattedEditorialContent } from "@/components/watch/watch-page-layout-wrapper"
+import { deleteEditorialReview, getEditorialReviews, upsertEditorialReview } from "../actions"
 
-interface EditorialReview {
+// Запись идёт ТОЛЬКО через server action с checkAdminAuth().
+// Раньше здесь был прямой upsert/delete из браузера через anon-ключ
+// Supabase — авторизация держалась исключительно на RLS, а миграции для
+// editorial_reviews не существовало. Теперь путь один, и он под нами.
+type EditorialReview = {
   id: string
   anime_id: string
   content: string
@@ -43,12 +47,7 @@ export function EditorialTab() {
   const fetchReviews = async () => {
     try {
       setLoading(true)
-      const { data, error } = await supabase
-        .from("editorial_reviews")
-        .select("*")
-        .order("updated_at", { ascending: false })
-
-      if (error) throw error
+      const data = await getEditorialReviews()
       setReviews((data as EditorialReview[]) || [])
     } catch (err: any) {
       console.error("Failed to fetch editorial reviews:", err)
@@ -71,16 +70,11 @@ export function EditorialTab() {
 
     try {
       setSaving(true)
-      const { error } = await supabase.from("editorial_reviews").upsert(
-        {
-          anime_id: animeId.trim(),
-          content: content.trim(),
-          author: author.trim() || "Редакция Weebx",
-        },
-        { onConflict: "anime_id" }
-      )
-
-      if (error) throw error
+      await upsertEditorialReview({
+        anime_id: animeId.trim(),
+        content: content.trim(),
+        author: author.trim() || "Редакция Weebx",
+      })
 
       toast.success(editingId ? "Мнение редакции обновлено!" : "Мнение редакции добавлено!")
       setAnimeId("")
@@ -91,7 +85,7 @@ export function EditorialTab() {
       fetchReviews()
     } catch (err: any) {
       console.error("Error saving review:", err)
-      toast.error(`Ошибка: ${err.message}`)
+      toast.error(`Ошибка: ${err?.message || "не удалось сохранить"}`)
     } finally {
       setSaving(false)
     }
@@ -110,17 +104,12 @@ export function EditorialTab() {
     if (!confirm("Удалить мнение редакции для этого аниме?")) return
 
     try {
-      const { error } = await supabase
-        .from("editorial_reviews")
-        .delete()
-        .eq("anime_id", anime_id)
-
-      if (error) throw error
+      await deleteEditorialReview(anime_id)
       toast.success("Отзыв удалён")
       fetchReviews()
     } catch (err: any) {
       console.error("Error deleting review:", err)
-      toast.error("Ошибка при удалении")
+      toast.error(`Ошибка при удалении: ${err?.message || "не удалось удалить"}`)
     }
   }
 
@@ -135,10 +124,10 @@ export function EditorialTab() {
   return (
     <div className="space-y-6">
       <div className="bg-card border border-border rounded-xl p-5 md:p-6 shadow-sm">
-        <div className="flex items-center justify-between mb-4 pb-3 border-b border-border">
-          <div className="flex items-center gap-2">
-            <Sparkles className="w-5 h-5 text-primary" />
-            <h2 className="text-lg font-bold text-foreground">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between items-start gap-2 mb-4 pb-3 border-b border-border">
+          <div className="flex items-center gap-2 min-w-0">
+            <Sparkles className="w-5 h-5 text-primary shrink-0" />
+            <h2 className="text-base sm:text-lg font-bold text-foreground min-w-0 break-words">
               {editingId ? "Редактировать мнение редакции" : "Добавить мнение редакции"}
             </h2>
           </div>
@@ -146,9 +135,9 @@ export function EditorialTab() {
           <button
             type="button"
             onClick={() => setShowPreview(!showPreview)}
-            className="px-3 py-1.5 rounded-lg bg-muted hover:bg-muted/80 text-xs font-medium text-foreground flex items-center gap-1.5 transition"
+            className="px-3 py-1.5 min-h-11 sm:min-h-0 rounded-lg bg-muted hover:bg-muted/80 text-xs font-medium text-foreground flex items-center gap-1.5 transition shrink-0"
           >
-            {showPreview ? <FileText className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+            {showPreview ? <FileText className="w-3.5 h-3.5 shrink-0" /> : <Eye className="w-3.5 h-3.5 shrink-0" />}
             {showPreview ? "Редактировать текст" : "Предпросмотр"}
           </button>
         </div>
@@ -158,11 +147,11 @@ export function EditorialTab() {
           <button
             type="button"
             onClick={() => setShowCheatSheet(!showCheatSheet)}
-            className="flex w-full items-center justify-between text-left font-semibold text-primary hover:text-primary/80 transition-colors text-sm"
+            className="flex w-full items-center justify-between gap-2 text-left font-semibold text-primary hover:text-primary/80 transition-colors text-sm min-h-11"
           >
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 min-w-0">
               <HelpCircle className="w-4 h-4 text-primary shrink-0" />
-              <span>Шпаргалка и туториал по оформлению (что поддерживается парсером)</span>
+              <span className="min-w-0">Шпаргалка и туториал по оформлению (что поддерживается парсером)</span>
             </div>
             {showCheatSheet ? (
               <ChevronUp className="w-4 h-4 text-primary shrink-0" />
@@ -184,7 +173,7 @@ export function EditorialTab() {
                     <button
                       type="button"
                       onClick={() => insertTemplate("Вердикт:\nКраткий итог обзора и финальные впечатления редакции.\n8.5/10")}
-                      className="px-2 py-0.5 rounded bg-primary/15 hover:bg-primary/25 text-primary text-[11px] font-medium transition"
+                      className="px-3 py-0.5 -my-2 min-h-11 sm:min-h-0 sm:my-0 rounded bg-primary/15 hover:bg-primary/25 text-primary text-xs sm:text-[11px] font-medium transition shrink-0"
                     >
                       Вставить
                     </button>
@@ -208,7 +197,7 @@ export function EditorialTab() {
                     <button
                       type="button"
                       onClick={() => insertTemplate("## Сюжет и атмосфера\n### Персонажи")}
-                      className="px-2 py-0.5 rounded bg-primary/15 hover:bg-primary/25 text-primary text-[11px] font-medium transition"
+                      className="px-3 py-0.5 -my-2 min-h-11 sm:min-h-0 sm:my-0 rounded bg-primary/15 hover:bg-primary/25 text-primary text-xs sm:text-[11px] font-medium transition shrink-0"
                     >
                       Вставить
                     </button>
@@ -234,7 +223,7 @@ export function EditorialTab() {
                     <button
                       type="button"
                       onClick={() => insertTemplate("- Плюсы:\n- Отличный визуал\n- Глубокие персонажи\n\n1. Шаг первый\n2. Шаг второй")}
-                      className="px-2 py-0.5 rounded bg-primary/15 hover:bg-primary/25 text-primary text-[11px] font-medium transition"
+                      className="px-3 py-0.5 -my-2 min-h-11 sm:min-h-0 sm:my-0 rounded bg-primary/15 hover:bg-primary/25 text-primary text-xs sm:text-[11px] font-medium transition shrink-0"
                     >
                       Вставить
                     </button>
@@ -254,7 +243,7 @@ export function EditorialTab() {
                     <button
                       type="button"
                       onClick={() => insertTemplate("> «Мы не выбираем, кем родиться, но выбираем, кем стать.»\n\n**Жирный текст**, *курсив*, `код/тег`, [Ссылка](https://weeb-x.com)")}
-                      className="px-2 py-0.5 rounded bg-primary/15 hover:bg-primary/25 text-primary text-[11px] font-medium transition"
+                      className="px-3 py-0.5 -my-2 min-h-11 sm:min-h-0 sm:my-0 rounded bg-primary/15 hover:bg-primary/25 text-primary text-xs sm:text-[11px] font-medium transition shrink-0"
                     >
                       Вставить
                     </button>
@@ -313,7 +302,7 @@ export function EditorialTab() {
                 value={animeId}
                 onChange={(e) => setAnimeId(e.target.value)}
                 required
-                className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-base sm:text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
               />
             </div>
 
@@ -325,7 +314,7 @@ export function EditorialTab() {
                 type="text"
                 value={author}
                 onChange={(e) => setAuthor(e.target.value)}
-                className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-base sm:text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
               />
             </div>
           </div>
@@ -348,7 +337,7 @@ export function EditorialTab() {
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
                 required
-                className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary resize-y font-mono"
+                className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-base sm:text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary resize-y font-mono"
               />
             </div>
           )}
@@ -395,9 +384,11 @@ export function EditorialTab() {
                 key={item.id}
                 className="p-4 rounded-lg bg-muted/40 border border-border flex flex-col sm:flex-row justify-between items-start gap-4"
               >
-                <div className="space-y-1 flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-primary text-sm">
+                <div className="space-y-1 flex-1 min-w-0">
+                  {/* flex-wrap: три фрагмента требовали ~300px, а на 360px
+                      в колонке оставалось ~264px. */}
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                    <span className="font-bold text-primary text-sm break-all">
                       Anime ID: {item.anime_id}
                     </span>
                     <span className="text-xs text-muted-foreground">
@@ -407,7 +398,7 @@ export function EditorialTab() {
                       • {new Date(item.updated_at).toLocaleDateString("ru-RU")}
                     </span>
                   </div>
-                  <p className="text-sm text-foreground/90 line-clamp-2">
+                  <p className="text-sm text-foreground/90 line-clamp-2 break-words">
                     {item.content}
                   </p>
                 </div>
@@ -415,15 +406,17 @@ export function EditorialTab() {
                 <div className="flex items-center gap-2 shrink-0 self-end sm:self-start">
                   <button
                     onClick={() => handleEdit(item)}
-                    className="p-2 rounded-md bg-muted hover:bg-muted/80 text-foreground transition"
+                    className="p-2 min-h-11 min-w-11 sm:min-h-8 sm:min-w-8 rounded-md bg-muted hover:bg-muted/80 text-foreground transition"
                     title="Редактировать"
+                    aria-label="Редактировать мнение"
                   >
                     <Edit className="w-4 h-4" />
                   </button>
                   <button
                     onClick={() => handleDelete(item.anime_id)}
-                    className="p-2 rounded-md bg-destructive/10 text-destructive hover:bg-destructive/20 transition"
+                    className="p-2 min-h-11 min-w-11 sm:min-h-8 sm:min-w-8 rounded-md bg-destructive/10 text-destructive hover:bg-destructive/20 transition"
                     title="Удалить"
+                    aria-label="Удалить мнение"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>

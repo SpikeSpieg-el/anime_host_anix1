@@ -26,12 +26,20 @@ export async function adminLogin(formData: FormData) {
   }
 
   const requestHeaders = await headers()
-  const clientIp = (
+  // Клиентский IP берётся из тех же заголовков, что и getClientIp в
+  // lib/ip-block, и — важно — ПРОВЕРЯЕТСЯ через isValidIp. Раньше строка
+  // подрезалась до 128 символов и шла в ключ рейт-лимита как есть: если
+  // прокси не перезаписывает x-forwarded-for, атакующий подставлял туда
+  // мусор и каждым новым значением обходил счётчик 5 попыток, получая
+  // неограниченный перебор пароля + TOTP с одного адреса.
+  const forwardedIp = (
     requestHeaders.get("cf-connecting-ip") ||
     requestHeaders.get("x-real-ip") ||
     requestHeaders.get("x-forwarded-for")?.split(",")[0] ||
-    "unknown"
-  ).trim().slice(0, 128)
+    ""
+  ).trim()
+  const clientIp = isValidIp(forwardedIp) ? forwardedIp : "unknown"
+
   const allowlistedIps = (process.env.ADMIN_ALLOWED_IPS || "")
     .split(",")
     .map((ip) => ip.trim())
@@ -42,6 +50,8 @@ export async function adminLogin(formData: FormData) {
 
   // Process-local throttling is a backstop. Production should also rate-limit
   // /admin at its trusted CDN/WAF so attempts are capped across instances.
+  // Если адрес определить не удалось, ключ общий для всех таких посетителей —
+  // это осознанно: для неизвестного адреса ограничение строже, а не слабее.
   const rateLimitKey = `admin-login:${createHash("sha256").update(clientIp).digest("hex")}`
   const rateLimit = rateLimiters.adminLogin.checkLimit(rateLimitKey)
   if (!rateLimit.success) return { error: "Слишком много попыток. Попробуйте позже." }
@@ -87,6 +97,63 @@ export async function checkAdminAuth(): Promise<boolean> {
 
 const ADMIN_DATA_PAGE_SIZE = 1000
 const USER_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
+/**
+ * Потолок одной разовой выдачи валюты.
+ *
+ * Не «магическое» ограничение, а страховка от опечатки в админке: раньше
+ * amount шёл в баланс без проверки, и 1e15 отправлялось одним кликом.
+ * Для нормальных начислений (сотни — миллионы) запас огромный.
+ */
+const MAX_CURRENCY_GRANT = 100_000_000
+
+/** Потолок размера выборки в «страничных» админ-экшенах. */
+const MAX_ADMIN_PAGE_SIZE = 200
+
+/**
+ * Выборка из клиентского аргумента.
+ *
+ * Раньше limit/page уходили в .range()/.limit() как есть, и один
+ * сформированный вручную запрос читал таблицу целиком. Значение по
+ * умолчанию — не «сколько просил», а безопасный максимум.
+ */
+function clampAdminLimit(limit: unknown, fallback = 50, max = MAX_ADMIN_PAGE_SIZE): number {
+  const parsed = Number(limit)
+  if (!Number.isFinite(parsed)) return fallback
+  return Math.min(Math.max(Math.trunc(parsed), 1), max)
+}
+
+/** Проверка UUID. Единая точка для всех экшенов, принимающих user_id. */
+function assertUserId(value: unknown, field = "user ID"): string {
+  const userId = String(value ?? "").trim()
+  if (!USER_ID_PATTERN.test(userId)) throw new Error(`Некорректный ${field}`)
+  return userId
+}
+
+/** Обрезка строки с жёстким лимитом — защита от раздувания полей. */
+function clampText(value: unknown, max: number): string {
+  return String(value ?? "").trim().slice(0, max)
+}
+
+/**
+ * Отсечение набора ключей для .update()/.insert().
+ *
+ * Типы TypeScript не работают на границе server action: клиент может
+ * прислать любой объект и подменить id, created_at или любую другую
+ * колонку, которой нет в UI. Поэтому пишем явный белый список полей,
+ * а не спредим входной объект.
+ */
+function pickWritableFields<T extends Record<string, unknown>>(
+  input: unknown,
+  allowed: readonly (keyof T)[],
+): Partial<T> {
+  const source = (input ?? {}) as Record<string, unknown>
+  const result: Record<string, unknown> = {}
+  for (const key of allowed) {
+    if (source[key as string] !== undefined) result[key as string] = source[key as string]
+  }
+  return result as Partial<T>
+}
 
 function isMissingTableError(error: any): boolean {
   const message = String(error?.message ?? error ?? "").toLowerCase()
@@ -164,9 +231,15 @@ export async function getAdminUsers() {
   const supabase = await getAdminSupabase()
 
   const [profiles, authUsers, historyRows, bookmarkRows, statsResult, aiStatsResult] = await Promise.all([
+    // Явный список колонок вместо select("*").
+    //
+    // Действующие вкладки Users/Рассылка/События используют из профиля
+    // только эти поля. Спред `...profile` в ответ отправлял ВСЮ строку, то
+    // есть любая новая колонка profiles (внутренние флаги, tg-id, коды
+    // рефералов) автоматически уезжала бы в браузер администратора.
     fetchAllPages<any>((from, to) => supabase
       .from("profiles")
-      .select("*")
+      .select("id, username, avatar_url, updated_at, referral_code, referred_by")
       .order("updated_at", { ascending: false, nullsFirst: false })
       .order("id", { ascending: true })
       .range(from, to)),
@@ -360,18 +433,34 @@ export async function getPvPRules() {
   return data
 }
 
+/**
+ * Поля pvp_rules, которые вкладка PvP реально редактирует.
+ * id/created_at/updated_at исключены намеренно — см. pickWritableFields.
+ */
+const PVP_RULE_WRITABLE = [
+  "name_ru",
+  "description_ru",
+  "is_active",
+  "category",
+  "config",
+] as const
+
 export async function updatePvPRule(id: string, updates: any) {
   const isAdmin = await checkAdminAuth()
   if (!isAdmin) throw new Error("Unauthorized")
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-  const supabase = createClient(supabaseUrl!, supabaseServiceKey!)
+  const ruleId = String(id ?? "").trim()
+  if (!ruleId || ruleId.length > 64) throw new Error("Некорректный ID правила")
+
+  const writable = pickWritableFields(updates, PVP_RULE_WRITABLE)
+  if (Object.keys(writable).length === 0) throw new Error("Нет полей для обновления")
+
+  const supabase = await getAdminSupabase()
 
   const { error } = await supabase
     .from("pvp_rules")
-    .update({ ...updates, updated_at: new Date().toISOString() })
-    .eq("id", id)
+    .update({ ...writable, updated_at: new Date().toISOString() })
+    .eq("id", ruleId)
 
   if (error) throw error
   return { success: true }
@@ -381,15 +470,13 @@ export async function getPvPLogs(limit = 100) {
   const isAdmin = await checkAdminAuth()
   if (!isAdmin) throw new Error("Unauthorized")
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-  const supabase = createClient(supabaseUrl!, supabaseServiceKey!)
+  const supabase = await getAdminSupabase()
 
   const { data, error } = await supabase
     .from("pvp_logs")
     .select("*")
     .order("created_at", { ascending: false })
-    .limit(limit)
+    .limit(clampAdminLimit(limit, 100))
 
   if (error) throw error
   if (!data || data.length === 0) return []
@@ -415,13 +502,72 @@ export async function getPvPLogs(limit = 100) {
   }))
 }
 
+/** Поля pvp_locations, доступные из формы создания локации. */
+const PVP_LOCATION_WRITABLE = [
+  "name",
+  "name_ru",
+  "description",
+  "description_ru",
+  "is_active",
+  "is_empty",
+  "icon_name",
+] as const
+
+/** Поля battle_backgrounds, доступные из формы фона. */
+const BATTLE_BG_WRITABLE = [
+  "name",
+  "image_url",
+  "mode",
+  "is_active",
+  "sort_order",
+  "scale",
+  "position_x",
+  "position_y",
+  "opacity",
+] as const
+
+const BATTLE_BG_MODES = new Set(["pvp", "pve", "both"])
+
+/**
+ * Нормализация полей фона battle.
+ *
+ * Здесь нет «просто number»: scale/position/opacity уходят в CSS
+ * transform/opacity превью, поэтому NaN или строка ломают рендер, а
+ * mode ограничен CHECK-constraint'ом в БД — нечего доверять вводу.
+ */
+function normalizeBattleBg(input: unknown, partial: boolean) {
+  const writable = pickWritableFields(input, BATTLE_BG_WRITABLE) as Record<string, unknown>
+
+  if (writable.name !== undefined) writable.name = clampText(writable.name, 200)
+  if (writable.image_url !== undefined) writable.image_url = clampText(writable.image_url, 2000)
+  if (writable.mode !== undefined && !BATTLE_BG_MODES.has(String(writable.mode))) {
+    throw new Error("Некорректный режим фона")
+  }
+  if (writable.is_active !== undefined) writable.is_active = Boolean(writable.is_active)
+
+  for (const key of ["sort_order", "scale", "position_x", "position_y", "opacity"] as const) {
+    if (writable[key] === undefined) continue
+    const value = Number(writable[key])
+    if (!Number.isFinite(value)) throw new Error(`Поле ${key} должно быть числом`)
+    writable[key] = value
+  }
+
+  // На создании обязательные поля проверяем явно, чтобы БД не была
+  // единственным валидатором.
+  if (!partial) {
+    if (!writable.name) throw new Error("Укажите название фона")
+    if (!writable.image_url) throw new Error("Укажите ссылку на изображение")
+    if (Object.keys(writable).length === 0) throw new Error("Нет полей для сохранения")
+  }
+
+  return writable
+}
+
 export async function getPvPLocations() {
   const isAdmin = await checkAdminAuth()
   if (!isAdmin) throw new Error("Unauthorized")
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-  const supabase = createClient(supabaseUrl!, supabaseServiceKey!)
+  const supabase = await getAdminSupabase()
 
   const { data, error } = await supabase
     .from("pvp_locations")
@@ -436,22 +582,33 @@ export async function createPvPLocation(location: any, ruleIds: string[]) {
   const isAdmin = await checkAdminAuth()
   if (!isAdmin) throw new Error("Unauthorized")
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-  const supabase = createClient(supabaseUrl!, supabaseServiceKey!)
+  const writable = pickWritableFields(location, PVP_LOCATION_WRITABLE) as Record<string, unknown>
+  writable.name = clampText(writable.name, 120)
+  writable.name_ru = clampText(writable.name_ru, 120)
+  writable.description = clampText(writable.description, 2000)
+  writable.description_ru = clampText(writable.description_ru, 2000)
+  if (!writable.name || !writable.name_ru) throw new Error("Название локации обязательно")
+
+  const supabase = await getAdminSupabase()
 
   const { data, error } = await supabase
     .from("pvp_locations")
-    .insert([location])
+    .insert([writable])
     .select()
     .single()
 
   if (error) throw error
 
-  if (ruleIds.length > 0) {
+  // ruleIds приходят из клиента: приводим к уникальным строкам, иначе
+  // один сформированный вручную массив упирается в размер INSERT.
+  const ruleIdList = Array.from(
+    new Set((Array.isArray(ruleIds) ? ruleIds : []).map((ruleId) => String(ruleId).trim()).filter(Boolean)),
+  ).slice(0, 200)
+
+  if (ruleIdList.length > 0) {
     const { error: rulesError } = await supabase
       .from("pvp_location_rules")
-      .insert(ruleIds.map(ruleId => ({
+      .insert(ruleIdList.map(ruleId => ({
         location_id: data.id,
         rule_id: ruleId
       })))
@@ -465,9 +622,7 @@ export async function deletePvPLocation(id: string) {
   const isAdmin = await checkAdminAuth()
   if (!isAdmin) throw new Error("Unauthorized")
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-  const supabase = createClient(supabaseUrl!, supabaseServiceKey!)
+  const supabase = await getAdminSupabase()
 
   const { error } = await supabase
     .from("pvp_locations")
@@ -486,9 +641,7 @@ export async function getBattleBackgrounds() {
   const isAdmin = await checkAdminAuth()
   if (!isAdmin) throw new Error("Unauthorized")
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-  const supabase = createClient(supabaseUrl!, supabaseServiceKey!)
+  const supabase = await getAdminSupabase()
 
   const { data, error } = await supabase
     .from("battle_backgrounds")
@@ -503,18 +656,16 @@ export async function createBattleBackground(bg: { name: string; image_url: stri
   const isAdmin = await checkAdminAuth()
   if (!isAdmin) throw new Error("Unauthorized")
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-  const supabase = createClient(supabaseUrl!, supabaseServiceKey!)
+  const supabase = await getAdminSupabase()
 
   const { data, error } = await supabase
     .from("battle_backgrounds")
     .insert([{
-      ...bg,
-      scale: bg.scale ?? 1.0,
-      position_x: bg.position_x ?? 50.0,
-      position_y: bg.position_y ?? 50.0,
-      opacity: bg.opacity ?? 0.35,
+      ...normalizeBattleBg(bg, false),
+      scale: 1.0,
+      position_x: 50.0,
+      position_y: 50.0,
+      opacity: 0.35,
     }])
     .select()
     .single()
@@ -527,9 +678,7 @@ export async function deleteBattleBackground(id: string) {
   const isAdmin = await checkAdminAuth()
   if (!isAdmin) throw new Error("Unauthorized")
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-  const supabase = createClient(supabaseUrl!, supabaseServiceKey!)
+  const supabase = await getAdminSupabase()
 
   const { error } = await supabase
     .from("battle_backgrounds")
@@ -544,9 +693,7 @@ export async function toggleBattleBackground(id: string, currentStatus: boolean)
   const isAdmin = await checkAdminAuth()
   if (!isAdmin) throw new Error("Unauthorized")
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-  const supabase = createClient(supabaseUrl!, supabaseServiceKey!)
+  const supabase = await getAdminSupabase()
 
   const { data, error } = await supabase
     .from("battle_backgrounds")
@@ -563,13 +710,14 @@ export async function updateBattleBackground(id: string, updates: { name?: strin
   const isAdmin = await checkAdminAuth()
   if (!isAdmin) throw new Error("Unauthorized")
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-  const supabase = createClient(supabaseUrl!, supabaseServiceKey!)
+  const writable = normalizeBattleBg(updates, true)
+  if (Object.keys(writable).length === 0) throw new Error("Нет полей для обновления")
+
+  const supabase = await getAdminSupabase()
 
   const { data, error } = await supabase
     .from("battle_backgrounds")
-    .update(updates)
+    .update(writable)
     .eq("id", id)
     .select()
     .single()
@@ -732,21 +880,68 @@ export interface AdminMailInput {
   expiresAt?: string
 }
 
+const MAIL_TYPES = new Set<string>([
+  "card_gift",
+  "coins",
+  "dust",
+  "event_reward",
+  "message",
+])
+
+const MAIL_TITLE_MAX = 200
+const MAIL_BODY_MAX = 4_000
+/** Потолок одной рассылки. Без него массив произвольного размера уходил в один INSERT. */
+const MAIL_BULK_MAX = 5_000
+
+/**
+ * Нормализация письма.
+ *
+ * `type` определяет семантику получения письма на клиенте, поэтому
+ * произвольная строка здесь опасна; amount клампится тем же потолком,
+ * что и прямая выдача валюты, чтобы письмо нельзя было использовать
+ * как обход проверок adminGrantCurrency.
+ */
+function normalizeMailPayload(input: AdminMailInput) {
+  if (!MAIL_TYPES.has(input?.type)) throw new Error("Некорректный тип письма")
+
+  const title = clampText(input.title, MAIL_TITLE_MAX)
+  if (!title) throw new Error("Укажите заголовок письма")
+
+  const amount = Number(input.amount ?? 0)
+  if (!Number.isSafeInteger(amount)) throw new Error("Сумма в письме должна быть целым числом")
+  if (Math.abs(amount) > MAX_CURRENCY_GRANT) {
+    throw new Error(`Сумма в письме слишком велика (максимум ${MAX_CURRENCY_GRANT})`)
+  }
+
+  let expiresAt: string | null = null
+  if (input.expiresAt) {
+    const parsed = new Date(input.expiresAt)
+    if (Number.isNaN(parsed.getTime())) throw new Error("Некорректная дата истечения письма")
+    expiresAt = parsed.toISOString()
+  }
+
+  return {
+    sender: clampText(input.sender || "admin", 64),
+    type: input.type,
+    title,
+    body: input.body ? clampText(input.body, MAIL_BODY_MAX) : null,
+    card_payload: input.cardPayload ?? null,
+    amount,
+    is_read: false,
+    is_claimed: false,
+    expires_at: expiresAt,
+  }
+}
+
 export async function adminSendMail(input: AdminMailInput) {
   const supabase = await getAdminSupabase()
 
+  const payload = normalizeMailPayload(input)
   const row: any = {
-    user_id: input.userId,
-    sender: input.sender ?? "admin",
-    type: input.type,
-    title: input.title,
-    body: input.body ?? null,
-    card_payload: input.cardPayload ?? null,
-    amount: input.amount ?? 0,
-    is_read: false,
-    is_claimed: false,
+    user_id: assertUserId(input.userId),
+    ...payload,
   }
-  if (input.expiresAt) row.expires_at = input.expiresAt
+  if (!row.expires_at) delete row.expires_at
 
   const { data, error } = await supabase
     .from("user_mail")
@@ -779,17 +974,25 @@ export async function adminSendMail(input: AdminMailInput) {
 export async function adminSendMailBulk(input: Omit<AdminMailInput, "userId"> & { userIds: string[] }) {
   const supabase = await getAdminSupabase()
 
-  const rows = input.userIds.map((userId) => ({
+  const payload = normalizeMailPayload({ ...input, userId: "" } as AdminMailInput)
+
+  // userIds приходят из клиента: отбрасываем мусорные значения, снимаем
+  // дубликаты и ограничиваем размер рассылки — раньше массив любой длины
+  // уходил в один INSERT.
+  const userIds = Array.from(
+    new Set(
+      (Array.isArray(input.userIds) ? input.userIds : [])
+        .map((userId) => String(userId).trim())
+        .filter((userId) => USER_ID_PATTERN.test(userId)),
+    ),
+  ).slice(0, MAIL_BULK_MAX)
+
+  if (userIds.length === 0) throw new Error("Некорректный список получателей")
+
+  const rows = userIds.map((userId) => ({
     user_id: userId,
-    sender: input.sender ?? "admin",
-    type: input.type,
-    title: input.title,
-    body: input.body ?? null,
-    card_payload: input.cardPayload ?? null,
-    amount: input.amount ?? 0,
-    is_read: false,
-    is_claimed: false,
-    ...(input.expiresAt ? { expires_at: input.expiresAt } : {}),
+    ...payload,
+    ...(payload.expires_at ? { expires_at: payload.expires_at } : {}),
   }))
 
   const { data, error } = await supabase.from("user_mail").insert(rows).select()
@@ -806,7 +1009,7 @@ export async function adminSendMailBulk(input: Omit<AdminMailInput, "userId"> & 
     }
     const pushTitle = mailTypeLabel[input.type] || "Новое письмо"
     const pushBody = input.title
-    await adminSendPushNotificationBulk(input.userIds, pushTitle, pushBody, "/gacha")
+    await adminSendPushNotificationBulk(userIds, pushTitle, pushBody, "/gacha")
   } catch (e) {
     console.warn("Failed to send bulk push for mail:", e)
   }
@@ -819,7 +1022,26 @@ export async function adminSendMailBulk(input: Omit<AdminMailInput, "userId"> & 
 // ============================================================
 export async function adminGrantCurrency(userId: string, currency: "coins" | "dust", amount: number) {
   const supabase = await getAdminSupabase()
+
+  // Валидация на сервере обязательна: типы TypeScript не проверяются в
+  // рантайме, а значение приходит из клиентского компонента.
+  //
+  //  - currency идёт дальше ИМЕНЕМ КОЛОНКИ, поэтому «dust»/«coins» должны
+  //    быть подтверждены явно, иначе произвольная строка выберет другую
+  //    колонку той же таблицы;
+  //  - amount складывается с балансом, поэтому NaN, Infinity и дробные
+  //    значения писали бы в user_coins мусор, который потом ломает
+  //    нормализацию экономики;
+  //  - userId не проверялся, хотя в adminSetUserBan та же проверка есть.
+  if (!USER_ID_PATTERN.test(String(userId ?? ""))) throw new Error("Некорректный user ID")
+  if (currency !== "coins" && currency !== "dust") throw new Error("Некорректная валюта")
+  if (typeof amount !== "number" || !Number.isSafeInteger(amount)) {
+    throw new Error("Сумма должна быть целым числом")
+  }
   if (amount === 0) return { success: true, balance: null }
+  if (Math.abs(amount) > MAX_CURRENCY_GRANT) {
+    throw new Error(`Сумма слишком велика (максимум ${MAX_CURRENCY_GRANT} за одну операцию)`)
+  }
 
   const table = currency === "coins" ? "user_coins" : "user_dust"
   const column = currency
@@ -833,7 +1055,7 @@ export async function adminGrantCurrency(userId: string, currency: "coins" | "du
 
   if (fetchErr && fetchErr.code !== "PGRST116") throw fetchErr
 
-  const currentBalance = (current as any)?.[column] ?? 0
+  const currentBalance = Number((current as any)?.[column] ?? 0) || 0
   const newBalance = Math.max(0, currentBalance + amount)
 
   const { error: upsertErr } = await supabase
@@ -930,11 +1152,37 @@ export async function createBanner(input: BannerInput) {
   return data
 }
 
+/** Колонки banners, редактируемые из админки. id/created_at — нельзя. */
+const BANNER_WRITABLE = [
+  "name",
+  "description",
+  "image_url",
+  "promo_image_url",
+  "featured_anime_ids",
+  "boosted_rarity",
+  "price",
+  "color",
+  "start_date",
+  "end_date",
+  "is_active",
+  "sort_order",
+  "guaranteed_card_payload",
+  "guaranteed_card_pity",
+  "guaranteed_cards_pool",
+  "banner_type",
+] as const
+
 export async function updateBanner(id: string, updates: Partial<BannerInput>) {
   const supabase = await getAdminSupabase()
+
+  // Спред входного объекта позволял подменить колонки, которых нет в UI
+  // (включая первичный ключ), поэтому фильтруем по белому списку.
+  const writable = pickWritableFields(updates, BANNER_WRITABLE)
+  if (Object.keys(writable).length === 0) throw new Error("Нет полей для обновления")
+
   const { data, error } = await supabase
     .from("banners")
-    .update({ ...updates, updated_at: new Date().toISOString() } as any)
+    .update({ ...writable, updated_at: new Date().toISOString() } as any)
     .eq("id", id)
     .select()
     .single()
@@ -1154,6 +1402,23 @@ export async function searchUserCardsForBanner(query?: string, rarity?: string) 
 // ============================================================
 // PUSH NOTIFICATIONS: send to a single user or all users
 // ============================================================
+/**
+ * Адрес, открываемый по клику на push-уведомление.
+ *
+ * Значение приходит из админки и попадает в public/sw.js → clients.openWindow(url).
+ * Ограничиваемся путями нашего же сайта: произвольный внешний адрес здесь —
+ * это готовая фишинговая ссылка, доставленная прямо в уведомление, плюс
+ * возможность увести пользователя с домена через токен в URL.
+ */
+function sanitizePushUrl(url?: string): string {
+  const raw = String(url ?? "").trim()
+  if (!raw) return "/"
+  if (!raw.startsWith("/")) return "/"
+  // «//evil.com» и «/\evil.com» — браузер считает их схема-относительными.
+  if (raw.startsWith("//") || raw.startsWith("/\\")) return "/"
+  return raw.slice(0, 500)
+}
+
 export async function adminSendPushNotification(userId: string, title: string, body?: string, url?: string) {
   const supabase = await getAdminSupabase()
 
@@ -1169,7 +1434,7 @@ export async function adminSendPushNotification(userId: string, title: string, b
   const { data: subs, error } = await supabase
     .from("push_subscriptions")
     .select("endpoint, p256dh, auth")
-    .eq("user_id", userId)
+    .eq("user_id", assertUserId(userId))
 
   if (error) throw error
   if (!subs || subs.length === 0) {
@@ -1177,9 +1442,9 @@ export async function adminSendPushNotification(userId: string, title: string, b
   }
 
   const payload = JSON.stringify({
-    title,
-    body,
-    data: { url: url || "/" },
+    title: clampText(title, 120),
+    body: body ? clampText(body, 300) : undefined,
+    data: { url: sanitizePushUrl(url) },
     tag: "admin-notification",
   })
 
@@ -1217,12 +1482,24 @@ export async function adminSendPushNotificationBulk(userIds: string[], title: st
     throw new Error("VAPID keys not configured")
   }
 
+  // Список получателей приходит из клиента — фильтруем мусор и режем
+  // размер, иначе .in() уходил с массивом произвольной длины.
+  const recipientIds = Array.from(
+    new Set(
+      (Array.isArray(userIds) ? userIds : [])
+        .map((id) => String(id).trim())
+        .filter((id) => USER_ID_PATTERN.test(id)),
+    ),
+  ).slice(0, MAIL_BULK_MAX)
+
+  if (recipientIds.length === 0) return { sent: 0, total: 0 }
+
   webpush.setVapidDetails("mailto:admin@weeb-x.com", publicKey, privateKey)
 
   const { data: subs, error } = await supabase
     .from("push_subscriptions")
     .select("endpoint, p256dh, auth, user_id")
-    .in("user_id", userIds)
+    .in("user_id", recipientIds)
 
   if (error) throw error
   if (!subs || subs.length === 0) {
@@ -1230,9 +1507,9 @@ export async function adminSendPushNotificationBulk(userIds: string[], title: st
   }
 
   const payload = JSON.stringify({
-    title,
-    body,
-    data: { url: url || "/" },
+    title: clampText(title, 120),
+    body: body ? clampText(body, 300) : undefined,
+    data: { url: sanitizePushUrl(url) },
     tag: "admin-notification",
   })
 
@@ -1273,13 +1550,17 @@ export async function getCustomNews(page = 1, limit = 50) {
   if (!isAdmin) throw new Error("Unauthorized")
 
   const supabase = await getAdminSupabase()
-  const offset = (page - 1) * limit
+  // Аргументы приходят из клиента: без клампа один сформированный вручную
+  // запрос читал всю таблицу новостей.
+  const safeLimit = clampAdminLimit(limit, 50)
+  const safePage = Math.min(Math.max(Number.isFinite(Number(page)) ? Math.trunc(Number(page)) : 1, 1), 10_000)
+  const offset = (safePage - 1) * safeLimit
 
   const { data, error, count } = await supabase
     .from("custom_news")
     .select("*", { count: "exact" })
     .order("created_at", { ascending: false })
-    .range(offset, offset + limit - 1)
+    .range(offset, offset + safeLimit - 1)
 
   if (error) throw error
   return { data: data || [], count: count || 0 }
@@ -1398,6 +1679,15 @@ export interface IpBanRow {
   created_at: string
 }
 
+export interface EditorialReviewRow {
+  id: string
+  anime_id: string
+  content: string
+  author: string
+  created_at: string
+  updated_at: string
+}
+
 const IP_TARGET_PATTERN = /^[0-9a-fA-F:.\[\]/]+$/
 
 export async function getIpBans(): Promise<IpBanRow[]> {
@@ -1511,4 +1801,88 @@ export async function addIpSubnetBan(ip: string, reason?: string): Promise<IpBan
   const subnet = subnetForIp(String(ip || "").trim())
   if (!subnet) throw new Error("Не удалось вычислить подсеть")
   return addIpBan(subnet, reason)
+}
+
+// ============================================================
+// Мнения редакции (editorial_reviews)
+// ============================================================
+//
+// Раньше вкладка писала в таблицу напрямую из браузера через anon-ключ
+// Supabase (@/lib/supabase). Это означало две проблемы:
+//
+//  1. Авторизация держалась ТОЛЬКО на RLS таблицы, а миграции для
+//     editorial_reviews в репозитории не было — её состояние нельзя было
+//     проверить по коду.
+//  2. Контент отсюда попадает на публичные страницы тайтлов через
+//     parseInlineMarkdown, поэтому любой, кто мог писать в таблицу, мог
+//     заplantить payload, исполнявшийся у всех посетителей.
+//
+// Теперь все три операции идут через server action с checkAdminAuth()
+// (внутри getAdminSupabase), а таблица дополнительно закрыта RLS-миграцией:
+// anon — только SELECT, запись исключительно через service_role.
+
+const EDITORIAL_ANIME_ID_PATTERN = /^[0-9]{1,12}$/
+const EDITORIAL_AUTHOR_MAX = 120
+const EDITORIAL_CONTENT_MAX = 20_000
+
+function assertEditorialAnimeId(value: unknown): string {
+  const animeId = String(value ?? "").trim()
+  if (!EDITORIAL_ANIME_ID_PATTERN.test(animeId)) {
+    throw new Error("Некорректный Shikimori ID тайтла")
+  }
+  return animeId
+}
+
+function assertEditorialText(value: unknown, max: number, field: string): string {
+  const text = String(value ?? "").trim()
+  if (!text) throw new Error(`Поле «${field}» не может быть пустым`)
+  if (text.length > max) {
+    throw new Error(`Поле «${field}»: максимум ${max} символов (сейчас ${text.length})`)
+  }
+  return text
+}
+
+export async function getEditorialReviews() {
+  const supabase = await getAdminSupabase()
+  const { data, error } = await supabase
+    .from("editorial_reviews")
+    .select("id, anime_id, content, author, created_at, updated_at")
+    .order("updated_at", { ascending: false })
+    .limit(500)
+  if (error) throw error
+  return (data ?? []) as EditorialReviewRow[]
+}
+
+export async function upsertEditorialReview(input: {
+  anime_id: string
+  content: string
+  author?: string
+}) {
+  const supabase = await getAdminSupabase()
+  const animeId = assertEditorialAnimeId(input?.anime_id)
+  const content = assertEditorialText(input?.content, EDITORIAL_CONTENT_MAX, "Текст мнения")
+  const author = assertEditorialText(
+    input?.author || "Редакция Weebx",
+    EDITORIAL_AUTHOR_MAX,
+    "Автор",
+  )
+
+  const { data, error } = await supabase
+    .from("editorial_reviews")
+    .upsert(
+      { anime_id: animeId, content, author },
+      { onConflict: "anime_id" },
+    )
+    .select("id, anime_id, content, author, created_at, updated_at")
+    .single()
+  if (error) throw error
+  return data as EditorialReviewRow
+}
+
+export async function deleteEditorialReview(animeId: string) {
+  const supabase = await getAdminSupabase()
+  const id = assertEditorialAnimeId(animeId)
+  const { error } = await supabase.from("editorial_reviews").delete().eq("anime_id", id)
+  if (error) throw error
+  return true
 }

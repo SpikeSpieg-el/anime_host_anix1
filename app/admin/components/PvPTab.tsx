@@ -63,17 +63,24 @@ export function PvPTab({
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {pvpRules.map((rule) => (
             <div key={rule.id} className={`p-4 rounded-lg border transition ${rule.is_active ? 'bg-card border-primary/20' : 'bg-muted/50 border-transparent opacity-60'}`}>
-              <div className="flex items-start justify-between mb-2">
-                <h3 className="font-semibold text-sm">{rule.name_ru}</h3>
+              <div className="flex items-start justify-between gap-2 mb-2">
+                <h3 className="font-semibold text-sm min-w-0 break-words">{rule.name_ru}</h3>
+                {/* Переключатель 40×20 — ниже порога комфортного тапа (44px).
+                    before:-inset-3 добавляет невидимую область нажатия
+                    64×44, не меняя сам вид. */}
                 <button
+                  type="button"
+                  role="switch"
+                  aria-checked={rule.is_active}
+                  aria-label={`Правило «${rule.name_ru}»`}
                   onClick={() => onToggleRule(rule.id, rule.is_active)}
-                  className={`w-10 h-5 rounded-full relative transition-colors ${rule.is_active ? 'bg-primary' : 'bg-muted'}`}
+                  className={`shrink-0 w-10 h-5 rounded-full relative transition-colors before:absolute before:-inset-3 before:content-[''] ${rule.is_active ? 'bg-primary' : 'bg-muted'}`}
                 >
                   <div className={`absolute top-1 w-3 h-3 rounded-full bg-white transition-all ${rule.is_active ? 'left-6' : 'left-1'}`} />
                 </button>
               </div>
               <p className="text-xs text-muted-foreground line-clamp-2 mb-2">{rule.description_ru}</p>
-              <div className="text-[10px] uppercase tracking-wider text-primary font-bold">{rule.category}</div>
+              <div className="text-[10px] uppercase tracking-wider text-primary font-bold break-words">{rule.category}</div>
             </div>
           ))}
         </div>
@@ -106,7 +113,7 @@ export function PvPTab({
                     value={newLocation.name}
                     onChange={(e) => onNewLocationChange({ ...newLocation, name: e.target.value })}
                     placeholder="e.g. leaf_village"
-                    className="w-full px-3 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-sm"
+                    className="w-full px-3 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-base sm:text-sm"
                   />
                 </div>
                 <div>
@@ -117,7 +124,7 @@ export function PvPTab({
                     value={newLocation.name_ru}
                     onChange={(e) => onNewLocationChange({ ...newLocation, name_ru: e.target.value })}
                     placeholder="e.g. Деревня Листа"
-                    className="w-full px-3 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-sm"
+                    className="w-full px-3 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-base sm:text-sm"
                   />
                 </div>
               </div>
@@ -128,7 +135,7 @@ export function PvPTab({
                     required
                     value={newLocation.description}
                     onChange={(e) => onNewLocationChange({ ...newLocation, description: e.target.value })}
-                    className="w-full px-3 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-sm h-20"
+                    className="w-full px-3 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-base sm:text-sm h-20"
                   />
                 </div>
                 <div>
@@ -137,7 +144,7 @@ export function PvPTab({
                     required
                     value={newLocation.description_ru}
                     onChange={(e) => onNewLocationChange({ ...newLocation, description_ru: e.target.value })}
-                    className="w-full px-3 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-sm h-20"
+                    className="w-full px-3 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-base sm:text-sm h-20"
                   />
                 </div>
               </div>
@@ -155,16 +162,21 @@ export function PvPTab({
               {!newLocation.is_empty && (
                 <div className="space-y-2">
                   <label className="block text-xs font-medium text-muted-foreground mb-1 uppercase">Select Rules (Max 1 per location usually)</label>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2 max-h-48 overflow-y-auto p-2 border border-border rounded bg-muted/30">
+                  {/* overscroll-contain: без него вертикальный «поймал»
+                      внутри блока не передаётся странице — на телефоне
+                      список правил становился ловушкой скролла. */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2 max-h-64 sm:max-h-48 overflow-y-auto overscroll-contain p-2 border border-border rounded bg-muted/30">
                     {pvpRules.filter(r => r.is_active).map(rule => (
-                      <div
+                      <button
                         key={rule.id}
+                        type="button"
+                        aria-pressed={selectedRuleIds.includes(rule.id)}
                         onClick={() => onToggleRuleId(rule.id)}
-                        className={`p-2 rounded text-[10px] cursor-pointer transition flex items-center justify-between ${selectedRuleIds.includes(rule.id) ? 'bg-primary text-primary-foreground' : 'bg-muted hover:bg-muted-foreground/10'}`}
+                        className={`p-2 rounded text-xs sm:text-[10px] min-h-11 sm:min-h-0 cursor-pointer transition flex items-center justify-between gap-1 text-left ${selectedRuleIds.includes(rule.id) ? 'bg-primary text-primary-foreground' : 'bg-muted hover:bg-muted-foreground/10'}`}
                       >
                         <span className="truncate">{rule.name_ru}</span>
-                        {selectedRuleIds.includes(rule.id) && <Check size={10} />}
-                      </div>
+                        {selectedRuleIds.includes(rule.id) && <Check size={12} className="shrink-0" />}
+                      </button>
                     ))}
                   </div>
                 </div>
@@ -174,13 +186,13 @@ export function PvPTab({
                 <button
                   type="button"
                   onClick={onToggleAddLocation}
-                  className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground transition"
+                  className="px-4 py-2 min-h-11 text-sm text-muted-foreground hover:text-foreground transition"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-6 py-2 bg-primary text-primary-foreground rounded-lg font-semibold hover:bg-primary/90 transition shadow-lg"
+                  className="px-6 py-2 min-h-11 bg-primary text-primary-foreground rounded-lg font-semibold hover:bg-primary/90 transition shadow-lg"
                 >
                   Create Location
                 </button>
@@ -270,7 +282,7 @@ export function PvPTab({
                     value={newBg.name}
                     onChange={(e) => setNewBg({ ...newBg, name: e.target.value })}
                     placeholder="Напр. Лес Скрытого Листа"
-                    className="w-full px-3 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-sm"
+                    className="w-full px-3 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-base sm:text-sm"
                   />
                 </div>
                 <div>
@@ -278,7 +290,7 @@ export function PvPTab({
                   <select
                     value={newBg.mode}
                     onChange={(e) => setNewBg({ ...newBg, mode: e.target.value })}
-                    className="w-full px-3 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-sm"
+                    className="w-full px-3 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-base sm:text-sm"
                   >
                     <option value="both">PvP и PvE</option>
                     <option value="pvp">Только PvP</option>
@@ -294,7 +306,7 @@ export function PvPTab({
                   value={newBg.image_url}
                   onChange={(e) => setNewBg({ ...newBg, image_url: e.target.value })}
                   placeholder="https://example.com/background.jpg"
-                  className="w-full px-3 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-sm"
+                  className="w-full px-3 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-base sm:text-sm"
                 />
               </div>
 
@@ -328,14 +340,31 @@ export function PvPTab({
 
         {/* EDIT MODAL */}
         {editingBgId && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" onClick={() => setEditingBgId(null)}>
-            <div className="bg-card border border-primary/30 rounded-xl p-4 sm:p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl" onClick={(e) => e.stopPropagation()}>
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-bold flex items-center gap-2">
-                  <Edit3 size={20} className="text-primary" />
-                  Редактирование фона
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-3 sm:p-4"
+            onClick={() => setEditingBgId(null)}
+          >
+            {/*
+              max-h-[90dvh] вместо 90vh: dvh учитывает динамическую высоту
+              вьюпорта, поэтому панель не уезжает за нижний край, когда
+              на iOS сворачивается адресная строка или открыта клавиатура.
+
+              overscroll-contain не даёт «доскроллить» страницу за оверлеем,
+              когда список внутри пан��лки уже в конце.
+            */}
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-label="Редактирование фона"
+              className="bg-card border border-primary/30 rounded-xl p-4 sm:p-6 max-w-2xl w-full max-h-[90dvh] overflow-y-auto overscroll-contain shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between gap-2 mb-4">
+                <h3 className="text-base sm:text-lg font-bold flex items-center gap-2 min-w-0">
+                  <Edit3 size={20} className="text-primary shrink-0" />
+                  <span className="break-words">Редактирование фона</span>
                 </h3>
-                <button onClick={() => setEditingBgId(null)} className="p-1.5 rounded-md hover:bg-muted transition">
+                <button onClick={() => setEditingBgId(null)} aria-label="Закрыть" className="p-2 min-h-11 min-w-11 sm:min-h-8 sm:min-w-8 rounded-md hover:bg-muted transition shrink-0">
                   <X size={20} />
                 </button>
               </div>
@@ -348,7 +377,7 @@ export function PvPTab({
                       type="text"
                       value={editBg.name}
                       onChange={(e) => setEditBg({ ...editBg, name: e.target.value })}
-                      className="w-full px-3 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-sm"
+                      className="w-full px-3 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-base sm:text-sm"
                     />
                   </div>
                   <div>
@@ -356,7 +385,7 @@ export function PvPTab({
                     <select
                       value={editBg.mode}
                       onChange={(e) => setEditBg({ ...editBg, mode: e.target.value })}
-                      className="w-full px-3 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-sm"
+                      className="w-full px-3 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-base sm:text-sm"
                     >
                       <option value="both">PvP и PvE</option>
                       <option value="pvp">Только PvP</option>
@@ -370,7 +399,7 @@ export function PvPTab({
                     type="url"
                     value={editBg.image_url}
                     onChange={(e) => setEditBg({ ...editBg, image_url: e.target.value })}
-                    className="w-full px-3 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-sm"
+                    className="w-full px-3 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-base sm:text-sm"
                   />
                 </div>
 
@@ -544,7 +573,11 @@ function BgSliders({ values, onChange }: {
   values: { scale: number; position_x: number; position_y: number; opacity: number }
   onChange: (v: any) => void
 }) {
-  const sliderClass = "w-full h-2 rounded-lg appearance-none cursor-pointer bg-muted accent-primary"
+  // Ползунки масштаба/прозрачности/позиции фона.
+// h-2 — это 8px полосы, и на телефоне попасть в неё пальцем почти
+// невозможно. На мобильных поднимаем высоту до 24px (полоса остаётся
+// визуально тонкой за счёт accent-primary), с sm+ возвращаем h-2.
+const sliderClass = "w-full h-6 sm:h-2 rounded-lg appearance-none cursor-pointer bg-muted accent-primary"
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 bg-muted/30 rounded-lg border border-border">

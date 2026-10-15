@@ -147,12 +147,12 @@ export function BlacklistTab() {
             onChange={(e) => setLookupIp(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleLookup()}
             placeholder="Например, 5.128.192.7"
-            className="flex-1 px-3 py-2 rounded-lg bg-background border border-border text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+            className="flex-1 min-w-0 min-h-11 px-3 py-2 rounded-lg bg-background border border-border text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
           />
           <button
             onClick={handleLookup}
             disabled={lookupBusy || !lookupIp.trim()}
-            className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50 flex items-center justify-center gap-2 min-h-[40px]"
+            className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50 flex items-center justify-center gap-2 min-h-11"
           >
             {lookupBusy && <Loader2 className="w-4 h-4 animate-spin" />}
             Проверить
@@ -179,12 +179,14 @@ export function BlacklistTab() {
               )}
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1 text-xs sm:text-sm">
-              <div><span className="text-muted-foreground">IP: </span><b>{lookupResult.ip}</b></div>
-              <div><span className="text-muted-foreground">Оператор/ASN: </span><b>{lookupResult.org || "—"}</b></div>
-              <div><span className="text-muted-foreground">Город: </span>{lookupResult.city || "—"}, {lookupResult.region || "—"}</div>
-              <div><span className="text-muted-foreground">Страна: </span>{lookupResult.country || "—"}</div>
+              {/* break-all: полный IPv6 и строки ASN — длинные неразрывные
+                  токены, которые иначе распирали карточку за пределы экрана. */}
+              <div className="min-w-0"><span className="text-muted-foreground">IP: </span><b className="break-all">{lookupResult.ip}</b></div>
+              <div className="min-w-0"><span className="text-muted-foreground">Оператор/ASN: </span><b className="break-words">{lookupResult.org || "—"}</b></div>
+              <div className="min-w-0 break-words"><span className="text-muted-foreground">Город: </span>{lookupResult.city || "—"}, {lookupResult.region || "—"}</div>
+              <div className="min-w-0 break-words"><span className="text-muted-foreground">Страна: </span>{lookupResult.country || "—"}</div>
               {lookupResult.hostname && (
-                <div className="sm:col-span-2"><span className="text-muted-foreground">Hostname: </span>{lookupResult.hostname}</div>
+                <div className="sm:col-span-2 min-w-0 break-all"><span className="text-muted-foreground">Hostname: </span>{lookupResult.hostname}</div>
               )}
             </div>
             <div className="flex flex-wrap gap-2 pt-1">
@@ -192,7 +194,7 @@ export function BlacklistTab() {
                 onClick={() =>
                   banAndRefresh(() => addIpBan(lookupResult.ip, lookupReason), "Забанен IP")
                 }
-                className="px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-500 text-white text-xs font-medium flex items-center gap-1.5"
+                className="px-3 py-1.5 min-h-11 rounded-lg bg-red-600 hover:bg-red-500 text-white text-xs font-medium flex items-center gap-1.5"
               >
                 <Ban className="w-3.5 h-3.5" /> Забанить IP
               </button>
@@ -200,7 +202,7 @@ export function BlacklistTab() {
                 onClick={() =>
                   banAndRefresh(() => addIpSubnetBan(lookupResult.ip, lookupReason), "Забанена подсеть")
                 }
-                className="px-3 py-1.5 rounded-lg bg-red-700 hover:bg-red-600 text-white text-xs font-medium flex items-center gap-1.5"
+                className="px-3 py-1.5 min-h-11 rounded-lg bg-red-700 hover:bg-red-600 text-white text-xs font-medium flex items-center gap-1.5"
               >
                 <ShieldAlert className="w-3.5 h-3.5" /> Забанить подсеть (/24)
               </button>
@@ -208,7 +210,7 @@ export function BlacklistTab() {
                 href={`https://ipinfo.io/${lookupResult.ip}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="px-3 py-1.5 rounded-lg border border-border text-xs flex items-center gap-1.5 hover:bg-muted"
+                className="px-3 py-1.5 min-h-11 rounded-lg border border-border text-xs flex items-center gap-1.5 hover:bg-muted"
               >
                 <ExternalLink className="w-3.5 h-3.5" /> ipinfo.io
               </a>
@@ -225,18 +227,18 @@ export function BlacklistTab() {
             value={newTarget}
             onChange={(e) => setNewTarget(e.target.value)}
             placeholder="IP или подсеть: 5.128.0.1, 5.128.0.0/24, 2a03:d000::/48"
-            className="flex-1 px-3 py-2 rounded-lg bg-background border border-border text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+            className="flex-1 min-w-0 min-h-11 px-3 py-2 rounded-lg bg-background border border-border text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
           />
           <input
             value={newReason}
             onChange={(e) => setNewReason(e.target.value)}
             placeholder="Причина: ночной сканер /watch/61607"
-            className="flex-1 px-3 py-2 rounded-lg bg-background border border-border text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+            className="flex-1 min-w-0 min-h-11 px-3 py-2 rounded-lg bg-background border border-border text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
           />
           <button
             onClick={handleManualAdd}
             disabled={adding || !newTarget.trim()}
-            className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50 flex items-center justify-center gap-2 min-h-[40px]"
+            className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50 flex items-center justify-center gap-2 min-h-11"
           >
             {adding && <Loader2 className="w-4 h-4 animate-spin" />}
             Забанить
@@ -246,11 +248,11 @@ export function BlacklistTab() {
 
       {/* Список банов */}
       <div className="rounded-xl border border-border overflow-hidden">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+        <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-border">
           <h3 className="font-semibold text-sm">Чёрный список ({bans.length})</h3>
           <button
             onClick={fetchBans}
-            className="text-xs text-muted-foreground hover:text-foreground"
+            className="min-h-11 sm:min-h-0 px-2 -mx-2 text-xs text-muted-foreground hover:text-foreground"
           >
             Обновить
           </button>
@@ -264,38 +266,47 @@ export function BlacklistTab() {
             Пока пусто. Проверьте подозрительный IP выше или добавьте вручную.
           </div>
         ) : (
-          <table className="w-full text-xs sm:text-sm">
-            <thead>
-              <tr className="text-left text-muted-foreground border-b border-border bg-muted/30">
-                <th className="px-4 py-2 font-medium">IP / подсеть</th>
-                <th className="px-4 py-2 font-medium hidden sm:table-cell">Причина</th>
-                <th className="px-4 py-2 font-medium hidden md:table-cell">Когда</th>
-                <th className="px-4 py-2 font-medium w-10"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {bans.map((row) => (
-                <tr key={row.id} className="border-b border-border last:border-0 hover:bg-muted/20">
-                  <td className="px-4 py-2 font-mono">{row.target}</td>
-                  <td className="px-4 py-2 text-muted-foreground hidden sm:table-cell">
-                    {row.reason || "—"}
-                  </td>
-                  <td className="px-4 py-2 text-muted-foreground hidden md:table-cell">
-                    {formatDate(row.created_at)}
-                  </td>
-                  <td className="px-4 py-2">
-                    <button
-                      onClick={() => handleRemove(row)}
-                      title="Разбанить"
-                      className="p-1.5 rounded-lg text-muted-foreground hover:text-red-500 hover:bg-red-500/10"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </td>
+          // Таблица раньше шла без прокрутки по горизонтали. Адрес в
+          // формате IPv6-CIDR (напр. 2a03:d000:85e3:.../48) — это ~43
+          // моноширинных символа, и вместе с колонкой кнопок он не
+          // помещался в 360px. overflow:hidden на карточке не давал
+          // прокрутить, а колонка с кнопкой «Разбанить» уезжала за
+          // край — с телефона снять бан было невозможно.
+          <div className="overflow-x-auto overscroll-x-contain [scrollbar-width:thin]">
+            <table className="w-full min-w-[280px] text-xs sm:text-sm">
+              <thead>
+                <tr className="text-left text-muted-foreground border-b border-border bg-muted/30">
+                  <th className="px-4 py-2 font-medium">IP / подсеть</th>
+                  <th className="px-4 py-2 font-medium hidden sm:table-cell">Причина</th>
+                  <th className="px-4 py-2 font-medium hidden md:table-cell">Когда</th>
+                  <th className="px-4 py-2 font-medium w-14"></th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {bans.map((row) => (
+                  <tr key={row.id} className="border-b border-border last:border-0 hover:bg-muted/20">
+                    <td className="px-4 py-2 font-mono break-all">{row.target}</td>
+                    <td className="px-4 py-2 text-muted-foreground hidden sm:table-cell">
+                      {row.reason || "—"}
+                    </td>
+                    <td className="px-4 py-2 text-muted-foreground hidden md:table-cell whitespace-nowrap">
+                      {formatDate(row.created_at)}
+                    </td>
+                    <td className="px-4 py-2">
+                      <button
+                        onClick={() => handleRemove(row)}
+                        title="Разбанить"
+                        aria-label={`Разбанить ${row.target}`}
+                        className="min-h-11 min-w-11 sm:min-h-8 sm:min-w-8 p-1.5 rounded-lg text-muted-foreground hover:text-red-500 hover:bg-red-500/10 transition"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
     </div>

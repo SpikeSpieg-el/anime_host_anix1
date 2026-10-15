@@ -53,6 +53,8 @@ function saveSearchHistory(query: string) {
 export function Navbar() {
   const router = useRouter()
   const pathname = usePathname()
+  // Панель управления инструментами: публичная навигация в ней лишняя.
+  const isAdminRoute = pathname === "/admin" || pathname.startsWith("/admin/")
   const { user, session, signOut, profile, sessionLoading } = useAuth()
   const { toast } = useToast()
   const { updates, clearUpdate, clearAllUpdates } = useEpisodeUpdates()
@@ -492,8 +494,15 @@ export function Navbar() {
       {/* 
         === MODERN MOBILE FLOATING DOCK === 
         Скрыт на md+, виден на мобильных. Скрываем при скролле вниз, на странице гачи и на странице боёв.
+
+        Также скрыт в админке (/admin и всё, что внутри). Причина не в
+        перекрытии контента, а в самой навигации: ссылки «Главная»,
+        «Расписание», «Каталог», «Моё» ведут с панели управления
+        инструментами в публичные разделы, а кнопка «Ещё» открывает
+        пользовательское меню. В админке это шум — и она перехватывала
+        тапы по нижним кнопкам форм (Сохранить, Разбанить и т.п.).
       */}
-      {!pathname.includes("/gacha") && !pathname.includes("/battle") && (
+      {!pathname.includes("/gacha") && !pathname.includes("/battle") && !isAdminRoute && (
         <div className={cn(
           "fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-[90%] max-w-[400px] md:hidden transition-all duration-500 ease-in-out",
           showBottomNav ? "translate-y-0 opacity-100" : "translate-y-24 opacity-0"

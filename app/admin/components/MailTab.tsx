@@ -87,7 +87,7 @@ export function MailTab({
           <select
             value={mailTargetUserId}
             onChange={(e) => onMailTargetChange(e.target.value)}
-            className="w-full px-3 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-sm"
+            className="w-full px-3 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-base sm:text-sm"
           >
             <option value="">Выберите пользователя...</option>
             {simpleUsers.map((u) => (
@@ -103,7 +103,7 @@ export function MailTab({
           <select
             value={mailType}
             onChange={(e) => onMailTypeChange(e.target.value as MailType)}
-            className="w-full px-3 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-sm"
+            className="w-full px-3 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-base sm:text-sm"
           >
             {MAIL_TYPES.map((t) => (
               <option key={t.value} value={t.value}>{t.label}</option>
@@ -118,7 +118,7 @@ export function MailTab({
             value={mailTitle}
             onChange={(e) => onMailTitleChange(e.target.value)}
             placeholder="Заголовок письма..."
-            className="w-full px-3 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-sm"
+            className="w-full px-3 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-base sm:text-sm"
           />
         </div>
 
@@ -128,7 +128,7 @@ export function MailTab({
             value={mailBody}
             onChange={(e) => onMailBodyChange(e.target.value)}
             placeholder="Текст письма..."
-            className="w-full px-3 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-sm h-24"
+            className="w-full px-3 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-base sm:text-sm h-24"
           />
         </div>
 
@@ -141,7 +141,7 @@ export function MailTab({
               type="number"
               value={mailAmount}
               onChange={(e) => onMailAmountChange(parseInt(e.target.value) || 0)}
-              className="w-full px-3 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-sm"
+              className="w-full px-3 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-base sm:text-sm"
             />
           </div>
         )}
@@ -155,7 +155,7 @@ export function MailTab({
               value={mailCardJson}
               onChange={(e) => onMailCardJsonChange(e.target.value)}
               placeholder='Вставьте объект Card в формате JSON. Можно получить в редакторе карт...'
-              className="w-full px-3 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-sm h-32 font-mono text-xs"
+              className="w-full px-3 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-base sm:text-sm h-32 font-mono text-xs"
             />
             <p className="text-xs text-muted-foreground">
               Совет: откройте{" "}
@@ -196,7 +196,7 @@ export function MailTab({
             <select
               value={pushTargetUserId}
               onChange={(e) => onPushTargetChange(e.target.value)}
-              className="w-full px-3 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-sm"
+              className="w-full px-3 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-base sm:text-sm"
             >
               <option value="">Выберите пользователя...</option>
               {simpleUsers.map((u) => (
@@ -214,7 +214,7 @@ export function MailTab({
               value={pushTitle}
               onChange={(e) => onPushTitleChange(e.target.value)}
               placeholder="Заголовок уведомления..."
-              className="w-full px-3 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-sm"
+              className="w-full px-3 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-base sm:text-sm"
             />
           </div>
 
@@ -224,7 +224,7 @@ export function MailTab({
               value={pushBody}
               onChange={(e) => onPushBodyChange(e.target.value)}
               placeholder="Текст уведомления..."
-              className="w-full px-3 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-sm h-20"
+              className="w-full px-3 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-base sm:text-sm h-20"
             />
           </div>
 
@@ -235,7 +235,7 @@ export function MailTab({
               value={pushUrl}
               onChange={(e) => onPushUrlChange(e.target.value)}
               placeholder="/watch/12345 или https://..."
-              className="w-full px-3 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-sm"
+              className="w-full px-3 py-2 bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary text-base sm:text-sm"
             />
           </div>
 

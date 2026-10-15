@@ -46,7 +46,9 @@ export function AIBattleTab({
         </div>
       ) : isBattleAILoading && !battleAIDashboard ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 animate-pulse">
-          {[...Array(8)].map((_, index) => <div key={index} className="h-28 rounded-xl bg-muted" />)}
+          {/* 8 скелетонов на мобильном давали ~900px пустоты перед
+              контентом — на экране телефона помещалось 2-3 штуки. */}
+          {[...Array(4)].map((_, index) => <div key={index} className="h-28 rounded-xl bg-muted" />)}
         </div>
       ) : !battleAIDashboard ? (
         <div className="rounded-xl border border-border bg-card p-8 text-center text-muted-foreground">Данные AI пока не загружены.</div>
@@ -99,17 +101,20 @@ export function AIBattleTab({
               </div>
               <span className="text-xs text-muted-foreground">Обновлено: {formatDate(battleAIDashboard.generatedAt)}</span>
             </div>
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto overscroll-x-contain [scrollbar-width:thin]">
               <table className="w-full min-w-[820px] text-sm">
                 <thead className="bg-muted/50 text-xs uppercase tracking-wide text-muted-foreground">
                   <tr>
-                    <th className="px-4 py-3 text-left">Локация</th>
+                    {/* Липкая первая колонка: при горизонтальной прокрутке
+                        таблицы на 820px остаётся видно, к какой строке
+                        относится текущая ячейка. */}
+                    <th className="px-4 py-3 text-left sticky left-0 bg-muted z-10">Локация</th>
                     <th className="px-4 py-3 text-right">Боёв</th>
                     <th className="px-4 py-3 text-right">Игроки</th>
                     <th className="px-4 py-3 text-right">AI</th>
                     <th className="px-4 py-3 text-right">Ходы</th>
                     <th className="px-4 py-3 text-left">Статус</th>
-                    <th className="px-4 py-3 text-left">Рекомендация</th>
+                    <th className="px-4 py-3 text-left hidden md:table-cell">Рекомендация</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
@@ -135,13 +140,13 @@ export function AIBattleTab({
                           : "bg-rose-500/10 text-rose-700 dark:text-rose-300"
                     return (
                       <tr key={location.dungeon_id} className="hover:bg-muted/30">
-                        <td className="px-4 py-3 font-medium">{location.dungeon_id}</td>
+                        <td className="px-4 py-3 font-medium sticky left-0 bg-card z-10">{location.dungeon_id}</td>
                         <td className="px-4 py-3 text-right tabular-nums">{location.battles.toLocaleString('ru-RU')}</td>
                         <td className="px-4 py-3 text-right tabular-nums">{(location.playerWinRate * 100).toFixed(1)}%</td>
                         <td className="px-4 py-3 text-right tabular-nums">{(location.aiWinRate * 100).toFixed(1)}%</td>
                         <td className="px-4 py-3 text-right tabular-nums">{location.avgTurns.toFixed(1)}</td>
                         <td className="px-4 py-3"><span className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${tone}`}>{labels[location.balanceStatus]}</span></td>
-                        <td className="px-4 py-3 text-xs text-muted-foreground">{recommendations[location.balanceStatus]}</td>
+                        <td className="px-4 py-3 text-xs text-muted-foreground hidden md:table-cell">{recommendations[location.balanceStatus]}</td>
                       </tr>
                     )
                   })}
@@ -156,18 +161,18 @@ export function AIBattleTab({
               <h3 className="font-semibold">Антифарм и персональные адаптации</h3>
               <p className="text-xs text-muted-foreground mt-1">Показаны 100 наиболее активных профилей, отсортированных по серии побед и числу побед.</p>
             </div>
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[900px] text-sm">
+            <div className="overflow-x-auto overscroll-x-contain [scrollbar-width:thin]">
+              <table className="w-full min-w-[700px] text-sm">
                 <thead className="bg-muted/50 text-xs uppercase tracking-wide text-muted-foreground">
                   <tr>
-                    <th className="px-4 py-3 text-left">Игрок</th>
+                    <th className="px-4 py-3 text-left sticky left-0 bg-muted z-10">Игрок</th>
                     <th className="px-4 py-3 text-left">Локация</th>
                     <th className="px-4 py-3 text-right">Боёв</th>
                     <th className="px-4 py-3 text-right">Побед</th>
                     <th className="px-4 py-3 text-right">Винрейт</th>
-                    <th className="px-4 py-3 text-right">Серия</th>
+                    <th className="px-4 py-3 text-right hidden sm:table-cell">Серия</th>
                     <th className="px-4 py-3 text-left">Риск</th>
-                    <th className="px-4 py-3 text-left">Обновлён</th>
+                    <th className="px-4 py-3 text-left hidden lg:table-cell">Обновлён</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
@@ -180,14 +185,14 @@ export function AIBattleTab({
                         : "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
                     return (
                       <tr key={`${profile.user_id}-${profile.dungeon_id}`} className="hover:bg-muted/30">
-                        <td className="px-4 py-3"><p className="font-medium">{profile.username || "Без имени"}</p><p className="font-mono text-[10px] text-muted-foreground">{profile.user_id}</p></td>
+                        <td className="px-4 py-3 sticky left-0 bg-card z-10"><p className="font-medium break-words">{profile.username || "Без имени"}</p><p className="font-mono text-[10px] text-muted-foreground break-all">{profile.user_id}</p></td>
                         <td className="px-4 py-3 font-medium">{profile.dungeon_id}</td>
                         <td className="px-4 py-3 text-right tabular-nums">{profile.battles}</td>
                         <td className="px-4 py-3 text-right tabular-nums">{profile.wins}</td>
                         <td className="px-4 py-3 text-right tabular-nums">{(profile.winRate * 100).toFixed(1)}%</td>
-                        <td className="px-4 py-3 text-right tabular-nums">{profile.consecutive_wins}</td>
+                        <td className="px-4 py-3 text-right tabular-nums hidden sm:table-cell">{profile.consecutive_wins}</td>
                         <td className="px-4 py-3"><span className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${riskTone}`}>{riskLabel}</span></td>
-                        <td className="px-4 py-3 text-xs text-muted-foreground">{formatDate(profile.updated_at)}</td>
+                        <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap hidden lg:table-cell">{formatDate(profile.updated_at)}</td>
                       </tr>
                     )
                   })}
@@ -205,17 +210,17 @@ export function AIBattleTab({
               </h3>
               <p className="text-xs text-muted-foreground mt-1">Playstyle данные с exponential decay (×0.92 за бой)</p>
             </div>
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[900px] text-sm">
+            <div className="overflow-x-auto overscroll-x-contain [scrollbar-width:thin]">
+              <table className="w-full min-w-[620px] text-sm">
                 <thead className="bg-muted/50 text-xs uppercase tracking-wide text-muted-foreground">
                   <tr>
-                    <th className="px-4 py-3 text-left">Игрок</th>
+                    <th className="px-4 py-3 text-left sticky left-0 bg-muted z-10">Игрок</th>
                     <th className="px-4 py-3 text-right">Боёв</th>
-                    <th className="px-4 py-3 text-right">Avg Prov</th>
+                    <th className="px-4 py-3 text-right hidden sm:table-cell">Avg Prov</th>
                     <th className="px-4 py-3 text-left">Роли (decay)</th>
                     <th className="px-4 py-3 text-right">Bluff</th>
                     <th className="px-4 py-3 text-left">Любимые карты</th>
-                    <th className="px-4 py-3 text-left">Обновлён</th>
+                    <th className="px-4 py-3 text-left hidden lg:table-cell">Обновлён</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
@@ -225,12 +230,12 @@ export function AIBattleTab({
                     const topCards = (profile.favorite_cards || []).slice(0, 3)
                     return (
                       <tr key={profile.user_id} className="hover:bg-muted/30">
-                        <td className="px-4 py-3">
-                          <p className="font-medium">{profile.username || "Без имени"}</p>
+                        <td className="px-4 py-3 sticky left-0 bg-card z-10">
+                          <p className="font-medium break-words">{profile.username || "Без имени"}</p>
                           <p className="font-mono text-[10px] text-muted-foreground">{profile.user_id?.slice(0, 8)}...</p>
                         </td>
                         <td className="px-4 py-3 text-right tabular-nums font-semibold">{profile.total_battles}</td>
-                        <td className="px-4 py-3 text-right tabular-nums">{(profile.avg_provision_cost || 0).toFixed(1)}</td>
+                        <td className="px-4 py-3 text-right tabular-nums hidden sm:table-cell">{(profile.avg_provision_cost || 0).toFixed(1)}</td>
                         <td className="px-4 py-3">
                           <div className="flex gap-1 flex-wrap">
                             {Object.entries(roles).sort((a, b) => (b[1] as number) - (a[1] as number)).map(([role, count]) => (
@@ -243,14 +248,17 @@ export function AIBattleTab({
                         <td className="px-4 py-3 text-right tabular-nums">{((profile.bluff_tendency || 0) * 100).toFixed(0)}%</td>
                         <td className="px-4 py-3">
                           <div className="space-y-0.5">
+                            {/* Без truncate: вложенное обрезание внутри уже
+                                прокручиваемой таблицы давало визуально
+                                обрезанный текст без пояснения. */}
                             {topCards.map((card: any) => (
-                              <div key={card.cardId} className="text-[11px] text-muted-foreground truncate max-w-[180px]">
+                              <div key={card.cardId} className="text-[11px] text-muted-foreground break-words">
                                 {card.cardName} <span className="text-primary">×{card.usageCount.toFixed(1)}</span>
                               </div>
                             ))}
                           </div>
                         </td>
-                        <td className="px-4 py-3 text-xs text-muted-foreground">{formatDate(profile.updated_at)}</td>
+                        <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap hidden lg:table-cell">{formatDate(profile.updated_at)}</td>
                       </tr>
                     )
                   })}

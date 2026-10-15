@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef } from "react"
 import { QRCodeCanvas, QRCodeSVG } from "qrcode.react"
-import { Navbar } from "@/components/layout/navbar"
 import { Card, CardStats } from "@/app/gacha/types"
 import { Rarity, rarityConfig } from "@/types/gacha"
 import { getProxiedSrc } from "@/lib/image-loader"
@@ -365,9 +364,13 @@ export default function CardEditorPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white pb-20 overflow-x-hidden">
-      <Navbar />
-      
+    // Navbar рендерится корневым app/layout.tsx для всех маршрутов.
+    // Локальный <Navbar /> создавал ВТОРОЙ фиксированный хедер и второй
+    // нижний док, а вместе с отступами main — ~208px мёртвого места сверху
+    // и перекрытый низ экрана на телефоне.
+    // overflow-x-hidden тоже убран: он делает элемент scroll-контейнером
+    // и молча ломает lg:sticky на превью.
+    <div className="min-h-screen bg-slate-950 text-white pb-20">
       <main className="container mx-auto px-4 pt-20 sm:pt-24 lg:pt-28">
         <div className="flex flex-col lg:flex-row gap-8 lg:gap-12 items-start">
           
@@ -485,7 +488,7 @@ export default function CardEditorPage() {
           {/* Form Section */}
           <div className="w-full lg:w-2/3 space-y-8">
             <div>
-              <h1 className="text-4xl font-black text-white mb-2">Создание Карты</h1>
+              <h1 className="text-2xl sm:text-4xl font-black text-white mb-2">Создание Карты</h1>
               <p className="text-slate-400">Админ-инструмент: создайте карту и подарите пользователю или добавьте в баннер</p>
             </div>
 
@@ -532,7 +535,7 @@ export default function CardEditorPage() {
                       value={card.rarity} 
                       onValueChange={v => setCard(prev => ({ ...prev, rarity: v as Rarity }))}
                     >
-                      <SelectTrigger className="bg-slate-900/50 border-white/10 h-12">
+                      <SelectTrigger className="bg-slate-900/50 border-white/10 h-12 w-full min-w-0">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent className="bg-slate-900 border-white/10 text-white">
@@ -551,7 +554,7 @@ export default function CardEditorPage() {
                       step="0.1" 
                       value={card.score} 
                       onChange={e => setCard(prev => ({ ...prev, score: parseFloat(e.target.value) }))}
-                      className="bg-slate-900/50 border-white/10 h-12"
+                      className="bg-slate-900/50 border-white/10 h-12 w-full min-w-0"
                     />
                   </div>
                 </div>
@@ -562,7 +565,7 @@ export default function CardEditorPage() {
                       <span className="flex items-center gap-2">
                         <Hash className="w-4 h-4 text-slate-400" /> Shiki ID
                       </span>
-                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={generateShikiId}>
+                      <Button variant="ghost" size="icon" className="h-11 w-11 sm:h-6 sm:w-6" onClick={generateShikiId}>
                         <RefreshCcw className="w-3 h-3" />
                       </Button>
                     </Label>
@@ -570,7 +573,7 @@ export default function CardEditorPage() {
                       type="number" 
                       value={card.shikiId} 
                       onChange={e => setCard(prev => ({ ...prev, shikiId: parseInt(e.target.value) }))}
-                      className="bg-slate-900/50 border-white/10 h-12"
+                      className="bg-slate-900/50 border-white/10 h-12 w-full min-w-0"
                     />
                   </div>
                   <div className="space-y-2">
@@ -578,7 +581,7 @@ export default function CardEditorPage() {
                       <span className="flex items-center gap-2">
                         <Hash className="w-4 h-4 text-slate-400" /> Character ID
                       </span>
-                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={generateCharacterId}>
+                      <Button variant="ghost" size="icon" className="h-11 w-11 sm:h-6 sm:w-6" onClick={generateCharacterId}>
                         <RefreshCcw className="w-3 h-3" />
                       </Button>
                     </Label>
@@ -586,7 +589,7 @@ export default function CardEditorPage() {
                       type="number" 
                       value={card.characterId} 
                       onChange={e => setCard(prev => ({ ...prev, characterId: parseInt(e.target.value) }))}
-                      className="bg-slate-900/50 border-white/10 h-12"
+                      className="bg-slate-900/50 border-white/10 h-12 w-full min-w-0"
                     />
                   </div>
                 </div>
@@ -614,7 +617,7 @@ export default function CardEditorPage() {
                       value={card.frameModifier || "none"} 
                       onValueChange={v => setCard(prev => ({ ...prev, frameModifier: v === "none" ? undefined : v }))}
                     >
-                      <SelectTrigger className="bg-slate-900/50 border-white/10 h-12">
+                      <SelectTrigger className="bg-slate-900/50 border-white/10 h-12 w-full min-w-0">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent className="bg-slate-900 border-white/10 text-white">
@@ -631,7 +634,7 @@ export default function CardEditorPage() {
                       value={card.coatingModifier || "none"} 
                       onValueChange={v => setCard(prev => ({ ...prev, coatingModifier: v === "none" ? undefined : v }))}
                     >
-                      <SelectTrigger className="bg-slate-900/50 border-white/10 h-12">
+                      <SelectTrigger className="bg-slate-900/50 border-white/10 h-12 w-full min-w-0">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent className="bg-slate-900 border-white/10 text-white">
@@ -660,7 +663,7 @@ export default function CardEditorPage() {
                           layers[0] = e.target.value;
                           setCard(prev => ({ ...prev, imageLayers: layers as [string, string, string] }));
                         }}
-                        className="bg-slate-900/50 border-white/10 h-10 text-xs"
+                        className="bg-slate-900/50 border-white/10 h-11 sm:h-10 text-base sm:text-xs"
                       />
                     </div>
                     <div className="space-y-2">
@@ -673,7 +676,7 @@ export default function CardEditorPage() {
                           layers[1] = e.target.value;
                           setCard(prev => ({ ...prev, imageLayers: layers as [string, string, string] }));
                         }}
-                        className="bg-slate-900/50 border-white/10 h-10 text-xs border-indigo-500/30"
+                        className="bg-slate-900/50 border-white/10 h-11 sm:h-10 text-base sm:text-xs border-indigo-500/30"
                       />
                     </div>
                     <div className="space-y-2">
@@ -686,7 +689,7 @@ export default function CardEditorPage() {
                           layers[2] = e.target.value;
                           setCard(prev => ({ ...prev, imageLayers: layers as [string, string, string] }));
                         }}
-                        className="bg-slate-900/50 border-white/10 h-10 text-xs"
+                        className="bg-slate-900/50 border-white/10 h-11 sm:h-10 text-base sm:text-xs"
                       />
                     </div>
                     <p className="text-[10px] text-slate-500 italic">Оставьте пустым, чтобы использовать основное изображение</p>
@@ -740,24 +743,28 @@ export default function CardEditorPage() {
 
                   return (
                     <div className="space-y-3">
-                      {/* Provision + Power */}
-                      <div className="grid grid-cols-3 gap-3">
+                      {/* Provision + Power
+                          На 360px три колонки давали ~61px полезной ширины,
+                          а подпись «Вес (Provision)» в tracking-widest —
+                          около 104px: текст рвался на 3 рваные строки.
+                          Ниже 640px раскладываем в одну колонку. */}
+                      <div className="grid grid-cols-1 xs:grid-cols-3 gap-2 sm:gap-3">
                         <div className="p-3 bg-slate-950/60 rounded-xl border border-white/5 text-center">
-                          <p className="text-[10px] text-slate-500 uppercase font-black tracking-widest mb-1">Вес (Provision)</p>
+                          <p className="text-[10px] text-slate-500 uppercase font-black tracking-normal sm:tracking-widest mb-1 break-words">Вес (Provision)</p>
                           <p className={`text-2xl font-black ${provision > baseProvision + 2 ? "text-red-400" : provision < baseProvision - 1 ? "text-blue-400" : "text-emerald-400"}`}>
                             {provision}
                           </p>
                           <p className="text-[9px] text-slate-600 mt-0.5">база: {baseProvision}</p>
                         </div>
                         <div className="p-3 bg-slate-950/60 rounded-xl border border-white/5 text-center">
-                          <p className="text-[10px] text-slate-500 uppercase font-black tracking-widest mb-1">Базовая сила</p>
+                          <p className="text-[10px] text-slate-500 uppercase font-black tracking-normal sm:tracking-widest mb-1 break-words">Базовая сила</p>
                           <p className="text-2xl font-black text-indigo-400">
                             {basePower}
                           </p>
                           <p className="text-[9px] text-slate-600 mt-0.5">макс: 200</p>
                         </div>
                         <div className="p-3 bg-slate-950/60 rounded-xl border border-white/5 text-center">
-                          <p className="text-[10px] text-slate-500 uppercase font-black tracking-widest mb-1">Роль</p>
+                          <p className="text-[10px] text-slate-500 uppercase font-black tracking-normal sm:tracking-widest mb-1 break-words">Роль</p>
                           <p className={`text-sm font-black ${ROLE_CONFIG[role]?.color || "text-slate-400"}`}>
                             {ROLE_CONFIG[role]?.label || "—"}
                           </p>
@@ -767,8 +774,8 @@ export default function CardEditorPage() {
 
                       {/* Rarity match indicator */}
                       <div className={`p-3 rounded-xl border ${isBalanced ? "bg-emerald-500/10 border-emerald-500/20" : isOverpowered ? "bg-red-500/10 border-red-500/20" : "bg-blue-500/10 border-blue-500/20"}`}>
-                        <div className="flex items-center justify-between mb-1.5">
-                          <span className="text-[10px] uppercase font-black tracking-widest text-slate-400">Соответствие редкости</span>
+                        <div className="flex flex-wrap items-center justify-between gap-1 mb-1.5">
+                          <span className="text-[10px] uppercase font-black tracking-normal sm:tracking-widest text-slate-400">Соответствие редкости</span>
                           <span className={`text-xs font-black ${isBalanced ? "text-emerald-400" : isOverpowered ? "text-red-400" : "text-blue-400"}`}>
                             {isBalanced ? "✓ Норма" : isOverpowered ? "⚠ Слишком сильная" : "↓ Слабая"}
                           </span>
@@ -804,20 +811,20 @@ export default function CardEditorPage() {
                 <FileJson className="w-4 h-4" /> JSON Экспорт / Импорт
               </h3>
 
-              <div className="flex gap-3">
+              <div className="flex flex-col sm:flex-row gap-3">
                 <Button
                   onClick={handleCopyJson}
                   variant="outline"
-                  className="flex-1 h-12 bg-white/5 border-white/10 hover:bg-white/10 rounded-2xl font-bold"
+                  className="flex-1 min-w-0 h-12 min-h-11 bg-white/5 border-white/10 hover:bg-white/10 rounded-2xl font-bold whitespace-normal sm:whitespace-nowrap text-center"
                 >
                   {copied ? (
                     <>
-                      <Check className="w-4 h-4 mr-2 text-emerald-400" />
+                      <Check className="w-4 h-4 mr-2 shrink-0 text-emerald-400" />
                       Скопировано!
                     </>
                   ) : (
                     <>
-                      <Copy className="w-4 h-4 mr-2" />
+                      <Copy className="w-4 h-4 mr-2 shrink-0" />
                       Копировать JSON
                     </>
                   )}
@@ -825,9 +832,9 @@ export default function CardEditorPage() {
                 <Button
                   onClick={() => setShowJsonInput(!showJsonInput)}
                   variant="outline"
-                  className="flex-1 h-12 bg-white/5 border-white/10 hover:bg-white/10 rounded-2xl font-bold"
+                  className="flex-1 min-w-0 h-12 min-h-11 bg-white/5 border-white/10 hover:bg-white/10 rounded-2xl font-bold whitespace-normal sm:whitespace-nowrap text-center"
                 >
-                  <ClipboardPaste className="w-4 h-4 mr-2" />
+                  <ClipboardPaste className="w-4 h-4 mr-2 shrink-0" />
                   {showJsonInput ? "Скрыть" : "Загрузить из JSON"}
                 </Button>
               </div>
@@ -843,7 +850,7 @@ export default function CardEditorPage() {
                   <Button
                     onClick={handleLoadFromJson}
                     disabled={!jsonInput.trim()}
-                    className="w-full h-12 bg-indigo-600 hover:bg-indigo-500 font-black uppercase tracking-widest rounded-2xl disabled:opacity-50"
+                    className="w-full min-w-0 h-12 min-h-11 bg-indigo-600 hover:bg-indigo-500 font-bold sm:font-black uppercase tracking-normal sm:tracking-widest rounded-2xl disabled:opacity-50 whitespace-normal sm:whitespace-nowrap text-center px-3 text-sm sm:text-base"
                   >
                     <FileJson className="w-4 h-4 mr-2" />
                     Загрузить карту из JSON
@@ -864,7 +871,7 @@ export default function CardEditorPage() {
                   <Gift className="w-4 h-4 text-indigo-400" /> Подарить пользователю
                 </Label>
                 <Select value={selectedUserId} onValueChange={setSelectedUserId}>
-                  <SelectTrigger className="bg-slate-900/50 border-white/10 h-12">
+                  <SelectTrigger className="bg-slate-900/50 border-white/10 h-12 w-full min-w-0">
                     <SelectValue placeholder="Выберите пользователя..." />
                   </SelectTrigger>
                   <SelectContent className="bg-slate-900 border-white/10 text-white max-h-72">
@@ -881,7 +888,7 @@ export default function CardEditorPage() {
                 <Button
                   onClick={handleGiftToUser}
                   disabled={isSaving || !selectedUserId}
-                  className="w-full h-12 bg-indigo-600 hover:bg-indigo-500 font-black uppercase tracking-widest rounded-2xl disabled:opacity-50"
+                  className="w-full min-w-0 h-12 min-h-11 bg-indigo-600 hover:bg-indigo-500 font-bold sm:font-black uppercase tracking-normal sm:tracking-widest rounded-2xl disabled:opacity-50 whitespace-normal sm:whitespace-nowrap text-center px-3 text-sm sm:text-base"
                 >
                   {isSaving ? (
                     <>
@@ -908,7 +915,7 @@ export default function CardEditorPage() {
                   <Button
                     onClick={handleGenerateGiftLink}
                     disabled={!card.name || !card.rarity}
-                    className="w-full h-12 bg-indigo-600 hover:bg-indigo-500 font-black uppercase tracking-widest rounded-2xl disabled:opacity-50"
+                    className="w-full min-w-0 h-12 min-h-11 bg-indigo-600 hover:bg-indigo-500 font-bold sm:font-black uppercase tracking-normal sm:tracking-widest rounded-2xl disabled:opacity-50 whitespace-normal sm:whitespace-nowrap text-center px-3 text-sm sm:text-base"
                   >
                     <Gift className="w-4 h-4 mr-2" />
                     Сгенерировать QR-код
@@ -952,7 +959,7 @@ export default function CardEditorPage() {
                   <CalendarPlus className="w-4 h-4 text-pink-400" /> Добавить в баннер
                 </Label>
                 <Select value={selectedBannerId} onValueChange={setSelectedBannerId}>
-                  <SelectTrigger className="bg-slate-900/50 border-white/10 h-12">
+                  <SelectTrigger className="bg-slate-900/50 border-white/10 h-12 w-full min-w-0">
                     <SelectValue placeholder="Выберите баннер..." />
                   </SelectTrigger>
                   <SelectContent className="bg-slate-900 border-white/10 text-white max-h-72">
@@ -976,7 +983,7 @@ export default function CardEditorPage() {
                 <Button
                   onClick={handleAddToBanner}
                   disabled={isSaving || !selectedBannerId}
-                  className="w-full h-12 bg-pink-600 hover:bg-pink-500 font-black uppercase tracking-widest rounded-2xl disabled:opacity-50"
+                  className="w-full min-w-0 h-12 min-h-11 bg-pink-600 hover:bg-pink-500 font-bold sm:font-black uppercase tracking-normal sm:tracking-widest rounded-2xl disabled:opacity-50 whitespace-normal sm:whitespace-nowrap text-center px-3 text-sm sm:text-base"
                 >
                   {isSaving ? (
                     <>
@@ -999,7 +1006,7 @@ export default function CardEditorPage() {
                 </Label>
                 <p className="text-[10px] text-amber-300/60">Карта будет гарантированно выпадать игроку после N круток этого баннера</p>
                 <Select value={selectedGuaranteedBannerId} onValueChange={setSelectedGuaranteedBannerId}>
-                  <SelectTrigger className="bg-slate-900/50 border-white/10 h-12">
+                  <SelectTrigger className="bg-slate-900/50 border-white/10 h-12 w-full min-w-0">
                     <SelectValue placeholder="Выберите баннер для гаранта..." />
                   </SelectTrigger>
                   <SelectContent className="bg-slate-900 border-white/10 text-white max-h-72">
@@ -1020,13 +1027,13 @@ export default function CardEditorPage() {
                     min={1}
                     value={guaranteedPity}
                     onChange={e => setGuaranteedPity(Math.max(1, parseInt(e.target.value) || 1))}
-                    className="bg-slate-900/50 border-white/10 h-12"
+                    className="bg-slate-900/50 border-white/10 h-12 w-full min-w-0"
                   />
                 </div>
                 <Button
                   onClick={handleSetGuaranteedCard}
                   disabled={isSaving || !selectedGuaranteedBannerId}
-                  className="w-full h-12 bg-amber-600 hover:bg-amber-500 font-black uppercase tracking-widest rounded-2xl disabled:opacity-50"
+                  className="w-full min-w-0 h-12 min-h-11 bg-amber-600 hover:bg-amber-500 font-bold sm:font-black uppercase tracking-normal sm:tracking-widest rounded-2xl disabled:opacity-50 whitespace-normal sm:whitespace-nowrap text-center px-3 text-sm sm:text-base"
                 >
                   {isSaving ? (
                     <>
@@ -1073,7 +1080,9 @@ function StatSlider({ label, icon, value, onChange }: { label: string, icon: Rea
         max={100} 
         step={1} 
         onValueChange={([v]: number[]) => onChange(v)}
-        className="[&_[role=slider]]:h-4 [&_[role=slider]]:w-4"
+        // Ползунок позиции арта: thumb в ui/slider.tsx по умолчанию size-4 (16px),
+// для пальца этого мало. На мобильных увеличиваем до 24px.
+className="[&_[role=slider]]:h-6 [&_[role=slider]]:w-6 sm:[&_[role=slider]]:h-4 sm:[&_[role=slider]]:w-4"
       />
     </div>
   )
