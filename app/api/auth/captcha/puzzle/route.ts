@@ -19,13 +19,19 @@ import {
   TARGET_Y_MIN,
 } from "@/lib/captcha-geometry"
 import { loggers } from "@/lib/logger"
+// Секрет captcha берётся из окружения БЕЗ дефолта. Раньше здесь стоял
+// литерал из git, из-за которого капча на боевом домоне была обходима.
+// Подробности — в lib/captcha-secret.ts.
+import { getCaptchaSecret } from "@/lib/captcha-secret"
 import {
   createRateLimiter,
   createRateLimitResponse,
   getRateLimitKey,
 } from "@/lib/rate-limit"
 
-const SECRET = process.env.CAPTCHA_SECRET || "anime-gacha-slider-secret-key-2026"
+// Секрет НЕ читается на уровне модуля: иначе файл падал бы при импорте —
+// то есть ещё на сборке и в тестах, где переменная не задана намеренно.
+// Валидация ленивая, внутри getCaptchaSecret() — см. lib/captcha-secret.ts.
 
 /** Отдельный лимит на выдачу пазла: его можно крутить, пока не найдёшь дырку. */
 const puzzleGetLimiter = createRateLimiter({ interval: 60_000, maxRequests: 20 })
@@ -81,7 +87,7 @@ export async function GET(request: NextRequest) {
         w: size.width,
         h: size.height,
       },
-      SECRET
+      getCaptchaSecret()
     )
 
     loggers?.api?.debug?.("captcha puzzle generated", {
@@ -158,7 +164,7 @@ export async function POST(request: NextRequest) {
       return fail("Проверка не пройдена. Попробуйте ещё раз.", "invalid", 400)
     }
 
-    const payload = unsealPuzzle(body.token, SECRET)
+    const payload = unsealPuzzle(body.token, getCaptchaSecret())
     if (!payload) {
       return fail(
         "Проверка не пройдена. Обновите пазл и попробуйте снова.",
@@ -201,7 +207,7 @@ export async function POST(request: NextRequest) {
     const verificationToken = generateVerificationToken(
       Date.now(),
       payload.nonce,
-      SECRET
+      getCaptchaSecret()
     )
 
     return NextResponse.json(

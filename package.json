@@ -17,6 +17,7 @@
     "test:e2e:install": "playwright install --with-deps chromium",
     "test:all": "vitest run && playwright test",
     "analytics:check": "node scripts/check-analytics.mjs",
+    "captcha:secret": "node scripts/generate-captcha-secret.mjs",
     "sitemap:check": "node scripts/check-sitemap.mjs"
   },
   "dependencies": {

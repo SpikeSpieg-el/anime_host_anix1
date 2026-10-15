@@ -9,7 +9,9 @@ import {
   getRateLimitKey,
 } from "@/lib/rate-limit"
 
-const CAPTCHA_SECRET = process.env.CAPTCHA_SECRET || "anime-gacha-slider-secret-key-2026"
+// Секрет captcha берётся из окружения без дефолта — см. lib/captcha-secret.ts.
+// Раньше здесь стоял литерал из git, из-за которого капча была обходима.
+import { getCaptchaSecret } from "@/lib/captcha-secret"
 
 /**
  * Регистраций с одного адреса в час.
@@ -98,7 +100,7 @@ export async function POST(request: NextRequest) {
   }
 
   // 1. Токен captcha: подпись, протухание, одноразовость.
-  const parsedToken = readVerificationToken(captchaToken, CAPTCHA_SECRET)
+  const parsedToken = readVerificationToken(captchaToken, getCaptchaSecret())
   if (!parsedToken) {
     loggers?.auth?.warn?.("register: captcha token rejected")
     return NextResponse.json(

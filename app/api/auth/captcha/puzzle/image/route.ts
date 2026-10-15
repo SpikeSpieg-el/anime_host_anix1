@@ -9,7 +9,9 @@ import {
 } from "@/lib/captcha-puzzle"
 import { loggers } from "@/lib/logger"
 
-const SECRET = process.env.CAPTCHA_SECRET || "anime-gacha-slider-secret-key-2026"
+// Секрет captcha берётся из окружения без дефолта — см. lib/captcha-secret.ts.
+// Раньше здесь стоял литерал из git, из-за которого капча была обходима.
+import { getCaptchaSecret } from "@/lib/captcha-secret"
 
 /**
  * Картинки пазла: и фон с выжженной дыркой, и сам кусочек.
@@ -32,7 +34,7 @@ export async function GET(request: NextRequest) {
   const wantPiece = part === "piece"
   const solved = request.nextUrl.searchParams.get("solved") === "1"
 
-  const payload = token ? unsealPuzzle(token, SECRET) : null
+  const payload = token ? unsealPuzzle(token, getCaptchaSecret()) : null
   if (!payload) {
     return NextResponse.json({ error: "Неизвестный пазл" }, { status: 404 })
   }

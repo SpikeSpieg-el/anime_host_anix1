@@ -4,7 +4,10 @@ import { loggers } from "@/lib/logger"
 
 // Секретный ключ для подписи капчи.
 // Рекомендуется задать в .env (NEXTAUTH_SECRET-подобное значение), здесь fallback.
-const CAPTCHA_SECRET = process.env.CAPTCHA_SECRET || "anime-gacha-ultra-secret-key-2026"
+// Секрет captcha берётся из окружения без дефолта — см. lib/captcha-secret.ts.
+// Раньше здесь стоял ДРУГОЙ литерал, чем в остальных трёх файлах; при незаданной
+// переменной токен, выданный здесь, не проходил проверку при регистрации.
+import { getCaptchaSecret } from "@/lib/captcha-secret"
 
 /**
  * TTL жизни токена капчи — 5 минут.
@@ -30,7 +33,7 @@ export async function GET() {
   const timestamp = Date.now()
   // Создаем HMAC-подпись ответа вместе с таймстемпом
   const hash = crypto
-    .createHmac("sha256", CAPTCHA_SECRET)
+    .createHmac("sha256", getCaptchaSecret())
     .update(`${code.toUpperCase()}:${timestamp}`)
     .digest("hex")
 
