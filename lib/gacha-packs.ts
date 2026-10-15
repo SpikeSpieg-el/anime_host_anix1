@@ -34,6 +34,20 @@ export interface ShikimoriAnimeResult {
   }
 }
 
+/**
+ * Границы пака «Главные герои».
+ *
+ * Верхняя граница динамическая. Раньше там стояло жёсткое 2026, и с
+ * января следующего года пак перестал бы находить аниме нового года, а его
+ * название продолжало бы обещать «по 2026 год».
+ *
+ * id пака намеренно остаётся `main_characters_2015_2026`: он используется
+ * как ключ в сохранённых коллекциях пользователей, и смена строки обнулила бы
+ * прогресс. Это внутренний идентификатор, а не то, что видит пользователь.
+ */
+const MAIN_CHARACTERS_FROM_YEAR = 2015
+const MAIN_CHARACTERS_TO_YEAR = new Date().getFullYear()
+
 export const ANIME_PACKS: AnimePack[] = [
   {
     id: "attack_on_titan",
@@ -162,8 +176,8 @@ export const ANIME_PACKS: AnimePack[] = [
   },
   {
     id: "main_characters_2015_2026",
-    name: "Главные герои 2015-2026",
-    description: "Современные главные герои с 2015 по текущий 2026 год",
+    name: `Главные герои ${MAIN_CHARACTERS_FROM_YEAR}-${MAIN_CHARACTERS_TO_YEAR}`,
+    description: `Современные главные герои с ${MAIN_CHARACTERS_FROM_YEAR} по текущий ${MAIN_CHARACTERS_TO_YEAR} год`,
     animeIds: [], // Будет заполнено динамически через API
     price: 3000,
     color: "from-rose-600 to-pink-700",
@@ -303,7 +317,7 @@ export async function loadYearBasedPacks(): Promise<void> {
     }
 
     if (pack2015_2026) {
-      pack2015_2026.animeIds = await getAnimeByYearRange(2015, 2026, 40);
+      pack2015_2026.animeIds = await getAnimeByYearRange(MAIN_CHARACTERS_FROM_YEAR, MAIN_CHARACTERS_TO_YEAR, 40);
     }
   } catch (error) {
     console.error("Error loading year-based packs:", error);

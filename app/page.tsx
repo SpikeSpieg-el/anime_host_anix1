@@ -53,7 +53,7 @@ export async function generateMetadata(): Promise<Metadata> {
       "новые серии аниме",
       "аниме эпизоды",
       "аниме подборки",
-      "аниме 2026",
+      `аниме ${new Date().getFullYear()}`,
       "читать мангу",
       "манга онлайн",
       "читать мангу бесплатно",

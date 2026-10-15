@@ -183,7 +183,7 @@ export async function POST(request: Request) {
 </td>
 </tr></table>
 <p style="margin:0 0 6px;color:#3f3f46;font-size:11px;text-align:center;">Это автоматическое письмо — отвечать не нужно</p>
-<p style="margin:0;color:#27272a;font-size:11px;text-align:center;">© 2026 Weeb-X · weeb-x.com</p>
+<p style="margin:0;color:#27272a;font-size:11px;text-align:center;">© ${new Date().getFullYear()} Weeb-X · weeb-x.com</p>
 </td></tr>
 
 </table>

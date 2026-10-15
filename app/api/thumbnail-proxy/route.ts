@@ -32,10 +32,17 @@ export async function GET(req: NextRequest) {
     }
 
     // Fetch the image with proper headers
+    //
+    // Таймаут обязателен. Раньше запрос к shikimori/anilist висел без
+    // ограничения: Googlebot обходит страницы пачками, и каждый "висящий"
+    // запрос занимал слот соединения. При всплеске это давало в отчёте
+    // "не удалось просканировать уменьшенное изображение, так как хост
+    // перегружен" — то есть ровно тот симптом, который мы чинили.
     const response = await fetch(url.toString(), {
       headers: {
         'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
       },
+      signal: AbortSignal.timeout(8000),
       // Cache for 24 hours
       next: { revalidate: 86400 },
     });
@@ -47,6 +54,14 @@ export async function GET(req: NextRequest) {
     // Get image data
     const imageBuffer = await response.arrayBuffer();
     const contentType = response.headers.get('content-type') || 'image/jpeg';
+
+    // Пустой или подозрительно маленький ответ почти всегда означает не
+    // картинку (заглушка, редирект, HTML-ошибка). Отдавать такое Googlebot
+    // хуже явной ошибки: он зафиксирует битое изображение и не вернётся.
+    const MIN_IMAGE_BYTES = 512;
+    if (imageBuffer.byteLength < MIN_IMAGE_BYTES) {
+      return NextResponse.json({ error: "Empty image" }, { status: 502 });
+    }
 
     // Return the image with proper caching headers
     return new NextResponse(imageBuffer, {

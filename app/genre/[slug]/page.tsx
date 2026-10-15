@@ -134,7 +134,29 @@ function buildJsonLd(
   // BreadcrumbList здесь НЕ строим: его отдаёт <PageBreadcrumbs/>. Две
   // одинаковые сущности на странице — это дубли разметки, которые Google
   // показывает как ошибку в отчёте о структурированных данных.
-  // ItemList из VideoObject ниже — ради расширенных сниппетов по жанру.
+  // Здесь НЕ строим ItemList из VideoObject — это не потеря, а требование
+  // Google, а не украшение.
+  //
+  // Требования к watch page (developers.google.com/search/docs/appearance/video):
+  //   * «The video must be embedded on a watch page» — видео должно быть на
+  //     отдельной странице просмотра;
+  //   * «A video category page that lists multiple videos of equal prominence»
+  //     прямо названа примером страницы, которая watch page НЕ является;
+  //   * «to be eligible for video features, create a dedicated watch page for
+  //     each video».
+  //
+  // Именно из-за этих VideoObject на странице жанра Google отдавал причину
+  // «Видео находится не на странице просмотра». Плюс у них был thumbnailUrl
+  // на сыром внешнем домене (shikimori.one/...), который Googlebot не может
+  // скачать, — это давало ещё и «не удалось просканировать уменьшенное
+  // изображение».
+  //
+  // Жанровая страница остаётся полноценной точкой входа: CollectionPage,
+  // хлебные крошки и обычные ссылки на /watch. Видеоиндексацию обеспечивают
+  // сами страницы /watch, где разметка VideoObject одна на страницу.
+  // TVSeries, а не Movie: большинство позиций каталога — сериалы,
+  // а не полнометражки. Поля name + url у TVSeries валидны и не требуют
+  // ничего, чего у нас нет.
   const itemList = {
     "@context": "https://schema.org",
     "@type": "ItemList",
@@ -144,16 +166,9 @@ function buildJsonLd(
       "@type": "ListItem",
       position: index + 1,
       item: {
-        "@type": "VideoObject",
-        name: `Смотреть ${anime.title} онлайн`,
-        description:
-          anime.description?.replace(/\[.*?\]/g, "").slice(0, 200) ||
-          `Смотреть аниме ${anime.title} онлайн бесплатно`,
-        thumbnailUrl: anime.poster,
-        contentUrl: `${SITE_URL}${getWatchPath(anime.id, anime.title)}`,
-        uploadDate: anime.airedOn ? new Date(anime.airedOn).toISOString() : undefined,
-        inLanguage: "ru",
-        genre: [genre.name],
+        "@type": "TVSeries",
+        name: anime.title,
+        url: `${SITE_URL}${getWatchPath(anime.id, anime.title)}`,
       },
     })),
   }

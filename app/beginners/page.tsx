@@ -318,7 +318,7 @@ export default function BeginnersPage() {
                       Демонстрационное аниме
                     </h4>
                     <p className="text-muted-foreground text-xs mt-1">
-                      2024 • 12 {getEpisodeText(12)}
+                      {new Date().getFullYear()} • 12 {getEpisodeText(12)}
                     </p>
                   </div>
                 </div>
@@ -504,7 +504,7 @@ export default function BeginnersPage() {
                 title: "Фильтры",
                 items: [
                   { name: "Жанры", desc: "Выбор из 50+ жанров" },
-                  { name: "Годы", desc: "От 1990 до 2026" },
+                  { name: "Годы", desc: `От 1990 до ${new Date().getFullYear()}` },
                   { name: "Рейтинг", desc: "От 5★ до 9★" }
                 ]
               }

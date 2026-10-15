@@ -325,18 +325,38 @@ export default async function WatchPage({
     "name": episode ? `${animeTitle} - Серия ${episode}` : animeTitle,
     "description": anime.description?.replace(/\[.*?\]/g, "").slice(0, 200) || `Смотреть аниме ${animeTitle} онлайн`,
     "thumbnailUrl": getSchemaPosterUrl(anime.poster, baseUrl),
-    "contentUrl": contentUrl,
     "uploadDate": anime.airedOn ? new Date(anime.airedOn).toISOString() : new Date().toISOString(),
     "inLanguage": "ru",
     "genre": anime.genres,
   }
 
-  // embedUrl указывал на /embed/{id}, который закрыт в robots.txt
-  // (Disallow: /embed/) и отдаёт X-Robots-Tag: noindex. Google не может
-  // проверить такую ссылку и выбрасывает VideoObject целиком — видео
-  // расширенные сниппеты не появлялись. Плеер живёт на самой странице /watch,
-  // поэтому contentUrl выше достаточно; embedUrl вернём, если /embed/
-  // когда-нибудь откроют для обхода (noindex-заголовок оставить можно).
+  // ВАЖНО: поля contentUrl и embedUrl здесь НЕ указываются — намеренно.
+  //
+  // Требования Google (developers.google.com/search/docs/appearance/
+  // structured-data/video, раздел VideoObject):
+  //   * contentUrl — "URL файла видео с его реальными байтами. Не ссылайтесь
+  //     на страницу, где живет видео; это должен быть URL самого файла".
+  //   * embedUrl  — "URL плеера именно для этого видео. Не ссылайтесь на
+  //     страницу, где живет видео; это должен быть URL самого плеера".
+  //
+  // Раньше в contentUrl стоял адрес самой страницы /watch. Это прямое
+  // нарушение требований: Google пытается скачать файл, получает HTML, и
+  // видео отбрасывается с причиной "Видео не обработано".
+  // Корректной замены на текущей архитектуре нет:
+  //   * прямого URL видеофайла у нас не существует — сервер знает только адрес
+  //     страницы плеера Kodik, а поток вытаскивает JS самого плеера;
+  //   * /embed/<токен> не годится как embedUrl — токен живет 2 часа, а Google
+  //     требует СТАБИЛЬНЫЙ URL (и отдельно предупреждает про быстро
+  //     протухающие ссылки CDN).
+  //
+  // Поэтому в разметке остаются только обязательные поля (name,
+  // thumbnailUrl, uploadDate) — и все они правдивые. Ложный URL хуже
+  // отсутствующего: из-за него видео гарантированно не обрабатывается, а без
+  // него Google попытается определить видео сам.
+  //
+  // Чтобы видео реально начало индексироваться, нужна отдельная работа:
+  // стабильный адрес видеофайла на своем домене, отдаваемый только
+  // подтвержденным краулерам (см. lib/seo/search-engine-verifier.ts).
 
   if (episode) {
     videoObject["episodeNumber"] = episode

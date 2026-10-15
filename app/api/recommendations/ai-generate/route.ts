@@ -185,7 +185,7 @@ export async function POST(request: NextRequest) {
             '  "title": "Название аниме на русском или Romaji",\n' +
             '  "originalTitle": "Original Title (English / Romaji)",\n' +
             '  "reason": "Детальное объяснение почему именно это аниме идеально подходит под указанные жанры и настроение...",\n' +
-            '  "year": 2023,\n' +
+            `  "year": ${new Date().getFullYear()},\n` +
             '  "episodes": 12\n' +
             '}'
         },
@@ -260,7 +260,7 @@ export async function POST(request: NextRequest) {
           originalTitle: shikimoriAnime.name || aiData.originalTitle || aiData.title,
           poster: posterUrl,
           rating: shikimoriAnime.score ? shikimoriAnime.score.toString() : "8.5",
-          year: shikimoriAnime.aired_on ? parseInt(shikimoriAnime.aired_on.slice(0, 4)) : (aiData.year || 2023),
+          year: shikimoriAnime.aired_on ? parseInt(shikimoriAnime.aired_on.slice(0, 4)) : (aiData.year || new Date().getFullYear()),
           episodesCurrent: episodes,
           episodesTotal: shikimoriAnime.episodes || episodes,
           quality: shikimoriAnime.kind ? shikimoriAnime.kind.toUpperCase() : "TV",
@@ -277,7 +277,7 @@ export async function POST(request: NextRequest) {
           originalTitle: aiData.originalTitle || aiData.title,
           poster: '',
           rating: "8.5+",
-          year: aiData.year || 2023,
+          year: aiData.year || new Date().getFullYear(),
           episodesCurrent: episodes,
           episodesTotal: episodes,
           quality: "TV",

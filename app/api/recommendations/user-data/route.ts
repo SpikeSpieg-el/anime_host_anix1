@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 
+// Порог «свежего» аниме — скользящее окно от текущего года, а не жёсткое
+// число. При константе 2023 окно каждый год всё сильнее смещалось в прошлое
+// и аниме последних лет переставали попадать в выдачу «свежих».
+const FRESH_YEARS_WINDOW = 3
+const FRESH_YEAR_THRESHOLD = new Date().getFullYear() - FRESH_YEARS_WINDOW
+
 export async function GET(request: NextRequest) {
   try {
     // Получаем сессию пользователя
@@ -63,8 +69,8 @@ export async function GET(request: NextRequest) {
               const rating = animeDetails.score || 0
               
               // Фильтруем: исключаем посредственные старые аниме (2010-2022 с рейтингом ниже 7.5)
-              // Оставляем: свежие (2023+), культовые старые (до 2010 с рейтингом 8.0+), и всё с высоким рейтингом
-              const isFresh = year >= 2023
+              // Оставляем: свежие (скользящее окно от текущего года), культовые старые (до 2010 с рейтингом 8.0+), и всё с высоким рейтингом
+              const isFresh = year >= FRESH_YEAR_THRESHOLD
               const isClassic = year < 2010 && rating >= 8.0
               const isHighRated = rating >= 7.5
               
@@ -119,8 +125,8 @@ export async function GET(request: NextRequest) {
               const rating = animeDetails.score || 0
               
               // Фильтруем: исключаем посредственные старые аниме (2010-2022 с рейтингом ниже 7.5)
-              // Оставляем: свежие (2023+), культовые старые (до 2010 с рейтингом 8.0+), и всё с высоким рейтингом
-              const isFresh = year >= 2023
+              // Оставляем: свежие (скользящее окно от текущего года), культовые старые (до 2010 с рейтингом 8.0+), и всё с высоким рейтингом
+              const isFresh = year >= FRESH_YEAR_THRESHOLD
               const isClassic = year < 2010 && rating >= 8.0
               const isHighRated = rating >= 7.5
               

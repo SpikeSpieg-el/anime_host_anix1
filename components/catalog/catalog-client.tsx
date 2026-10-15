@@ -54,15 +54,21 @@ const KIND_OPTIONS = [
   { value: 'special', label: 'Спешл' },
 ]
 
+// Список лет строится динамически от текущего года.
+//
+// Раньше годы были зашиты массивом. К 2027 году это дало бы две поломки:
+// в фильтре не появился бы 2027-й (то есть свежие аниме нельзя было бы
+// выбрать), а «2026» остался бы самой свежей подписью. Теперь список сам
+// сдвигается каждый январь, и править его вручную не нужно.
+const CURRENT_YEAR = new Date().getFullYear()
+const RECENT_YEARS_COUNT = 7
+
 const YEAR_OPTIONS = [
   { value: 'all', label: 'Все годы' },
-  { value: '2026', label: '2026' },
-  { value: '2025', label: '2025' },
-  { value: '2024', label: '2024' },
-  { value: '2023', label: '2023' },
-  { value: '2022', label: '2022' },
-  { value: '2021', label: '2021' },
-  { value: '2020', label: '2020' },
+  ...Array.from({ length: RECENT_YEARS_COUNT }, (_, index) => {
+    const year = String(CURRENT_YEAR - index)
+    return { value: year, label: year }
+  }),
   { value: '2000s', label: '2000-е' },
   { value: '1990s', label: '1990-е' },
   { value: 'older', label: 'Раньше 1990' },
