@@ -276,17 +276,25 @@ export function ScheduleClient({ schedule: initialSchedule }: ScheduleClientProp
         {filteredAnimes.length > 0 ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-x-4 gap-y-6 sm:gap-y-8">
             {filteredAnimes.map((anime, index) => {
-              // ИСПРАВЛЕНИЕ:
-              // Теперь номер серии зависит только от смещения недели относительно текущей даты.
-              // Текущая неделя (0) = episodesCurrent
-              // Следующая неделя (+1) = episodesCurrent + 1
-              // Прошлая неделя (-1) = episodesCurrent - 1
-              const displayEpisode = anime.episodesCurrent + currentDayInfo.weekOffset
+              // `episodesCurrent` — это Shikimori `episodes_aired`, то есть
+              // число УЖЕ вышедших серий, а не номер ближайшей. Поэтому
+              // серия, которая выходит в выбранный день, — это
+              // `episodesCurrent + 1 + weekOffset`:
+              //
+              //   weekOffset = -1 → прошлая неделя, эта серия уже вышла
+              //                   → episodesCurrent + 1 - 1 = episodesCurrent
+              //   weekOffset =  0 → сегодня                     → episodesCurrent + 1
+              //   weekOffset = +1 → следующая неделя             → episodesCurrent + 2
+              //
+              // Раньше стояло `episodesCurrent + weekOffset` (без +1), из-за
+              // чего при 2 вышедших сериях бейдж писал «Будет 2 серия»
+              // вместо «Будет 3».
+              const displayEpisode = anime.episodesCurrent + 1 + currentDayInfo.weekOffset
               const isPriority = index < 6 // Priority for first 6 images (above the fold)
               
               return (
                 <div key={anime.id} className="relative group">
-                  <AnimeCard anime={anime} showPreviousEpisode={true} priority={isPriority} />
+                  <AnimeCard anime={anime} priority={isPriority} />
                   
                   <div className="absolute top-2 right-[7px] z-20">
                     <div className={cn(

@@ -410,7 +410,10 @@ export async function getAnimeCalendar(): Promise<WeeklySchedule> {
   data.forEach((item) => {
     const day = (new Date(item.next_episode_at).getDay() + 6) % 7; // Сдвиг Вс(0)->6, Пн(1)->0
     const anime = transformAnimeCalendar(item.anime);
-    anime.episodesCurrent = item.anime.episodes_aired;
+    // `episodes_aired` может прийти null/undefined. Без нормализации `null`
+    // утекает в арифметику бейджа на /schedule («Будет 0 серия») и обходит
+    // защиту `|| 0`, которая есть в transformAnimeCalendar.
+    anime.episodesCurrent = Number(item.anime.episodes_aired) || 0;
     schedule[day].push(anime);
   });
   

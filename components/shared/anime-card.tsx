@@ -58,12 +58,11 @@ interface AnimeCardProps {
     newEpisode: number
     totalEpisodes?: number
   }
-  showPreviousEpisode?: boolean
   priority?: boolean
   maxHeight?: string // Для адаптивной высоты в модалках
 }
 
-export function AnimeCard({ anime, className, variant = 'default', showUpdateBadge, updateInfo, showPreviousEpisode, priority, maxHeight }: AnimeCardProps) {
+export function AnimeCard({ anime, className, variant = 'default', showUpdateBadge, updateInfo, priority, maxHeight }: AnimeCardProps) {
   const { isSaved, toggle } = useBookmarks()
   const saved = isSaved(anime.id)
   const [imageError, setImageError] = useState(false)
@@ -131,7 +130,12 @@ export function AnimeCard({ anime, className, variant = 'default', showUpdateBad
               </h3>
               <p className="text-muted-foreground text-xs mb-2 dark:text-zinc-500">
                 {anime.year} • {(() => {
-                  const episodeCount = showPreviousEpisode && anime.episodesCurrent > 1 ? anime.episodesCurrent - 1 : anime.episodesCurrent
+                  // episodesCurrent = Shikimori `episodes_aired`, то есть число УЖЕ вышедших
+// серий. Раньше здесь стоял флаг `showPreviousEpisode`, который на расписании
+// вычитал единицу: при 2 вышедших сериях карточка подписывалась «1 серия».
+// Свойство удалено целиком — вычитать нечего, а флаг использовался только
+// на /schedule, где и давал неверное число.
+const episodeCount = anime.episodesCurrent
                   return episodeCount > 0 ? `${episodeCount} ${getEpisodeText(episodeCount)}` : 'Анонс'
                 })()}
                 {anime.status === 'Announcement' && anime.airedOn && (
@@ -266,7 +270,12 @@ export function AnimeCard({ anime, className, variant = 'default', showUpdateBad
         </h3>
         <p className={cn("text-muted-foreground mt-0.5 dark:text-zinc-500", isCompact ? "text-[10px]" : "text-xs")}>
           {anime.year} • {(() => {
-            const episodeCount = showPreviousEpisode && anime.episodesCurrent > 1 ? anime.episodesCurrent - 1 : anime.episodesCurrent
+            // episodesCurrent = Shikimori `episodes_aired`, то есть число УЖЕ вышедших
+// серий. Раньше здесь стоял флаг `showPreviousEpisode`, который на расписании
+// вычитал единицу: при 2 вышедших сериях карточка подписывалась «1 серия».
+// Свойство удалено целиком — вычитать нечего, а флаг использовался только
+// на /schedule, где и давал неверное число.
+const episodeCount = anime.episodesCurrent
             return episodeCount > 0 ? `${episodeCount} ${getEpisodeText(episodeCount)}` : 'Анонс'
           })()}
         </p>
