@@ -38,6 +38,7 @@ import {
   SUBSCRIBE_DEEP_LINK_PARAM,
   readPendingSubscriptions,
   rememberPendingSubscription,
+  isSubscribed as hasActiveSubscription,
   subscriptionSummary,
 } from "@/lib/title-subscriptions"
 import {
@@ -97,7 +98,7 @@ export function TitleSubscribeButton({
   /** Авто-подписка после входа выполняется один раз на тайтл. */
   const autoActivatedRef = useRef<string | null>(null)
 
-  const isSubscribed = Boolean(subscription)
+  const isSubscribed = hasActiveSubscription(subscription)
   const channels = subscriptionSummary(subscription)
 
   /**

@@ -32,6 +32,7 @@ export const PAGES: PageRegistryEntry[] = [
   { route: "/manga/:id", name: "Манга — тайтл", auth: "public", smokePath: null, notes: "динамическая" },
   { route: "/watch/:id", name: "Просмотр", auth: "public", smokePath: null, notes: "динамическая" },
   { route: "/bookmarks", name: "Закладки", auth: "optional", smokePath: "/bookmarks" },
+  { route: "/subscriptions", name: "Отслеживаемое", auth: "optional", smokePath: "/subscriptions", notes: "список ожиданий; данные из /api/subscriptions по Bearer" },
   { route: "/history", name: "История", auth: "optional", smokePath: "/history" },
   { route: "/gacha", name: "Гача", auth: "optional", smokePath: "/gacha" },
   { route: "/battle", name: "PVE бои", auth: "optional", smokePath: "/battle" },

@@ -158,6 +158,22 @@ export function EpisodeUpdateBadge({ updates, onClearUpdate, onClearAll, classNa
             <p className="text-muted-foreground text-center font-medium mb-2">Нет новых уведомлений</p>
             <p className="text-muted-foreground/70 text-center text-sm">Здесь появятся уведомления о новых сериях ваших аниме</p>
 
+            {/* Ссылка нужна и в пустом состоянии: «уведомлений нет» и
+                «ничего не жду» — разные вещи. Человек может ждать озвучку
+                неделями, пока в попапере пусто. */}
+            <Button
+              variant="outline"
+              size="sm"
+              asChild
+              onClick={() => setIsOpen(false)}
+              className="mt-4 h-10 rounded-xl border-border text-muted-foreground hover:text-foreground"
+            >
+              <Link href="/subscriptions">
+                <BellRing className="w-4 h-4 mr-2" />
+                Что я отслеживаю
+              </Link>
+            </Button>
+
             {/* Push notifications enable button */}
             {pushSupported && (
               <div className="mt-4 w-full">
@@ -393,7 +409,26 @@ export function EpisodeUpdateBadge({ updates, onClearUpdate, onClearAll, classNa
         )}
 
         {/* Футер */}
-        <div className="p-3 border-t bg-muted/50 backdrop-blur-sm">
+        <div className="p-3 border-t bg-muted/50 backdrop-blur-sm space-y-1.5">
+          {/*
+            Ссылка на «жду», а не на «пришли». Здесь появляются доставленные
+            уведомления, и их можно закрыть; активные ожидания живут отдельно
+            (translation_alerts), и «отметить всё как прочитанное» их не
+            трогает — иначе человек решил бы, что отписался.
+          */}
+          <Button
+            variant="ghost"
+            size="sm"
+            asChild
+            onClick={() => setIsOpen(false)}
+            className="w-full text-muted-foreground hover:text-foreground hover:bg-accent h-10 rounded-xl transition-all font-medium text-xs sm:text-sm"
+          >
+            <Link href="/subscriptions">
+              <BellRing className="w-4 h-4 mr-2" />
+              Что я отслеживаю
+            </Link>
+          </Button>
+
           <Button
             variant="ghost"
             size="sm"

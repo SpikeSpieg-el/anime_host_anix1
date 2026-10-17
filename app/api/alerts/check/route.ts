@@ -9,6 +9,7 @@ import {
   MAX_ALERTS_PER_CHECK,
   buildAlertNotification,
   isAlertDueForRecheck,
+  nextDubEpisode,
   mapAlertRow,
   resolveTranslationAlert,
   type TranslationAlert,
@@ -351,7 +352,35 @@ export async function POST(request: NextRequest) {
       // чтобы следующее окно проверки попробовало снова, а не ждало полчаса.
       if (!ok) return null
 
-      const resolution = resolveTranslationAlert(alert, translations)
+      // Первая проверка ожидания, заведённого кнопкой «Следить за тайтлом»
+// (`dub-behind`): уточняем номер серии вместо того, чтобы закрыть ожидание
+// по цифре, записанной при подписке.
+//
+// Зачем. В подписке с сайта номер считался по Kodik, но у части старых строк
+// он остался единицей — и единица закрыла бы ожидание немедленно, потому что
+// первая серия в озвучке почти всегда есть. Человек получил бы «появилась
+// озвучка» на ровно тот тайтл, где она и так была.
+//
+// Здесь это лечится само: пересчитываем и ждём дальше. Не сработает только
+// если Kodik недоступен (`ok === false`) — тогда строки выше уже вернули null
+// и мы сюда не дойдём.
+if (alert.reason === "dub-behind" && !row.last_checked_at) {
+  const wanted = nextDubEpisode(translations)
+  if (wanted > alert.episode) {
+    await auth.admin
+      .from("translation_alerts")
+      .update({
+        episode: wanted,
+        baseline_episode: wanted - 1,
+        last_checked_at: new Date(now).toISOString(),
+      })
+      .eq("id", row.id)
+      .eq("user_id", auth.userId)
+    return null
+  }
+}
+
+const resolution = resolveTranslationAlert(alert, translations)
 
       // Отметку о проверке ставим в любом случае — иначе одно «вечное»
       // ожидание будет съедать весь лимит запросов к Kodik.

@@ -186,13 +186,28 @@ function toPositiveInt(value: unknown): number | undefined {
   return int > 0 ? int : undefined
 }
 
-/** «серия / серии / серий» для числительного. */
+/** «серия / серии / серий» — именительный падеж (для подписей вида «3 серии»). */
 export function pluralEpisodes(count: number): string {
+  return pluralEpisodesCase(count, ["серия", "серии", "серий"])
+}
+
+/**
+ * «серию / серии / серий» — винительный падеж.
+ *
+ * Нужен для формулировок вида «Ждём 1 серию с озвучкой», где существительное
+ * стоит в винительном. С именительным получалось «Ждём 1 серия» — заметная
+ * опечатка в самом заметном месте карточки.
+ */
+export function pluralEpisodesAccusative(count: number): string {
+  return pluralEpisodesCase(count, ["серию", "серии", "серий"])
+}
+
+function pluralEpisodesCase(count: number, forms: [string, string, string]): string {
   const mod10 = count % 10
   const mod100 = count % 100
-  if (mod10 === 1 && mod100 !== 11) return "серия"
-  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return "серии"
-  return "серий"
+  if (mod10 === 1 && mod100 !== 11) return forms[0]
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return forms[1]
+  return forms[2]
 }
 
 /**
@@ -320,12 +335,41 @@ export function resolveTranslationAlert(
  * Когда озвучек нет вовсе — ждём первую серию.
  */
 export function nextDubEpisode(translations: AlertTranslation[] | null | undefined): number {
+  return maxDubEpisodes(translations) + 1
+}
+
+/** Сколько серий доступно в объединении всех озвучек. */
+export function maxDubEpisodes(translations: AlertTranslation[] | null | undefined): number {
   let max = 0
   if (Array.isArray(translations)) {
     for (const translation of translations) {
       const value = getTranslationMaxEpisode(translation)
       if (value !== undefined && value > max) max = value
     }
+  }
+  return max
+}
+
+/**
+ * Какую серию ждать по озвучке — либо null, если ждать нечего.
+ *
+ * `nextDubEpisode` считает «максимум + 1» и на этом останавливается. Для
+ * онгоинга это верно: пока серии выходят, следующая появится. Но у завершённого
+ * тайтла их может не быть вовсе — Shikimori отдаёт `episodes_aired ===
+ * episodes` со `status: released`. Тогда «ждать 13-ю» из тайтла на 12 серий —
+ * обещание, которое не сойдётся никогда: озвучка не отстанет от того, что уже
+ * закончилось, и уведомление не придёт.
+ *
+ * `episodesTotal` — сколько серий вообще выйдет. Не знаем (null, тайтл ещё не
+ * досчитан) — ведём себя как раньше и ждём следующую.
+ */
+export function dubEpisodeToWait(
+  translations: AlertTranslation[] | null | undefined,
+  episodesTotal?: number | null,
+): number | null {
+  const max = maxDubEpisodes(translations)
+  if (typeof episodesTotal === "number" && episodesTotal > 0 && max >= episodesTotal) {
+    return null
   }
   return max + 1
 }

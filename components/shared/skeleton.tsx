@@ -160,6 +160,32 @@ export function BookmarksSkeleton({ items = 6 }: { items?: number }) {
   )
 }
 
+/**
+ * Список отслеживаемых тайтлов (`/subscriptions`).
+ *
+ * Списком, а не сеткой: карточка здесь узкая и высокая, и решётка на телефоне
+ * выглядела бы как две колонки из обрезанных полос.
+ */
+export function SubscriptionsSkeleton({ items = 6 }: { items?: number }) {
+  return (
+    <div className="space-y-3">
+      {Array.from({ length: items }).map((_, i) => (
+        <div key={i} className="flex items-center gap-3 rounded-xl border border-border bg-secondary/30 p-2.5 sm:gap-4 sm:p-3">
+          <div className="w-11 h-16 sm:w-14 sm:h-20 shrink-0 rounded-md skeleton" />
+          <div className="flex-1 min-w-0 space-y-2">
+            <Skeleton className="h-4 w-1/2" />
+            <Skeleton className="h-3 w-2/5" />
+            <div className="flex gap-4 pt-0.5">
+              <Skeleton className="h-4 w-24" />
+              <Skeleton className="h-4 w-20" />
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 // Navbar Skeleton
 export function NavbarSkeleton() {
   return (

@@ -205,7 +205,7 @@ export function mapSubscriptionRow(
     animeId,
     animeTitle: String(row?.anime_title || "").trim() || `Аниме #${animeId}`,
     poster: row?.poster ?? null,
-    notifyNewEpisodes: notifyNewEpisodes || !notifyDub,
+    notifyNewEpisodes,
     notifyDub,
     baselineEpisode: toNonNegativeInt(row?.baseline_episode),
     lastNotifiedEpisode:

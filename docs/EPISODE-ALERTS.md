@@ -108,6 +108,7 @@ EpisodeUpdatesProvider → POST /api/alerts/check (троттлинг 15 мин)
 | `lib/kodik.ts` → `getAnimeTranslationsResult` | Список озвучек + признак «Kodik ответил» (сбой не путаем с отсутствием озвучки). |
 | `supabase/migrations/20261003000000_create_translation_alerts.sql` | Таблица, индексы, RLS. |
 | `supabase/migrations/20261017000000_add_dub_behind_reason.sql` | Третья причина ожидания (`dub-behind`) — для кнопки «Следить за тайтлом». |
+| `supabase/migrations/20261018000000_allow_paused_title_subscriptions.sql` | Разрешает сохранить тайтл в списке с обоими выключенными каналами. |
 
 ---
 
@@ -120,6 +121,7 @@ EpisodeUpdatesProvider → POST /api/alerts/check (троттлинг 15 мин)
 ```bash
 psql "$DATABASE_URL" -f supabase/migrations/20261003000000_create_translation_alerts.sql
 psql "$DATABASE_URL" -f supabase/migrations/20261017000000_add_dub_behind_reason.sql
+psql "$DATABASE_URL" -f supabase/migrations/20261018000000_allow_paused_title_subscriptions.sql
 ```
 
 Без таблицы плашка честно покажет «Не удалось сохранить ожидание», а остальной сайт
@@ -128,6 +130,11 @@ psql "$DATABASE_URL" -f supabase/migrations/20261017000000_add_dub_behind_reason
 Без второй миграции кнопка «Следить за тайтлом» продолжит писать серии, но
 ожидание озвучки не создастся: колонка `reason` не примет значение `dub-behind`
 за счёт CHECK-ограничения. Старые строки миграция не трогает.
+
+Без миграции `20261018000000` сохранение тайтла с обоими выключенными
+тумблерами завершится ошибкой `title_subscriptions_has_channel`: это
+ограничение должно быть снято, чтобы выключенные уведомления не удаляли тайтл
+из списка.
 
 ### Переменные окружения
 

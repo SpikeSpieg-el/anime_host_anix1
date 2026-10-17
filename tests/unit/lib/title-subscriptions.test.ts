@@ -165,6 +165,16 @@ describe("mapSubscriptionRow", () => {
     expect(withNull?.notifyDub).toBe(true)
   })
 
+  it("сохраняет оба выключенных канала как выключенные", () => {
+    const paused = mapSubscriptionRow({
+      anime_id: "42",
+      notify_new_episodes: false,
+      notify_dub: false,
+    })
+    expect(paused?.notifyNewEpisodes).toBe(false)
+    expect(paused?.notifyDub).toBe(false)
+  })
+
   it("не теряет last_notified_episode — иначе придёт повтор", () => {
     const result = mapSubscriptionRow({
       anime_id: "42",

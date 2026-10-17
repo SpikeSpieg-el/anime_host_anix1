@@ -18,10 +18,12 @@ import {
   ALERTS_CHECK_THROTTLE_MS,
   buildAlertNotification,
   currentDubEpisodes,
+  dubEpisodeToWait,
   isAlertDueForRecheck,
   mapAlertRow,
   nextDubEpisode,
   pluralEpisodes,
+  pluralEpisodesAccusative,
   resolveTranslationAlert,
   shouldRunAlertsCheck,
   toAlertRow,
@@ -205,6 +207,41 @@ describe("shouldRunAlertsCheck", () => {
   })
 })
 
+describe("dubEpisodeToWait: ждать или уже нечего", () => {
+  it("онгоинг: ждём следующую за тем, что уже есть", () => {
+    // Всего по расписанию 13, озвучка отстала до 12.
+    expect(dubEpisodeToWait([voice(12)], 13)).toBe(13)
+  })
+
+  it("завершённый тайтл, озвучка догнала — ждать нечего", () => {
+    // Главный баг: тайтл на 12 серий и закончен, а мы обещали «Ждём 13».
+    // Такого ожидания не сойдётся никогда: озвучка не может отстать от
+    // того, что уже закончилось.
+    expect(dubEpisodeToWait([voice(12)], 12)).toBeNull()
+    expect(nextDubEpisode([voice(12)])).toBe(13)
+  })
+
+  it("завершённый тайтл, озвучка отстала — ждём ещё", () => {
+    // Тайтл на 12 серий, в озвучке 10: догонять есть что.
+    expect(dubEpisodeToWait([voice(10)], 12)).toBe(11)
+  })
+
+  it("число серий неизвестно — ведём себя как раньше", () => {
+    expect(dubEpisodeToWait([voice(5)], null)).toBe(6)
+    expect(dubEpisodeToWait([voice(5)], undefined)).toBe(6)
+    expect(dubEpisodeToWait([voice(5)], 0)).toBe(6)
+  })
+
+  it("озвучек нет вовсе — ждём первую", () => {
+    expect(dubEpisodeToWait([], 12)).toBe(1)
+    expect(dubEpisodeToWait(null, 12)).toBe(1)
+  })
+
+  it("берёт максимум по всем озвучкам", () => {
+    expect(dubEpisodeToWait([voice(2), voice(7), voice(4)], 10)).toBe(8)
+  })
+})
+
 describe("nextDubEpisode: какую серию ждать", () => {
   it("главный случай: три озвучки по 2 серии → ждём третью", () => {
     // Именно этот сценарий описывал пользователь: у тайтла 3 озвучки, ни в
@@ -237,8 +274,52 @@ describe("nextDubEpisode: какую серию ждать", () => {
     ] as AlertTranslation[]
     expect(nextDubEpisode(broken)).toBe(4)
   })
+})
 
-  it("закрывает ожидание, когда нужная серия появилась ХОТЬ В ОДНОЙ", () => {
+describe("склонение «серия»", () => {
+  it("именительный — для подписей вида «3 серии»", () => {
+    expect(pluralEpisodes(1)).toBe("серия")
+    expect(pluralEpisodes(3)).toBe("серии")
+    expect(pluralEpisodes(5)).toBe("серий")
+  })
+
+  it("винительный — для «Ждём 1 серию»", () => {
+    // На карточке ожидания стоит «Ждём N серию/серии/серий». С именительным
+    // получалось «Ждём 1 серия» — заметная опечатка в самом заметном месте.
+    expect(pluralEpisodesAccusative(1)).toBe("серию")
+    expect(pluralEpisodesAccusative(2)).toBe("серии")
+    expect(pluralEpisodesAccusative(4)).toBe("серии")
+    expect(pluralEpisodesAccusative(5)).toBe("серий")
+  })
+
+  it("одинаково понимает 11-19 в обоих падежах", () => {
+    for (const n of [11, 12, 13, 14, 15, 19]) {
+      const nominative = pluralEpisodes(n)
+      const accusative = pluralEpisodesAccusative(n)
+      // Для 11-14 формы совпадают («серии»), у 15-19 обе «серий».
+      expect(accusative).toBe(nominative === "серия" ? "серию" : nominative)
+    }
+  })
+
+  it("21 серия — одна серия, а не серии", () => {
+    expect(pluralEpisodes(21)).toBe("серия")
+    expect(pluralEpisodesAccusative(21)).toBe("серию")
+    expect(pluralEpisodesAccusative(22)).toBe("серии")
+  })
+
+  it("111 серий — не серия: сто одиннадцать", () => {
+    // Русский язык здесь спорит с «цифрой на конце»: 111 читается как
+    // «сто одиннадцать», поэтому форма «серия» не применяется, хотя
+    // mod10 === 1.
+    expect(pluralEpisodesAccusative(111)).toBe("серий")
+    expect(pluralEpisodesAccusative(112)).toBe("серий")
+    // А вот 121 — «сто двадцать одна», единственное число.
+    expect(pluralEpisodesAccusative(121)).toBe("серию")
+  })
+})
+
+describe("закрытие ожидания по любой озвучке", () => {
+  it("срабатывает, когда нужная серия появилась ХОТЬ В ОДНОЙ", () => {
     const alert: TranslationAlert = {
       animeId: "1",
       animeTitle: "Тайтл",
