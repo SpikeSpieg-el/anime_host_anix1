@@ -17,8 +17,10 @@ import {
   rememberPendingAlert,
   ALERTS_CHECK_THROTTLE_MS,
   buildAlertNotification,
+  currentDubEpisodes,
   isAlertDueForRecheck,
   mapAlertRow,
+  nextDubEpisode,
   pluralEpisodes,
   resolveTranslationAlert,
   shouldRunAlertsCheck,
@@ -132,8 +134,11 @@ describe("buildAlertNotification", () => {
 
     expect(notification.title).toContain("появилась озвучка")
     expect(notification.title).toContain("Если бы история была мяукающей статьёй")
-    expect(notification.body).toContain("AniLibria")
     expect(notification.body).toContain("5 серий")
+    // Название конкретной озвучки НЕ называем: уведомление срабатывает, когда
+    // серия нашлась хоть в одной озвучке, а озвучек у тайтла бывает несколько.
+    expect(notification.body).not.toContain("AniLibria")
+    expect(notification.body).toContain("озвучкой")
     // Ссылка — на 1-ю серию (ту, которую пользователь хотел открыть), не на 5-ю
     expect(notification.url.startsWith("/watch/64510-")).toBe(true)
     expect(notification.url.endsWith("?episode=1")).toBe(true)
@@ -197,6 +202,106 @@ describe("shouldRunAlertsCheck", () => {
     const now = Date.now()
     expect(shouldRunAlertsCheck(now - ALERTS_CHECK_THROTTLE_MS, now)).toBe(true)
     expect(shouldRunAlertsCheck(now - ALERTS_CHECK_THROTTLE_MS - 1, now)).toBe(true)
+  })
+})
+
+describe("nextDubEpisode: какую серию ждать", () => {
+  it("главный случай: три озвучки по 2 серии → ждём третью", () => {
+    // Именно этот сценарий описывал пользователь: у тайтла 3 озвучки, ни в
+    // одной нет третьей серии. Как только любая догонит — уведомление.
+    const translations = [voice(2), voice(2, { title: "Kodik" }), voice(2, { title: "TV" })]
+    expect(nextDubEpisode(translations)).toBe(3)
+    expect(currentDubEpisodes(translations)).toBe(2)
+  })
+
+  it("берёт максимум, а не последнюю озвучку в списке", () => {
+    expect(nextDubEpisode([voice(1), voice(5), voice(2)])).toBe(6)
+  })
+
+  it("учитывает субтитры наравне с озвучками", () => {
+    expect(nextDubEpisode([subtitles(4)])).toBe(5)
+  })
+
+  it("озвучек нет вовсе → ждём первую серию", () => {
+    expect(nextDubEpisode([])).toBe(1)
+    expect(nextDubEpisode(null)).toBe(1)
+    expect(nextDubEpisode(undefined)).toBe(1)
+    expect(currentDubEpisodes([])).toBe(0)
+  })
+
+  it("мусор у провайдера не ломает расчёт", () => {
+    const broken = [
+      { type: "voice" },
+      { type: "voice", seasons: null, episodesCount: null },
+      voice(3),
+    ] as AlertTranslation[]
+    expect(nextDubEpisode(broken)).toBe(4)
+  })
+
+  it("закрывает ожидание, когда нужная серия появилась ХОТЬ В ОДНОЙ", () => {
+    const alert: TranslationAlert = {
+      animeId: "1",
+      animeTitle: "Тайтл",
+      episode: 3,
+      baselineEpisode: 2,
+      reason: "episode-not-ready",
+    }
+    // Все три по две — ещё ждём.
+    expect(resolveTranslationAlert(alert, [voice(2), voice(2), voice(2)]).resolved).toBe(false)
+    // Один догнал — уведомление, даже если он в конце списка и не выбран.
+    const grown = [voice(2), voice(2), voice(3, { title: "TV" })]
+    expect(resolveTranslationAlert(alert, grown).resolved).toBe(true)
+  })
+})
+
+describe("buildAlertNotification: текст без названия озвучки", () => {
+  const alert: TranslationAlert = {
+    animeId: "1",
+    animeTitle: "Атака титанов",
+    episode: 3,
+    baselineEpisode: 2,
+    reason: "episode-not-ready",
+  }
+
+  it("не называет конкретную озвучку", () => {
+    // 'dub-behind' — причина с кнопки «Следить за тайтлом»: человек ждёт
+    // озвучку, поэтому уведомление обязано говорить про озвучку, а не
+    // «новая серия» (за это отвечает 'episode-not-ready').
+    const alert: TranslationAlert = {
+      animeId: "1",
+      animeTitle: "Атака титанов",
+      episode: 3,
+      baselineEpisode: 2,
+      reason: "dub-behind",
+    }
+    const resolution = resolveTranslationAlert(alert, [voice(3, { title: "AniLibria" })])
+
+    expect(resolution.resolved).toBe(true)
+    expect(resolution.kind).toBe("dub")
+    expect(resolution.translationTitle).toBe("AniLibria")
+
+    const notification = buildAlertNotification(alert, resolution, 12)
+    // Название в тексте не должно появляться: уведомление срабатывает,
+    // когда серия нашлась хоть в одной озвучке, и называть одну — значит
+    // заявить, что вышла именно она.
+    expect(notification.body).not.toContain("AniLibria")
+    expect(notification.body).toContain("озвучкой")
+    expect(notification.title).toContain("Атака титанов")
+  })
+
+  it("'episode-not-ready' по-прежнему пишет «новая серия»", () => {
+    // Обратная совместимость с плашкой в плеере: там человек упёрся в
+    // потолок Shikimori и действительно ждёт серию.
+    const alert: TranslationAlert = {
+      animeId: "1",
+      animeTitle: "Атака титанов",
+      episode: 3,
+      baselineEpisode: 2,
+      reason: "episode-not-ready",
+    }
+    const resolution = resolveTranslationAlert(alert, [voice(3)])
+    expect(resolution.kind).toBe("episode")
+    expect(buildAlertNotification(alert, resolution, 12).title).toContain("новая серия")
   })
 })
 

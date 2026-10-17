@@ -24,6 +24,16 @@
  * только озвучку, и включать сверху ещё и ожидание новых серий значило бы
  * расширять обещание без спроса. Канал серий включается кнопкой
  * «Следить за тайтлом» на странице тайтла и из бота.
+ *
+ * Про отписку
+ * -----------
+ * Отмена обязана снимать ровно то, что человек отменил:
+ *   - других каналов нет   → строка `title_subscriptions` удаляется целиком;
+ *   - серии остаются       → гасится ТОЛЬКО `notify_dub`;
+ *   - подписки нет вовсе   → ничего не пишем.
+ * Раньше третья и вторая ветки совпадали: строка с `notify_dub = true`
+ * оставалась нетронутой, и кнопка на странице тайтла продолжала обещать
+ * «серии и озвучка» после того, как человек уже отписался от озвучки.
  */
 
 import { useCallback, useEffect, useRef, useState } from "react"
@@ -262,8 +272,7 @@ export function useTranslationAlert(animeId?: string | null): UseTranslationAler
       //
       // «Отменить уведомление» на плашке обещает отменить ожидание озвучки.
       // Если человек дополнительно подписан на новые серии с этой страницы,
-      // молча сносить и это было бы враньём — про серии он не говорил. Поэтому
-      // строка удаляется целиком только когда других каналов нет.
+      // молча сносить и это было бы враньём — про серии он не говорил.
       const { data: existingRows } = await supabase
         .from("title_subscriptions")
         .select("notify_new_episodes")
@@ -271,7 +280,15 @@ export function useTranslationAlert(animeId?: string | null): UseTranslationAler
         .eq("anime_id", String(animeId))
         .limit(1)
 
-      if (!existingRows?.[0]?.notify_new_episodes) {
+      const keepsSeries = Boolean(existingRows?.[0]?.notify_new_episodes)
+      const hasRow = Boolean(existingRows?.[0])
+
+      if (!hasRow) {
+        // Подписки на тайтл нет — трогать нечего. Раньше здесь всё равно
+        // уходил DELETE в пустоту: плашка ждёт озвучку, а подписки на серии
+        // могло и не быть вовсе.
+      } else if (!keepsSeries) {
+        // Других каналов нет — сносим строку целиком.
         const { error: subscriptionError } = await supabase
           .from("title_subscriptions")
           .delete()
@@ -284,8 +301,28 @@ export function useTranslationAlert(animeId?: string | null): UseTranslationAler
           // обещанное уже выполнено.
           console.warn("[translation-alert] подписка не убрана:", subscriptionError.message)
         }
-        window.dispatchEvent(new CustomEvent(SUBSCRIPTIONS_CHANGED_EVENT))
+      } else {
+        // Подписка на серии остаётся, а вот обещание озвучки надо снять.
+        //
+        // Раньше здесь ничего не делалось: строка с `notify_dub = true`
+        // оставалась как была, и кнопка «Следить за тайтлом» на странице
+        // продолжала обещать «Уведомлю о: серии и озвучка» — хотя человек
+        // только что отписался от озвучки и никаких уведомлений про неё
+        // не хотел. Отписка обязана гасить ровно то, что снимает.
+        const { error: updateError } = await supabase
+          .from("title_subscriptions")
+          .update({ notify_dub: false })
+          .eq("user_id", userId)
+          .eq("anime_id", String(animeId))
+
+        if (updateError) {
+          console.warn("[translation-alert] канал озвучки не выключен:", updateError.message)
+        }
       }
+
+      // Событие в обеих ветках: кнопка на странице тайтла перечитывает
+      // подписку по нему, и без него подпись «серии и озвучка» зависла бы.
+      window.dispatchEvent(new CustomEvent(SUBSCRIPTIONS_CHANGED_EVENT))
 
       setAlert(null)
       return true

@@ -33,12 +33,19 @@ import { Button } from "@/components/ui/button"
 import { AuthModal } from "@/components/auth/auth-modal"
 import { useAuth } from "@/components/auth/auth-provider"
 import { useTitleSubscription } from "@/hooks/use-title-subscription"
+import { useTranslationAlert } from "@/hooks/use-translation-alert"
 import {
   SUBSCRIBE_DEEP_LINK_PARAM,
   readPendingSubscriptions,
   rememberPendingSubscription,
   subscriptionSummary,
 } from "@/lib/title-subscriptions"
+import {
+  currentDubEpisodes,
+  nextDubEpisode,
+  type AlertTranslation,
+  type TranslationAlert,
+} from "@/lib/translation-alerts"
 import { AnalyticsEvent, trackEvent } from "@/lib/analytics"
 import { cn } from "@/lib/utils"
 
@@ -77,6 +84,13 @@ export function TitleSubscribeButton({
     subscribe,
     unsubscribe,
   } = useTitleSubscription(animeId)
+  /**
+   * Ожидание озвучки — ровно то, что заводит плашка «Уведомить меня» в
+   * плеере. Подключаем сюда, чтобы обе кнопки вели в один конвейер
+   * (`translation_alerts` → `POST /api/alerts/check`), а не в две разные
+   * сущности, из которых одну половину сайта не обрабатывала вовсе.
+   */
+  const dubAlert = useTranslationAlert(animeId)
 
   const [showAuthModal, setShowAuthModal] = useState(false)
   const [failed, setFailed] = useState(false)
@@ -97,6 +111,57 @@ export function TitleSubscribeButton({
    */
   const busy = loading || (!loaded && Boolean(user))
 
+  /**
+ * Создать ожидание озвучки по Kodik.
+ *
+ * Какую серию ждать, решает Kodik, а не Shikimori: `episodes_aired` Шики — это
+ * эфир в Японии, озвучка отстаёт на недели, и ожидание «3 + 1 = 4» сработало
+ * бы слишком поздно. Берём максимум по всем озвучкам и ждём следующую серию
+ * (см. `nextDubEpisode`). Уведомление придёт, когда она появится ХОТЬ В ОДНОЙ
+ * озвучке — именно это и обещает кнопка.
+ *
+ * Ошибку не поднимаем: подписка на серии к этому моменту уже записана, и
+ * рушить её из-за недоступности Kodik было бы хуже, чем не досоздать озвучку.
+ */
+  const activateDubExpectation = useCallback(async () => {
+    let translations: AlertTranslation[] = []
+    try {
+      const res = await fetch(
+        `/api/player/translations?shikimoriId=${encodeURIComponent(animeId)}` +
+          `&title=${encodeURIComponent(animeTitle || "")}`,
+        { cache: "no-store" },
+      )
+      if (res.ok) {
+        const data = await res.json().catch(() => null)
+        if (Array.isArray(data?.translations)) {
+          translations = data.translations as AlertTranslation[]
+        }
+      }
+    } catch (e) {
+      console.warn("[TitleSubscribeButton] Kodik недоступен, ждём 1 серию:", e)
+    }
+
+    const alert: TranslationAlert = {
+      animeId: String(animeId),
+      animeTitle: animeTitle || `Аниме #${animeId}`,
+      poster: poster ?? null,
+      episode: nextDubEpisode(translations),
+      // Точка отсчёта для честного перехода «было → стало» в колокольчике.
+      // Если озвучек нет вовсе, нули: показывать «0 серий» незачем.
+      baselineEpisode: currentDubEpisodes(translations),
+      // 'dub-behind', а не 'episode-not-ready': последний означает «ждал
+      // серию» и при срабатывании пишет «новая серия». Здесь человек
+      // подписался на странице тайтла именно на озвучку, и уведомление
+      // должно говорить «озвучка стала доступна» (см. resolveTranslationAlert).
+      reason: translations.length === 0 ? "no-translations" : "dub-behind",
+    }
+
+    const ok = await dubAlert.subscribe(alert)
+    if (!ok) {
+      console.warn("[TitleSubscribeButton] ожидание озвучки не создано")
+    }
+  }, [animeId, animeTitle, poster, dubAlert])
+
   const doSubscribe = useCallback(async () => {
     setFailed(false)
     const ok = await subscribe({
@@ -116,7 +181,11 @@ export function TitleSubscribeButton({
       anime_title: animeTitle,
       source: SUBSCRIBE_SOURCE_WATCH,
     })
-  }, [subscribe, animeId, animeTitle, poster, baselineEpisode])
+
+    // Подписка на серии уже записана; ожидание озвучки — тот же конвейер,
+    // что у плашки в плеере. Идёт после аналитики и не блокирует кнопку.
+    await activateDubExpectation()
+  }, [subscribe, animeId, animeTitle, poster, baselineEpisode, activateDubExpectation])
 
   const handleClick = useCallback(async () => {
     if (!user) {
@@ -140,6 +209,11 @@ export function TitleSubscribeButton({
         setFailed(true)
         return
       }
+      // Снимаем и ожидание озвучки: кнопка только что обещала «серии и
+      // озвучка», значит её отписка обязана убрать оба обещания.
+      // `use-translation-alert` сам разберётся, гасить ли строку
+      // `title_subscriptions` — но ту мы уже погасили выше.
+      await dubAlert.unsubscribe()
       trackEvent(AnalyticsEvent.TITLE_UNSUBSCRIBE, {
         anime_id: animeId,
         source: SUBSCRIBE_SOURCE_WATCH,
@@ -148,7 +222,7 @@ export function TitleSubscribeButton({
     }
 
     await doSubscribe()
-  }, [user, animeId, animeTitle, poster, baselineEpisode, isSubscribed, unsubscribe, doSubscribe])
+  }, [user, animeId, animeTitle, poster, baselineEpisode, isSubscribed, unsubscribe, dubAlert, doSubscribe])
 
   // Человек вошёл (в т.ч. после подтверждения почты или в другой вкладке) —
   // выполняем обещание, которое дали до входа.

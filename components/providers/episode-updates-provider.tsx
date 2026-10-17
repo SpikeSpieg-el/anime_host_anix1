@@ -6,6 +6,7 @@ import { supabase } from "@/lib/supabase"
 import { useAuth } from "@/components/auth/auth-provider"
 import { getWatchPath } from "@/lib/seo/watch-url"
 import {
+  ALERTS_CHECK_THROTTLE_MS,
   ALERTS_LAST_CHECK_KEY,
   ALERTS_RESOLVED_EVENT,
   mapAlertRow,
@@ -656,6 +657,22 @@ export function EpisodeUpdatesProvider({ children }: { children: React.ReactNode
     }
     const handleAuthSynced = () => checkTranslationAlerts(true)
 
+    // Периодическая проверка, а не только по событию возврата на вкладку.
+    // Раньше её не было вовсе: единственными триггерами были таймауты на
+    // старте и `visibilitychange`. Вкладка, открытая и всё время активная
+    // (ровно сценарий «смотрю серию, вышла озвучка»), не проверяла ожидания
+    // ни разу, пока пользователь не переключился на другую вкладку.
+    //
+    // Период совпадает с клиентскими троттлингами обеих проверок, поэтому
+    // лишних запросов интервал не создаёт — он просто даёт им повод
+    // сработать. Скрытую вкладку пропускаем: браузер и так режет таймеры
+    // в фоне, а `visibilitychange` вернёт проверку при возврате.
+    const heartbeat = setInterval(() => {
+      if (document.visibilityState !== "visible") return
+      void checkAnimeUpdates()
+      void checkTranslationAlerts()
+    }, ALERTS_CHECK_THROTTLE_MS)
+
     window.addEventListener("storage", handleStorage)
     window.addEventListener(UPDATE_EVENT, handleCustom)
     window.addEventListener("episode-updates-check-needed" as any, handleCheckNeeded)
@@ -665,6 +682,7 @@ export function EpisodeUpdatesProvider({ children }: { children: React.ReactNode
     return () => {
       clearTimeout(timer)
       clearTimeout(alertsTimer)
+      clearInterval(heartbeat)
       window.removeEventListener("storage", handleStorage)
       window.removeEventListener(UPDATE_EVENT, handleCustom)
       window.removeEventListener("episode-updates-check-needed" as any, handleCheckNeeded)

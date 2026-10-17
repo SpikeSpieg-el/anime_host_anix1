@@ -4,6 +4,7 @@ import webpush from "web-push"
 import { getAnimeTranslationsResult, type KodikTranslation } from "@/lib/kodik"
 import {
   ALERT_MIN_RECHECK_INTERVAL_MS,
+  ALERT_EMPTY_TRANSLATIONS_TTL_MS,
   ALERT_TRANSLATIONS_TTL_MS,
   MAX_ALERTS_PER_CHECK,
   buildAlertNotification,
@@ -87,8 +88,11 @@ const translationsCache = new Map<string, CachedTranslations>()
 /**
  * Список озвучек тайтла с коротким кэшем.
  * Пустой ответ тоже кэшируем: у «ожидающих» тайтлов озвучки нет почти всегда,
- * и долбить Kodik одним и тем же запросом по нескольку раз за проверку незачем.
- * Сбой (ok=false) НЕ кэшируем — иначе окно сбоя заблокирует проверки на 10 минут.
+ * и долбить Kodik одним и тем же запросом по несколько раз за проверку незачем.
+ * Но пустой — короче (ALERT_EMPTY_TRANSLATIONS_TTL_MS): кэш общий на процесс,
+ * и десятиминутное окно «озвучек нет» могло целиком съесть появление озвучки
+ * для всех, кто ждёт этот тайтл.
+ * Сбой (ok=false) НЕ кэшируем — иначе окно сбоя заблокирует проверки.
  */
 async function getTranslationsCached(
   animeId: string,
@@ -96,7 +100,10 @@ async function getTranslationsCached(
   now: number = Date.now(),
 ): Promise<{ translations: KodikTranslation[]; ok: boolean }> {
   const cached = translationsCache.get(animeId)
-  if (cached && now - cached.at < ALERT_TRANSLATIONS_TTL_MS) {
+  const cachedTtl = cached && cached.value.length === 0
+    ? ALERT_EMPTY_TRANSLATIONS_TTL_MS
+    : ALERT_TRANSLATIONS_TTL_MS
+  if (cached && now - cached.at < cachedTtl) {
     return { translations: cached.value, ok: cached.ok }
   }
 

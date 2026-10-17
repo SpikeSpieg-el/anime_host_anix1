@@ -21,6 +21,12 @@ type ExistingRow = { notify_new_episodes: boolean; notify_dub: boolean } | null
 /** Последняя строка, ушедшая в `title_subscriptions`. */
 let writtenRow: Record<string, unknown> | null = null
 
+/** Последний UPDATE в `title_subscriptions` (снятие канала озвучки). */
+let updatedRow: Record<string, unknown> | null = null
+
+/** Сколько раз удаляли строку `title_subscriptions`. */
+let subscriptionDeletes = 0
+
 /** Мок supabase-клиента. Хук пишет в две таблицы, и порядок важен. */
 function installSupabaseMock(existing: ExistingRow) {
   const from = vi.fn((table: string) => {
@@ -28,7 +34,7 @@ function installSupabaseMock(existing: ExistingRow) {
       throw new Error(`неожиданная таблица в тесте: ${table}`)
     }
 
-    let mode: "select" | "upsert" | "delete" = "select"
+    let mode: "select" | "upsert" | "delete" | "update" = "select"
 
     const builder = {
       select: () => builder,
@@ -43,9 +49,18 @@ function installSupabaseMock(existing: ExistingRow) {
         if (table === "title_subscriptions") writtenRow = row
         return Promise.resolve({ data: null, error: null })
       },
+      update: (row: Record<string, unknown>) => {
+        mode = "update"
+        if (table === "title_subscriptions") updatedRow = row
+        return builder
+      },
       delete: () => {
         mode = "delete"
-        return Promise.resolve({ data: null, error: null })
+        if (table === "title_subscriptions") subscriptionDeletes++
+        // Именно builder, а не готовый промис: хук зовёт `.delete().eq(...)`,
+        // как и в реальном supabase-js. Промис здесь ронял бы цепочку в catch
+        // — и отписка молча «проходила», ничего не записав.
+        return builder
       },
       then: (resolve: (v: unknown) => unknown) => {
         // Чтение существующей подписки — единственный запрос, который
@@ -79,6 +94,7 @@ interface PlateInput {
 
 interface HookHandle {
   subscribe: (next: PlateInput) => Promise<boolean>
+  unsubscribe: () => Promise<boolean>
 }
 
 /** Что плашка передаёт при клике на тайтле, у которого нет озвучки. */
@@ -105,6 +121,7 @@ async function mountHook(): Promise<void> {
       // Хук принимает ровно то, что передаёт плашка, — без подстановок,
       // чтобы тест проверял настоящий контракт, а не свою обёртку.
       subscribe: (next) => alert.subscribe(next),
+      unsubscribe: () => alert.unsubscribe(),
     }
     return null
   }
@@ -117,6 +134,8 @@ async function mountHook(): Promise<void> {
 describe("плашка «Озвучка не найдена» не включает ожидание новых серий", () => {
   beforeEach(() => {
     writtenRow = null
+    updatedRow = null
+    subscriptionDeletes = 0
     handle = null
     vi.resetModules()
     container = document.createElement("div")
@@ -186,5 +205,67 @@ describe("плашка «Озвучка не найдена» не включа�
     })
 
     expect(writtenRow!.source).toBe("translation_alert")
+  })
+})
+
+describe("отписка действительно отписывает", () => {
+  beforeEach(() => {
+    writtenRow = null
+    updatedRow = null
+    subscriptionDeletes = 0
+    handle = null
+    vi.resetModules()
+    container = document.createElement("div")
+    document.body.appendChild(container)
+    root = createRoot(container)
+  })
+
+  afterEach(() => {
+    act(() => root.unmount())
+    container.remove()
+  })
+
+  it("снимает канал озвучки, оставляя подписку на серии", async () => {
+    // Главный сценарий: человек подписан на «серии и озвучку», потом нажал
+    // «Не хочу уведомлений» про озвучку. Раньше строка с notify_dub = true
+    // оставалась нетронутой, и кнопка на странице тайтла продолжала
+    // обещать «серии и озвучка» — то есть отписка ничего не отменяла.
+    installSupabaseMock({ notify_new_episodes: true, notify_dub: true })
+    await mountHook()
+
+    await act(async () => {
+      await handle!.unsubscribe()
+    })
+
+    expect(updatedRow).not.toBeNull()
+    expect(updatedRow!.notify_dub).toBe(false)
+    // Серии человек не трогал — строку сносить нельзя.
+    expect(subscriptionDeletes).toBe(0)
+  })
+
+  it("гасит подписку целиком, если серии человек не ждал", async () => {
+    // Подписка была только ради озвучки: других каналов нет, и сносить
+    // нужно всю строку, а не оставлять болтающийся пустой остаток.
+    installSupabaseMock({ notify_new_episodes: false, notify_dub: true })
+    await mountHook()
+
+    await act(async () => {
+      await handle!.unsubscribe()
+    })
+
+    expect(subscriptionDeletes).toBe(1)
+    expect(updatedRow).toBeNull()
+  })
+
+  it("при отсутствии подписки не пишет ничего лишнего", async () => {
+    installSupabaseMock(null)
+    await mountHook()
+
+    await act(async () => {
+      await handle!.unsubscribe()
+    })
+
+    expect(subscriptionDeletes).toBe(0)
+    expect(updatedRow).toBeNull()
   })
 })
