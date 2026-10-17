@@ -105,6 +105,33 @@ function getKey(): Buffer {
  */
 export const PLAYER_TOKEN_TTL_SEC = 2 * 60 * 60 // 2 часа
 
+/**
+ * Окно, внутри которого `exp`, а значит и сам токен, не меняется.
+ *
+ * Токен детерминирован по ссылке: один и тот же URL Kodik в одном окне даёт
+ * байт-в-байт одинаковый токен. Без этого опросить список озвучек часто
+ * было нельзя — при рандомном IV каждый ответ API выдавал новый токен,
+ * `playerLink` менялся, менялся `src` iframe, и видео перезагружалось с
+ * начала. Именно поэтому список озвучек и опрашивался раз в 80 минут:
+ * приходилось ждать, пока токен протухнет.
+ *
+ * Ротация сохранена: окно не больше TTL/2, поэтому живой токен всегда
+ * переживает момент смены окна — при TTL 2 ч минимальный срок жизни 1 ч.
+ */
+const PLAYER_TOKEN_BUCKET_SEC = 60 * 60 // 1 час
+
+/**
+ * IV = HMAC(ключ, ссылка|exp). Разные ссылки и разные окна дают разный IV,
+ * одинаковые — одинаковый, поэтому и шифротекст воспроизводим.
+ */
+function deriveIv(url: string, exp: number): Buffer {
+  return crypto
+    .createHmac("sha256", getKey())
+    .update(`${url}|${exp}`)
+    .digest()
+    .subarray(0, 12)
+}
+
 function toBase64Url(buf: Buffer): string {
   return buf.toString("base64url")
 }
@@ -112,6 +139,11 @@ function toBase64Url(buf: Buffer): string {
 /**
  * Создаёт непрозрачный токен для ссылки на плеер.
  * Формат: base64url(iv[12] | authTag[16] | AES-256-GCM(JSON{u,e})).
+ *
+ * Токен детерминирован по ссылке в пределах окна ротации: та же ссылка даёт
+ * тот же токен, поэтому обновление списка озвучек не меняет `src` iframe и
+ * не перезагружает видео. Без знания секрета токен по-прежнему не выводится
+ * из ссылки, так что защита от сканеров не ослабла.
  */
 export function createPlayerToken(
   playerUrl: string,
@@ -121,12 +153,16 @@ export function createPlayerToken(
   if (!isValidPlayerUrl(url)) return null
 
   try {
-    const iv = crypto.randomBytes(12)
+    const ttl = Math.max(60, Math.floor(ttlSec))
+    const now = Math.floor(Date.now() / 1000)
+    // Окно не шире половины TTL, иначе токен, выданный в конце окна, мог бы
+    // оказаться почти протухшим (или протухшим, если TTL задан меньше окна).
+    const bucket = Math.min(PLAYER_TOKEN_BUCKET_SEC, Math.floor(ttl / 2))
+    const exp = Math.floor(now / bucket) * bucket + ttl
+
+    const iv = deriveIv(url, exp)
     const cipher = crypto.createCipheriv("aes-256-gcm", getKey(), iv)
-    const payload = JSON.stringify({
-      u: url,
-      e: Math.floor(Date.now() / 1000) + Math.max(60, Math.floor(ttlSec)),
-    })
+    const payload = JSON.stringify({ u: url, e: exp })
     const encrypted = Buffer.concat([cipher.update(payload, "utf8"), cipher.final()])
     const tag = cipher.getAuthTag()
     return toBase64Url(Buffer.concat([iv, tag, encrypted]))

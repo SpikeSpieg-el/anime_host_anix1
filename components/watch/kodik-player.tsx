@@ -77,15 +77,20 @@ const NOTICE_HIDE_DELAY = 5000
 const NEXT_EPISODE_CONFIRM_TIMEOUT = 9000
 
 /**
- * Когда обновлять список озвучек, в нём же лежит и `/embed/<токен>`.
+ * Как часто переспрашивать список озвучек.
  *
- * Сервер выдаёт токен на 2 часа (PLAYER_TOKEN_TTL_SEC). Обновляем через
- * 80 минут — запас в 40 минут покрывает и уход вкладки в фон, и задержку
- * таймера в браузере. Проверяем раз в 5 минут: за время жизни токена это
- * около 16 проверок, каждая — не чаще одного сетевого запроса только если
- * список действительно старый.
+ * Раньше здесь стояло 80 минут, и это число бралось из срока жизни токена
+ * (PLAYER_TOKEN_TTL_SEC): обновление списка заодно обновляло `/embed/<токен>`,
+ * поэтому опрашивать чаще было нельзя — менялся бы `src` iframe и видео
+ * перезагружалось с начала. Теперь токен детерминирован по ссылке
+ * (`createPlayerToken`), так что опрос больше не трогает плеер, и его
+ * период задаёт только одно — как быстро зритель узнаёт о новой озвучке.
+ * 10 минут вместо 80: «озвучка не найдена» исчезает за минуты, а не за час.
+ *
+ * Проверяем раз в 5 минут — таймер намеренно короче периода: вкладка может
+ * уйти в фон и встать таймером, а вернуться через час.
  */
-const TRANSLATIONS_REFRESH_AFTER_MS = 80 * 60 * 1000
+const TRANSLATIONS_REFRESH_AFTER_MS = 10 * 60 * 1000
 const TRANSLATIONS_REFRESH_CHECK_MS = 5 * 60 * 1000
 
 function getSavedTranslationId(shikimoriId: string): string | null {
@@ -282,7 +287,11 @@ export function KodikPlayer({
     setTranslationsLoading(true)
     try {
       const res = await fetch(
-        `/api/player/translations?shikimoriId=${encodeURIComponent(shikimoriId)}&title=${encodeURIComponent(title)}`
+        `/api/player/translations?shikimoriId=${encodeURIComponent(shikimoriId)}&title=${encodeURIComponent(title)}`,
+        // Без этого ответ на 15 минут (max-age=900) отдавался из кэша браузера:
+        // и F5, и событие «озвучка пришла» получали старый список. Ровно тот
+        // случай, ради которого событие и присылается.
+        { cache: "no-store" }
       )
       if (!res.ok) throw new Error("Failed to load translations")
       const data = await res.json()
@@ -326,24 +335,28 @@ export function KodikPlayer({
   }, [loadTranslations])
 
   /**
-   * Токен в `playerLink` живёт недолго (PLAYER_TOKEN_TTL_SEC), а список
-   * озвучек мы держим в состоянии и переиспользуем при каждой смене серии.
-   * Поэтому вкладка, оставленная открытой, рано или поздно доберётся до
-   * протухшего токена: `/embed/<токен>` начнёт отдавать 404, iframe покажет
-   * пустоту, и серия не откроется.
-   *
-   * Раньше это не проявлялось только потому, что токен жил 48 часов — то
-   * ценой слишком широкого окна для сканера. Теперь окно короткое, поэтому
-   * обновление списка должно быть штатным поведением, а не аварийным.
-   *
-   * Обновляемся ДО истечения, а не по факту 404: iframe об ошибке не
-   * сообщает (404 — это успешная загрузка страницы, `onLoad` срабатывает),
-   * и разбираться пришлось бы по таймеру. Здесь — обычная профилактика.
-   */
+ * Периодическое обновление списка озвучек.
+ *
+ * Причина, по которой список вообще приходится переспрашивать, — две сразу.
+ *
+ * Первая: токен в `playerLink` живёт недолго (PLAYER_TOKEN_TTL_SEC), а список
+ * мы держим в состоянии и переиспользуем при каждой смене серии. Вкладка,
+ * оставленная открытой, рано или поздно доберётся до протухшего токена:
+ * `/embed/<токен>` начнёт отдавать 404, iframe покажет пустоту, и серия не
+ * откроется. Обновляемся ДО истечения, а не по факту 404: iframe об ошибке
+ * не сообщает (404 — это успешная загрузка страницы, `onLoad` срабатывает).
+ *
+ * Вторая, и для зрителя важнее: пока озвучки нет, список пустой, и раньше
+ * именно пустой список выключал этот таймер — то есть «Озвучка не найдена»
+ * не могла исчезнуть без перезагрузки страницы.
+ */
   useEffect(() => {
-    // Список пуст — нечего обновлять, этим занимается loadTranslations.
-    if (translations.length === 0) return
-
+    // Раньше здесь стоял `if (translations.length === 0) return` со словами
+    // «нечего обновлять». Именно из-за этого зритель, у которого озвучки ещё
+    // не было, видел «Озвучка не найдена» до перезагрузки страницы: пустой
+    // список выключал таймер, а loadTranslations повторно уже ничего не
+    // делал. Теперь пустой список опрашивается наравне со всем остальным —
+    // появление озвучки и есть самый частый повод вернуться.
     const tick = () => {
       // Запас до истечения: страница может уйти в фон, таймер встать,
       // а пользователь вернуться через час.
@@ -384,21 +397,30 @@ export function KodikPlayer({
     return () => window.removeEventListener(ALERTS_RESOLVED_EVENT, handleAlertsResolved)
   }, [fetchTranslations, shikimoriId, animeId])
 
-  // Показываем баннер "Серия скоро выйдет", если:
-  // 1. Озвучек совсем нет (translations.length === 0)
-  // 2. Серия по данным Shikimori ещё не вышла (episode > maxEpisode)
-  useEffect(() => {
+  // Показываем баннер «Серия скоро выйдет», если:
+// 1. Озвучек совсем нет (translations.length === 0)
+// 2. Серия по данным Shikimori ещё не вышла (episode > maxEpisode)
+// 3. Озвучки есть, но этой серии нет НИ В ОДНОЙ из них.
+//
+// Третий случай — самый частый реальный вопрос «вышла ли озвучка?», и
+// раньше он молча пропускался: баннер не показывался, фолбэк выбирал первую
+// озвучку из списка, и подписаться на ожидание было не на что.
+// `isEpisodeMissingFromTranslation` (в отличие от ...Available) при неизвестной
+// границе возвращает false, поэтому баннер не всплывёт там, где Kodik просто
+// не отдал seasons/episodes_count.
+useEffect(() => {
     if (translationsLoading) {
       setShowComingSoonBanner(false)
       return
     }
 
     const hasNoTranslations = translations.length === 0
-    const isEpisodeNotReleased = maxEpisode && episode > maxEpisode
+    const isEpisodeNotReleased = Boolean(maxEpisode && episode > maxEpisode)
+    const isEpisodeNotDubbed =
+      !hasNoTranslations &&
+      translations.every((t) => isEpisodeMissingFromTranslation(t, episode))
 
-    // Показываем баннер только если озвучек совсем нет ИЛИ серия ещё не вышла по данным Shikimori
-    // НЕ показываем если есть озвучки но непонятно сколько серий (Kodik не вернул данные)
-    setShowComingSoonBanner(Boolean(hasNoTranslations || isEpisodeNotReleased))
+    setShowComingSoonBanner(hasNoTranslations || isEpisodeNotReleased || isEpisodeNotDubbed)
   }, [translations, translationsLoading, episode, maxEpisode])
 
   useEffect(() => {

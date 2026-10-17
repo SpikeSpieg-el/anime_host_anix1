@@ -8,7 +8,11 @@ import {
 } from "@/lib/player-protect"
 
 export const dynamic = "force-dynamic"
-export const revalidate = 3600 // кэш на 1 час — список озвучек меняется редко
+// `revalidate` здесь не действует: force-dynamic принудительно обнуляет
+// revalidate и fetchCache. Кэширования здесь нет вообще — ответ отдаётся с
+// `private`, чтобы CDN его не хранил, и рейт-лимит ниже всегда срабатывал.
+// Раньше здесь стояло `revalidate = 3600` с комментарием «кэш на час», что
+// вводило в заблуждение: такого кэша не было.
 
 /**
  * GET /api/player/translations?shikimoriId=21&title=One%20Piece

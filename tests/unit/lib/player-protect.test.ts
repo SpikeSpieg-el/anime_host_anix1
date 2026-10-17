@@ -62,10 +62,43 @@ describe("player-protect: токены ссылок", () => {
     expect(resolvePlayerToken(token)).toBeNull()
   })
 
-  it("токены одноразовые по виду: два токена на одну ссылку различаются", () => {
+  it("ссылка не выводится из токена даже когда он детерминирован", () => {
+    // Токен детерминирован по ссылке в пределах окна ротации — иначе
+    // обновление списка озвучек меняло бы src iframe и перезагружало видео.
+    // Неповторимость здесь не нужна: без секрета токен всё равно не выводится.
     const a = createPlayerToken(KODIK_URL)!
     const b = createPlayerToken(KODIK_URL)!
+    expect(a).toBe(b)
+    expect(a).not.toContain("kodik")
+    expect(a).not.toContain("serial")
+    expect(resolvePlayerToken(a)).toBe(KODIK_URL)
+  })
+
+  it("разные ссылки дают разные токены", () => {
+    const a = createPlayerToken("https://kodikplayer.com/serial/1/a/720p")!
+    const b = createPlayerToken("https://kodikplayer.com/serial/2/b/720p")!
     expect(a).not.toBe(b)
+    expect(resolvePlayerToken(a)).toBe("https://kodikplayer.com/serial/1/a/720p")
+    expect(resolvePlayerToken(b)).toBe("https://kodikplayer.com/serial/2/b/720p")
+  })
+
+  it("выданный токен живёт не меньше половины TTL", () => {
+    vi.useFakeTimers()
+    const start = new Date("2026-03-01T12:34:56Z")
+    vi.setSystemTime(start)
+
+    // Самый скверный момент: выдача в конце окна ротации.
+    const ttl = 7200
+    const bucket = ttl / 2
+    vi.setSystemTime(new Date(start.getTime() + bucket - 1_000))
+
+    const token = createPlayerToken(KODIK_URL, ttl)!
+    // Живой ровно в момент, когда TTL отсчитан от конца окна.
+    expect(resolvePlayerToken(token)).toBe(KODIK_URL)
+
+    // И живой половину TTL спустя.
+    vi.setSystemTime(new Date(start.getTime() + bucket - 1_000 + ttl / 2))
+    expect(resolvePlayerToken(token)).toBe(KODIK_URL)
   })
 })
 
