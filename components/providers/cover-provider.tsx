@@ -13,10 +13,12 @@ interface CoverCache {
 }
 
 interface CoverContextValue {
-  getPoster: (animeId: string, shikimoriUrl: string, romajiName: string, russianName: string, disableExternalAPIs?: boolean) => Promise<string>
+  getPoster: (animeId: string, shikimoriUrl: string, romajiName: string, russianName: string, disableExternalAPIs?: boolean, excludeShikimori?: boolean) => Promise<string>
   getBackdrop: (animeId: string, disableExternalAPIs?: boolean) => Promise<string | null>
   preloadBatch: (animes: Array<{ id: string; shikimoriUrl: string; romajiName: string; russianName: string }>) => Promise<void>
   getFromCache: (animeId: string) => { poster: string; backdrop: string | null } | null
+  /** Забыть обложку тайтла — вызывается, когда картинка не загрузилась. */
+  forgetPoster: (animeId: string) => void
   clearCache: () => void
   isLoading: boolean
 }
@@ -123,9 +125,12 @@ export function CoverProvider({ children }: { children: React.ReactNode }) {
     shikimoriUrl: string,
     romajiName: string,
     russianName: string,
-    disableExternalAPIs: boolean = false
+    disableExternalAPIs: boolean = false,
+    excludeShikimori: boolean = false
   ): Promise<string> => {
-    // Проверяем кэш (но не возвращаем data URI заглушки)
+    // Проверяем кэш (но не возвращаем data URI заглушки).
+    // `excludeShikimori` кэш не обходит намеренно: если постер без Shikimori
+    // уже лежит в кэше, он и есть искомый.
     const cached = cache[animeId]
     if (cached && isReusablePoster(cached.poster)) {
       console.log(`[CoverProvider] Poster cache hit for ${animeId}`)
@@ -152,7 +157,8 @@ export function CoverProvider({ children }: { children: React.ReactNode }) {
               id: animeId,
               shikimoriUrl,
               romajiName,
-              russianName
+              russianName,
+              excludeShikimori
             }]
           })
         });
@@ -388,6 +394,41 @@ export function CoverProvider({ children }: { children: React.ReactNode }) {
     }
   }, [cache])
 
+  /**
+   * Забыть обложку тайтла.
+   *
+   * Кэш живёт 7 дней, и `isReusablePoster` умеет отсекать только data-URI и
+   * HTML-страницы вида shikimori.one/animes/<id>. Ссылка на картинку, которая
+   * отдаёт 404, под это описание не подходит — она оставалась в кэше и
+   * возвращалась при каждом следующем заходе, снова ломая обложку.
+   */
+  const forgetPoster = useCallback((animeId: string) => {
+    setCache(prev => {
+      if (!prev[animeId]) return prev
+      const next = { ...prev }
+      delete next[animeId]
+      return next
+    })
+    // Чистка в localStorage — отдельным эффектом по cache, но если запись
+    // была единственной, эффект не сработает без записи в state. Поэтому
+    // убираем ключ точечно здесь.
+    if (typeof window !== "undefined") {
+      try {
+        const raw = window.localStorage.getItem(CACHE_KEY)
+        if (raw) {
+          const parsed = JSON.parse(raw) as CoverCache
+          if (parsed[animeId]) {
+            delete parsed[animeId]
+            window.localStorage.setItem(CACHE_KEY, JSON.stringify(parsed))
+          }
+        }
+      } catch {
+        // кэш — оптимизация; его поломка не должна ломать страницу
+      }
+    }
+    pendingRequestsRef.current.delete(animeId)
+  }, [])
+
   const clearCache = useCallback(() => {
     setCache({})
     if (typeof window !== "undefined") {
@@ -401,6 +442,7 @@ export function CoverProvider({ children }: { children: React.ReactNode }) {
     getBackdrop,
     preloadBatch,
     getFromCache,
+    forgetPoster,
     clearCache,
     isLoading
   }

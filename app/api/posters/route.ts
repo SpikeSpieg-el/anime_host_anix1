@@ -6,6 +6,12 @@ interface PosterRequest {
   romajiName: string;
   russianName: string;
   shikimoriUrl?: string;
+  /**
+   * Ссылка Shikimori уже показала 404 в браузере. Без этого флага
+   * `resolveBestPoster` возвращает ту же сломанную ссылку — он проверяет вид
+   * URL, но не запрашивает картинку, — и восстановление упирается в круг.
+   */
+  excludeShikimori?: boolean;
 }
 
 interface PosterResponse {
@@ -80,7 +86,8 @@ export async function POST(req: NextRequest) {
             romajiName,
             anime.russianName,
             anime.id,
-            false // allow external APIs
+            false, // allow external APIs
+            anime.excludeShikimori === true
           );
           
           // Track source

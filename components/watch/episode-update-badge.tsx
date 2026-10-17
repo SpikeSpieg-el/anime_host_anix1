@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import Image from "next/image"
 import { Bell, Play, Check, ChevronRight, Clock, Sparkles, X, BellRing, BellOff, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -39,7 +39,7 @@ export function EpisodeUpdateBadge({ updates, onClearUpdate, onClearAll, classNa
   const [isOpen, setIsOpen] = useState(false)
   const [failedPosters, setFailedPosters] = useState<Set<string>>(new Set())
   const [fallbackPosters, setFallbackPosters] = useState<Record<string, string>>({})
-  const { getPoster } = useCover()
+  const { getPoster, forgetPoster } = useCover()
   const { isSupported: pushSupported, isSubscribed: pushSubscribed, permission: pushPermission, loading: pushLoading, errorReason: pushErrorReason, subscribe: pushSubscribe, unsubscribe: pushUnsubscribe } = usePushNotifications()
   const [pushStatus, setPushStatus] = useState<"idle" | "success" | "error">("idle")
 
@@ -53,7 +53,10 @@ export function EpisodeUpdateBadge({ updates, onClearUpdate, onClearAll, classNa
     return ['missing', 'stub', 'placeholder', 'default'].some(s => lower.includes(s))
   }
 
-  // When posters fail (Shikimori didn't return image), fetch from CoverProvider (AniList/Kitsu/MAL)
+  // When posters fail (Shikimori didn't return image), fetch from CoverProvider (AniList/Kitsu/MAL).
+  // `excludeShikimori` здесь не нужен: getPoster уходит в /api/posters, а тот
+  // возвращает результат resolveBestPoster, который на шаге 1 отдаёт Shikimori
+  // снова — поэтому при сбое самого фоллбэка перезапрашиваем с запретом.
   useEffect(() => {
     const failedIds = updates
       .filter((u) => (failedRef.current.has(u.animeId) || isPlaceholderPoster(u.poster)) && !fallbackPosters[u.animeId])
@@ -82,6 +85,28 @@ export function EpisodeUpdateBadge({ updates, onClearUpdate, onClearAll, classNa
     })()
     return () => { cancelled = true }
   }, [updates, failedPosters, fallbackPosters])
+
+  /**
+   * Не загрузилась уже обложка-фоллбэк. Раньше обработчик молчал, если
+   * `shikimoriFailed` уже было true, и картинка оставалась битой навсегда:
+   * путь восстановления просто заканчивался. Теперь вычищаем запись из
+   * 7-дневного кэша и просим обложку с запретом Shikimori — иначе
+   * resolveBestPoster вернёт ту же сломанную ссылку.
+   */
+  const handleFallbackError = useCallback(
+    (update: EpisodeUpdate) => {
+      forgetPoster(update.animeId)
+      void getPosterRef
+        .current(update.animeId, "", "", update.animeTitle, false, true)
+        .then((poster) => {
+          setFallbackPosters((prev) => ({ ...prev, [update.animeId]: poster }))
+        })
+        .catch((error) => {
+          console.warn("[EpisodeUpdateBadge] poster recovery failed:", update.animeId, error)
+        })
+    },
+    [forgetPoster],
+  )
 
   const combinedClassName = cn("ml-2", className)
 
@@ -271,6 +296,10 @@ export function EpisodeUpdateBadge({ updates, onClearUpdate, onClearAll, classNa
                         if (!shikimoriFailed) {
                           failedRef.current = new Set(failedRef.current).add(update.animeId)
                           setFailedPosters(prev => new Set(prev).add(update.animeId))
+                        } else {
+                          // Не Шики, а уже фоллбэк — путь восстановления
+                          // не исчерпан, идём дальше.
+                          handleFallbackError(update)
                         }
                       }}
                     />

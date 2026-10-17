@@ -123,8 +123,19 @@ function isHighQualityImage(url: string, isPoster: boolean = true): boolean {
   return true;
 }
 
-export async function resolveBestPoster(shikimoriUrl: string, romajiName: string, russianName: string, shikimoriId: string, disableExternalAPIs: boolean = false): Promise<string> {
-  const cacheKey = `${shikimoriId}-${romajiName}-${russianName}-${disableExternalAPIs}`;
+/**
+ * Подобрать обложку тайтла.
+ *
+ * `excludeShikimori` нужен для восстановления после 404. Ссылка на обложку с
+ * Shikimori может отдавать 404, и `isHighQualityImage` этого не замечает: он
+ * смотрит только на вид URL и никогда не запрашивает картинку. Поэтому
+ * «фоллбэк на другой провайдер» возвращал ровно ту же сломанную ссылку —
+ * обложка с шики и обложка с прокси совпадали, а второй круг восстановления
+ * был невозможен. С `true` шаги 1 и 6 пропускаются, и поиск идёт сразу
+ * к AniList / Kitsu / Kodik / MAL.
+ */
+export async function resolveBestPoster(shikimoriUrl: string, romajiName: string, russianName: string, shikimoriId: string, disableExternalAPIs: boolean = false, excludeShikimori: boolean = false): Promise<string> {
+  const cacheKey = `${shikimoriId}-${romajiName}-${russianName}-${disableExternalAPIs}-${excludeShikimori}`;
   
   // Проверяем кэш, но не возвращаем сохранённые URL страниц вместо изображений
   const cachedPoster = getCachedPoster(cacheKey);
@@ -137,13 +148,16 @@ export async function resolveBestPoster(shikimoriUrl: string, romajiName: string
   
   const targetName = russianName || romajiName || "Anime";
   
-  // Шаг 1: Пробуем Shikimori через прокси (всегда, даже если внешние API отключены)
-  const upgradedUrl = upgradeShikimoriUrl(shikimoriUrl);
-  if (isHighQualityImage(upgradedUrl, true)) {
-    const proxiedUrl = proxyImage(upgradedUrl, false);
-    if (proxiedUrl) {
-      cachePoster(cacheKey, proxiedUrl);
-      return proxiedUrl;
+  // Шаг 1: Пробуем Shikimori через прокси (всегда, даже если внешние API
+  // отключены) — если только он не исключён заведомо сломанной ссылкой.
+  if (!excludeShikimori) {
+    const upgradedUrl = upgradeShikimoriUrl(shikimoriUrl);
+    if (isHighQualityImage(upgradedUrl, true)) {
+      const proxiedUrl = proxyImage(upgradedUrl, false);
+      if (proxiedUrl) {
+        cachePoster(cacheKey, proxiedUrl);
+        return proxiedUrl;
+      }
     }
   }
 
@@ -208,8 +222,11 @@ export async function resolveBestPoster(shikimoriUrl: string, romajiName: string
     }
   }
 
-  // Шаг 6: Резервный вариант - оригинальный Shikimori через прокси
-  if (shikimoriUrl) {
+  // Шаг 6: Резервный вариант - оригинальный Shikimori через прокси.
+  // Пропускаем при excludeShikimori: повторно отдавать ссылку, которая уже
+  // показала 404, бессмысленно — это тот самый круг, из-за которого обложка
+  // и не восстанавливалась.
+  if (!excludeShikimori && shikimoriUrl) {
     const fullShikimoriUrl = shikimoriUrl.startsWith('http') 
       ? shikimoriUrl 
       : `https://shikimori.one${shikimoriUrl}`;
