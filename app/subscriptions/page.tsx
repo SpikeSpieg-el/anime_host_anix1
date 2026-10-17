@@ -47,6 +47,22 @@ type Filter = "all" | "episodes" | "dub"
 type SortMode = "waiting" | "title" | "recent"
 type DeleteTarget = { type: "anime"; animeId: string; animeTitle: string } | { type: "all" }
 
+function pluralTrackedTitles(count: number) {
+  const lastTwoDigits = count % 100
+  if (lastTwoDigits >= 11 && lastTwoDigits <= 14) return "тайтлов"
+
+  switch (count % 10) {
+    case 1:
+      return "тайтл"
+    case 2:
+    case 3:
+    case 4:
+      return "тайтла"
+    default:
+      return "тайтлов"
+  }
+}
+
 export default function SubscriptionsPage() {
   const { user, loading: authLoading } = useAuth()
   const { preloadBatch, getFromCache } = useCover()
@@ -502,130 +518,129 @@ export default function SubscriptionsPage() {
       </div>
       <Navbar />
 
-      <div className="container relative z-10 mx-auto max-w-7xl px-3 pb-12 pt-6 sm:px-4 sm:pt-8">
+      <div className="container mx-auto max-w-7xl px-3 pb-12 pt-6 relative z-10 sm:px-4 sm:pt-8">
         <div className="mb-6">
           <Link
             href="/"
-            className="inline-flex items-center gap-2 rounded-xl border border-border bg-secondary px-3.5 py-2 text-sm font-medium text-muted-foreground transition-all hover:border-primary hover:bg-accent hover:text-foreground dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400 dark:hover:border-orange-500 dark:hover:bg-zinc-800 dark:hover:text-white"
+            className="inline-flex items-center gap-2 px-3.5 py-2 bg-secondary hover:bg-accent border border-border hover:border-primary text-muted-foreground hover:text-foreground font-medium rounded-xl transition-all dark:bg-zinc-900 dark:hover:bg-zinc-800 dark:border-zinc-800 dark:hover:border-orange-500 dark:text-zinc-400 dark:hover:text-white text-sm"
           >
             <ArrowLeft className="h-4 w-4" />
             На главную
           </Link>
         </div>
 
-        <div className="mb-6 flex flex-col justify-between gap-4 md:flex-row md:items-center">
-          <div className="flex min-w-0 items-center gap-3">
-            <div className="shrink-0 rounded-2xl border border-orange-500/20 bg-orange-500/10 p-2.5">
-              <BellRing className="h-[26px] w-[26px] text-orange-500" />
+        <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-orange-500/10 border border-orange-500/20 rounded-2xl dark:bg-orange-500/10">
+              <BellRing size={26} className="text-orange-500" />
             </div>
-            <div className="min-w-0">
-              <h1 className="text-2xl font-bold text-foreground dark:text-white sm:text-3xl">
+            <div>
+              <h1 className="text-2xl sm:text-3xl font-bold text-foreground dark:text-white">
                 Отслеживаемое
               </h1>
-              <p className="mt-0.5 text-xs text-muted-foreground dark:text-zinc-400 sm:text-sm">
-                {items.length} {items.length === 1 ? "тайтл" : "тайтлов"} в списке
+              <p className="text-xs sm:text-sm text-muted-foreground dark:text-zinc-400 mt-0.5">
+                {items.length} {pluralTrackedTitles(items.length)} в списке
               </p>
             </div>
           </div>
+
+          {items.length > 0 && user && (
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={saving}
+                className="h-10 rounded-xl border-border bg-secondary/50 px-3.5 text-xs sm:text-sm text-muted-foreground transition-all hover:border-destructive hover:bg-destructive/10 hover:text-destructive dark:border-zinc-800 dark:bg-zinc-900/60 dark:text-zinc-300 dark:hover:text-red-400"
+                onClick={() => setDeleteTarget({ type: "all" })}
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Отписаться от всех
+              </Button>
+            </div>
+          )}
         </div>
 
-        <p className="mb-6 text-sm text-muted-foreground">
-          Меняйте каналы уведомлений отдельно — настройки применятся только после
-          нажатия «Сохранить изменения».
-        </p>
+        {!authLoading && !user ? (
+          <div className="mt-10 rounded-2xl border border-dashed border-border bg-card/30 p-10 text-center">
+            <BellOff className="w-10 h-10 mx-auto text-muted-foreground/50 mb-4" />
+            <p className="text-muted-foreground mb-5">
+              Отслеживаемые тайтлы видны только в аккаунте.
+            </p>
+            <Button onClick={() => setShowAuthModal(true)}>Войти</Button>
+          </div>
+        ) : (
+          <>
+            {items.length > 0 && (
+              <div className="mb-6 flex flex-col gap-3 rounded-2xl border border-border bg-secondary/30 p-2 backdrop-blur-sm dark:border-zinc-800/80 dark:bg-zinc-900/50 sm:p-2.5 lg:flex-row lg:items-center lg:justify-between">
+                <div className="flex items-center gap-1.5 overflow-x-auto rounded-xl border border-border/60 bg-background/60 p-1 dark:border-zinc-800/80 dark:bg-zinc-950/60">
+                  <FilterButton
+                    active={filter === "all"}
+                    onClick={() => setFilter("all")}
+                    label="Все"
+                    count={counts.all}
+                  />
+                  <FilterButton
+                    active={filter === "episodes"}
+                    onClick={() => setFilter("episodes")}
+                    label="Новые серии"
+                    count={counts.episodes}
+                  />
+                  <FilterButton
+                    active={filter === "dub"}
+                    onClick={() => setFilter("dub")}
+                    label="Озвучка"
+                    count={counts.dub}
+                  />
+                </div>
 
-          {!authLoading && !user ? (
-            <div className="mt-10 rounded-2xl border border-dashed border-border bg-card/30 p-10 text-center">
-              <BellOff className="w-10 h-10 mx-auto text-muted-foreground/50 mb-4" />
-              <p className="text-muted-foreground mb-5">
-                Отслеживаемые тайтлы видны только в аккаунте.
-              </p>
-              <Button onClick={() => setShowAuthModal(true)}>Войти</Button>
-            </div>
-          ) : (
-            <>
-              {items.length > 0 && (
-                <div className="mb-6 flex flex-col items-stretch justify-between gap-3 rounded-2xl border border-border bg-secondary/40 p-2 backdrop-blur-sm dark:border-zinc-800/80 dark:bg-zinc-900/60 sm:p-2.5 md:flex-row md:items-center">
-                  <div className="relative w-full min-w-0 md:max-w-md md:flex-1">
-                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
-                      <Input
-                        type="search"
-                        placeholder="Поиск по отслеживаемым..."
-                        value={query}
-                        onChange={(e) => setQuery(e.target.value)}
-                        aria-label="Поиск по отслеживаемым тайтлам"
-                        className="h-10 pl-9 pr-8 text-xs sm:text-sm bg-background border-border dark:bg-zinc-950 dark:border-zinc-800 rounded-xl"
-                      />
-                      {query && (
-                        <button
-                          type="button"
-                          onClick={() => setQuery("")}
-                          aria-label="Очистить поиск"
-                          className="absolute right-2.5 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground p-0.5"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      )}
-                  </div>
-
-                  <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center md:justify-end">
-                    <div className="flex flex-wrap items-center gap-1.5 overflow-x-auto rounded-xl border border-border/80 bg-background/80 p-1 dark:border-zinc-800 dark:bg-zinc-950/80">
-                      <FilterButton active={filter === "all"} onClick={() => setFilter("all")}>
-                        Все · {counts.all}
-                      </FilterButton>
-                      <FilterButton
-                        active={filter === "episodes"}
-                        onClick={() => setFilter("episodes")}
-                      >
-                        Новые серии · {counts.episodes}
-                      </FilterButton>
-                      <FilterButton active={filter === "dub"} onClick={() => setFilter("dub")}>
-                        Озвучка · {counts.dub}
-                      </FilterButton>
-                      {visible.length !== items.length && (
-                        <span className="text-xs text-muted-foreground">
-                          показано {visible.length} из {items.length}
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="flex flex-col gap-2 sm:flex-row">
+                <div className="flex min-w-0 flex-1 flex-col items-stretch gap-2 sm:flex-row sm:items-center lg:max-w-xl lg:justify-end">
+                  <div className="relative w-full sm:w-64 md:w-72">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      type="search"
+                      placeholder="Поиск по названию..."
+                      value={query}
+                      onChange={(e) => setQuery(e.target.value)}
+                      aria-label="Поиск по отслеживаемым тайтлам"
+                      className="h-10 rounded-xl border-border bg-background/80 pl-9 pr-8 text-xs dark:border-zinc-800 dark:bg-zinc-950 sm:text-sm"
+                    />
+                    {query && (
                       <button
                         type="button"
-                        onClick={() =>
-                          setSortMode(
-                            sortMode === "waiting"
-                              ? "title"
-                              : sortMode === "title"
-                                ? "recent"
-                                : "waiting",
-                          )
-                        }
-                        className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-border bg-background/80 px-3 py-2 text-xs font-medium text-muted-foreground transition-all hover:border-primary hover:bg-secondary hover:text-foreground dark:border-zinc-800 dark:bg-zinc-950/80 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-white sm:text-sm"
+                        onClick={() => setQuery("")}
+                        aria-label="Очистить поиск"
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 text-muted-foreground hover:text-foreground"
                       >
-                        <ArrowUpDown className="h-3.5 w-3.5 shrink-0 text-orange-500" />
-                        <span>
-                          {sortMode === "waiting"
-                            ? "Сначала те, где ждут"
-                            : sortMode === "title"
-                              ? "По названию"
-                              : "По свежей проверке"}
-                        </span>
+                        <X className="h-4 w-4" />
                       </button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={saving}
-                        className="w-full rounded-xl border-border bg-background/80 px-3 py-2 text-xs text-muted-foreground transition-all hover:border-destructive hover:bg-destructive/10 hover:text-destructive dark:border-zinc-800 dark:bg-zinc-950/80 dark:text-zinc-300 dark:hover:text-red-400 sm:w-auto sm:text-sm"
-                        onClick={() => setDeleteTarget({ type: "all" })}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                        Отписаться от всех
-                      </Button>
-                    </div>
+                    )}
                   </div>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setSortMode(
+                        sortMode === "waiting"
+                          ? "title"
+                          : sortMode === "title"
+                            ? "recent"
+                            : "waiting",
+                      )
+                    }
+                    className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl border border-border bg-background/80 px-3.5 text-xs font-medium text-muted-foreground transition-all hover:border-primary hover:bg-secondary hover:text-foreground dark:border-zinc-800 dark:bg-zinc-950/80 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-white sm:text-sm"
+                  >
+                    <ArrowUpDown className="h-3.5 w-3.5 shrink-0 text-orange-500" />
+                    <span>
+                      {sortMode === "waiting"
+                        ? "Сначала те, где ждут"
+                        : sortMode === "title"
+                          ? "По названию"
+                          : "По свежей проверке"}
+                    </span>
+                  </button>
                 </div>
-              )}
+              </div>
+            )}
 
               {dirtyItems.length > 0 && (
                 <div
@@ -784,24 +799,36 @@ export default function SubscriptionsPage() {
 function FilterButton({
   active,
   onClick,
-  children,
+  label,
+  count,
 }: {
   active: boolean
   onClick: () => void
-  children: React.ReactNode
+  label: string
+  count: number
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
       className={cn(
-        "px-3 py-2 border font-medium rounded-xl transition-all text-xs sm:text-sm",
+        "inline-flex items-center gap-2 whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-medium transition-all sm:text-sm",
         active
-          ? "bg-primary border-primary text-primary-foreground"
-          : "bg-background/80 border-border text-muted-foreground hover:text-foreground hover:border-primary dark:bg-zinc-950/80 dark:border-zinc-800 dark:hover:bg-zinc-800 dark:text-zinc-300 dark:hover:text-white",
+          ? "bg-orange-500 text-white shadow-sm"
+          : "text-muted-foreground hover:bg-accent/50 hover:text-foreground dark:text-zinc-400 dark:hover:bg-zinc-800/60 dark:hover:text-white",
       )}
     >
-      {children}
+      <span>{label}</span>
+      <span
+        className={cn(
+          "rounded-md px-1.5 py-0.5 text-[11px] font-semibold leading-none",
+          active
+            ? "bg-white/20 text-white"
+            : "bg-muted text-muted-foreground dark:bg-zinc-800 dark:text-zinc-400",
+        )}
+      >
+        {count}
+      </span>
     </button>
   )
 }
