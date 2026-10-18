@@ -332,6 +332,18 @@
     font-display: swap;
   }
 
+  /* Скрыть полосу прокрутки, но оставить прокрутку: горизонтальные ряды
+     (жанры на /watch, дни на /schedule, табы в аккаунте, поиск на главной).
+     Без этого тонкий вертикальный скроллбар из общих стилей гадит в таких
+     рядах строку высотой. */
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
   /* Локальные шрифты (если скачаны в public/fonts/) */
   @font-face {
     font-family: 'Inter';

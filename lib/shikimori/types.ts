@@ -38,6 +38,13 @@ export interface Anime {
   airedOn?: string;
   episodesCurrent: number;
   episodesTotal: number;
+  /**
+   * Дата ближайшего эпизода из Shikimori /calendar (ISO, нормализована к МСК).
+   * Заполняется только в getAnimeCalendar: по ней бейдж на /schedule считает
+   * номер серии относительно реальной даты эпизода, а не от гипотетического
+   * недельного ритма.
+   */
+  nextEpisodeAt?: string;
   status: string;
   description: string;
   genres: string[];

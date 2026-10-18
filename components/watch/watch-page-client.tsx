@@ -6,7 +6,8 @@ import Image from "next/image"
 import Link from "next/link"
 import {
   Bookmark,
-  PlayCircle
+  PlayCircle,
+  Star
 } from "lucide-react"
 import type { Anime } from "@/lib/shikimori"
 import { KodikPlayer } from "@/components/watch/kodik-player"
@@ -100,6 +101,35 @@ export function WatchPageClient({ anime, initialEpisode }: WatchPageClientProps)
   // Крючок «Колода тайтла» — после просмотра / exit intent
   const [showDeckHook, setShowDeckHook] = useState(false)
   const starterHookArmed = useRef(false)
+
+  // Жанровые пилюли на мобиле уходят в горизонтальный скролл; по краям ряда —
+  // затемнение, которое показывается только там, где контент реально уходит
+  // за пределы блока (справа всегда есть что скроллить, слева — когда уже
+  // прокручено). Без скролль-детекции затемнение висело бы и там, где
+  // пилюли влезли целиком.
+  const genreRowRef = useRef<HTMLDivElement>(null)
+  const [genreFade, setGenreFade] = useState<{ left: boolean; right: boolean }>({ left: false, right: false })
+  const updateGenreFade = useCallback(() => {
+    const el = genreRowRef.current
+    if (!el) return
+    const max = el.scrollWidth - el.clientWidth
+    setGenreFade({ left: el.scrollLeft > 4, right: max > 4 && el.scrollLeft < max - 4 })
+  }, [])
+  useEffect(() => {
+    updateGenreFade()
+    const el = genreRowRef.current
+    if (!el) return
+    const onScroll = () => updateGenreFade()
+    el.addEventListener('scroll', onScroll, { passive: true })
+    window.addEventListener('resize', onScroll)
+    // Шрифты и раскладка могут доехать после первого рендера — пересчитать.
+    const timer = setTimeout(updateGenreFade, 400)
+    return () => {
+      el.removeEventListener('scroll', onScroll)
+      window.removeEventListener('resize', onScroll)
+      clearTimeout(timer)
+    }
+  }, [updateGenreFade])
 
   const playerRef = useRef<HTMLDivElement>(null)
   const lastRecordedEpisode = useRef("")
@@ -341,7 +371,7 @@ export function WatchPageClient({ anime, initialEpisode }: WatchPageClientProps)
           <div className="absolute top-0 left-0 right-0 h-24 sm:h-32 bg-gradient-to-b from-primary/15 to-transparent opacity-60 pointer-events-none" />
         </div>
 
-        <div className="flex flex-row items-center gap-4 md:gap-8 relative z-10">
+        <div className="flex flex-row items-start gap-4 md:gap-8 relative z-10">
           <div
             onClick={() => {
               trackEvent(AnalyticsEvent.COVER_MODAL_OPEN, { shikimori_id: anime.shikimoriId, title: anime.title })
@@ -370,7 +400,25 @@ export function WatchPageClient({ anime, initialEpisode }: WatchPageClientProps)
               onError={() => setPosterLoading(false)}
             />
 
-            {/* Hover overlay hint */}
+            {/* Бейдж статуса и оценка поверх обложки. pointer-events-none:
+                клики проходят сквозь них на постер (открытие просмотра). */}
+            <div className="absolute top-1.5 left-1.5 z-10 pointer-events-none">
+              <span className={cn(
+                "px-1.5 py-0.5 rounded font-bold uppercase tracking-wide shadow-sm",
+                "text-[9px] md:text-[10px]",
+                anime.status === 'Ongoing' ? 'bg-orange-500 text-black' : 'bg-secondary text-secondary-foreground dark:bg-zinc-700 dark:text-white'
+              )}>
+                {anime.status === 'Ongoing' ? 'Выходит' : anime.status === 'Announcement' ? 'Анонс' : 'Закончен'}
+              </span>
+            </div>
+            {anime.rating > 0 && (
+              <div className="absolute bottom-1.5 left-1.5 z-10 pointer-events-none md:bottom-auto md:left-auto md:top-1.5 md:right-1.5">
+                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-black/70 backdrop-blur-[2px] text-white text-[10px] md:text-xs font-bold shadow-sm">
+                  <Star className="w-3 h-3 fill-yellow-500 text-yellow-500" />
+                  {anime.rating}
+                </span>
+              </div>
+            )}
             <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/poster:opacity-100 transition-opacity duration-300 flex flex-col items-center justify-center gap-1 backdrop-blur-[2px]">
               <Eye className="w-5 h-5 md:w-7 md:h-7 text-white drop-shadow-md" />
               <span className="text-[10px] md:text-xs text-white font-medium drop-shadow-md hidden sm:inline-block">
@@ -386,7 +434,7 @@ export function WatchPageClient({ anime, initialEpisode }: WatchPageClientProps)
           </div>
 
           <div className="flex flex-col gap-2 md:gap-4 flex-1 min-w-0 pt-1">
-            <h1 className="text-xl md:text-3xl lg:text-4xl font-black text-foreground leading-tight">
+            <h1 className="font-unbounded font-black tracking-tight text-xl md:text-3xl lg:text-4xl text-foreground leading-tight">
               {anime.title}
             </h1>
             
@@ -395,12 +443,14 @@ export function WatchPageClient({ anime, initialEpisode }: WatchPageClientProps)
                 строке метаданных и те же три кнопкой ниже), то есть один и
                 тот же список показывался дважды подряд. Кнопки полезнее: они
                 кликабельны и ведут в каталог, а текст — нет. */}
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs md:text-sm text-muted-foreground font-medium">
-              <span className="px-2 py-0.5 rounded-md bg-muted text-foreground">
+            {/* Мета: единый ряд пилюль без точек-разделителей. Оценка и
+                статус живут поверх обложки (см. постер), тут их нет,
+                чтобы не мелькать дважды. */}
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="px-2 py-0.5 rounded-md bg-muted text-xs md:text-sm text-foreground font-bold">
                 {anime.year}
               </span>
-              <span className="w-1 h-1 rounded-full bg-border" />
-              <span>
+              <span className="px-2 py-0.5 rounded-md bg-muted text-xs md:text-sm text-foreground font-bold">
                 {availableEpisodes} / {totalPlannedEpisodes} {getEpisodeText(totalPlannedEpisodes)}
               </span>
             </div>
@@ -409,25 +459,42 @@ export function WatchPageClient({ anime, initialEpisode }: WatchPageClientProps)
               <PlayCircle className="w-4 h-4 md:w-5 md:h-5 fill-orange-500/20" />
               Сейчас смотрю: <span className="text-foreground">{selectedEpisode} серию</span>
             </div>
-
-            {anime.genres && anime.genres.length > 0 && (
-              <div className="mt-3 md:mt-4">
-                <div className="flex flex-wrap gap-2">
-                  {anime.genres.slice(0, 6).map((genre) => (
-                    <Link
-                      key={genre}
-                      href={`/catalog?genre=${encodeURIComponent(genre)}`}
-                      className="inline-flex items-center px-3 py-1.5 rounded-full bg-muted/50 border border-border hover:border-primary/40 hover:bg-primary/10 text-muted-foreground hover:text-primary text-xs md:text-sm font-medium transition-all duration-200"
-                      onClick={() => trackEvent(AnalyticsEvent.CATALOG_FILTER_CLICK, { filter: "genre", value: genre, location: "watch_page" })}
-                    >
-                      {genre}
-                    </Link>
-                  ))}
-                </div>
-              </div>
-            )}
           </div>
         </div>
+
+        {/* Жанры на всю ширину блока. На мобиле — горизонтальный скролл:
+            пилюли больше не переносятся столбиком и не съедают высоту.
+            Затемнение слева/справа показывается только там, где контент
+            реально уходит за блок (genreFade считает это по scrollWidth
+            и scrollLeft, слушая scroll и resize). */}
+        {anime.genres && anime.genres.length > 0 && (
+          <div className="relative mt-1 md:mt-2">
+            {/* py-2 у скролл-полосы: пилюлям нужен воздух сверху и снизу,
+                иначе при горизонтальном скролле ряд выглядит приклеенным
+                к строке меты и к краю блока. Отступ сверху уменьшен, чтобы
+                суммарный ритм не разъехался. */}
+            <div ref={genreRowRef} className="flex flex-nowrap gap-2 overflow-x-auto no-scrollbar py-2 md:flex-wrap">
+              {anime.genres.slice(0, 6).map((genre) => (
+                <Link
+                  key={genre}
+                  href={`/catalog?genre=${encodeURIComponent(genre)}`}
+                  className="shrink-0 inline-flex items-center px-3 py-1.5 rounded-full bg-muted/50 border border-border hover:border-primary/40 hover:bg-primary/10 text-muted-foreground hover:text-primary text-xs md:text-sm font-medium transition-all duration-200"
+                  onClick={() => trackEvent(AnalyticsEvent.CATALOG_FILTER_CLICK, { filter: "genre", value: genre, location: "watch_page" })}
+                >
+                  {genre}
+                </Link>
+              ))}
+            </div>
+            <div className={cn(
+              "pointer-events-none absolute inset-y-0 -left-2 w-10 bg-gradient-to-r from-background to-transparent transition-opacity duration-200",
+              genreFade.left ? "opacity-100" : "opacity-0"
+            )} />
+            <div className={cn(
+              "pointer-events-none absolute inset-y-0 -right-2 w-10 bg-gradient-to-l from-background to-transparent transition-opacity duration-200",
+              genreFade.right ? "opacity-100" : "opacity-0"
+            )} />
+          </div>
+        )}
       </div>
 
       {/* Человек пришёл по ссылке от бота (`/watch/<id>?sub=1`) — подписываем

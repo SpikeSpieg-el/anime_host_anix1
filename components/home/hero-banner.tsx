@@ -275,8 +275,11 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime, recommendationRea
     transition: 'opacity 0.22s cubic-bezier(0.16, 1, 0.3, 1), transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), filter 0.22s cubic-bezier(0.16, 1, 0.3, 1)',
   };
 
+  // Стилизация уходит под шапку: отрицательный margin компенсирует спейсер
+  // navbar'а (h-16 md:h-20), bg-art заходит за blur-шапку, а встречный pt и
+  // увеличенная высота возвращают контент на место — он не залезает под шапку.
   return (
-    <div className="relative w-full min-h-[600px] sm:min-h-[660px] lg:h-[750px] mb-8 lg:mb-12 overflow-hidden bg-[#09090b] border-b border-border/60 group animate-fade-in">
+    <div className="relative w-full min-h-[680px] sm:min-h-[740px] lg:h-[830px] mb-8 lg:mb-12 -mt-16 md:-mt-20 pt-16 md:pt-20 overflow-hidden bg-[#09090b] border-b border-border/60 group animate-fade-in">
       
       {/* ======================================================== */}
       {/* 1. РЕАЛЬНЫЙ ЦВЕТ ОБЛОЖКИ + ДИАГОНАЛЬНЫЙ ГРАДИЕНТ ПО СТРЕЛКЕ */}

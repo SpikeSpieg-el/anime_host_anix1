@@ -4,6 +4,7 @@ import Link from "next/link"
 import Image from "next/image"
 import { Clock, Search, History, ChevronRight } from "lucide-react"
 import { useEpisodeUpdates } from "@/hooks/use-episode-updates"
+import { getFreshAnimeData } from "@/app/actions/get-fresh-anime-data"
 import { useHistory } from "@/components/providers/history-provider"
 import { HistorySkeleton } from "@/components/shared/skeleton"
 import { getWatchPath } from "@/lib/seo/watch-url"
@@ -33,6 +34,12 @@ const [lastSearches, setLastSearches] = useState<string[]>([])
 const [mounted, setMounted] = useState(false)
 const [fallbackHistory, setFallbackHistory] = useState<any[]>([])
 const [hasLoadedFallback, setHasLoadedFallback] = useState(false)
+// Свежие данные по тайтлам истории: эпизоды истории — это снимок на момент
+// просмотра, он никогда не обновляется («2 серия из 2» навсегда, даже когда
+// вышла 3). Проверка обновлений (checkAnimeUpdates) действует только на
+// ПОДПИСКИ, история триггером уведомлений не является — поэтому актуальные
+// числа карточки подтягиваем отдельно, без всяких уведомлений.
+const [freshData, setFreshData] = useState<Record<string, { episodesCurrent: number; episodesTotal: number }>>({})
 // Подключаем хук обновлений
 const { updates, clearUpdate, checkAnimeUpdates, isChecking } = useEpisodeUpdates()
 
@@ -75,6 +82,30 @@ const fullHistory = sourceHistory
     ...item, 
     poster: normalizePosterUrl(item?.poster) 
   }))
+
+// Свежие данные по тайтлам истории: эпизоды истории — это снимок на момент
+// просмотра, он никогда не обновляется («2 серия из 2» навсегда, даже когда
+// вышла 3). Проверка обновлений (checkAnimeUpdates) действует только на
+// ПОДПИСКИ, история триггером уведомлений не является — поэтому актуальные
+// числа карточки подтягиваем отдельно, без всяких уведомлений.
+const freshIdsKey = history.length > 0 ? history.map((item: any) => String(item.id)).join(",") : ""
+useEffect(() => {
+  if (!mounted || historyLoading || !freshIdsKey) return
+  const ids = freshIdsKey.split(",")
+  let alive = true
+  // Серверный кэш Shikimori (10 минут) держит стоимость запроса низкой.
+  getFreshAnimeData(ids)
+    .then((fresh) => {
+      if (!alive) return
+      const map: Record<string, { episodesCurrent: number; episodesTotal: number }> = {}
+      fresh.forEach((a) => {
+        map[a.id] = { episodesCurrent: a.episodesCurrent, episodesTotal: a.episodesTotal }
+      })
+      setFreshData(map)
+    })
+    .catch((e) => console.error("UserHistory: fresh data fetch failed:", e))
+  return () => { alive = false }
+}, [mounted, historyLoading, freshIdsKey])
 
 useEffect(() => {
 setMounted(true)
@@ -186,11 +217,24 @@ return (
       
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3 sm:gap-4">
         {history.map((item) => {
-          const total = item?.episodesTotal && item.episodesTotal > 0 ? item.episodesTotal : null
+          // Свежие данные перекрывают снимок истории. У онгоинга Shikimori
+          // может не заполнить «всего серий» — тогда ориентируемся на число
+          // вышедших.
+          const fresh = freshData[String(item.id)]
+          const planned = Number(fresh?.episodesTotal || item?.episodesTotal || 0)
+          const aired = Number(fresh?.episodesCurrent || 0)
+          const total = planned > 0 ? planned : aired > 0 ? aired : null
           const progress = item?.episode && total ? Math.min(item.episode / total, 1) : null
           
           // Проверяем, есть ли обновление для этого аниме
           const update = updates.find(u => u.animeId === item.id)
+          
+          // «Вышла N серия»: у подписок это приходит из механизма обновлений,
+          // для остальных — карточка сама замечает, что вышла ровно следующая
+          // за просмотренной серия. Если update есть, он старше: дубля не будет. 
+          const hintEpisode = update
+            ? update.newEpisode
+            : item.episode && aired && aired === item.episode + 1 ? aired : 0
           
           return (
           <Link
@@ -243,9 +287,9 @@ return (
                     : "Начать просмотр"}
                 </span>
                 {/* Текстовое пояснение обновления */}
-                {update && (
+                {hintEpisode > 0 && (
                   <span className="text-orange-400 font-medium">
-                    • Вышла {update.newEpisode} {getEpisodeText(update.newEpisode)}
+                    • Вышла {hintEpisode} {getEpisodeText(hintEpisode)}
                   </span>
                 )}
               </div>

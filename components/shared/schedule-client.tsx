@@ -276,20 +276,37 @@ export function ScheduleClient({ schedule: initialSchedule }: ScheduleClientProp
         {filteredAnimes.length > 0 ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-x-4 gap-y-6 sm:gap-y-8">
             {filteredAnimes.map((anime, index) => {
-              // `episodesCurrent` — это Shikimori `episodes_aired`, то есть
-              // число УЖЕ вышедших серий, а не номер ближайшей. Поэтому
-              // серия, которая выходит в выбранный день, — это
-              // `episodesCurrent + 1 + weekOffset`:
+              // Номер серии у каждого тайтла привязан к РЕАЛЬНОЙ дате эпизода
+              // (`nextEpisodeAt` из Shikimori calendar), а не к сдвигу недели
+              // колонки. Якорь: эпизод, выходящий в nextEpisodeAt, имеет номер
+              // `episodesCurrent + 1` (Shikimori увеличивает `episodes_aired`
+              // уже после эфира). Колонки ленты повторяют этот слот каждую
+              // неделю, поэтому номер в колонке = якорь + k, где k — число
+              // недель между колонкой и датой эпизода:
               //
-              //   weekOffset = -1 → прошлая неделя, эта серия уже вышла
-              //                   → episodesCurrent + 1 - 1 = episodesCurrent
-              //   weekOffset =  0 → сегодня                     → episodesCurrent + 1
-              //   weekOffset = +1 → следующая неделя             → episodesCurrent + 2
+              //   колонка на неделю раньше эпизода (k = -1) -> «Была {aired}»
+              //   колонка дня эпизода, эфир ещё не прошёл -> «Будет {aired+1}»
+              //   колонка дня эпизода, эфир уже прошёл    -> «Была {aired+1}»
+              //   колонка на неделю позже       (k = +1) -> «Будет {aired+2}»
               //
-              // Раньше стояло `episodesCurrent + weekOffset` (без +1), из-за
-              // чего при 2 вышедших сериях бейдж писал «Будет 2 серия»
-              // вместо «Будет 3».
-              const displayEpisode = anime.episodesCurrent + 1 + currentDayInfo.weekOffset
+              // Прежняя формула `episodesCurrent + 1 + weekOffset` брала сдвиг
+              // недели САМОЙ колонки, а не относительно даты эпизода: для
+              // прошедших дней текущей недели weekOffset = 0, и бейдж писал
+              // «Была {aired + 1}» — на 1 больше реально вышедшей серии.
+              const eventTs = anime.nextEpisodeAt ? Date.parse(anime.nextEpisodeAt) : NaN
+              const eventDate = new Date(eventTs)
+              const columnMidnight = currentDayInfo.date.getTime()
+              const weekOffsetFromEvent = Math.round(
+                (columnMidnight - new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate()).getTime())
+                  / (7 * 24 * 60 * 60 * 1000)
+              )
+              const displayEpisode = eventTs && !isNaN(weekOffsetFromEvent)
+                ? anime.episodesCurrent + 1 + weekOffsetFromEvent
+                : anime.episodesCurrent + 1 + currentDayInfo.weekOffset
+              // «Была»: колонка в прошлом, либо эпизод уже эфирил сегодня
+              const wasAired = eventTs
+                ? currentDayInfo.offset < 0 || (currentDayInfo.offset === 0 && eventTs <= Date.now())
+                : currentDayInfo.offset < 0
               const isPriority = index < 6 // Priority for first 6 images (above the fold)
               
               return (
@@ -303,7 +320,7 @@ export function ScheduleClient({ schedule: initialSchedule }: ScheduleClientProp
                         ? "bg-secondary/90 text-secondary-foreground border-border" 
                         : "bg-primary/90 text-primary-foreground border-primary/20"
                     )}>
-                      {currentDayInfo.offset < 0 ? 'Была' : 'Будет'} {displayEpisode} серия
+                      {wasAired ? 'Была' : 'Будет'} {displayEpisode} серия
                     </div>
                   </div>
                 </div>
