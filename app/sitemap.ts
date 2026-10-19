@@ -54,22 +54,72 @@ const CATALOG_PAGE_SIZE = 50
  */
 const CATALOG_PAGE_DELAY_MS = 200
 
+/**
+ * После скольких подряд пустых страниц «хвоста» прекращаем опрос.
+ *
+ * На работающем Shikimori страницы по популярности не пустые, а на сервере
+ * сборки с недоступной сетью каждая страница «стоит» 15 с таймаута × 2 попытки
+ * внутри shikimoriFetch (≈30 с). 40 страниц × 30 с = больше 20 минут:
+ * страница /sitemap.xml упирается в лимит Next (300 с), Next пересобирает её
+ * трижды и деплой падает целиком. Два подряд пустых ответа — почти наверняка
+ * сеть/API мертвы, дальше добирать смысла нет.
+ */
+const MAX_CONSECUTIVE_CATALOG_FAILURES = 2
+
+/**
+ * Общий дедлайн (в мс) на весь сбор внешних данных для sitemap.
+ *
+ * Лимит сборки одной страницы в Next — 300 с. Дедлайн 120 с меньше лимита,
+ * поэтому даже в наихудшем сценарии (сеть полностью недоступна) страница
+ * успевает честно вернуться со статичной частью, а не обрывается по таймауту
+ * с тремя попытками пересборки.
+ */
+const DATA_DEADLINE_MS = 120_000
+
+/**
+ * Сигнал-метка для Promise.race: дедлайн истёк. Строка выбрана так, чтобы
+ * не пересекаться с типами самих данных (массивы/объекты).
+ */
+const DATA_DEADLINE_SIGNAL = 'data-collection-deadline' as const
+
+/**
+ * Флаг «дедлайн уже истёк» — его проверяет последовательный сбор страниц
+ * каталога, чтобы не продолжать стучаться в мёртвый API после отработки
+ * дедлайна у основного запроса.
+ */
+let doesDataDeadlineExceed = false
+
+function createDataDeadline(): Promise<typeof DATA_DEADLINE_SIGNAL> {
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      doesDataDeadlineExceed = true
+      resolve(DATA_DEADLINE_SIGNAL)
+    }, DATA_DEADLINE_MS)
+  })
+}
+
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-/** Одна страница каталога Shikimori (для «хвоста» карты сайта). */
-async function getCatalogPage(page: number): Promise<ShikimoriAnime[]> {
+/**
+ * Одна страница каталога Shikimori (для «хвоста» карты сайта).
+ *
+ * Отличаем «страница пустая» от «страница не загрузилась»:
+ * пустая ([]) = нормальный ответ API, null = ошибка сети/лимита.
+ */
+async function getCatalogPage(page: number): Promise<ShikimoriAnime[] | null> {
   try {
-    const data = await shikimoriJson<ShikimoriAnime[]>(
+    const data = await shikimoriJson<ShikimoriAnime[] | null>(
       `${BASE_URL}/animes?limit=${CATALOG_PAGE_SIZE}&page=${page}&order=popularity&censored=true`,
       { next: { revalidate: 21600 } },
-      { fallback: [] },
+      { fallback: null },
     )
+    if (data === null) return null
     return Array.isArray(data) ? data : []
   } catch {
     // Пропущенная страница = меньше URL, но не падение всего маршрута
-    return []
+    return null
   }
 }
 
@@ -79,11 +129,30 @@ async function getCatalogPage(page: number): Promise<ShikimoriAnime[]> {
  * Последовательность — не для красоты: Shikimori режет лимит и на пачке
  * одновременных запросов отдаёт 429 без кэша, и страницы молча выпадают из
  * sitemap. При CATALOG_PAGES=40 это 40 запросов, то есть ~8 секунд на сборку.
+ *
+ * Если API недоступен (или истёк дедлайн), не долбим дальше: после
+ * MAX_CONSECUTIVE_CATALOG_FAILURES подряд не пришедших страниц останавливаемся —
+ * иначе сборка тратит по таймауту на каждую страницу зря.
  */
 async function getCatalogPagesSequential(count: number): Promise<ShikimoriAnime[][]> {
   const pages: ShikimoriAnime[][] = []
+  let consecutiveFailures = 0
   for (let index = 0; index < count; index++) {
-    pages.push(await getCatalogPage(index + 1))
+    if (doesDataDeadlineExceed) {
+      console.warn('[sitemap] Истёк дедлайн, прекращаем сбор страниц каталога')
+      break
+    }
+    const pageData = await getCatalogPage(index + 1)
+    if (pageData === null) {
+      consecutiveFailures += 1
+      if (consecutiveFailures >= MAX_CONSECUTIVE_CATALOG_FAILURES) {
+        console.warn(`[sitemap] Shikimori не отвечает: ${consecutiveFailures} страницы подряд не пришли, отдаём собранное`)
+        break
+      }
+    } else {
+      consecutiveFailures = 0
+      pages.push(pageData)
+    }
     if (index < count - 1) await sleep(CATALOG_PAGE_DELAY_MS)
   }
   return pages
@@ -266,25 +335,64 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     },
   ]
 
+  // --- Жанровые лендинги ---
+  //
+  // Без них в карте сайта не было ни одного адреса, написанного под жанровый
+  // запрос («смотреть исекай»): /catalog?genre=... туда не попадает, а
+  // страницы фильтров Google отбрасывал из-за чужого canonical.
+  // 18+ жанры (indexable: false) в sitemap не кладутся — их страницы
+  // отдают noindex, и робот лишь зря потратил бы краулинговый бюджет.
+  // Блок вынесен до сетевого кода: лендинги не требуют сети (это константы
+  // из lib/seo/genre-landings) и остаются в sitemap даже при откате на
+  // статичный fallback.
+  const genrePages: MetadataRoute.Sitemap = INDEXABLE_GENRE_LANDINGS.map(
+    (genre) => ({
+      url: `${SITE_URL}${getGenrePath(genre.slug)}`,
+      lastModified: NOW,
+      changeFrequency: 'weekly' as const,
+      priority: 0.7,
+    }),
+  )
+
   try {
+    // Common deadline: одна общая «точка истечения» на весь сбор внешних дан.
+    // ОБЩИЙ дедлайн гарантирует, что страница /sitemap.xml соберётся быстрее
+    // лимита Next (300 с) даже при полностью мёртвой сети, — деплой перестаёт
+    // зависеть от доступности Shikimori.
+    const dataDeadline = createDataDeadline()
+
     // Параллельно загружаем «витринные» данные.
     // getTopOfWeek убран: он возвращал ровно тот же закэшированный список,
     // что и getPopularNow (одинаковый URL запроса), то есть не добавлял ни одной
     // новой ссылки.
-    const [popularNow, popularAlways, ongoing, announcements, mangaList, newsIds] =
-      await Promise.all([
-        getPopularNow(50),
-        getPopularAlways(50),
-        getOngoingList(50),
-        getAnnouncements(50),
-        getPopularMangaIds(100),
-        getNewsIds(),
-      ])
+    const displayLists = Promise.all([
+      getPopularNow(50),
+      getPopularAlways(50),
+      getOngoingList(50),
+      getAnnouncements(50),
+      getPopularMangaIds(100),
+      getNewsIds(),
+    ])
+
+    const displayResult = await Promise.race([displayLists, dataDeadline])
+    if (displayResult === DATA_DEADLINE_SIGNAL) {
+      console.warn('[sitemap] Витринные данные не собраны за дедлайн, отдаём sitemap без динамической части')
+      return [...staticPages, ...genrePages]
+    }
+    const [popularNow, popularAlways, ongoing, announcements, mangaList, newsIds] = displayResult
 
     // «Хвост» каталога — строго последовательно, с паузой. Одновременные
     // запросы к Shikimori упираются в 429, и страницы молча выпадают из
     // sitemap (см. getCatalogPagesSequential).
-    const catalogPages = await getCatalogPagesSequential(CATALOG_PAGES)
+    const catalogResult = await Promise.race([
+      getCatalogPagesSequential(CATALOG_PAGES),
+      dataDeadline,
+    ])
+    if (catalogResult === DATA_DEADLINE_SIGNAL) {
+      console.warn('[sitemap] Хвост каталога не собран за дедлайн, отдаём sitemap без динамической части')
+      return [...staticPages, ...genrePages]
+    }
+    const catalogPages = catalogResult
 
     // --- Страницы аниме ---
     const seenAnimeIds = new Set<string>()
@@ -394,22 +502,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       }))
       .filter((page) => isSitemapSafeUrl(page.url))
 
-    // --- Жанровые лендинги ---
-    //
-    // Без них в карте сайта не было ни одного адреса, написанного под жанровый
-    // запрос («смотреть исекай»): /catalog?genre=... туда не попадает, а
-    // страницы фильтров Google отбрасывал из-за чужого canonical.
-    // 18+ жанры (indexable: false) в sitemap не кладутся — их страницы
-    // отдают noindex, и робот лишь зря потратил бы краулинговый бюджет.
-    const genrePages: MetadataRoute.Sitemap = INDEXABLE_GENRE_LANDINGS.map(
-      (genre) => ({
-        url: `${SITE_URL}${getGenrePath(genre.slug)}`,
-        lastModified: NOW,
-        changeFrequency: 'weekly' as const,
-        priority: 0.7,
-      }),
-    )
-
     // Next.js вставляет url в <loc> как есть, без XML-экранирования
     // (resolve-route-data.ts: `content += `<loc>${item.url}</loc>\n``), поэтому
     // экранируем сами: иначе один `&` в любом URL ломает весь файл.
@@ -426,6 +518,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     }))
   } catch (error) {
     console.error('[sitemap] Error generating dynamic pages:', error)
-    return staticPages
+    // Жанровые лендинги не зависят от сети — оставляем и в аварийном fallback
+    return [...staticPages, ...genrePages]
   }
 }
