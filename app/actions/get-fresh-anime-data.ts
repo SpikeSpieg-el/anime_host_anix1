@@ -1,5 +1,6 @@
 "use server"
 import { upgradeShikimoriUrl } from "@/lib/shikimori/utils"
+import { toActiveShikimoriOrigin } from "@/lib/shikimori/mirror"
 
 interface AnimeUpdateData {
   id: string
@@ -31,7 +32,7 @@ export async function getFreshAnimeData(ids: string[]): Promise<AnimeUpdateData[
     for (const batch of batches) {
       const idsParam = batch.join(",")
 
-      const response = await fetch(`https://shikimori.one/api/animes?ids=${idsParam}&limit=50`, {
+      const response = await fetch(toActiveShikimoriOrigin(`https://shikimori.one/api/animes?ids=${idsParam}&limit=50`), {
         headers: {
           "User-Agent": "Weebx/1.0",
         },

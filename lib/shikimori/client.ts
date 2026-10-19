@@ -1,4 +1,9 @@
 import { HEADERS } from "./config";
+import {
+  toActiveShikimoriOrigin,
+  noteShikimoriFailure,
+  maybeRefreshShikimoriMirror,
+} from "./mirror";
 
 type ShikimoriCacheEntry = {
   freshUntil: number;
@@ -23,14 +28,20 @@ export async function shikimoriFetch(input: string, init?: RequestInit & { next?
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    console.log(`[Shikimori] Fetching: ${input}`);
-    const res = await fetch(input, {
+    const targetUrl = toActiveShikimoriOrigin(input);
+    console.log(`[Shikimori] Fetching: ${targetUrl}${targetUrl !== input ? ` (зеркало для ${input})` : ""}`);
+    const res = await fetch(targetUrl, {
       ...init,
       headers: { ...HEADERS, ...(init?.headers ?? {}) },
       signal: controller.signal
     });
 
     console.log(`[Shikimori] Response status: ${res.status} for ${input}`);
+    if (res.status >= 500) {
+      // 5xx (например, Cloudflare 522 при лежащем бэкенде) — сигнал проверить
+      // остальные зеркала; фоново, без задержки ответа
+      noteShikimoriFailure();
+    }
     if (res.status === 429) {
       console.warn(`[Shikimori] Rate limited for ${input}`);
       return res; // Rate limit
@@ -38,6 +49,7 @@ export async function shikimoriFetch(input: string, init?: RequestInit & { next?
     return res;
   } catch (error) {
     console.error(`[Shikimori] Fetch error for ${input}:`, error);
+    noteShikimoriFailure();
     if (retries > 0) {
       // Exponential backoff: wait 2^retries * 100ms before retry
       const backoffMs = Math.pow(2, retries) * 100;
@@ -55,6 +67,9 @@ export async function shikimoriJson<T>(
   init?: RequestInit & { next?: any },
   options?: { ttlMs?: number; staleTtlMs?: number; fallback: T; }
 ): Promise<T> {
+  // Фоновая перепроверка зеркал, если долго не проверяли
+  maybeRefreshShikimoriMirror();
+
   const ttlMs = options?.ttlMs ?? 30_000;
   const staleTtlMs = options?.staleTtlMs ?? 10 * 60_000;
   const key = shikimoriCacheKey(input, init);
