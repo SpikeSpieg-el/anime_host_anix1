@@ -217,7 +217,8 @@ const nextConfig = {
               "style-src-elem 'self' 'unsafe-inline' https://fonts.googleapis.com",
               "img-src 'self' data: blob: https: http:",
               "font-src 'self' data: https://fonts.gstatic.com",
-              `connect-src 'self' https://*.supabase.co https://nhost.weebx.duckdns.org:8443 wss://nhost.weebx.duckdns.org:8443 ${UMAMI_ORIGIN} /stats https://shikimori.one https://shikimori.io https://*.shikimori.one https://*.shikimori.io ${PVP_SERVER_ORIGIN}`,
+              // /stats не указываем: путь без хоста для CSP невалиден, его покрывает 'self'.
+              `connect-src 'self' https://*.supabase.co https://nhost.weebx.duckdns.org:8443 wss://nhost.weebx.duckdns.org:8443 ${UMAMI_ORIGIN} https://shikimori.one https://shikimori.io https://*.shikimori.one https://*.shikimori.io ${PVP_SERVER_ORIGIN}`,
               "frame-src 'self' https: http:",
               // worker-src: hls.js (запасной плеер) создаёт Worker из blob:
               "worker-src 'self' blob:",

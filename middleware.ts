@@ -102,7 +102,10 @@ const SECURITY_HEADERS: Record<string, string> = {
     "style-src-elem 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "img-src 'self' data: blob: https: http:",
     "font-src 'self' data: https://fonts.gstatic.com",
-    `connect-src 'self' https://*.supabase.co https://nhost.weebx.duckdns.org:8443 wss://nhost.weebx.duckdns.org:8443 ${UMAMI_ORIGIN} /stats https://shikimori.one https://shikimori.io https://*.shikimori.one https://*.shikimori.io ${PVP_SERVER_ORIGIN}`,
+    // /stats (Umami-прокси) отдельным source не указываем: путь без хоста
+    // невалиден для CSP (браузер игнорит и пишет warning), все same-origin
+    // запросы к /stats/api/send и к Supabase покрывает 'self'.
+    `connect-src 'self' https://*.supabase.co https://nhost.weebx.duckdns.org:8443 wss://nhost.weebx.duckdns.org:8443 ${UMAMI_ORIGIN} https://shikimori.one https://shikimori.io https://*.shikimori.one https://*.shikimori.io ${PVP_SERVER_ORIGIN}`,
     "frame-src 'self' https: http:",
     "media-src 'self' https: http: blob:",
     "object-src 'none'",

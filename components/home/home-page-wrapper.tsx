@@ -11,6 +11,7 @@ import { HomePageClient } from './home-client'
 import { useState, useEffect, Suspense } from 'react'
 import type { Anime, RecommendationReason } from '@/lib/shikimori'
 import { useAuth } from '@/components/auth/auth-provider'
+import { supabase } from '@/lib/supabase'
 
 interface HomePageWrapperProps {
   topOfWeekHero: Anime | null
@@ -63,10 +64,31 @@ export function HomePageWrapper({
         headers['Authorization'] = `Bearer ${session.access_token}`
       }
 
-      const response = await fetch(`/api/hero-recommendation?${params.toString()}`, { 
+      let response = await fetch(`/api/hero-recommendation?${params.toString()}`, { 
         cache: 'no-store',
         headers
       })
+
+      // 401 почти всегда означает: access_token из контекста уже истёк, а
+      // AuthProvider ещё не успел сделать refreshSession (гонка на маунте
+      // страницы). Обновляем токен напрямую через Supabase и делаем одну
+      // повторную попытку — как это делает retry-логика в auth-provider.
+      if (response.status === 401) {
+        try {
+          console.warn('[HomePageWrapper] Got 401, refreshing session and retrying...')
+          const { data } = await supabase.auth.refreshSession()
+          const freshToken = data?.session?.access_token
+          if (freshToken) {
+            response = await fetch(`/api/hero-recommendation?${params.toString()}`, {
+              cache: 'no-store',
+              headers: { ...headers, 'Authorization': `Bearer ${freshToken}` }
+            })
+          }
+        } catch (refreshError) {
+          console.warn('[HomePageWrapper] Session refresh failed:', refreshError)
+        }
+      }
+
       if (!response.ok) {
         console.error('[HomePageWrapper] Failed to fetch recommendation:', response.status)
         // Continue anyway - will use topOfWeekHero as fallback
