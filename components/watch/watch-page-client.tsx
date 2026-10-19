@@ -20,6 +20,8 @@ import { Button } from "@/components/ui/button"
 import { useBookmarks } from "@/components/providers/bookmarks-provider"
 import { useAuth } from "@/components/auth/auth-provider"
 import { isHentaiContent } from "@/lib/hentai-detector"
+import { AgeRatingBadge } from "@/components/watch/age-rating-badge"
+import { getAgeRatingInfo } from "@/lib/age-rating"
 import { cleanAnimeTitle } from "@/lib/seo/watch-url"
 import { PageBreadcrumbs } from "@/components/shared/page-breadcrumbs"
 import { WatchPageGallery } from "@/components/watch/watch-page-gallery"
@@ -67,6 +69,10 @@ export function WatchPageClient({ anime, initialEpisode }: WatchPageClientProps)
   }, [anime.episodesCurrent, anime.episodesTotal])
 
   const totalPlannedEpisodes = anime.episodesTotal || availableEpisodes
+
+  // Понятная возрастная метка из сырого кода Shikimori (r → «16+», r_plus → «18+ Этти»).
+  // Нужна для NSFW-баннера над плеером; бейдж на обложке рисует AgeRatingBadge.
+  const ageRating = getAgeRatingInfo(anime.shikimoriRating)
 
   const { user, profile } = useAuth()
   const { isSaved, toggle } = useBookmarks()
@@ -372,63 +378,84 @@ export function WatchPageClient({ anime, initialEpisode }: WatchPageClientProps)
         </div>
 
         <div className="flex flex-row items-start gap-4 md:gap-8 relative z-10">
-          <div
-            onClick={() => {
-              trackEvent(AnalyticsEvent.COVER_MODAL_OPEN, { shikimori_id: anime.shikimoriId, title: anime.title })
-              setIsCoverModalOpen(true)
-            }}
-            role="button"
-            tabIndex={0}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault()
+          {/* Постер + бейдж возраста живут в обёртке-сиблинге. Бейдж НЕ вложен
+              в кликабельный постер (div role="button"): раньше из-за вложения
+              конфликтовали две кнопки — клику по бейджу нужен был
+              stopPropagation, чтобы не открыть обложку, а скринридер читал
+              постер одной строкой вместе с бейджем. Теперь это соседи:
+              клик по бейджу физически не может открыть обложку, и наоборот. */}
+          <div className="relative shrink-0">
+            <div
+              onClick={() => {
                 trackEvent(AnalyticsEvent.COVER_MODAL_OPEN, { shikimori_id: anime.shikimoriId, title: anime.title })
                 setIsCoverModalOpen(true)
-              }
-            }}
-            title="Нажмите, чтобы посмотреть обложку"
-            className="group/poster relative w-24 aspect-[2/3] md:w-44 shrink-0 rounded-lg md:rounded-xl overflow-hidden shadow-2xl bg-muted ring-1 ring-border cursor-pointer hover:ring-primary/60 hover:shadow-primary/20 transition-all duration-300"
-          >
-            <Image
-              src={anime.poster}
-              alt={anime.title}
-              fill
-              className="object-cover group-hover/poster:scale-105 transition-transform duration-500 ease-out"
-              sizes="(max-width: 768px) 100px, 180px"
-              priority
-              onLoad={() => setPosterLoading(false)}
-              onError={() => setPosterLoading(false)}
-            />
+              }}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault()
+                  trackEvent(AnalyticsEvent.COVER_MODAL_OPEN, { shikimori_id: anime.shikimoriId, title: anime.title })
+                  setIsCoverModalOpen(true)
+                }
+              }}
+              title="Нажмите, чтобы посмотреть обложку"
+              className="group/poster relative w-24 aspect-[2/3] md:w-44 rounded-lg md:rounded-xl overflow-hidden shadow-2xl bg-muted ring-1 ring-border cursor-pointer hover:ring-primary/60 hover:shadow-primary/20 transition-all duration-300"
+            >
+              <Image
+                src={anime.poster}
+                alt={anime.title}
+                fill
+                className="object-cover group-hover/poster:scale-105 transition-transform duration-500 ease-out"
+                sizes="(max-width: 768px) 100px, 180px"
+                priority
+                onLoad={() => setPosterLoading(false)}
+                onError={() => setPosterLoading(false)}
+              />
 
-            {/* Бейдж статуса и оценка поверх обложки. pointer-events-none:
-                клики проходят сквозь них на постер (открытие просмотра). */}
-            <div className="absolute top-1.5 left-1.5 z-10 pointer-events-none">
-              <span className={cn(
-                "px-1.5 py-0.5 rounded font-bold uppercase tracking-wide shadow-sm",
-                "text-[9px] md:text-[10px]",
-                anime.status === 'Ongoing' ? 'bg-orange-500 text-black' : 'bg-secondary text-secondary-foreground dark:bg-zinc-700 dark:text-white'
-              )}>
-                {anime.status === 'Ongoing' ? 'Выходит' : anime.status === 'Announcement' ? 'Анонс' : 'Закончен'}
-              </span>
-            </div>
-            {anime.rating > 0 && (
-              <div className="absolute bottom-1.5 left-1.5 z-10 pointer-events-none md:bottom-auto md:left-auto md:top-1.5 md:right-1.5">
-                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-black/70 backdrop-blur-[2px] text-white text-[10px] md:text-xs font-bold shadow-sm">
-                  <Star className="w-3 h-3 fill-yellow-500 text-yellow-500" />
-                  {anime.rating}
+              {/* Бейдж статуса и оценка поверх обложки. pointer-events-none:
+                  клики проходят сквозь них на постер (открытие просмотра). */}
+              <div className="absolute top-1.5 left-1.5 z-10 pointer-events-none">
+                <span className={cn(
+                  "px-1.5 py-0.5 rounded font-bold uppercase tracking-wide shadow-sm",
+                  "text-[9px] md:text-[10px]",
+                  anime.status === 'Ongoing' ? 'bg-orange-500 text-black' : 'bg-secondary text-secondary-foreground dark:bg-zinc-700 dark:text-white'
+                )}>
+                  {anime.status === 'Ongoing' ? 'Выходит' : anime.status === 'Announcement' ? 'Анонс' : 'Закончен'}
                 </span>
               </div>
-            )}
-            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/poster:opacity-100 transition-opacity duration-300 flex flex-col items-center justify-center gap-1 backdrop-blur-[2px]">
-              <Eye className="w-5 h-5 md:w-7 md:h-7 text-white drop-shadow-md" />
-              <span className="text-[10px] md:text-xs text-white font-medium drop-shadow-md hidden sm:inline-block">
-                Обложка
-              </span>
+              {anime.rating > 0 && (
+                <div className="absolute bottom-1.5 left-1.5 z-10 pointer-events-none md:bottom-auto md:left-auto md:top-1.5 md:right-1.5">
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-black/70 backdrop-blur-[2px] text-white text-[10px] md:text-xs font-bold shadow-sm">
+                    <Star className="w-3 h-3 fill-yellow-500 text-yellow-500" />
+                    {anime.rating}
+                  </span>
+                </div>
+              )}
+              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/poster:opacity-100 transition-opacity duration-300 flex flex-col items-center justify-center gap-1 backdrop-blur-[2px]">
+                <Eye className="w-5 h-5 md:w-7 md:h-7 text-white drop-shadow-md" />
+                <span className="text-[10px] md:text-xs text-white font-medium drop-shadow-md hidden sm:inline-block">
+                  Обложка
+                </span>
+              </div>
+
+              {posterLoading && (
+                <div className="absolute inset-0 bg-neutral-200 dark:bg-zinc-800 animate-pulse flex items-center justify-center z-10">
+                  <div className="w-6 h-6 rounded-full border-2 border-orange-500/20 border-t-orange-500 animate-spin" />
+                </div>
+              )}
             </div>
 
-            {posterLoading && (
-              <div className="absolute inset-0 bg-neutral-200 dark:bg-zinc-800 animate-pulse flex items-center justify-center z-10">
-                <div className="w-6 h-6 rounded-full border-2 border-orange-500/20 border-t-orange-500 animate-spin" />
+            {/* Бейдж возраста — СОСЕД постера в обёртке, а не его потомок.
+                Прежняя пилюля «Возрастной рейтинг: R» жила в строке мета
+                под заголовком, сырой код Shikimori и ломала сгиб ряда.
+                Позиция — тот же правый нижний угол: на десктопе счёт
+                справа-сверху, статус слева-сверху, на мобиле счёт
+                слева-снизу, поэтому угол свободен во всех раскладках.
+                z-20 — поверх ховер-оверлея «Обложка». */}
+            {ageRating && (
+              <div className="absolute bottom-1.5 right-1.5 z-20 pointer-events-none">
+                <AgeRatingBadge rating={anime.shikimoriRating} />
               </div>
             )}
           </div>
@@ -443,9 +470,11 @@ export function WatchPageClient({ anime, initialEpisode }: WatchPageClientProps)
                 строке метаданных и те же три кнопкой ниже), то есть один и
                 тот же список показывался дважды подряд. Кнопки полезнее: они
                 кликабельны и ведут в каталог, а текст — нет. */}
-            {/* Мета: единый ряд пилюль без точек-разделителей. Оценка и
-                статус живут поверх обложки (см. постер), тут их нет,
-                чтобы не мелькать дважды. */}
+            {/* Мета: единый ряд пилюль без точек-разделителей. Оценка, статус
+                И возрастная категория живут поверх обложки (см. постер), тут
+                их нет, чтобы не мелькать дважды. Возрастная пилюля с сырым
+                кодом Shikimori («Возрастной рейтинг: R+PLUS») отсюда убрана:
+                длинный текст ломал сгиб ряда на мобиле, а код был непонятен. */}
             <div className="flex flex-wrap items-center gap-1.5">
               <span className="px-2 py-0.5 rounded-md bg-muted text-xs md:text-sm text-foreground font-bold">
                 {anime.year}
@@ -453,14 +482,6 @@ export function WatchPageClient({ anime, initialEpisode }: WatchPageClientProps)
               <span className="px-2 py-0.5 rounded-md bg-muted text-xs md:text-sm text-foreground font-bold">
                 {availableEpisodes} / {totalPlannedEpisodes} {getEpisodeText(totalPlannedEpisodes)}
               </span>
-              {anime.shikimoriRating && (
-                <span className={cn(
-                  "px-2 py-0.5 rounded-md text-xs md:text-sm font-bold",
-                  anime.isNsfw ? "bg-red-500/15 text-red-600 dark:text-red-400" : "bg-muted text-foreground"
-                )} title="Возрастная категория Shikimori">
-                  Возрастной рейтинг: {anime.shikimoriRating.toUpperCase().replace("_", "+")}
-                </span>
-              )}
             </div>
 
             <div className="mt-1 md:mt-2 inline-flex items-center gap-2 text-primary text-sm md:text-base font-semibold">
@@ -518,7 +539,7 @@ export function WatchPageClient({ anime, initialEpisode }: WatchPageClientProps)
       <div id="player" ref={playerRef} className="w-full scroll-mt-24">
         {anime.isNsfw && !profile?.allow_nsfw_search && (
           <div role="alert" className="mb-3 rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">
-            Внимание: этот тайтл имеет возрастной рейтинг {anime.shikimoriRating?.toUpperCase().replace("_", "+") || "18+"} или содержит материалы для взрослых. Вы открыли его напрямую; в безопасном поиске такой контент скрыт.
+            Внимание: возрастная категория этого тайтла — {ageRating ? `${ageRating.label} (${ageRating.description})` : "18+"}. Вы открыли его напрямую; в безопасном поиске такой контент скрыт.
           </div>
         )}
         <RegionWarning selectedCountry={selectedCountry} isRegionDetected={isRegionDetected} />
