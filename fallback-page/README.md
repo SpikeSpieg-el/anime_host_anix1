@@ -25,8 +25,9 @@
 | `nginx.conf` | Любой путь → 503 + страница; исключения `/fonts/` и `/assets/` отдаются как 200 (шрифты и арт), `Cache-Control: no-store`, метка `X-Weebx-Fallback: 1` |
 | `Dockerfile` | `nginx:alpine`, healthcheck по nginx (без `-f` — 503 для заглушки норма), smoke-тест конфига и файлов |
 | `docker-compose.yml` | Деплой в Coolify как Docker Compose сервис, фиксированное имя контейнера `weebx-fallback` |
-| `fonts/` | Копии шрифтов из `public/fonts` (Un-Bold, Inter-R/B, JBMono-M) — отдаются контейнером по `/fonts/` |
+| `fonts/` | Копии шрифтов из `public/fonts` (Unbounded Bold, Inter Regular/Bold, JetBrains Mono Medium) — отдаются контейнером по `/fonts/` |
 | `assets/` | `maintenance-girl.png` (копия `public/baner error.png`) — отдаётся по `/assets/` |
+| `pages/` | Ярус-2: копия под GitHub Pages на случай смерти всего VPS (относительные пути, без автопробки), гайд внутри `pages/README.md` |
 
 > Ассеты продублированы в сервисе (а не берутся из `public/` при сборке) потому,
 > что build context в Coolify = `/fallback-page`; так Dockerfile не зависит от

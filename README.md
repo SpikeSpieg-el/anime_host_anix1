@@ -266,6 +266,7 @@ npm start
 ├── pvp-server/                 # Socket.io сервер PvP (отдельный сервис, порт 3001)
 ├── telegram-bot/               # Telegram-бот: уведомления об озвучке + статистика (docs/TELEGRAM-BOT.md)
 ├── fallback-page/              # Статичная заглушка на время падения сайта (docs/FALLBACK-PAGE-COOLIFY.md)
+│   └── pages/                  # Ярус-2: копия заглушки под GitHub Pages (умер весь VPS)
 ├── scripts/                    # Скрипты для БД
 ├── supabase/                   # Миграции Supabase (37 SQL-файлов)
 │   └── migrations/            # SQL миграции
@@ -403,11 +404,15 @@ Coolify) не работает: сокет открывает клиент, а �
 ### Заглушка на время падения (fallback page)
 
 Когда деплой сломался и Next.js не отвечает, прокси Coolify вместо голого 502/503 отдаёт
-статичную страницу «мы не умерли — мы чиним» (стиль Weebx, ASCII-логотип, кнопка Telegram,
-автоперезагрузка на сайт, когда тот ожил).
+статичную страницу «мы не умерли — мы чиним» (дизайн 1:1 с сайтом: логотип Unbounded,
+арт из public, кнопка Telegram-чата, соцсети, автоперезагрузка на сайт, когда тот ожил).
 
 Заглушка — отдельный статичный сервис `fallback-page/` (nginx:alpine): деплой и привязка
 к прокси Caddy/Traefik — **[docs/FALLBACK-PAGE-COOLIFY.md](docs/FALLBACK-PAGE-COOLIFY.md)**.
+
+Для случая «умер весь VPS» есть ярус-2: копия страницы под GitHub Pages в
+`fallback-page/pages/` (включается вручную переключением DNS на `weebx.github.io`),
+см. `fallback-page/pages/README.md`.
 
 ## 📄 Лицензия
 
