@@ -48,6 +48,8 @@ export interface Anime {
   status: string;
   description: string;
   genres: string[];
+  /** Shikimori genre IDs keyed by displayed Russian name, for reliable catalog links. */
+  genreIds?: Record<string, number>;
   quality: string;
   /**
    * Поля ниже нужны SEO-разметке страницы /watch (alternateName, @type),

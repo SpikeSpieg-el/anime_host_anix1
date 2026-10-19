@@ -26,6 +26,7 @@ export function transformAnimeCalendar(item: ShikimoriAnime): Anime {
     status: item.status === 'anons' ? 'Announcement' : item.status === 'ongoing' ? 'Ongoing' : 'Completed',
     description: item.description?.replace(/\[.*?\]/g, "") || "Описание отсутствует...",
     genres: item.genres?.map(g => g.russian).filter(Boolean) || [],
+    genreIds: Object.fromEntries((item.genres || []).filter(g => g?.russian && Number.isFinite(g.id)).map(g => [g.russian, g.id])),
     quality: item.kind?.toUpperCase() || "TV",
   };
 }
@@ -67,6 +68,7 @@ export async function transformAnime(item: ShikimoriAnime, enableGenreFallback: 
     status: item.status === 'anons' ? 'Announcement' : item.status === 'ongoing' ? 'Ongoing' : 'Completed',
     description: item.description?.replace(/\[.*?\]/g, "") || "Описание отсутствует...",
     genres,
+    genreIds: Object.fromEntries((item.genres || []).filter(g => g?.russian && Number.isFinite(g.id)).map(g => [g.russian, g.id])),
     quality: item.kind?.toUpperCase() || "TV",
     // Прокидываем поля, нужные SEO-разметке /watch и фильтрации NSFW.
     // english/japanese у Shikimori — массивы альтернативных названий,

@@ -1,5 +1,7 @@
 import type { Metadata } from "next"
 import Link from "next/link"
+import { cookies } from "next/headers"
+import { createClient } from "@supabase/supabase-js"
 import { ArrowRight } from "lucide-react"
 import { Navbar } from "@/components/layout/navbar"
 import { Footer } from "@/components/layout/footer"
@@ -8,13 +10,39 @@ import { safeSerializeJson } from "@/lib/seo/safe-json"
 import { GenrePill } from "@/components/genre/genre-pill"
 import { PageBreadcrumbs } from "@/components/shared/page-breadcrumbs"
 import {
+  GENRE_LANDINGS,
   INDEXABLE_GENRE_LANDINGS,
   getGenrePath,
 } from "@/lib/seo/genre-landings"
 
 const SITE_URL = "https://weeb-x.com"
 
-export const revalidate = 86400
+// Список жанров персонализируется настройкой NSFW профиля.
+export const dynamic = "force-dynamic"
+
+async function canShowAdultGenres(): Promise<boolean> {
+  try {
+    const cookieStore = await cookies()
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    if (!url || !anonKey) return false
+
+    const supabase = createClient(url, anonKey, {
+      global: { headers: { cookie: cookieStore.toString() } },
+    })
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return false
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("allow_nsfw_search")
+      .eq("id", user.id)
+      .single()
+    return profile?.allow_nsfw_search === true
+  } catch {
+    return false
+  }
+}
 
 const TITLE = "Жанры аниме — смотреть аниме онлайн бесплатно по жанрам | Weebx"
 const DESCRIPTION =
@@ -56,7 +84,9 @@ export const metadata: Metadata = {
   },
 }
 
-export default function GenresPage() {
+export default async function GenresPage() {
+  const showAdultGenres = await canShowAdultGenres()
+  const visibleGenres = showAdultGenres ? GENRE_LANDINGS : INDEXABLE_GENRE_LANDINGS
   const jsonLd = [
     {
       "@context": "https://schema.org",
@@ -71,8 +101,8 @@ export default function GenresPage() {
       "@context": "https://schema.org",
       "@type": "ItemList",
       name: "Жанры аниме на Weebx",
-      numberOfItems: INDEXABLE_GENRE_LANDINGS.length,
-      itemListElement: INDEXABLE_GENRE_LANDINGS.map((genre, index) => ({
+      numberOfItems: visibleGenres.length,
+      itemListElement: visibleGenres.map((genre, index) => ({
         "@type": "ListItem",
         position: index + 1,
         name: genre.name,
@@ -122,7 +152,7 @@ export default function GenresPage() {
             <div className="relative">
               <span className="mb-4 inline-flex items-center gap-2 rounded-full border border-border/80 bg-secondary/50 px-3 py-1.5 text-[11px] font-bold uppercase tracking-widest text-muted-foreground dark:border-white/10 dark:bg-zinc-900/60 dark:text-zinc-400">
                 <span className="h-1.5 w-1.5 rounded-full bg-primary dark:bg-orange-500" />
-                {INDEXABLE_GENRE_LANDINGS.length} жанров
+                {visibleGenres.length} жанров
               </span>
 
               <h1 className="text-3xl font-black tracking-tight leading-[1.1] text-foreground sm:text-5xl lg:text-6xl dark:text-white">
@@ -140,7 +170,7 @@ export default function GenresPage() {
           {/* Облако плашек. Не сетка квадратов: длинные жанры вроде
               «Сверхъестественное» и «Боевые искусства» иначе ломаются. */}
           <ul className="flex flex-wrap justify-center gap-2.5 sm:gap-3">
-            {INDEXABLE_GENRE_LANDINGS.map((genre) => (
+            {visibleGenres.map((genre) => (
               <li key={genre.slug}>
                 <GenrePill genre={genre} size="lg" />
               </li>
