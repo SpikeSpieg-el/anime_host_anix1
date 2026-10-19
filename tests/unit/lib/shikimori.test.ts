@@ -144,19 +144,45 @@ describe("isAnimeSafe", () => {
 })
 
 describe("isHentaiShikimoriAnime", () => {
-  it("считает rx/x и хентай-жанры хентаем", () => {
+  // Рейтинг — решающий сигнал: Shikimori ставит всем настоящим хентаям rx,
+  // поэтому жанровая эвристика работает ТОЛЬКО когда рейтинга нет вовсе.
+  it("считает rx/x хентаем", () => {
     expect(isHentaiShikimoriAnime(makeShikimoriAnime({ rating: "rx" }))).toBe(true)
     expect(isHentaiShikimoriAnime(makeShikimoriAnime({ rating: "x" }))).toBe(true)
+  })
+
+  it("без рейтинга считает хентаем хентай-жанры", () => {
     expect(
       isHentaiShikimoriAnime(
-        makeShikimoriAnime({ genres: [{ id: 59, name: "Hentai", russian: "Хентай" }] }),
+        makeShikimoriAnime({
+          rating: "",
+          genres: [{ id: 59, name: "Hentai", russian: "Хентай" }],
+        }),
       ),
     ).toBe(true)
     expect(
       isHentaiShikimoriAnime(
-        makeShikimoriAnime({ genres: [{ id: 540, name: "Erotica", russian: "Эротика" }] }),
+        makeShikimoriAnime({
+          rating: "",
+          genres: [{ id: 540, name: "Erotica", russian: "Эротика" }],
+        }),
       ),
     ).toBe(true)
+  })
+
+  // Регресс на https://weeb-x.com/watch/40750-mag-tselitel-novyy-start
+  // Redo of Healer (Kaifuku Jutsushi no Yarinaoshi): рейтинг r_plus + жанр
+  // «Эротика» (539). Тайтл загружен в Kodik — жанр не должен перебивать
+  // непустой рейтинг и отправлять его в hentai-плеер.
+  it("НЕ считает хентаем r_plus даже с жанром Эротика", () => {
+    expect(
+      isHentaiShikimoriAnime(
+        makeShikimoriAnime({
+          rating: "r_plus",
+          genres: [{ id: 539, name: "Erotica", russian: "Эротика" }],
+        }),
+      ),
+    ).toBe(false)
   })
 
   // Регресс на https://weeb-x.com/watch/61578-dazhe-u-studsoveta-est-kosyaki

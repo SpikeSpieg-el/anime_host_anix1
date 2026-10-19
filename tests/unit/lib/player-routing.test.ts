@@ -40,6 +40,26 @@ const SHIKI_16498 = {
   ],
 } as any
 
+// Реальный ответ Shikimori для 40750 «Маг-целитель: Новый старт»
+// (Redo of Healer, снято 2026-10-19). Ключевой момент бага: У ЭТОГО ТАЙТЛА
+// Eсть жанр «Эротика» (id 539) при рейтинге r_plus, и именно жанр отправлял
+// его в хентай-плеер, хотя тайтл загружен в Kodik.
+const SHIKI_40750 = {
+  id: 40750, name: "Kaifuku Jutsushi no Yarinaoshi", russian: "Маг-целитель: Новый старт",
+  rating: "r_plus", score: "6.3", kind: "tv", status: "released",
+  aired_on: "2021-01-13", episodes: 12, episodes_aired: 12,
+  description: "Кайяру — маг-целитель, которого предали все... [[Перезапуск]].",
+  image: { original: "/system/animes/original/40750.jpg", preview: "/system/animes/preview/40750.jpg", x96: "", x48: "" },
+  genres: [
+    { id: 1, name: "Action", russian: "Экшен" },
+    { id: 2, name: "Adventure", russian: "Приключения" },
+    { id: 8, name: "Drama", russian: "Драма" },
+    { id: 10, name: "Fantasy", russian: "Фэнтези" },
+    { id: 539, name: "Erotica", russian: "Эротика" },
+    { id: 35, name: "Harem", russian: "Гарем" },
+  ],
+} as any
+
 describe("реальные данные Shikimori → выбор плеера", () => {
   it("61578 «Даже у студсовета есть косяки!» (r_plus) → Kodik, не хентай", async () => {
     const anime = await transformAnime(SHIKI_61578, false, true)
@@ -61,5 +81,16 @@ describe("реальные данные Shikimori → выбор плеера", 
     expect(anime.isNsfw).toBe(false)
     expect(isHentaiContent(anime)).toBe(false)
     expect(isNoIndexAnime(anime)).toBe(false)
+  })
+
+  it("40750 «Маг-целитель: Новый старт» (r_plus + жанр Эротика) → Kodik, не хентай", async () => {
+    const anime = await transformAnime(SHIKI_40750, false, true)
+    expect(anime.shikimoriRating).toBe("r_plus")
+    // Жанр не перебивает рейтинг: рейтинг есть и не rx → обычный плеер.
+    expect(anime.isHentai).toBe(false)
+    expect(isHentaiContent(anime)).toBe(false)
+    // Но сам тайтл по-прежнему 18+: скрыт в безопасной выдаче и noindex.
+    expect(anime.isNsfw).toBe(true)
+    expect(isNoIndexAnime(anime)).toBe(true)
   })
 })
