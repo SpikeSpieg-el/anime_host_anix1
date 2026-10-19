@@ -55,16 +55,18 @@ describe("жанровые лендинги", () => {
   })
 
   it("18+ жанры остаются в роуте, но не индексируются", () => {
-    // Хентай (12) и эротика (9) — по политике сайта такие тайтлы отдаются
-    // с noindex и на /watch, поэтому лендинги под них не анонсируем.
-    for (const genreId of ["12", "9"]) {
+    // Этти (9), хентай (12), додзинси (61) и эротика (539) доступны
+    // opted-in пользователям, но не анонсируются поисковикам.
+    for (const genreId of ["9", "12", "61", "539"]) {
       const genre = GENRE_LANDINGS.find((g) => g.genreId === genreId)
       expect(genre).toBeDefined()
       expect(genre?.indexable).toBe(false)
-      // Из sitemap и хаба /genre они выпадают.
+      // Из sitemap и публичной выдачи /genre они выпадают.
       expect(INDEXABLE_GENRE_LANDINGS.some((g) => g.slug === genre?.slug)).toBe(false)
     }
-    expect(INDEXABLE_GENRE_LANDINGS.length).toBe(GENRE_LANDINGS.length - 2)
+    expect(INDEXABLE_GENRE_LANDINGS.length).toBe(
+      GENRE_LANDINGS.filter((genre) => genre.indexable).length,
+    )
   })
 })
 
