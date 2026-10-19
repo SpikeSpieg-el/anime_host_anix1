@@ -68,7 +68,7 @@ export function WatchPageClient({ anime, initialEpisode }: WatchPageClientProps)
 
   const totalPlannedEpisodes = anime.episodesTotal || availableEpisodes
 
-  const { user } = useAuth()
+  const { user, profile } = useAuth()
   const { isSaved, toggle } = useBookmarks()
   const saved = isSaved(anime.id)
 
@@ -453,6 +453,14 @@ export function WatchPageClient({ anime, initialEpisode }: WatchPageClientProps)
               <span className="px-2 py-0.5 rounded-md bg-muted text-xs md:text-sm text-foreground font-bold">
                 {availableEpisodes} / {totalPlannedEpisodes} {getEpisodeText(totalPlannedEpisodes)}
               </span>
+              {anime.shikimoriRating && (
+                <span className={cn(
+                  "px-2 py-0.5 rounded-md text-xs md:text-sm font-bold",
+                  anime.isNsfw ? "bg-red-500/15 text-red-600 dark:text-red-400" : "bg-muted text-foreground"
+                )} title="Возрастная категория Shikimori">
+                  Возрастной рейтинг: {anime.shikimoriRating.toUpperCase().replace("_", "+")}
+                </span>
+              )}
             </div>
 
             <div className="mt-1 md:mt-2 inline-flex items-center gap-2 text-primary text-sm md:text-base font-semibold">
@@ -477,7 +485,7 @@ export function WatchPageClient({ anime, initialEpisode }: WatchPageClientProps)
               {anime.genres.slice(0, 6).map((genre) => (
                 <Link
                   key={genre}
-                  href={`/catalog?genre=${encodeURIComponent(genre)}`}
+                  href={`/catalog?genre=${encodeURIComponent(String(anime.genreIds?.[genre] ?? genre))}`}
                   className="shrink-0 inline-flex items-center px-3 py-1.5 rounded-full bg-muted/50 border border-border hover:border-primary/40 hover:bg-primary/10 text-muted-foreground hover:text-primary text-xs md:text-sm font-medium transition-all duration-200"
                   onClick={() => trackEvent(AnalyticsEvent.CATALOG_FILTER_CLICK, { filter: "genre", value: genre, location: "watch_page" })}
                 >
@@ -508,6 +516,11 @@ export function WatchPageClient({ anime, initialEpisode }: WatchPageClientProps)
 
       {/* Player Section */}
       <div id="player" ref={playerRef} className="w-full scroll-mt-24">
+        {anime.isNsfw && !profile?.allow_nsfw_search && (
+          <div role="alert" className="mb-3 rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">
+            Внимание: этот тайтл имеет возрастной рейтинг {anime.shikimoriRating?.toUpperCase().replace("_", "+") || "18+"} или содержит материалы для взрослых. Вы открыли его напрямую; в безопасном поиске такой контент скрыт.
+          </div>
+        )}
         <RegionWarning selectedCountry={selectedCountry} isRegionDetected={isRegionDetected} />
         
         <div className="rounded-2xl overflow-hidden border border-border bg-background shadow-2xl relative aspect-video">

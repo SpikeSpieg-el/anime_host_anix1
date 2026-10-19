@@ -7,7 +7,7 @@ import { AnimeCard } from '@/components/shared/anime-card'
 import { GridSkeleton } from '@/components/shared/skeleton'
 import type { Anime, CatalogFilters } from '@/lib/shikimori'
 import { RandomAnimeModal } from '@/components/catalog/random-anime-modal'
-import { GENRES_MAP } from '@/lib/shikimori'
+import { AGE_RESTRICTED_GENRE_IDS, GENRES_MAP } from '@/lib/shikimori'
 import { fetchAnimeData } from '@/app/catalog/actions'
 import { fetchRandomAnime } from '@/app/catalog/actions/get-random-anime'
 import { saveCatalogFilters } from '@/lib/catalog-preferences'
@@ -620,8 +620,8 @@ export function CatalogClient({
                 <MultiSelect
                   options={[
                     { value: 'all', label: 'Все жанры' },
-                    ...Object.entries(GENRES_MAP)
-                      .filter(([_, id]) => profile?.allow_nsfw_search || id !== '12')
+...Object.entries(GENRES_MAP)
+                    .filter(([_, id]) => profile?.allow_nsfw_search || !AGE_RESTRICTED_GENRE_IDS.includes(Number(id)))
                       .map(([name, id]) => ({ value: id, label: name }))
                   ]}
                   selected={Array.isArray(filters.genre) ? filters.genre : (filters.genre && filters.genre !== 'all' ? [filters.genre] : [])}
