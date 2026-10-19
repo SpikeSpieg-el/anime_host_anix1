@@ -265,6 +265,7 @@ npm start
 ├── public/                     # Статические файлы
 ├── pvp-server/                 # Socket.io сервер PvP (отдельный сервис, порт 3001)
 ├── telegram-bot/               # Telegram-бот: уведомления об озвучке + статистика (docs/TELEGRAM-BOT.md)
+├── fallback-page/              # Статичная заглушка на время падения сайта (docs/FALLBACK-PAGE-COOLIFY.md)
 ├── scripts/                    # Скрипты для БД
 ├── supabase/                   # Миграции Supabase (37 SQL-файлов)
 │   └── migrations/            # SQL миграции
@@ -398,6 +399,15 @@ Coolify (self-hosted) — полный пошаговый гайд: **[docs/PVP-
 PvP-сервер обязан быть доступен из браузера — адрес вида `http://pvp-server:3001` (внутренняя сеть
 Coolify) не работает: сокет открывает клиент, а не Next.js. Обходной путь без нового домена — роут по пути
 на основном домене, см. пункт 2 и раздел «1b» в [`docs/PVP-COOLIFY.md`](docs/PVP-COOLIFY.md).
+
+### Заглушка на время падения (fallback page)
+
+Когда деплой сломался и Next.js не отвечает, прокси Coolify вместо голого 502/503 отдаёт
+статичную страницу «мы не умерли — мы чиним» (стиль Weebx, ASCII-логотип, кнопка Telegram,
+автоперезагрузка на сайт, когда тот ожил).
+
+Заглушка — отдельный статичный сервис `fallback-page/` (nginx:alpine): деплой и привязка
+к прокси Caddy/Traefik — **[docs/FALLBACK-PAGE-COOLIFY.md](docs/FALLBACK-PAGE-COOLIFY.md)**.
 
 ## 📄 Лицензия
 

@@ -1,0 +1,28 @@
+# Локальный запуск и деплой в Coolify (Service -> Docker Compose).
+# Домен заглушке НЕ выдают: она не должна получать запросы напрямую,
+# прокси заворачивает в неё трафик только при недоступности сайта.
+# Имя контейнера фиксированное (weebx-fallback) — на него ссылается
+# конфиг прокси (handle_errors / errors middleware).
+services:
+  fallback-page:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: weebx-fallback-page:latest
+    container_name: weebx-fallback
+    restart: unless-stopped
+    networks:
+      - coolify
+    healthcheck:
+      test: ["CMD", "curl", "-s", "-o", "/dev/null", "http://127.0.0.1:8080/"]
+      interval: 30s
+      timeout: 5s
+      start_period: 5s
+      retries: 3
+
+# Сеть coolify — та же, где живёт прокси Coolify, иначе он не достучится
+# до weebx-fallback по имени. Если в вашем Coolify сеть называется иначе,
+# проверьте: docker inspect coolify-proxy --format '{{range $k,$v := .NetworkSettings.Networks}}{{$k}} {{end}}'
+networks:
+  coolify:
+    external: true
