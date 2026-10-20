@@ -36,10 +36,19 @@ Pages-копия отличается от основной страницы о�
    Через веб-UI: Add file → Upload files (папки создаёт drag&drop), надёжнее — `git push`.
 3. Settings → Pages → Source: `Deploy from a branch` → `main` / `/ (root)` → Save.
 4. Проверь: `https://weebx.github.io/servers-down/` открывает заглушку (шрифты и арт загрузились).
-5. Settings → Pages → Custom domain: `weeb-x.com` → Save. Это нужно, чтобы при
-   аварийном переключении сайт открывался по своему домену. Подожди, пока GitHub
-   проверит домен; позже включи **Enforce HTTPS** (сертификат Let's Encrypt
-   выдаётся сам, обычно 5–30 минут после проверки DNS).
+5. Settings → Pages → Custom domain: `weeb-x.com` → Save — **или сделай это один раз
+   через `gh api -X PUT repos/Weebx/servers-down/pages -f cname="weeb-x.com" ...`**
+   (как уже сделано). Домен сохранится со статусом «не проверен» — это норма:
+   пока DNS смотрит на VPS, GitHub не может его верифицировать. Проверка и
+   сертификат Let's Encrypt заработают сами в момент аварии, когда DNS
+   переключат на GitHub (§2). **Enforce HTTPS не включай заранее** — без
+   сертификата он положит сайт; GitHub сам включит проверку, когда выдастся
+   LE-сертификат.
+
+> С этого момента: при настроенном custom domain адрес `weebx.github.io/servers-down/`
+> отдаёт 301 на `weeb-x.com` — это стандартное поведение GitHub, не баг. Содержимое
+> Pages-репо проверяй по raw-файлам (`raw.githubusercontent.com/Weebx/servers-down/main/...`),
+> а живая проверка заглушки возможна только при DNS-переключении (§2).
 
 Готово: лазейка ждёт, ничего больше не трогай — Pages-страница просто лежит там.
 
