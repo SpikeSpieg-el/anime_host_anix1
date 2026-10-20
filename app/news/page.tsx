@@ -1,4 +1,5 @@
 import { getAggregatedNews } from "@/lib/news/aggregator"
+import { getNewsPath } from "@/lib/seo/news-url"
 import { PageBreadcrumbs } from "@/components/shared/page-breadcrumbs"
 import { Navbar } from "@/components/layout/navbar"
 import { Footer } from "@/components/layout/footer"
@@ -110,7 +111,7 @@ export default async function NewsPage({
             {news.map((item) => (
               <Link
                 key={item.id}
-                href={`/news/${item.id}`}
+                href={getNewsPath(item.id, item.title)}
                 className="group flex flex-col h-full bg-secondary/40 border rounded-xl sm:rounded-2xl overflow-hidden hover:border-blue-500/50 transition-all hover:bg-secondary active:scale-[0.98] sm:hover:-translate-y-1 hover:shadow-xl hover:shadow-black/50 dark:bg-zinc-900/40 dark:border-zinc-800 dark:hover:border-blue-500/50 dark:hover:bg-zinc-900"
               >
                 {item.imageUrl && (

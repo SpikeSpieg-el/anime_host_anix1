@@ -14,6 +14,7 @@ import { useEffect, useState } from "react"
 import { useSearchParams } from "next/navigation"
 import { easterEggs } from "@/lib/easter-eggs"
 import { getProxiedSrc } from "@/lib/image-loader"
+import { getNewsPath } from "@/lib/seo/news-url"
 import { GridSkeleton, NewsSkeleton } from '@/components/shared/skeleton'
 
 interface HomePageClientProps {
@@ -141,7 +142,7 @@ export function HomePageClient({ initialData }: HomePageClientProps) {
                   {data.newsUpdates.map((news) => (
                       <Link 
                          key={news.id} 
-                         href={`/news/${news.id}`} 
+                         href={getNewsPath(news.id, news.title)}
                          className="group flex flex-row sm:flex-col h-full bg-secondary/40 border rounded-xl sm:rounded-2xl overflow-hidden hover:border-accent transition-all hover:bg-secondary active:scale-[0.98] sm:hover:-translate-y-1 hover:shadow-xl hover:shadow-black/50 dark:bg-zinc-900/40 dark:border-zinc-800 dark:hover:border-zinc-600 dark:hover:bg-zinc-900"
                       >
                           {news.imageUrl && (

@@ -11,7 +11,7 @@
  * Middleware отвечает до рендера, поэтому здесь можно отдать настоящий 301.
  * Модуль совместим с edge runtime (только fetch + Map).
  */
-import { BASE_URL, HEADERS } from "@/lib/shikimori/config"
+import { HEADERS } from "@/lib/shikimori/config"
 import { getWatchSegment } from "@/lib/seo/watch-url"
 
 type CacheEntry = { segment: string | null; expiresAt: number }
@@ -20,6 +20,8 @@ const POSITIVE_TTL_MS = 12 * 60 * 60 * 1000 // названия меняются
 const NEGATIVE_TTL_MS = 10 * 60 * 1000 // 404 от Shikimori — перепроверим позже
 const MAX_CACHE_ENTRIES = 5000
 const LOOKUP_TIMEOUT_MS = 3000
+const MIRROR_TIMEOUT_MS = 1000
+const DEFAULT_SHIKIMORI_MIRRORS = ["shikimori.one", "shikimori.me", "shikimori.io", "shikimori.org"]
 
 const segmentCache = new Map<string, CacheEntry>()
 const inflight = new Map<string, Promise<string | null | undefined>>()
@@ -37,6 +39,21 @@ function remember(id: string, segment: string | null) {
     segment,
     expiresAt: Date.now() + (segment ? POSITIVE_TTL_MS : NEGATIVE_TTL_MS),
   })
+}
+
+function getAnimeLookupUrls(id: string): string[] {
+  const forcedDomain = process.env.SHIKIMORI_DOMAIN?.trim()
+  const configuredMirrors = process.env.SHIKIMORI_MIRRORS
+    ?.split(",")
+    .map((domain) => domain.trim())
+    .filter(Boolean)
+  const mirrors = forcedDomain
+    ? [forcedDomain]
+    : configuredMirrors?.length
+      ? configuredMirrors
+      : DEFAULT_SHIKIMORI_MIRRORS
+  const domains = [...new Set(mirrors.map((domain) => domain.replace(/^https?:\/\//i, "").replace(/\/+$/, "")))]
+  return domains.map((domain) => `https://${domain}/api/animes/${id}`)
 }
 
 export function getCachedWatchSegment(id: string): string | null | undefined {
@@ -64,27 +81,34 @@ export async function lookupWatchSegment(
   if (pending) return pending
 
   const promise = (async () => {
-    const controller = new AbortController()
-    const timer = setTimeout(() => controller.abort(), LOOKUP_TIMEOUT_MS)
+    const deadline = Date.now() + LOOKUP_TIMEOUT_MS
     try {
-      const res = await fetchImpl(`${BASE_URL}/animes/${id}`, {
-        headers: HEADERS,
-        signal: controller.signal,
-      })
-      if (res.status === 404) {
-        remember(id, null)
-        return null
+      for (const url of getAnimeLookupUrls(id)) {
+        const remaining = deadline - Date.now()
+        if (remaining <= 0) break
+        const controller = new AbortController()
+        const timer = setTimeout(() => controller.abort(), Math.min(MIRROR_TIMEOUT_MS, remaining))
+        try {
+          const res = await fetchImpl(url, { headers: HEADERS, signal: controller.signal })
+          if (res.status === 404) {
+            remember(id, null)
+            return null
+          }
+          if (!res.ok) continue
+
+          const data = (await res.json()) as { russian?: string | null; name?: string | null }
+          const segment = getWatchSegment(id, data?.russian || data?.name || "")
+          remember(id, segment)
+          return segment
+        } catch {
+          continue
+        } finally {
+          clearTimeout(timer)
+        }
       }
-      if (!res.ok) return undefined
-      const data = (await res.json()) as { russian?: string | null; name?: string | null }
-      // Та же логика, что в transformAnime: title = russian || name
-      const segment = getWatchSegment(id, data?.russian || data?.name || "")
-      remember(id, segment)
-      return segment
-    } catch {
+
       return undefined
     } finally {
-      clearTimeout(timer)
       inflight.delete(id)
     }
   })()

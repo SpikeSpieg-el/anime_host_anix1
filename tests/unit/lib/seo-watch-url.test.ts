@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import {
   cleanAnimeTitle,
   getWatchPath,
@@ -55,6 +55,7 @@ describe("watch-url", () => {
 
 describe("watch-redirect (middleware)", () => {
   beforeEach(() => __resetWatchRedirectCache())
+  afterEach(() => vi.unstubAllEnvs())
 
   const okFetch = (body: object) =>
     vi.fn(async () => new Response(JSON.stringify(body), { status: 200 })) as unknown as typeof fetch
@@ -69,6 +70,21 @@ describe("watch-redirect (middleware)", () => {
     )
     // второй вызов — из кэша
     expect(fetchImpl).toHaveBeenCalledTimes(1)
+  })
+
+  it("переходит на следующее зеркало, если основной Shikimori недоступен", async () => {
+    vi.stubEnv("SHIKIMORI_MIRRORS", "shikimori.one,shikimori.me")
+    const fetchMock = vi.fn()
+      .mockRejectedValueOnce(new Error("primary unavailable"))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ russian: "Киберпанк: Бегущие по краю 2" }), { status: 200 }))
+    const fetchImpl = fetchMock as unknown as typeof fetch
+
+    await expect(getWatchRedirectPath("/watch/61990", "", fetchImpl)).resolves.toBe(
+      "/watch/61990-kiberpank-begushchie-po-krayu-2",
+    )
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(fetchMock.mock.calls[0][0]).toBe("https://shikimori.one/api/animes/61990")
+    expect(fetchMock.mock.calls[1][0]).toBe("https://shikimori.me/api/animes/61990")
   })
 
   it("канонический адрес не редиректит и не ходит в сеть", async () => {
