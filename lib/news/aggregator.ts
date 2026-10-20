@@ -3,6 +3,7 @@ import { getJikanNews, getJikanNewsById } from "@/lib/jikan/api";
 import { createClient } from "@supabase/supabase-js";
 import type { NewsItem } from "@/lib/shikimori/types";
 import type { AnimeNewsItem } from "@/lib/jikan/api";
+import { getNewsPath, parseNewsParam } from "@/lib/seo/news-url";
 
 export type NewsSource = 'shikimori' | 'jikan' | 'custom';
 
@@ -102,7 +103,7 @@ async function getCustomNews(page = 1, limit = 12): Promise<{ items: AggregatedN
     dateTimestamp: new Date(item.created_at).getTime(),
     author: item.author || "Редакция Weebx",
     comments: 0,
-    url: `/news/custom-${item.id}`,
+    url: getNewsPath(`custom-${item.id}`, item.title),
     source: 'custom' as NewsSource,
     htmlBody: item.body || undefined,
   }));
@@ -164,7 +165,7 @@ export async function getAggregatedNewsById(id: string): Promise<AggregatedNewsI
         dateTimestamp: new Date(data.created_at).getTime(),
         author: data.author || "Администрация",
         comments: 0,
-        url: `/news/custom-${data.id}`,
+        url: getNewsPath(`custom-${data.id}`, data.title),
         source: 'custom' as NewsSource,
         htmlBody: data.body || undefined,
       };
@@ -178,7 +179,7 @@ export async function getAggregatedNewsById(id: string): Promise<AggregatedNewsI
     return fromJikan(jikanNews);
   }
 
-  const shikimoriNews = await getNewsById(id);
+  const shikimoriNews = await getNewsById(parseNewsParam(id));
   if (!shikimoriNews) return null;
   return fromShikimori(shikimoriNews);
 }

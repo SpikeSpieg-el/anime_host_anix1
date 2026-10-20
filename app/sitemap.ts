@@ -1,4 +1,5 @@
 import { MetadataRoute } from 'next'
+import { createClient } from "@supabase/supabase-js"
 import {
   getPopularNow,
   getPopularAlways,
@@ -9,6 +10,7 @@ import {
 import { BASE_URL } from '@/lib/shikimori/config'
 import { shikimoriJson } from '@/lib/shikimori/client'
 import { getWatchPath } from "@/lib/seo/watch-url"
+import { getNewsPath } from "@/lib/seo/news-url"
 import { INDEXABLE_GENRE_LANDINGS, getGenrePath } from '@/lib/seo/genre-landings'
 import { clampLastmod, escapeXml, isSitemapSafeUrl } from '@/lib/seo/sitemap-utils'
 import { isAnimeSafe } from '@/lib/shikimori/utils'
@@ -203,27 +205,47 @@ async function getPopularMangaIds(limit = 100): Promise<ShikimoriMangaListItem[]
   }
 }
 
-async function getNewsIds(): Promise<string[]> {
-  const ids: string[] = []
+async function getNewsIds(): Promise<Array<{ id: string; title: string }>> {
+  const items: Array<{ id: string; title: string }> = []
   const seen = new Set<string>()
 
   // Загружаем первые 5 страниц новостей (только Shikimori — Jikan слишком нестабилен для сборки)
   for (let page = 1; page <= 5; page++) {
     try {
-      const items = await getForumNewsPaginated(page, 12)
-      for (const item of items) {
+      const pageItems = await getForumNewsPaginated(page, 12)
+      for (const item of pageItems) {
         if (!seen.has(item.id)) {
           seen.add(item.id)
-          ids.push(item.id)
+          items.push({ id: item.id, title: item.title })
         }
       }
-      if (items.length < 12) break
+      if (pageItems.length < 12) break
     } catch {
       break
     }
   }
 
-  return ids
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  if (supabaseUrl && supabaseKey) {
+    try {
+      const supabase = createClient(supabaseUrl, supabaseKey)
+      const { data, error } = await supabase
+        .from("custom_news")
+        .select("id,title")
+        .eq("is_published", true)
+        .order("created_at", { ascending: false })
+        .limit(1000)
+
+      if (!error && Array.isArray(data)) {
+        items.push(...data.map((item) => ({ id: `custom-${item.id}`, title: item.title })))
+      }
+    } catch {
+      // Sitemap can still include external news if the custom-news store is unavailable.
+    }
+  }
+
+  return items
 }
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
@@ -494,8 +516,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
     // --- Страницы новостей ---
     const newsPages: MetadataRoute.Sitemap = newsIds
-      .map((id) => ({
-        url: `${SITE_URL}/news/${id}`,
+      .map(({ id, title }) => ({
+        url: `${SITE_URL}${getNewsPath(id, title)}`,
         lastModified: NOW,
         changeFrequency: 'monthly' as const,
         priority: 0.4,

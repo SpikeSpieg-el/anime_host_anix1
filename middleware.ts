@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import type { NextFetchEvent, NextRequest } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { doesWatchAnimeExist, getWatchRedirectPath } from "@/lib/seo/watch-redirect"
+import { getNewsRedirectPath } from "@/lib/seo/news-redirect"
 import { resolveGenreAlias } from "@/lib/seo/genre-landings"
 import { resolveCatalogGenreRedirect } from "@/lib/seo/catalog-filters"
 import { isValidAdminRequestOrigin } from "@/lib/admin-origin"
@@ -268,6 +269,17 @@ export async function middleware(request: NextRequest, event?: NextFetchEvent) {
         response.headers.set("Cache-Control", "public, max-age=3600")
         return applySecurityHeaders(response, pathname)
       }
+    }
+  }
+
+  if ((method === "GET" || method === "HEAD") && pathname.startsWith("/news/")) {
+    const redirectPath = await getNewsRedirectPath(pathname, fetch)
+    if (redirectPath) {
+      const url = request.nextUrl.clone()
+      url.pathname = redirectPath
+      const response = NextResponse.redirect(url, 301)
+      response.headers.set("Cache-Control", "public, max-age=3600")
+      return applySecurityHeaders(response, pathname)
     }
   }
 

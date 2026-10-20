@@ -12,6 +12,7 @@ import { getProxiedSrc } from "@/lib/image-loader"
 import type { LinkedAnime } from "@/lib/shikimori/types"
 import { BreadcrumbStructuredData } from "@/components/seo/structured-data"
 import { getWatchPath } from "@/lib/seo/watch-url"
+import { getNewsPath, parseNewsParam } from "@/lib/seo/news-url"
 import { sanitizeNewsHtml } from "@/lib/news/sanitize-html"
 
 interface Props {
@@ -35,8 +36,8 @@ function cleanText(str: string): string {
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const { id } = await params
-  const news = await getAggregatedNewsById(id)
+  const { id: rawId } = await params
+  const news = await getAggregatedNewsById(parseNewsParam(rawId))
 
   if (!news) {
     return {
@@ -48,17 +49,18 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const cleanTitle = cleanText(news.title)
   const cleanDescription = cleanText(news.excerpt).slice(0, 160)
   const publishedTime = news.dateTimestamp > 0 ? new Date(news.dateTimestamp).toISOString() : undefined
+  const canonicalPath = getNewsPath(news.id, cleanTitle)
 
   return {
     title: `${cleanTitle} — Weebx`,
     description: cleanDescription,
     alternates: {
-      canonical: `https://weeb-x.com/news/${id}`,
+      canonical: `https://weeb-x.com${canonicalPath}`,
     },
     openGraph: {
       title: cleanTitle,
       description: cleanDescription,
-      url: `https://weeb-x.com/news/${id}`,
+      url: `https://weeb-x.com${canonicalPath}`,
       type: "article",
       siteName: "Weebx",
       locale: "ru_RU",
@@ -292,8 +294,8 @@ function getKindLabel(kind?: string): string {
 }
 
 export default async function NewsItemPage({ params }: Props) {
-  const { id } = await params
-  const news = await getAggregatedNewsById(id)
+  const { id: rawId } = await params
+  const news = await getAggregatedNewsById(parseNewsParam(rawId))
 
   if (!news) notFound()
 
@@ -328,6 +330,7 @@ export default async function NewsItemPage({ params }: Props) {
   const footerHtml = news.htmlFooter ? sanitizeNewsHtml(sanitizeShikimoriFooter(news.htmlFooter)) : null
   const textBody = cleanText(news.excerpt)
   const cleanTitle = cleanText(news.title)
+  const canonicalPath = getNewsPath(news.id, cleanTitle)
 
   const linked = news.linkedAnime
   // Обложка из самой новости предпочтительнее, но у Shikimori она есть далеко
@@ -351,7 +354,7 @@ export default async function NewsItemPage({ params }: Props) {
         items={[
           { name: "Главная", url: "https://weeb-x.com" },
           { name: "Новости", url: "https://weeb-x.com/news" },
-          { name: cleanTitle, url: `https://weeb-x.com/news/${id}` },
+          { name: cleanTitle, url: `https://weeb-x.com${canonicalPath}` },
         ]}
       />
       <Navbar />
