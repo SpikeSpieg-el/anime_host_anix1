@@ -88,6 +88,7 @@ export function NewsFeed({
   const seenIds = useRef(new Set(initialItems.map((item) => item.id)));
   const loadingRef = useRef(false);
   const sentinelRef = useRef<HTMLDivElement>(null);
+  const prefetchedRef = useRef(false);
 
   const groups = useMemo(() => groupByDate(items), [items]);
 
@@ -115,10 +116,19 @@ export function NewsFeed({
       // не найдём хотя бы одну новую карточку — иначе лента «залипала» бы на
       // дубликатах и пользователь видел бесконечный индикатор загрузки.
       while (attempts < 3) {
-        const response = await fetch(
-          `/api/news?page=${pageToFetch}&limit=${pageSize}`,
-          { cache: "no-cache" },
-        );
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 20_000);
+        let response: Response;
+
+        try {
+          response = await fetch(`/api/news?page=${pageToFetch}&limit=${pageSize}`, {
+            cache: "no-cache",
+            signal: controller.signal,
+          });
+        } finally {
+          clearTimeout(timeout);
+        }
+
         if (!response.ok) throw new Error(`News API responded with ${response.status}`);
 
         const data = (await response.json()) as NewsFeedPage;
@@ -164,7 +174,7 @@ export function NewsFeed({
   }, []);
 
   // Бесконечная прокрутка: подгружаем порцию, когда до конца ленты остаётся
-  // меньше ~700 px. rootMargin большой, чтобы карточки успевали появиться до
+  // меньше ~1200 px. rootMargin большой, чтобы карточки успевали появиться до
   // того, как пользователь дойдёт до края (это и есть «бесшовность»).
   useEffect(() => {
     if (!hasNextPage || !autoLoadSupported || error) return;
@@ -176,7 +186,7 @@ export function NewsFeed({
       (entries) => {
         if (entries.some((entry) => entry.isIntersecting)) void loadMore();
       },
-      { rootMargin: "700px 0px" },
+      { rootMargin: "1200px 0px" },
     );
 
     observer.observe(node);
@@ -192,8 +202,20 @@ export function NewsFeed({
     if (!node) return;
 
     const rect = node.getBoundingClientRect();
-    if (rect.top < window.innerHeight + 700) void loadMore();
+    if (rect.top < window.innerHeight + 1200) void loadMore();
   }, [autoLoadSupported, error, hasNextPage, items, loadMore, loading]);
+
+  // Предивная подгрузка: как только первый экран отрисован, сразу тянем
+  // следующую порцию в фоне. Пользователь ещё читает верх ленты, а данные уже
+  // лежат в кеше — к моменту скролла вниз подгрузка происходит мгновенно.
+  useEffect(() => {
+    if (prefetchedRef.current || !hasNextPage || error) return;
+    prefetchedRef.current = true;
+    const timer = setTimeout(() => {
+      void loadMore();
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [error, hasNextPage, loadMore]);
 
   const showRetry = Boolean(error) && !loading;
 
@@ -214,7 +236,7 @@ export function NewsFeed({
           <section key={group.key} aria-labelledby={`news-date-${group.key}`}>
             {/* Лёгкое отделение по датам: тонкая линия и липкая подпись, а не
                 отдельные страницы. */}
-            <div className="sticky top-16 z-20 -mx-4 mb-4 flex items-center gap-3 border-b border-border/40 bg-background/85 px-4 py-2.5 backdrop-blur-md md:top-20 dark:border-white/5 dark:bg-background/80">
+            <div className="news-date-divider sticky z-20 -mx-4 mb-4 flex items-center gap-3 border-b border-border/40 bg-background/85 px-4 py-2.5 backdrop-blur-md dark:border-white/5 dark:bg-background/80">
               <time
                 id={`news-date-${group.key}`}
                 dateTime={group.iso}
