@@ -123,7 +123,9 @@ export async function getAggregatedNews(
 
   const includeJikan = options.includeJikan ?? true;
   const jikanCount = includeJikan ? Math.min(4, Math.floor(externalLimit / 2)) : 0;
-  const shikimoriLimit = Math.max(1, externalLimit - jikanCount);
+  // Размер страниц Shikimori должен быть одинаковым: API вычисляет offset
+  // как (page - 1) * limit. Иначе при переходе с 4 на 10 часть новостей пропадает.
+  const shikimoriLimit = Math.max(1, limit - firstPageCustomLimit - Math.min(4, Math.floor((limit - firstPageCustomLimit) / 2)));
 
   const customPromise = getCustomNews(customOffset, customLimit);
   const shikimoriPromise = getForumNewsPaginated(page, shikimoriLimit).catch(() => [] as NewsItem[]);
@@ -137,7 +139,14 @@ export async function getAggregatedNews(
   const shikimoriItems = shikimoriNews.slice(0, shikimoriLimit).map(fromShikimori);
   const jikanItems = jikanNews.map(fromJikan);
 
-  const merged = [...customNews, ...shikimoriItems, ...jikanItems];
+  // Не теряем сохранённые новости Shikimori, если другие источники живы,
+  // а сам Shikimori временно не ответил. Снимок показываем только на первой
+  // странице: на следующих он создавал бы дубликаты и ложную пагинацию.
+  const usingShikimoriSnapshot = page === 1 && shikimoriItems.length === 0;
+  const snapshot = usingShikimoriSnapshot
+    ? FALLBACK_NEWS.filter(item => item.source === "shikimori").slice(0, shikimoriLimit)
+    : [];
+  const merged = [...customNews, ...shikimoriItems, ...jikanItems, ...snapshot];
   merged.sort((a, b) => b.dateTimestamp - a.dateTimestamp);
 
   const hasSourceItems = merged.length > 0;
@@ -152,7 +161,7 @@ export async function getAggregatedNews(
   // интерфейс мог честно сказать, что новости не свежие.
   const items = hasSourceItems ? merged.slice(0, limit) : FALLBACK_NEWS.slice(0, limit);
 
-  return { items, hasNextPage, isFallback: !hasSourceItems };
+  return { items, hasNextPage, isFallback: !hasSourceItems || usingShikimoriSnapshot };
 }
 
 /** Форма ответа API ленты: без тяжёлых HTML-полей, только карточка. */
