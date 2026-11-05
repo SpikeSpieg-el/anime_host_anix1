@@ -34,6 +34,14 @@ export function CookieConsent() {
     }
   }, [])
 
+  // Пока баннер cookie открыт, он перекрывает нижнюю часть экрана (z-[9999]).
+  // Кнопка «Наверх» на мобилках живёт как раз в этой зоне, поэтому прячем её
+  // только на время показа баннера. После закрытия класс снимается.
+  useEffect(() => {
+    document.documentElement.classList.toggle("cookie-consent-open", isVisible)
+    return () => document.documentElement.classList.remove("cookie-consent-open")
+  }, [isVisible])
+
   const close = () => {
     setClosing(true)
     // Гостевые крючки ждут этого события — баннер больше их не перекрывает

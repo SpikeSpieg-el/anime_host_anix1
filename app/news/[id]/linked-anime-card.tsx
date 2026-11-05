@@ -60,7 +60,7 @@ export function LinkedAnimeCard({ id, name, russian, poster, kindLabel, statusLa
       <div className="news-linked-info">
         <span className="news-linked-eyebrow">Связанное аниме</span>
         <a href={watchHref} className="flex items-center gap-2 flex-wrap mt-1">
-          <span className="text-base sm:text-lg font-bold text-foreground dark:text-white group-hover:text-blue-400 transition-colors">
+          <span className="text-base sm:text-lg font-bold text-foreground transition-colors group-hover:text-primary dark:text-white dark:group-hover:text-orange-400">
             {russian || name}
           </span>
           {name && russian && (

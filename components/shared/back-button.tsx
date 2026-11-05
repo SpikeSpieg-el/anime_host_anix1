@@ -40,7 +40,7 @@ export function BackButton({
         }
       }}
       className={cn(
-        "gap-2 bg-card border border-border text-muted-foreground hover:text-foreground hover:bg-card/80 transition-all",
+        "gap-2 rounded-xl border border-border bg-secondary/60 text-muted-foreground transition-all hover:bg-accent hover:text-foreground",
         className,
       )}
     >

@@ -482,7 +482,7 @@ export default async function NewsItemPage({ params }: Props) {
                 Новость
               </span>
               {!isCustom && (
-                <span className={`news-pill ${isJikan ? 'text-orange-400' : 'text-blue-400'}`}>
+                <span className="news-pill text-primary">
                   <Globe className="w-3.5 h-3.5" />
                   {sourceLabel}
                 </span>

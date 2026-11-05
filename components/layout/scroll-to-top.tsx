@@ -71,7 +71,7 @@ export function ScrollToTop() {
           : "bottom-[calc(var(--bottom-nav-height)+0.75rem)] right-4 md:right-8 md:bottom-8",
 
         /* Стилизация (сохраняем вашу старую логику вида) */
-        "w-12 h-12 rounded-xl bg-secondary/90 backdrop-blur-md border border-border shadow-2xl flex items-center justify-center active:scale-95",
+        "scroll-to-top-button w-12 h-12 rounded-xl bg-secondary/90 backdrop-blur-md border border-border shadow-2xl flex items-center justify-center active:scale-95",
         "text-muted-foreground hover:text-foreground hover:bg-secondary",
         "dark:bg-zinc-900/90 dark:border-zinc-800 dark:text-zinc-400 dark:hover:text-white dark:hover:bg-zinc-800"
       )}
