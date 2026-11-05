@@ -13,7 +13,7 @@ export default function NewsLoading() {
           <div className="w-32 h-9 bg-zinc-800 rounded-xl mb-4 animate-pulse" />
 
           <div className="flex items-center gap-3">
-            <Newspaper size={28} className="text-blue-400" />
+            <Newspaper size={28} className="text-primary" />
             <div>
               <h1 className="text-3xl sm:text-4xl font-bold text-foreground dark:text-white">
                 Новости аниме

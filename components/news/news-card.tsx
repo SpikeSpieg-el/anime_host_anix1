@@ -16,12 +16,8 @@ const SOURCE_LABEL: Record<NewsSource, string> = {
   custom: "Weebx",
 };
 
-const SOURCE_CLASS: Record<NewsSource, string> = {
-  custom:
-    "bg-purple-500/10 text-purple-400 border border-purple-500/20 dark:bg-purple-500/15 dark:text-purple-400",
-  jikan: "bg-orange-500/10 text-orange-400 dark:bg-orange-500/15 dark:text-orange-400",
-  shikimori: "bg-blue-500/10 text-blue-400 dark:bg-blue-500/15 dark:text-blue-400",
-};
+const SOURCE_CLASS =
+  "border border-border/60 bg-secondary/50 text-muted-foreground dark:border-zinc-700/60 dark:bg-zinc-800/50 dark:text-zinc-400";
 
 function NewsCardImage({
   src,
@@ -68,7 +64,7 @@ function NewsCardImage({
           />
         </>
       ) : (
-        <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-blue-500/10 via-zinc-900 to-zinc-950">
+        <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-primary/10 via-zinc-900 to-zinc-950">
           <Newspaper className="h-10 w-10 text-zinc-700" aria-hidden />
         </div>
       )}
@@ -96,7 +92,7 @@ export function NewsCard({ item, revealIndex = 0, priority = false, className }:
       href={getNewsPath(item.id, title)}
       style={{ animationDelay: `${Math.min(revealIndex, 11) * 55}ms` }}
       className={cn(
-        "news-card-reveal group flex h-full flex-col overflow-hidden rounded-xl border bg-secondary/40 transition-all hover:border-blue-500/50 hover:bg-secondary active:scale-[0.98] sm:rounded-2xl sm:hover:-translate-y-1 sm:hover:shadow-xl sm:hover:shadow-black/50 dark:border-zinc-800 dark:bg-zinc-900/40 dark:hover:border-blue-500/50 dark:hover:bg-zinc-900",
+        "news-card-reveal group flex h-full flex-col overflow-hidden rounded-xl border bg-secondary/40 transition-all hover:border-primary/50 hover:bg-secondary active:scale-[0.98] sm:rounded-2xl sm:hover:-translate-y-1 sm:hover:shadow-xl sm:hover:shadow-black/50 dark:border-zinc-800 dark:bg-zinc-900/40 dark:hover:border-orange-500/50 dark:hover:bg-zinc-900",
         className,
       )}
     >
@@ -104,14 +100,14 @@ export function NewsCard({ item, revealIndex = 0, priority = false, className }:
 
       <div className="flex flex-1 flex-col p-4 sm:p-5">
         <div className="mb-2 flex flex-wrap items-center gap-2 sm:mb-3">
-          <span className="inline-flex items-center gap-1 rounded-md bg-secondary/50 px-2 py-1 text-[10px] font-medium text-muted-foreground sm:text-xs dark:bg-zinc-800/50 dark:text-zinc-500">
+          <span className="inline-flex items-center gap-1 rounded-md border border-border/60 bg-secondary/50 px-2 py-1 text-[10px] font-medium text-muted-foreground sm:text-xs dark:border-zinc-700/60 dark:bg-zinc-800/50 dark:text-zinc-500">
             <Calendar className="h-3 w-3" aria-hidden />
             <time dateTime={dateTime}>{item.date}</time>
           </span>
           <span
             className={cn(
               "inline-flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-medium sm:text-xs",
-              SOURCE_CLASS[item.source],
+              SOURCE_CLASS,
             )}
           >
             <Globe className="h-3 w-3" aria-hidden />
@@ -119,12 +115,12 @@ export function NewsCard({ item, revealIndex = 0, priority = false, className }:
           </span>
         </div>
 
-        <h3 className="mb-2 line-clamp-2 text-sm font-bold leading-snug text-foreground transition-colors group-hover:text-blue-400 sm:line-clamp-3 sm:text-base dark:text-zinc-100">
+        <h3 className="mb-2 line-clamp-2 text-sm font-bold leading-snug text-foreground transition-colors group-hover:text-primary sm:line-clamp-3 sm:text-base dark:text-zinc-100 dark:group-hover:text-orange-400">
           {title}
         </h3>
 
         {item.animeTitle && (
-          <p className="mb-1.5 line-clamp-1 text-[11px] font-medium text-blue-400/80 sm:text-xs">
+          <p className="mb-1.5 line-clamp-1 text-[11px] font-medium text-primary/80 sm:text-xs dark:text-orange-400/80">
             {item.animeTitle}
           </p>
         )}
@@ -140,7 +136,7 @@ export function NewsCard({ item, revealIndex = 0, priority = false, className }:
             <User className="h-3 w-3 shrink-0" aria-hidden />
             <span className="truncate">{item.author}</span>
           </div>
-          <span className="inline-flex shrink-0 items-center gap-1 text-[10px] font-medium text-blue-400 transition-all group-hover:gap-2 sm:text-xs">
+          <span className="inline-flex shrink-0 items-center gap-1 text-[10px] font-medium text-primary transition-all group-hover:gap-2 sm:text-xs dark:text-orange-400">
             Читать
             <ArrowRight className="h-3 w-3" aria-hidden />
           </span>

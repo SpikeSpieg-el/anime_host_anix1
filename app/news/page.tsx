@@ -114,7 +114,7 @@ export default async function NewsPage() {
         <div className="mb-8">
           <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div className="flex items-center gap-3">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-500/10 text-blue-400 dark:bg-blue-500/15">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary dark:bg-primary/15">
                 <Newspaper size={24} aria-hidden />
               </div>
               <div>
@@ -134,7 +134,7 @@ export default async function NewsPage() {
               </span>
               <Link
                 href="/catalog"
-                className="inline-flex items-center gap-1.5 rounded-full bg-blue-500/10 px-3 py-1.5 text-xs font-semibold text-blue-400 transition-colors hover:bg-blue-500/20 dark:bg-blue-500/15"
+                className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary transition-colors hover:bg-primary/20 dark:bg-primary/15"
               >
                 Смотреть аниме
                 <ArrowRight className="h-3.5 w-3.5" aria-hidden />
