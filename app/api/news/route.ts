@@ -84,7 +84,7 @@ export async function GET(request: Request) {
     // источники снова.
     if (!data.isFallback) writeCache(cacheKey, payload);
 
-    return NextResponse.json(payload, { headers: cacheHeaders });
+    return NextResponse.json(payload, { headers: data.isFallback ? { "Cache-Control": "no-store" } : cacheHeaders });
   } catch (error) {
     console.error("[api/news] Failed to load news page:", error);
 

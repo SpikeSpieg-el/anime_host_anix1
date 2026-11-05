@@ -225,8 +225,8 @@ export function NewsFeed({
         <div className="mb-5 flex items-start gap-2 rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 text-xs leading-relaxed text-amber-500 dark:text-amber-400">
           <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
           <span>
-            Источники новостей временно недоступны — показаны последние сохранённые
-            материалы.
+            Некоторые источники новостей временно недоступны — часть материалов может быть
+            из сохранённого снимка.
           </span>
         </div>
       )}
