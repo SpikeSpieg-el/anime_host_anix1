@@ -64,6 +64,7 @@ export function Navbar() {
   // Состояния
   const [searchValue, setSearchValue] = useState("")
   const [scrolled, setScrolled] = useState(false)
+  const [navbarHidden, setNavbarHidden] = useState(false)
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
   const [authModalOpen, setAuthModalOpen] = useState(false)
   const [authInitialMode, setAuthInitialMode] = useState<"login" | "register">("login")
@@ -85,18 +86,39 @@ export function Navbar() {
     const handleScroll = () => {
       const currentScrollY = window.scrollY
       setScrolled(currentScrollY > 20)
-      
-      // Логика для мобильного бара (скрываем при скролле вниз, показываем при скролле вверх)
-      if (currentScrollY > lastScrollY.current && currentScrollY > 100) {
+
+      const scrollingDown = currentScrollY > lastScrollY.current
+
+      // Верхнюю навигацию прячем при движении вниз и возвращаем при движении
+      // вверх. Так лента новостей получает больше места, а кнопка «Назад»
+      // остаётся закреплённой в sticky-баре ниже.
+      if (scrollingDown && currentScrollY > 120) {
         setShowBottomNav(false)
-      } else {
+        setNavbarHidden(true)
+      } else if (!scrollingDown) {
         setShowBottomNav(true)
+        setNavbarHidden(false)
       }
+
       lastScrollY.current = currentScrollY
     }
-    window.addEventListener("scroll", handleScroll)
+    window.addEventListener("scroll", handleScroll, { passive: true })
     return () => window.removeEventListener("scroll", handleScroll)
   }, [])
+
+  // Класс на <html> нужен CSS, чтобы sticky-бар новостей и разделители дат
+  // понимали, где сейчас находится верх навигации (под хедером или у самого
+  // верха, когда хедер спрятан).
+  useEffect(() => {
+    document.documentElement.classList.toggle("navbar-hidden", navbarHidden)
+    return () => document.documentElement.classList.remove("navbar-hidden")
+  }, [navbarHidden])
+
+  // При переходе на другую страницу всегда показываем навигацию: иначе
+  // пользователь мог бы остаться без хедера после клика из середины ленты.
+  useEffect(() => {
+    setNavbarHidden(false)
+  }, [pathname])
 
   // Слушаем запросы на открытие модалки авторизации из других компонентов
   // (в т.ч. контекстные крючки гостей — detail.mode / detail.hookId)
@@ -246,10 +268,11 @@ export function Navbar() {
 
   return (
     <>
-      <header 
+      <header
         className={cn(
-          "fixed top-0 left-0 right-0 z-50 w-full border-b transition-all duration-300 bg-background/80 backdrop-blur-xl shadow-sm border-border",
-          scrolled ? "shadow-md bg-background/95" : "border-transparent"
+          "fixed top-0 left-0 right-0 z-50 w-full border-b transition-all duration-300 bg-background/80 backdrop-blur-xl shadow-sm border-border will-change-transform",
+          scrolled ? "shadow-md bg-background/95" : "border-transparent",
+          navbarHidden ? "-translate-y-full" : "translate-y-0"
         )}
       >
         <div className="container mx-auto px-4 h-16 md:h-20 flex items-center justify-between gap-4">

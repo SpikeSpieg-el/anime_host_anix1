@@ -96,7 +96,21 @@ async function getCustomNews(offset = 0, limit = 12): Promise<{ items: Aggregate
   return { items, total: count || 0 };
 }
 
-export async function getAggregatedNews(page = 1, limit = 12): Promise<{ items: AggregatedNewsItem[]; hasNextPage: boolean; isFallback: boolean }> {
+export interface GetAggregatedNewsOptions {
+  /**
+   * Jikan/MAL — самый медленный источник: на страницу он обходит top/anime и
+   * затем новости каждого тайтла последовательно, с паузами. Для следующих
+   * страниц бесконечной ленты он не нужен: Shikimori + custom закрывают
+   * выдачу, а лента начинает отвечать за секунды, а не за минуты.
+   */
+  includeJikan?: boolean
+}
+
+export async function getAggregatedNews(
+  page = 1,
+  limit = 12,
+  options: GetAggregatedNewsOptions = {},
+): Promise<{ items: AggregatedNewsItem[]; hasNextPage: boolean; isFallback: boolean }> {
   // На первой странице выделяем место под свежие кастомные новости (до 4 штук),
   // на следующих — по 2. Смещение считается от РЕАЛЬНОГО числа показанных
   // кастомных новостей, а не от «page * limit»: лимиты первой и следующих
@@ -107,12 +121,15 @@ export async function getAggregatedNews(page = 1, limit = 12): Promise<{ items: 
   const customOffset = page === 1 ? 0 : firstPageCustomLimit + (page - 2) * customLimit;
   const externalLimit = limit - customLimit;
 
-  const jikanCount = Math.min(4, Math.floor(externalLimit / 2));
+  const includeJikan = options.includeJikan ?? true;
+  const jikanCount = includeJikan ? Math.min(4, Math.floor(externalLimit / 2)) : 0;
   const shikimoriLimit = Math.max(1, externalLimit - jikanCount);
 
   const customPromise = getCustomNews(customOffset, customLimit);
   const shikimoriPromise = getForumNewsPaginated(page, shikimoriLimit).catch(() => [] as NewsItem[]);
-  const jikanPromise = getJikanNews(jikanCount, page).catch(() => [] as AnimeNewsItem[]);
+  const jikanPromise = includeJikan
+    ? getJikanNews(jikanCount, page).catch(() => [] as AnimeNewsItem[])
+    : Promise.resolve([] as AnimeNewsItem[]);
 
   const [customRes, shikimoriNews, jikanNews] = await Promise.all([customPromise, shikimoriPromise, jikanPromise]);
 
@@ -126,7 +143,7 @@ export async function getAggregatedNews(page = 1, limit = 12): Promise<{ items: 
   const hasSourceItems = merged.length > 0;
   const hasNextPage = hasSourceItems
     ? shikimoriNews.length >= shikimoriLimit ||
-      jikanItems.length > 0 ||
+      (includeJikan && jikanItems.length > 0) ||
       customOffset + customNews.length < customRes.total
     : false;
 

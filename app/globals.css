@@ -1734,3 +1734,45 @@ body {
     will-change: auto;
   }
 }
+
+/* ── Sticky-бар новостей и разделители дат ────────────────────────────────
+   Верхняя навигация прячется при скролле вниз (класс navbar-hidden на <html>).
+   Sticky-бар с кнопкой «Назад» и крошками в этот момент прилипает к самому
+   верху, а разделители дат — под ним. Когда навигация видна, бар стоит под
+   хедером (4rem / 5rem), разделители — под баром. */
+.news-topbar {
+  top: 4rem;
+  transition: top 0.3s ease;
+}
+
+@media (min-width: 768px) {
+  .news-topbar {
+    top: 5rem;
+  }
+}
+
+html.navbar-hidden .news-topbar {
+  top: 0;
+}
+
+.news-date-divider {
+  top: 7.25rem;
+  transition: top 0.3s ease;
+}
+
+@media (min-width: 768px) {
+  .news-date-divider {
+    top: 8.25rem;
+  }
+}
+
+html.navbar-hidden .news-date-divider {
+  top: 3.25rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .news-topbar,
+  .news-date-divider {
+    transition: none;
+  }
+}

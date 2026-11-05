@@ -4,6 +4,7 @@ import { ArrowRight, Newspaper } from "lucide-react";
 import { Navbar } from "@/components/layout/navbar";
 import { Footer } from "@/components/layout/footer";
 import { PageBreadcrumbs } from "@/components/shared/page-breadcrumbs";
+import { ScrollToTopButton } from "@/components/shared/scroll-to-top-button";
 import { NewsFeed } from "@/components/news/news-feed";
 import {
   CollectionPageStructuredData,
@@ -99,15 +100,18 @@ export default async function NewsPage() {
       <Navbar />
 
       <div className="container relative z-10 mx-auto px-4 pb-12 pt-8">
-        <div className="mb-8">
+        {/* Кнопка «Назад» + крошки закреплены сверху: при скролле вниз верхняя
+            навигация прячется, а этот бар остаётся на месте. */}
+        <div className="news-topbar sticky z-30 -mx-4 mb-6 border-b border-border/40 bg-background/85 px-4 py-2 backdrop-blur-md dark:border-white/5 dark:bg-background/80">
           <PageBreadcrumbs
-            className="mb-6"
             items={[
               { label: "Главная", href: "/" },
               { label: "Новости" },
             ]}
           />
+        </div>
 
+        <div className="mb-8">
           <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div className="flex items-center gap-3">
               <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-500/10 text-blue-400 dark:bg-blue-500/15">
@@ -178,6 +182,8 @@ export default async function NewsPage() {
       </div>
 
       <Footer />
+
+      <ScrollToTopButton />
 
       {feedItems.length > 0 && (
         <CollectionPageStructuredData
