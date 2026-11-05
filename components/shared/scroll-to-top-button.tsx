@@ -37,7 +37,7 @@ export function ScrollToTopButton({ className }: { className?: string }) {
       title="Наверх"
       onClick={scrollToTop}
       className={cn(
-        "fixed bottom-20 right-4 z-40 flex h-11 w-11 items-center justify-center rounded-full border border-primary/20 bg-primary text-primary-foreground shadow-lg shadow-primary/20 backdrop-blur-md transition-all duration-300 hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 md:bottom-6 md:right-6 dark:bg-primary dark:text-primary-foreground dark:hover:bg-primary/90",
+        "fixed bottom-24 right-4 z-40 flex h-11 w-11 items-center justify-center rounded-full border border-primary/20 bg-primary text-primary-foreground shadow-lg shadow-primary/20 backdrop-blur-md transition-all duration-300 hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 md:bottom-6 md:right-6 dark:bg-primary dark:text-primary-foreground dark:hover:bg-primary/90",
         visible
           ? "translate-y-0 opacity-100"
           : "pointer-events-none translate-y-3 opacity-0",
