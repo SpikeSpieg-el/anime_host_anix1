@@ -1920,18 +1920,29 @@ html.navbar-hidden .news-topbar {
 }
 
 .news-date-divider {
-  top: 7.25rem;
+  /* 64px navbar + 49px sticky-бар: без зазора между «Назад» и датой */
+  top: 7.0625rem;
   transition: top 0.3s ease;
 }
 
 @media (min-width: 768px) {
   .news-date-divider {
-    top: 8.25rem;
+    /* 80px navbar + 49px sticky-бар */
+    top: 8.0625rem;
   }
 }
 
 html.navbar-hidden .news-date-divider {
-  top: 3.25rem;
+  /* 49px sticky-бар, когда верхняя навигация спрятана */
+  top: 3.0625rem;
+}
+
+/* Cookie-баннер на мобилках занимает низ экрана и перекрывает кнопку
+   «Наверх». Прячем кнопку только на время показа баннера. */
+html.cookie-consent-open .scroll-to-top-button {
+  opacity: 0 !important;
+  pointer-events: none !important;
+  transform: translateY(1rem) !important;
 }
 
 @media (prefers-reduced-motion: reduce) {

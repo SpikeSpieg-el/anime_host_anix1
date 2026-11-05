@@ -4,7 +4,7 @@ import { ArrowRight, Newspaper } from "lucide-react";
 import { Navbar } from "@/components/layout/navbar";
 import { Footer } from "@/components/layout/footer";
 import { PageBreadcrumbs } from "@/components/shared/page-breadcrumbs";
-import { ScrollToTopButton } from "@/components/shared/scroll-to-top-button";
+import { ScrollToTop } from "@/components/layout/scroll-to-top";
 import { NewsFeed } from "@/components/news/news-feed";
 import {
   CollectionPageStructuredData,
@@ -183,7 +183,7 @@ export default async function NewsPage() {
 
       <Footer />
 
-      <ScrollToTopButton />
+      <ScrollToTop />
 
       {feedItems.length > 0 && (
         <CollectionPageStructuredData
