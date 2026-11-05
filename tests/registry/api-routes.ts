@@ -81,6 +81,7 @@ export const API_ROUTES: ApiRegistryEntry[] = [
   { path: "/api/market/reserve", methods: ["POST"], auth: "bearer" },
   { path: "/api/market/sales-history", methods: ["GET"], auth: "public" },
   { path: "/api/market/suggested-price", methods: ["POST"], auth: "public" },
+  { path: "/api/news", methods: ["GET"], auth: "public", notes: "лента новостей для бесконечной прокрутки: page/limit, без htmlBody/htmlFooter" },
   { path: "/api/pity", methods: ["GET", "POST"], auth: "bearer" },
   { path: "/api/player/session", methods: ["GET"], auth: "public", notes: "шифрованный токен плеера вместо прямой ссылки" },
   { path: "/api/player/translations", methods: ["GET"], auth: "public", notes: "шифрованный токен плеера вместо прямой ссылки" },

@@ -272,6 +272,17 @@ export async function middleware(request: NextRequest, event?: NextFetchEvent) {
     }
   }
 
+  // SEO: старые ссылки на пагинацию новостей (/news?page=2) больше не
+  // существуют — лента бесконечная. 301 на /news убирает дубли из индекса
+  // и не оставляет пользователя на «странице 2», которой нет.
+  if ((method === "GET" || method === "HEAD") && pathname === "/news" && request.nextUrl.searchParams.has("page")) {
+    const url = request.nextUrl.clone()
+    url.search = ""
+    const response = NextResponse.redirect(url, 301)
+    response.headers.set("Cache-Control", "public, max-age=3600")
+    return applySecurityHeaders(response, pathname)
+  }
+
   if ((method === "GET" || method === "HEAD") && pathname.startsWith("/news/")) {
     const redirectPath = await getNewsRedirectPath(pathname, fetch)
     if (redirectPath) {

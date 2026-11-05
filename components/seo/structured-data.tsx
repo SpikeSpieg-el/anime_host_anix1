@@ -1,7 +1,18 @@
 import { safeSerializeJson } from "@/lib/seo/safe-json"
+import { getNewsPath } from "@/lib/seo/news-url"
+import { stripHtml } from "@/lib/news/text"
+import type { NewsFeedItem } from "@/lib/news/types"
 
 interface StructuredDataProps {
-  type: 'organization' | 'website' | 'breadcrumb' | 'faq' | 'video' | 'webapp'
+  type:
+    | 'organization'
+    | 'website'
+    | 'breadcrumb'
+    | 'faq'
+    | 'video'
+    | 'webapp'
+    | 'collection'
+    | 'news'
   data: Record<string, any>
 }
 
@@ -18,6 +29,7 @@ export function OrganizationStructuredData() {
   const organizationData: Record<string, any> = {
     '@context': 'https://schema.org',
     '@type': 'Organization',
+    '@id': 'https://weeb-x.com/#organization',
     name: 'Weebx',
     alternateName: ['Weeb-X', 'weeb x', 'WeebX', 'weeb-x', 'weeb-x.com', 'weebx.com', 'Weeb X', 'WEEB-X', 'Weeb.X'],
     url: 'https://weeb-x.com',
@@ -54,6 +66,7 @@ export function WebSiteStructuredData() {
   const websiteData: Record<string, any> = {
     '@context': 'https://schema.org',
     '@type': 'WebSite',
+    '@id': 'https://weeb-x.com/#website',
     name: 'Weebx',
     alternateName: ['Weeb-X', 'weeb x', 'WeebX', 'weeb-x', 'weeb-x.com', 'weebx.com', 'Weeb X', 'WEEB-X', 'Weeb.X'],
     url: 'https://weeb-x.com',
@@ -175,4 +188,107 @@ export function WebApplicationStructuredData(data: WebApplicationData) {
   if (data.description) appData.description = data.description
 
   return <StructuredData type="webapp" data={appData} />
+}
+
+interface CollectionPageData {
+  name: string
+  description?: string
+  url: string
+  items: NewsFeedItem[]
+}
+
+/**
+ * Разметка страницы-списка новостей.
+ *
+ * CollectionPage + ItemList описывают ленту как набор материалов, а не как
+ * «страницу с картинками»: поисковик понимает, что это регулярно обновляемый
+ * список новостей, и видит ссылки на каждую карточку.
+ */
+export function CollectionPageStructuredData({ name, description, url, items }: CollectionPageData) {
+  const data: Record<string, any> = {
+    '@context': 'https://schema.org',
+    '@type': 'CollectionPage',
+    name,
+    url,
+    inLanguage: 'ru-RU',
+    ...(description ? { description } : {}),
+    isPartOf: {
+      '@type': 'WebSite',
+      '@id': 'https://weeb-x.com/#website',
+      name: 'Weebx',
+      url: 'https://weeb-x.com',
+    },
+    mainEntity: {
+      '@type': 'ItemList',
+      name: 'Последние новости аниме',
+      numberOfItems: items.length,
+      itemListOrder: 'https://schema.org/ItemListOrderDescending',
+      itemListElement: items.map((item, index) => ({
+        '@type': 'ListItem',
+        position: index + 1,
+        url: `https://weeb-x.com${getNewsPath(item.id, item.title)}`,
+        name: stripHtml(item.title),
+      })),
+    },
+  }
+
+  return <StructuredData type="collection" data={data} />
+}
+
+interface NewsArticleSchemaData {
+  headline: string
+  description?: string
+  image: string[]
+  datePublished: string
+  dateModified: string
+  authorName: string
+  authorType?: 'Person' | 'Organization'
+  section?: string
+  keywords?: string[]
+  url: string
+  inLanguage?: string
+}
+
+/**
+ * NewsArticle для страницы новости.
+ *
+ * До этого на /news/[id] была только BreadcrumbList. NewsArticle даёт
+ * поисковикам дату публикации, автора, обложку и раздел — это то, что нужно
+ * для расширенных сниппетов и для попадания в «Новости» Google.
+ */
+export function NewsArticleStructuredData(data: NewsArticleSchemaData) {
+  const article: Record<string, any> = {
+    '@context': 'https://schema.org',
+    '@type': 'NewsArticle',
+    headline: data.headline,
+    ...(data.description ? { description: data.description } : {}),
+    image: data.image,
+    datePublished: data.datePublished,
+    dateModified: data.dateModified,
+    author: {
+      '@type': data.authorType ?? 'Person',
+      name: data.authorName,
+    },
+    publisher: {
+      '@type': 'Organization',
+      '@id': 'https://weeb-x.com/#organization',
+      name: 'Weebx',
+      url: 'https://weeb-x.com',
+      logo: {
+        '@type': 'ImageObject',
+        url: 'https://weeb-x.com/icon.svg',
+      },
+    },
+    mainEntityOfPage: {
+      '@type': 'WebPage',
+      '@id': data.url,
+    },
+    url: data.url,
+    inLanguage: data.inLanguage ?? 'ru-RU',
+    isAccessibleForFree: true,
+    ...(data.section ? { articleSection: data.section } : {}),
+    ...(data.keywords && data.keywords.length > 0 ? { keywords: data.keywords } : {}),
+  }
+
+  return <StructuredData type="news" data={article} />
 }

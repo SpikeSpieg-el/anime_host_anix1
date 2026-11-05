@@ -52,6 +52,10 @@ Disallow: /embed/
 # изображениям запрещен файлом robots.txt".
 Allow: /api/thumbnail-proxy
 Allow: /api/fallback-poster
+# OG-обложки новостей проксируются через /api/image-proxy (Shikimori/MAL
+# запрещают хотлинк). Без этого правила robots.txt закрывал og:image, и
+# поисковик не мог скачать обложку для расширенного сниппета.
+Allow: /api/image-proxy
 Disallow: /api/
 
 # Персональные страницы пользователей (не должны индексироваться)
