@@ -9,7 +9,7 @@ import { WhatToWatch } from '@/components/home/what-to-watch'
 import { UpdatesBannerSkeleton } from '@/components/shared/skeleton'
 import type { Anime } from '@/lib/shikimori'
 import Link from "next/link"
-import { MessageSquare, User, ChevronRight, Newspaper, TrendingUp, Play, Star} from "lucide-react"
+import { User, ChevronRight, Newspaper, TrendingUp, Play, Star} from "lucide-react"
 import { useEffect, useState } from "react"
 import { useSearchParams } from "next/navigation"
 import { easterEggs } from "@/lib/easter-eggs"
@@ -184,8 +184,8 @@ export function HomePageClient({ initialData }: HomePageClientProps) {
                                   <span className="truncate max-w-[100px]">{news.author}</span>
                               </div>
                               <div className="flex items-center gap-1.5 text-[10px] sm:text-xs font-medium text-muted-foreground bg-secondary/50 px-2 py-1 rounded-md group-hover:bg-accent group-hover:text-accent-foreground transition-colors dark:text-zinc-400 dark:bg-zinc-800/50 dark:group-hover:bg-zinc-800 dark:group-hover:text-white">
-                                  <MessageSquare className="w-3 h-3" />
-                                  <span>{news.comments}</span>
+                                  Читать
+                                  <ChevronRight className="w-3 h-3" />
                               </div>
                           </div>
                           </div>

@@ -4,35 +4,20 @@ import { createClient } from "@supabase/supabase-js";
 import type { NewsItem } from "@/lib/shikimori/types";
 import type { AnimeNewsItem } from "@/lib/jikan/api";
 import { getNewsPath, parseNewsParam } from "@/lib/seo/news-url";
+import { parseNewsTimestamp } from "@/lib/news/date";
+import type { NewsFeedItem, NewsFeedPage, NewsSource } from "@/lib/news/types";
+import { toFeedItem } from "@/lib/news/text";
+import { FALLBACK_NEWS, getFallbackNewsById } from "@/lib/news/fallback";
 
-export type NewsSource = 'shikimori' | 'jikan' | 'custom';
+export type { NewsSource } from "@/lib/news/types";
 
-export interface AggregatedNewsItem {
-  id: string;
-  title: string;
-  excerpt: string;
-  imageUrl?: string;
-  date: string;
-  dateTimestamp: number;
-  author: string;
+export interface AggregatedNewsItem extends NewsFeedItem {
+  /** Счётчик комментариев Shikimori. В интерфейсе не показывается, но остаётся
+   *  в данных для админки/аналитики. */
   comments: number;
-  url: string;
-  source: NewsSource;
   htmlBody?: string;
   htmlFooter?: string;
   linkedAnime?: NewsItem['linkedAnime'];
-  animeTitle?: string;
-  animeImage?: string;
-}
-
-function parseDateToTimestamp(dateStr: string): number {
-  if (dateStr.includes('.')) {
-    const parts = dateStr.split('.');
-    if (parts.length === 3) {
-      return new Date(`${parts[2]}-${parts[1]}-${parts[0]}`).getTime() || 0;
-    }
-  }
-  return new Date(dateStr).getTime() || 0;
 }
 
 function fromShikimori(item: NewsItem): AggregatedNewsItem {
@@ -42,7 +27,7 @@ function fromShikimori(item: NewsItem): AggregatedNewsItem {
     excerpt: item.excerpt,
     imageUrl: item.imageUrl,
     date: item.date,
-    dateTimestamp: parseDateToTimestamp(item.date),
+    dateTimestamp: parseNewsTimestamp(item.date),
     author: item.author,
     comments: item.comments,
     url: item.url,
@@ -60,7 +45,7 @@ function fromJikan(item: AnimeNewsItem): AggregatedNewsItem {
     excerpt: item.excerpt,
     imageUrl: item.imageUrl || item.animeImage,
     date: item.date,
-    dateTimestamp: parseDateToTimestamp(item.date),
+    dateTimestamp: parseNewsTimestamp(item.date),
     author: item.author,
     comments: item.comments,
     url: item.url,
@@ -72,15 +57,15 @@ function fromJikan(item: AnimeNewsItem): AggregatedNewsItem {
   };
 }
 
-async function getCustomNews(page = 1, limit = 12): Promise<{ items: AggregatedNewsItem[]; total: number }> {
+async function getCustomNews(offset = 0, limit = 12): Promise<{ items: AggregatedNewsItem[]; total: number }> {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!supabaseUrl || !supabaseAnonKey) return { items: [], total: 0 };
 
   const supabase = createClient(supabaseUrl, supabaseAnonKey);
-  const from = (page - 1) * limit;
-  const to = from + limit - 1;
+  const from = Math.max(0, offset);
+  const to = from + Math.max(1, limit) - 1;
 
   const { data, error, count } = await supabase
     .from("custom_news")
@@ -111,16 +96,21 @@ async function getCustomNews(page = 1, limit = 12): Promise<{ items: AggregatedN
   return { items, total: count || 0 };
 }
 
-export async function getAggregatedNews(page = 1, limit = 12): Promise<{ items: AggregatedNewsItem[]; hasNextPage: boolean }> {
-  // На первой странице выделяем место под свежие кастомные новости (до 4 штук)
-  // На последующих страницах кастомные новости пагинируются строго по страницам (page) без застревания одних и тех же новостей!
-  const customLimit = page === 1 ? Math.min(4, limit) : Math.min(2, limit);
+export async function getAggregatedNews(page = 1, limit = 12): Promise<{ items: AggregatedNewsItem[]; hasNextPage: boolean; isFallback: boolean }> {
+  // На первой странице выделяем место под свежие кастомные новости (до 4 штук),
+  // на следующих — по 2. Смещение считается от РЕАЛЬНОГО числа показанных
+  // кастомных новостей, а не от «page * limit»: лимиты первой и следующих
+  // страниц разные, и старый расчёт (page * customLimit) пропускал новости и
+  // застревал на одних и тех же записях при бесконечной прокрутке.
+  const firstPageCustomLimit = Math.min(4, limit);
+  const customLimit = page === 1 ? firstPageCustomLimit : Math.min(2, limit);
+  const customOffset = page === 1 ? 0 : firstPageCustomLimit + (page - 2) * customLimit;
   const externalLimit = limit - customLimit;
 
   const jikanCount = Math.min(4, Math.floor(externalLimit / 2));
   const shikimoriLimit = Math.max(1, externalLimit - jikanCount);
 
-  const customPromise = getCustomNews(page, customLimit);
+  const customPromise = getCustomNews(customOffset, customLimit);
   const shikimoriPromise = getForumNewsPaginated(page, shikimoriLimit).catch(() => [] as NewsItem[]);
   const jikanPromise = getJikanNews(jikanCount, page).catch(() => [] as AnimeNewsItem[]);
 
@@ -133,10 +123,36 @@ export async function getAggregatedNews(page = 1, limit = 12): Promise<{ items: 
   const merged = [...customNews, ...shikimoriItems, ...jikanItems];
   merged.sort((a, b) => b.dateTimestamp - a.dateTimestamp);
 
-  const hasNextPage = shikimoriNews.length >= shikimoriLimit || jikanItems.length > 0 || (page * customLimit < customRes.total);
-  const items = merged.slice(0, limit);
+  const hasSourceItems = merged.length > 0;
+  const hasNextPage = hasSourceItems
+    ? shikimoriNews.length >= shikimoriLimit ||
+      jikanItems.length > 0 ||
+      customOffset + customNews.length < customRes.total
+    : false;
 
-  return { items, hasNextPage };
+  // Все три источника недоступны — отдаём последний сохранённый снимок, чтобы
+  // вместо пустой страницы пользователь видел ленту. Режим помечаем, чтобы
+  // интерфейс мог честно сказать, что новости не свежие.
+  const items = hasSourceItems ? merged.slice(0, limit) : FALLBACK_NEWS.slice(0, limit);
+
+  return { items, hasNextPage, isFallback: !hasSourceItems };
+}
+
+/** Форма ответа API ленты: без тяжёлых HTML-полей, только карточка. */
+export function toNewsFeedPage(
+  items: AggregatedNewsItem[],
+  hasNextPage: boolean,
+  page: number,
+  limit: number,
+  isFallback = false,
+): NewsFeedPage {
+  return {
+    items: items.map(toFeedItem),
+    hasNextPage,
+    page,
+    limit,
+    isFallback,
+  };
 }
 
 export async function getAggregatedNewsById(id: string): Promise<AggregatedNewsItem | null> {
@@ -154,7 +170,7 @@ export async function getAggregatedNewsById(id: string): Promise<AggregatedNewsI
         .eq("id", customId)
         .single();
 
-      if (error || !data) return null;
+      if (error || !data) return getFallbackNewsById(id);
 
       return {
         id: `custom-${data.id}`,
@@ -170,16 +186,16 @@ export async function getAggregatedNewsById(id: string): Promise<AggregatedNewsI
         htmlBody: data.body || undefined,
       };
     }
-    return null;
+    return getFallbackNewsById(id);
   }
 
   if (id.startsWith('jikan-')) {
     const jikanNews = await getJikanNewsById(id);
-    if (!jikanNews) return null;
+    if (!jikanNews) return getFallbackNewsById(id);
     return fromJikan(jikanNews);
   }
 
   const shikimoriNews = await getNewsById(parseNewsParam(id));
-  if (!shikimoriNews) return null;
+  if (!shikimoriNews) return getFallbackNewsById(id);
   return fromShikimori(shikimoriNews);
 }

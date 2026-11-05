@@ -1,22 +1,93 @@
 import { getAnimeById } from "@/lib/shikimori"
 import { getAggregatedNewsById } from "@/lib/news/aggregator"
+import type { AggregatedNewsItem } from "@/lib/news/aggregator"
 import { PageBreadcrumbs } from "@/components/shared/page-breadcrumbs"
 import { Navbar } from "@/components/layout/navbar"
 import { Footer } from "@/components/layout/footer"
 import { notFound } from "next/navigation"
-import { Calendar, User, MessageSquare, Newspaper, ExternalLink, Globe } from "lucide-react"
+import { cache } from "react"
+import { Calendar, User, Newspaper, ExternalLink, Globe } from "lucide-react"
 import type { Metadata } from "next"
 import { LinkedAnimeCard } from "./linked-anime-card"
 import { TranslateButton } from "./translate-button"
 import { getProxiedSrc } from "@/lib/image-loader"
 import type { LinkedAnime } from "@/lib/shikimori/types"
-import { BreadcrumbStructuredData } from "@/components/seo/structured-data"
+import {
+  NewsArticleStructuredData,
+} from "@/components/seo/structured-data"
 import { getWatchPath } from "@/lib/seo/watch-url"
 import { getNewsPath, parseNewsParam } from "@/lib/seo/news-url"
 import { sanitizeNewsHtml } from "@/lib/news/sanitize-html"
+import { newsDateToIso } from "@/lib/news/date"
 
 interface Props {
   params: Promise<{ id: string }>
+}
+
+const SITE_URL = "https://weeb-x.com"
+const FALLBACK_OG_IMAGE = `${SITE_URL}/og-image.png`
+
+/**
+ * generateMetadata и сама страница запрашивают одну и ту же новость. Без
+ * cache() это два независимых обращения к Shikimori/MAL/Supabase на каждый
+ * просмотр (и два шанса словить rate limit). React-кэш живёт ровно один
+ * рендер и убирает дубли.
+ */
+const loadNews = cache(getAggregatedNewsById)
+
+function toAbsoluteImageUrl(url: string): string {
+  const proxied = getProxiedSrc(url)
+  if (!proxied) return FALLBACK_OG_IMAGE
+  if (/^https?:\/\//i.test(proxied)) return proxied
+  return new URL(proxied, SITE_URL).toString()
+}
+
+function getSourceLabel(source: AggregatedNewsItem['source']): string {
+  if (source === 'custom') return 'Weebx'
+  if (source === 'jikan') return 'MAL'
+  return 'Shikimori'
+}
+
+/**
+ * Все SEO-поля новости в одном месте: их используют и generateMetadata, и
+ * JSON-LD, иначе заголовок в <head> и разметка NewsArticle разъезжаются.
+ */
+function buildNewsSeo(news: AggregatedNewsItem) {
+  const cleanTitle = cleanText(news.title)
+  const rawDescription = cleanText(news.excerpt)
+  const cleanDescription =
+    rawDescription.length > 160
+      ? `${rawDescription.slice(0, 157).trimEnd()}…`
+      : rawDescription
+  const canonicalPath = getNewsPath(news.id, cleanTitle)
+  const canonicalUrl = `${SITE_URL}${canonicalPath}`
+  const publishedTime = newsDateToIso(news.dateTimestamp)
+  const sourceLabel = getSourceLabel(news.source)
+  const authorName = news.author || (news.source === 'custom' ? 'Редакция Weebx' : 'Weebx')
+  const keywords = Array.from(
+    new Set(
+      [
+        cleanTitle,
+        news.animeTitle,
+        sourceLabel,
+        'новости аниме',
+        'Weebx',
+      ].filter((keyword): keyword is string => Boolean(keyword && keyword.trim())),
+    ),
+  )
+  const imageUrl = news.imageUrl ? toAbsoluteImageUrl(news.imageUrl) : FALLBACK_OG_IMAGE
+
+  return {
+    cleanTitle,
+    cleanDescription,
+    canonicalPath,
+    canonicalUrl,
+    publishedTime,
+    sourceLabel,
+    authorName,
+    keywords,
+    imageUrl,
+  }
 }
 
 function decodeHtmlEntities(str: string): string {
@@ -37,46 +108,69 @@ function cleanText(str: string): string {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id: rawId } = await params
-  const news = await getAggregatedNewsById(parseNewsParam(rawId))
+  const news = await loadNews(parseNewsParam(rawId))
 
   if (!news) {
     return {
       title: "Новость не найдена — Weebx",
+      description: "Материал не найден или был удалён.",
       robots: { index: false, follow: false },
     }
   }
 
-  const cleanTitle = cleanText(news.title)
-  const cleanDescription = cleanText(news.excerpt).slice(0, 160)
-  const publishedTime = news.dateTimestamp > 0 ? new Date(news.dateTimestamp).toISOString() : undefined
-  const canonicalPath = getNewsPath(news.id, cleanTitle)
+  const seo = buildNewsSeo(news)
+  const description =
+    seo.cleanDescription ||
+    `Читайте новость «${seo.cleanTitle}» на Weebx: анонсы, премьеры и новости аниме.`
+
+  const articleMeta: Record<string, string | string[]> = {
+    "article:section": "Новости аниме",
+    "article:tag": seo.keywords,
+  }
+  if (seo.publishedTime) {
+    articleMeta["article:published_time"] = seo.publishedTime
+    articleMeta["article:modified_time"] = seo.publishedTime
+  }
 
   return {
-    title: `${cleanTitle} — Weebx`,
-    description: cleanDescription,
+    title: `${seo.cleanTitle} — Weebx`,
+    description,
+    keywords: seo.keywords,
     alternates: {
-      canonical: `https://weeb-x.com${canonicalPath}`,
+      canonical: seo.canonicalUrl,
+    },
+    robots: {
+      index: true,
+      follow: true,
+      googleBot: {
+        index: true,
+        follow: true,
+        "max-image-preview": "large",
+        "max-snippet": -1,
+        "max-video-preview": -1,
+      },
     },
     openGraph: {
-      title: cleanTitle,
-      description: cleanDescription,
-      url: `https://weeb-x.com${canonicalPath}`,
+      title: seo.cleanTitle,
+      description,
+      url: seo.canonicalUrl,
       type: "article",
       siteName: "Weebx",
       locale: "ru_RU",
       authors: news.author ? [news.author] : undefined,
-      publishedTime,
+      publishedTime: seo.publishedTime,
+      modifiedTime: seo.publishedTime,
       section: "Новости аниме",
-      images: news.imageUrl 
-        ? [{ url: news.imageUrl, alt: cleanTitle }] 
-        : [{ url: "https://weeb-x.com/og-image.png", width: 1200, height: 630, alt: "Weebx — новости аниме" }],
+      tags: seo.keywords,
+      images: [{ url: seo.imageUrl, alt: seo.cleanTitle }],
     },
     twitter: {
       card: "summary_large_image",
-      title: cleanTitle,
-      description: cleanDescription,
-      images: news.imageUrl ? [news.imageUrl] : ["https://weeb-x.com/og-image.png"],
+      title: seo.cleanTitle,
+      description,
+      images: [seo.imageUrl],
     },
+    other: articleMeta,
   }
 }
 
@@ -293,12 +387,15 @@ function getKindLabel(kind?: string): string {
   }
 }
 
+export const revalidate = 600
+
 export default async function NewsItemPage({ params }: Props) {
   const { id: rawId } = await params
-  const news = await getAggregatedNewsById(parseNewsParam(rawId))
+  const news = await loadNews(parseNewsParam(rawId))
 
   if (!news) notFound()
 
+  const seo = buildNewsSeo(news)
   const isJikan = news.source === 'jikan'
   const isCustom = news.source === 'custom'
 
@@ -329,8 +426,7 @@ export default async function NewsItemPage({ params }: Props) {
   const bodyHtml = transformedBodyHtml ? sanitizeNewsHtml(transformedBodyHtml) : null
   const footerHtml = news.htmlFooter ? sanitizeNewsHtml(sanitizeShikimoriFooter(news.htmlFooter)) : null
   const textBody = cleanText(news.excerpt)
-  const cleanTitle = cleanText(news.title)
-  const canonicalPath = getNewsPath(news.id, cleanTitle)
+  const cleanTitle = seo.cleanTitle
 
   const linked = news.linkedAnime
   // Обложка из самой новости предпочтительнее, но у Shikimori она есть далеко
@@ -350,12 +446,17 @@ export default async function NewsItemPage({ params }: Props) {
 
   return (
     <main className="min-h-screen bg-background text-foreground relative">
-      <BreadcrumbStructuredData
-        items={[
-          { name: "Главная", url: "https://weeb-x.com" },
-          { name: "Новости", url: "https://weeb-x.com/news" },
-          { name: cleanTitle, url: `https://weeb-x.com${canonicalPath}` },
-        ]}
+      <NewsArticleStructuredData
+        headline={cleanTitle}
+        description={seo.cleanDescription}
+        image={[seo.imageUrl]}
+        datePublished={seo.publishedTime ?? new Date().toISOString()}
+        dateModified={seo.publishedTime ?? new Date().toISOString()}
+        authorName={seo.authorName}
+        authorType={isCustom ? "Organization" : "Person"}
+        section="Новости аниме"
+        keywords={seo.keywords}
+        url={seo.canonicalUrl}
       />
       <Navbar />
 
@@ -392,20 +493,14 @@ export default async function NewsItemPage({ params }: Props) {
                   Weebx
                 </span>
               )}
-              <span className="news-pill">
+              <time className="news-pill" dateTime={seo.publishedTime}>
                 <Calendar className="w-3.5 h-3.5" />
                 {news.date}
-              </span>
+              </time>
               {news.author && (
                 <span className="news-pill">
                   <User className="w-3.5 h-3.5" />
                   {news.author}
-                </span>
-              )}
-              {!isCustom && (
-                <span className="news-pill">
-                  <MessageSquare className="w-3.5 h-3.5" />
-                  {news.comments}
                 </span>
               )}
             </div>
