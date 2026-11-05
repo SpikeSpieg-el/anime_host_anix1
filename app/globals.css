@@ -1206,14 +1206,23 @@
   }
 
   .news-linked-bookmark-btn.is-saved {
-    color: #fbbf24;
+    color: #b45309;
     background: rgba(251, 191, 36, 0.12);
     border-color: rgba(251, 191, 36, 0.35);
+  }
+
+  .dark .news-linked-bookmark-btn.is-saved {
+    color: #fbbf24;
   }
 
   .news-linked-bookmark-btn.is-saved:hover {
     background: rgba(251, 191, 36, 0.2);
     border-color: rgba(251, 191, 36, 0.5);
+    color: #92400e;
+  }
+
+  .dark .news-linked-bookmark-btn.is-saved:hover {
+    color: #fbbf24;
   }
 
   .news-tag {
@@ -1234,6 +1243,11 @@
   }
 
   .news-tag-star {
+    color: #b45309;
+    background: rgba(251, 191, 36, 0.12);
+  }
+
+  .dark .news-tag-star {
     color: #fbbf24;
     background: rgba(251, 191, 36, 0.1);
   }
