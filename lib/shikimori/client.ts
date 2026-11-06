@@ -12,9 +12,28 @@ type ShikimoriCacheEntry = {
 };
 
 const SHIKIMORI_JSON_CACHE = new Map<string, ShikimoriCacheEntry>();
+// Запросы «в полёте» — по ключу кэша.
+//
+// Зачем это нужно. Главная страница делает шесть параллельных выборок, а
+// `/watch` — аниме, франшизу и обзор редакции. `React.cache` в Next
+// дедуплицирует запросы ТОЛЬКО внутри одного рендера (и только для
+// `fetch`), поэтому два одновременных запроса страницы запускали штуку
+// одинаковых обращений к Shikimori: второй ждал шимимори, стоял в
+// 200-миллисекундном rate-limit'е и всё равно получал тот же ответ. На
+// холодном старте это и давало секунды TTFB.
+//
+// Теперь второй запрос просто ждёт первый.
+const SHIKIMORI_INFLIGHT = new Map<string, Promise<unknown>>();
 
-// Simple rate limiting for individual requests
+// Простой rate limiting для индивидуальных запросов
 let lastRequestTime = 0;
+
+// Сколько живёт запись в кэше, если вызывающий не передал ttlMs.
+// 30 секунд было мало: любая пауза между посетителями выбрасывала запись, и
+// следующий посетитель снова ждал полный сетевой круг. Ограничитель — то, что
+// каждая выборка и так помечена своим `next.revalidate` в lib/shikimori/api.ts.
+const DEFAULT_TTL_MS = 5 * 60_000;
+const DEFAULT_STALE_TTL_MS = 60 * 60_000;
 
 function shikimoriCacheKey(input: string, init?: RequestInit): string {
   const method = (init?.method ?? "GET").toUpperCase();
@@ -62,23 +81,13 @@ export async function shikimoriFetch(input: string, init?: RequestInit & { next?
   }
 }
 
-export async function shikimoriJson<T>(
+async function loadFromNetwork<T>(
   input: string,
-  init?: RequestInit & { next?: any },
-  options?: { ttlMs?: number; staleTtlMs?: number; fallback: T; }
+  init: (RequestInit & { next?: any }) | undefined,
+  options: { ttlMs: number; staleTtlMs: number; fallback: T },
+  cached: ShikimoriCacheEntry | undefined,
 ): Promise<T> {
-  // Фоновая перепроверка зеркал, если долго не проверяли
-  maybeRefreshShikimoriMirror();
-
-  const ttlMs = options?.ttlMs ?? 30_000;
-  const staleTtlMs = options?.staleTtlMs ?? 10 * 60_000;
-  const key = shikimoriCacheKey(input, init);
-
-  const cached = SHIKIMORI_JSON_CACHE.get(key);
-  if (cached && Date.now() <= cached.freshUntil) {
-    console.log(`[Shikimori] Cache hit for ${input}`);
-    return cached.value as T;
-  }
+  const { ttlMs, staleTtlMs, fallback } = options;
 
   // Add rate limiting delay for non-cached requests
   const timeSinceLastRequest = Date.now() - lastRequestTime;
@@ -86,7 +95,6 @@ export async function shikimoriJson<T>(
 
   if (timeSinceLastRequest < MIN_REQUEST_INTERVAL) {
     const delay = MIN_REQUEST_INTERVAL - timeSinceLastRequest;
-    console.log(`[Shikimori] Rate limiting: waiting ${delay}ms before request`);
     await new Promise(resolve => setTimeout(resolve, delay));
   }
 
@@ -101,18 +109,18 @@ export async function shikimoriJson<T>(
         return cached.value as T;
       }
       console.log(`[Shikimori] No cache available, returning fallback for ${input}`);
-      return options!.fallback;
+      return fallback;
     }
 
     if (!res.ok) {
       console.error(`[Shikimori] Non-OK response ${res.status} for ${input}`);
       if (cached && Date.now() <= cached.staleUntil) return cached.value as T;
-      return options!.fallback;
+      return fallback;
     }
 
     const data = (await res.json()) as T;
     if ((init?.method ?? "GET").toUpperCase() === "GET") {
-      SHIKIMORI_JSON_CACHE.set(key, {
+      SHIKIMORI_JSON_CACHE.set(shikimoriCacheKey(input, init), {
         freshUntil: Date.now() + ttlMs,
         staleUntil: Date.now() + Math.max(staleTtlMs, ttlMs),
         value: data
@@ -126,6 +134,57 @@ export async function shikimoriJson<T>(
       return cached.value as T;
     }
     console.log(`[Shikimori] No cache available after error, returning fallback for ${input}`);
-    return options!.fallback;
+    return fallback;
   }
+}
+
+export async function shikimoriJson<T>(
+  input: string,
+  init?: RequestInit & { next?: any },
+  options?: { ttlMs?: number; staleTtlMs?: number; fallback: T; }
+): Promise<T> {
+  // Фоновая перепроверка зеркал, если долго не проверяли
+  maybeRefreshShikimoriMirror();
+
+  const ttlMs = options?.ttlMs ?? DEFAULT_TTL_MS;
+  const staleTtlMs = options?.staleTtlMs ?? DEFAULT_STALE_TTL_MS;
+  const key = shikimoriCacheKey(input, init);
+  const method = (init?.method ?? "GET").toUpperCase();
+
+  const cached = SHIKIMORI_JSON_CACHE.get(key);
+  if (cached) {
+    if (Date.now() <= cached.freshUntil) {
+      return cached.value as T;
+    }
+
+    // Запись протухла, но ещё в stale-окне: отдаём её СРАЗУ и обновляем в
+    // фоне (stale-while-revalidate). Именно этого не хватало watch-страницам:
+    // вместо ожидания Shikimori посетитель получает готовый HTML, а свежесть
+    // догоняется следующим запросом.
+    if (Date.now() <= cached.staleUntil && method === "GET" && !SHIKIMORI_INFLIGHT.has(key)) {
+      const revalidation = loadFromNetwork(
+        input,
+        init,
+        { ttlMs, staleTtlMs, fallback: cached.value as T },
+        cached,
+      ).finally(() => {
+        SHIKIMORI_INFLIGHT.delete(key);
+      });
+      SHIKIMORI_INFLIGHT.set(key, revalidation);
+      return cached.value as T;
+    }
+  }
+
+  // Дедупликация параллельных запросов одного и того же URL.
+  const inflight = SHIKIMORI_INFLIGHT.get(key);
+  if (inflight) {
+    return inflight as Promise<T>;
+  }
+
+  const request = loadFromNetwork(input, init, { ttlMs, staleTtlMs, fallback: options!.fallback }, cached)
+    .finally(() => {
+      SHIKIMORI_INFLIGHT.delete(key);
+    });
+  SHIKIMORI_INFLIGHT.set(key, request);
+  return request;
 }

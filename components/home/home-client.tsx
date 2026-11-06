@@ -11,8 +11,6 @@ import type { Anime } from '@/lib/shikimori'
 import Link from "next/link"
 import { User, ChevronRight, Newspaper, TrendingUp, Play, Star} from "lucide-react"
 import { useEffect, useState } from "react"
-import { useSearchParams } from "next/navigation"
-import { easterEggs } from "@/lib/easter-eggs"
 import { getProxiedSrc } from "@/lib/image-loader"
 import { getNewsPath } from "@/lib/seo/news-url"
 import { GridSkeleton, NewsSkeleton } from '@/components/shared/skeleton'
@@ -28,7 +26,6 @@ interface HomePageClientProps {
 }
 
 export function HomePageClient({ initialData }: HomePageClientProps) {
-  const searchParams = useSearchParams()
   const [data, setData] = useState(initialData)
   const [loading, setLoading] = useState<Record<string, boolean>>(() => ({
     popularNow: initialData.popularNow.length === 0,
@@ -65,27 +62,9 @@ export function HomePageClient({ initialData }: HomePageClientProps) {
     return () => controller.abort()
   }, [])
 
-  useEffect(() => {
-    // Проверяем все возможные команды в URL параметрах
-    easterEggs.forEach((egg) => {
-      // Извлекаем имя команды без префикса
-      let commandName = ""
-      if (egg.command.startsWith("?")) {
-        commandName = egg.command.slice(1) // убираем ?
-      } else if (egg.command.startsWith("/")) {
-        commandName = egg.command.slice(1) // убираем /
-      }
-      
-      const paramValue = searchParams.get(commandName)
-      
-      if (paramValue !== null) {
-        // Команда найдена в URL - выполняем её
-        setTimeout(() => {
-          egg.action()
-        }, 1000)
-      }
-    })
-  }, [searchParams])
+  // Пасхалки (?matrix, ?nyan…) переехали в <HomeEasterEggs/>: useSearchParams()
+  // здесь выбрасывал всё дерево на клиентский рендер и оставлял HTML главной
+  // без секций и ссылок. См. комментарий в components/home/home-easter-eggs.tsx.
 
   return (
     <>

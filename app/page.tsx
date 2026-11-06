@@ -162,15 +162,27 @@ export default async function HomePage() {
       : popularNow[0] ?? null
 
   return (
-    <HomePageWrapper
-      topOfWeekHero={topOfWeekHero}
-      initialData={{
-        popularNow,
-        popularAlways,
-        ongoingAnime,
-        newsUpdates,
-        announcements,
-      }}
-    />
+    <>
+      {/*
+        H1 главной. Раньше его не было вовсе: разметка начиналась с H2
+        героя («Лента событий»/название тайтла), и Google не понимал, о чём
+        страница. Видимый заголовок здесь не нужен — герой и так занимает
+        первый экран, — но он должен быть в разметке и в HTML, а не
+        собираться на клиенте после гидратации.
+      */}
+      <h1 className="sr-only">
+        Weebx — смотреть аниме онлайн бесплатно в HD с русской озвучкой
+      </h1>
+      <HomePageWrapper
+        topOfWeekHero={topOfWeekHero}
+        initialData={{
+          popularNow,
+          popularAlways,
+          ongoingAnime,
+          newsUpdates,
+          announcements,
+        }}
+      />
+    </>
   )
 }

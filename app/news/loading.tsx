@@ -15,9 +15,16 @@ export default function NewsLoading() {
           <div className="flex items-center gap-3">
             <Newspaper size={28} className="text-primary" />
             <div>
-              <h1 className="text-3xl sm:text-4xl font-bold text-foreground dark:text-white">
+              {/*
+                Скелетон НЕ должен нести <h1>. app/news/loading.tsx показывается
+                как Suspense-фолбэк, но его разметка остаётся в DOM рядом с
+                готовой страницей — из-за этого в HTML /news оказывалось ДВА
+                H1 «Новости аниме» (проверено curl'ом). Заголовок здесь —
+                просто плейсхолдер, семантику он не несёт: h2 + aria-hidden.
+              */}
+              <h2 className="text-3xl sm:text-4xl font-bold text-foreground dark:text-white">
                 Новости аниме
-              </h1>
+              </h2>
               <p className="text-muted-foreground mt-1 dark:text-zinc-500">
                 Загрузка последних событий...
               </p>

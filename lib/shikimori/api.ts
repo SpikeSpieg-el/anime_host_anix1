@@ -105,7 +105,14 @@ export async function getAnimeCatalog(filters: CatalogFilters): Promise<Anime[]>
   }
 
   const url = `${BASE_URL}/animes?${params.toString()}`;
-  const data = await shikimoriJson<ShikimoriAnime[]>(url, { next: { revalidate: 60 } }, { fallback: [] });
+  // Кэш каталога живёт столько же, сколько его `revalidate`: списки тайтлов
+  // меняются редко, а каждый промах — это полный сетевой круг Shikimori на
+  // SSR. В stale-окне страница отдаётся сразу, данные обновляются фоном.
+  const data = await shikimoriJson<ShikimoriAnime[]>(
+    url,
+    { next: { revalidate: 60 } },
+    { fallback: [], ttlMs: 2 * 60_000, staleTtlMs: 30 * 60_000 },
+  );
   
   if (!Array.isArray(data)) return [];
 
@@ -234,10 +241,25 @@ export async function getAnnouncements(limit = 3) {
 
 // --- Details ---
 
-export async function getAnimeById(id: string, enableGenreFallback: boolean = false) {
-  const data = await shikimoriJson<ShikimoriAnime | null>(`${BASE_URL}/animes/${id}`, { next: { revalidate: 3600 }, headers: HEADERS }, { fallback: null });
+export async function getAnimeById(
+  id: string,
+  enableGenreFallback: boolean = false,
+  options: { allowExternalPosters?: boolean } = {},
+) {
+  // Это самый дорогой вызов на сайте: /watch дёргает его дважды (metadata и
+  // сама страница), плюс middleware проверяет существование тайтла. Данные
+  // тайтла меняются раз в сутки, поэтому держим их в памяти час и отдаём даже
+  // протухшие в течение суток — свежесть догоняется фоном (см. client.ts).
+  const data = await shikimoriJson<ShikimoriAnime | null>(
+    `${BASE_URL}/animes/${id}`,
+    { next: { revalidate: 3600 }, headers: HEADERS },
+    { fallback: null, ttlMs: 60 * 60_000, staleTtlMs: 24 * 60 * 60_000 },
+  );
   if (!data) return null;
-  return await transformAnime(data, enableGenreFallback);
+  // disableExternalAPIs оставляет только обложку Shikimori (или заглушку) и не
+  // ходит в AniList/Kitsu/Kodik/MAL. Нужен там, где внешние круги дороже
+  // красивой обложки: /watch — самая массовая точка входа сайта.
+  return await transformAnime(data, enableGenreFallback, options.allowExternalPosters === false);
 }
 
 export async function getAnimeScreenshots(id: string): Promise<string[]> {
@@ -351,13 +373,18 @@ export async function getAnimeFranchise(id: string): Promise<FranchiseItem[]> {
   if (!data) return [];
 
   const nodes = data.nodes.filter((node: any) => node.url?.startsWith('/animes/'));
+  // У франшизы «Ван-Пис» 30+ узлов, и каждый раньше тянулся ПОСЛЕДОВАТЕЛЬНО:
+  // shikimoriJson держит 200 мс паузы между запросами, то есть одна
+  // /watch-страница платила до 6 секунд только за этот цикл. Теперь узлы
+  // запрашиваются параллельно, а пауза остаётся в клиенте (там она и нужна —
+  // она про суммарную частоту, а не про порядок вызовов).
   const items = await Promise.all(nodes.map(async (node: any) => {
     // Franchise nodes often contain only missing_x96.jpg. Fetch the exact anime
     // record by ID instead of searching external services by title.
     const animeData = await shikimoriJson<any>(
       `${BASE_URL}/animes/${node.id}`,
       { next: { revalidate: 21600 } },
-      { fallback: null },
+      { fallback: null, ttlMs: 6 * 60 * 60_000, staleTtlMs: 24 * 60 * 60_000 },
     );
     const sourcePoster = animeData?.image?.original || node.image_url || "";
 

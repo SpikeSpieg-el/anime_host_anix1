@@ -15,6 +15,10 @@ const backdropCache = new Map<string, string | null>();
 // Очередь для запросов с задержкой
 let requestQueue = Promise.resolve();
 const REQUEST_DELAY = 50; // 50ms между запросами (ускорено для быстрой загрузки)
+// Обложки «в полёте» — по ключу кэша. Одна и та же карточка встречается в
+// hero, каталоге и «продолжить просмотр», и без этой карты каждый экземпляр
+// запускал полный поиск постера заново.
+const posterInflight = new Map<string, Promise<string>>();
 
 function getCachedPoster(cacheKey: string): string | null {
   const cachedPoster = posterCache.get(cacheKey);
@@ -145,7 +149,37 @@ export async function resolveBestPoster(shikimoriUrl: string, romajiName: string
   if (cachedPoster) {
     posterCache.delete(cacheKey);
   }
-  
+
+  // Дедупликация: пока идёт поиск обложки для этого тайтла, второй вызов
+  // ждёт тот же промис. Иначе холодный рендер главной запускал до 12
+  // параллельных поисков (AniList → Kitsu → Kodik → MAL на каждый промах).
+  const pending = posterInflight.get(cacheKey);
+  if (pending) return pending;
+
+  const request = resolveBestPosterUncached(
+    shikimoriUrl,
+    romajiName,
+    russianName,
+    shikimoriId,
+    disableExternalAPIs,
+    excludeShikimori,
+    cacheKey,
+  ).finally(() => {
+    posterInflight.delete(cacheKey);
+  });
+  posterInflight.set(cacheKey, request);
+  return request;
+}
+
+async function resolveBestPosterUncached(
+  shikimoriUrl: string,
+  romajiName: string,
+  russianName: string,
+  shikimoriId: string,
+  disableExternalAPIs: boolean,
+  excludeShikimori: boolean,
+  cacheKey: string,
+): Promise<string> {
   const targetName = russianName || romajiName || "Anime";
   
   // Шаг 1: Пробуем Shikimori через прокси (всегда, даже если внешние API
@@ -169,52 +203,55 @@ export async function resolveBestPoster(shikimoriUrl: string, romajiName: string
     return fallback;
   }
 
-  // Шаг 2: Пробуем AniList (GraphQL) - самый надежный источник
   const namesToTry = [romajiName, russianName].filter(Boolean);
-  for (const name of namesToTry) {
-    await delayRequest();
-    const anilist = await getAnilistPoster(name);
-    if (anilist) {
-      const proxied = proxyImage(anilist, false);
-      if (proxied) {
-        cachePoster(cacheKey, proxied);
-        return proxied;
-      }
-    }
-  }
 
-  // Шаг 3: Пробуем Kitsu (REST API)
-  for (const name of namesToTry) {
-    await delayRequest();
-    const kitsu = await getKitsuPoster(name);
-    if (kitsu) {
-      const proxied = proxyImage(kitsu, false);
-      if (proxied) {
-        cachePoster(cacheKey, proxied);
-        return proxied;
-      }
-    }
-  }
+  // Шаги 2–5: источники обложек проверяются ЗАПРОСОМ НАПРЯМУЮ, а не цепочкой.
+  //
+  // Раньше это была последовательная лестница: AniList → Kitsu → Kodik → MAL,
+  // и на каждый промах платилось по кругу сети (+50 мс искусственной задержки).
+  // Для тайтла без обложки на Shikimori это до 5 кругов ≈ восемь секунд
+  // SSR-времени на ОДНУ карточку — ровно тот «холодный старт главной» из
+  // аудита. Источники независимы, поэтому запускаем их одновременно и берём
+  // первый успешный ответ по приоритету.
+  //
+  // Kodik грузим лениво: модуль не должен попадать в клиентские бандлы.
+  const sources: Array<{ name: string; run: () => Promise<string | null> }> = [
+    { name: "anilist", run: () => getAnilistPoster(namesToTry[0] || targetName) },
+    { name: "kitsu", run: () => getKitsuPoster(namesToTry[0] || targetName) },
+    {
+      name: "kodik",
+      run: async () => {
+        const { getKodikPoster } = await import("../kodik");
+        return getKodikPoster(shikimoriId);
+      },
+    },
+    { name: "mal", run: () => getMyAnimeListPoster(namesToTry[0] || targetName) },
+  ];
 
-  // Шаг 4: Пробуем Kodik. Ленивый импорт: модуль не должен попадать
-  // в клиентские бандлы (код выполняется только на сервере).
-  await delayRequest();
-  const { getKodikPoster } = await import("../kodik");
-  const kodik = await getKodikPoster(shikimoriId);
-  if (kodik) {
-    const proxied = proxyImage(kodik, false);
+  const results = await Promise.allSettled(
+    sources.map(async (source) => {
+      await delayRequest();
+      return { url: await source.run(), name: source.name };
+    }),
+  );
+
+  for (const result of results) {
+    if (result.status !== "fulfilled" || !result.value.url) continue;
+    const proxied = proxyImage(result.value.url, false);
     if (proxied) {
       cachePoster(cacheKey, proxied);
       return proxied;
     }
   }
 
-  // Шаг 5: Пробуем MyAnimeList (Jikan API)
-  for (const name of namesToTry) {
-    await delayRequest();
-    const mal = await getMyAnimeListPoster(name);
-    if (mal) {
-      const proxied = proxyImage(mal, false);
+  // Второй круг по второму названию — только если первый не дал ничего.
+  // Обычно сюда не доходит: обычно хватает первого имени.
+  const secondName = namesToTry[1];
+  if (secondName && secondName !== namesToTry[0]) {
+    for (const lookup of [getAnilistPoster, getMyAnimeListPoster]) {
+      await delayRequest();
+      const found = await lookup(secondName);
+      const proxied = found && proxyImage(found, false);
       if (proxied) {
         cachePoster(cacheKey, proxied);
         return proxied;

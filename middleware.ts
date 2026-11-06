@@ -106,7 +106,10 @@ const SECURITY_HEADERS: Record<string, string> = {
     // /stats (Umami-прокси) отдельным source не указываем: путь без хоста
     // невалиден для CSP (браузер игнорит и пишет warning), все same-origin
     // запросы к /stats/api/send и к Supabase покрывает 'self'.
-    `connect-src 'self' https://*.supabase.co https://nhost.weebx.duckdns.org:8443 wss://nhost.weebx.duckdns.org:8443 ${UMAMI_ORIGIN} https://shikimori.one https://shikimori.me https://shikimori.io https://shikimori.org https://*.shikimori.one https://*.shikimori.me https://*.shikimori.io https://*.shikimori.org ${PVP_SERVER_ORIGIN}`,
+    // DuckDNS-хост (nhost.weebx.duckdns.org:8443) отсюда убран: в
+    // production-политике он раскрывал внутреннюю кухню и остался от
+    // экспериментов. Если понадобится снова — только через env (см. ниже).
+    `connect-src 'self' https://*.supabase.co ${UMAMI_ORIGIN} https://shikimori.one https://shikimori.me https://shikimori.io https://shikimori.org https://*.shikimori.one https://*.shikimori.me https://*.shikimori.io https://*.shikimori.org ${PVP_SERVER_ORIGIN}`,
     "frame-src 'self' https: http:",
     "media-src 'self' https: http: blob:",
     "object-src 'none'",
@@ -198,7 +201,18 @@ function applySecurityHeaders(response: NextResponse, pathname = "") {
     )
   }
   if (process.env.NODE_ENV === "production") {
-    response.headers.set("Strict-Transport-Security", "max-age=31536000")
+    // includeSubDomains: все поддомены (img, analytics, pvp) ходят только по
+    // HTTPS — Caddy выпускает им сертификаты. Без этой директивы браузер
+    // разрешает загрузить поддомен по http и получить MITM на первом запросе,
+    // который затем перенаправит на https.
+    //
+    // `preload` сознательно НЕ включаем: попадание в список HSTS — почти
+    // необратимая операция (месяцы на выход), а один забытый http-поддомен
+    // после этого становится недоступен для всех.
+    response.headers.set(
+      "Strict-Transport-Security",
+      "max-age=31536000; includeSubDomains",
+    )
   }
   return response
 }
@@ -206,6 +220,35 @@ function applySecurityHeaders(response: NextResponse, pathname = "") {
 export async function middleware(request: NextRequest, event?: NextFetchEvent) {
   const pathname = request.nextUrl.pathname
   const method = request.method
+
+  // www → apex, постоянным 308.
+  //
+  // В сертификате Let's Encrypt раньше был только apex, и www-версия падала с
+  // TLS internal error ещё до приложения — краулер и человек видели экран
+  // недоверия. Одна страница с `www` в индексе или в чужой ссылке — это
+  // потерянный посетитель, поэтому редирект делаем здесь, до любых
+  // fetch'ей Shikimori и до рендера.
+  //
+  // Проверяем по `host`, а не по request.url: за Caddy origin может быть
+  // внутренним (http://localhost:3000), и тогда хост из URL ничего не скажет
+  // о том, что пришло от посетителя. X-Forwarded-Host — вторая половина той
+  // же истории.
+  const requestHost = (
+    request.headers.get("x-forwarded-host")?.split(",")[0] ||
+    request.headers.get("host") ||
+    ""
+  ).trim().toLowerCase()
+  if (requestHost === "www.weeb-x.com") {
+    const url = request.nextUrl.clone()
+    url.host = "weeb-x.com"
+    url.port = ""
+    url.protocol = "https:"
+    // 308, а не 301: сохраняет метод и тело для POST'ов (редирект формы из
+    // www превратился бы в GET и потерял данные).
+    const response = NextResponse.redirect(url, 308)
+    response.headers.set("Cache-Control", "public, max-age=3600")
+    return applySecurityHeaders(response, pathname)
+  }
 
   // Чёрный список IP: сканерам и забаненным адресам отдаём обычный 404,
   // не раскрывая факт блокировки. Админку не трогаем, чтобы случайно не

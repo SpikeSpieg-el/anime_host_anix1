@@ -2,8 +2,6 @@ import { PageBreadcrumbs } from "@/components/shared/page-breadcrumbs"
 import { Navbar } from "@/components/layout/navbar"
 import { CatalogPageWrapper } from "@/components/catalog/catalog-page-wrapper"
 import { CatalogFilters, getAnimeCatalog, type Anime } from "@/lib/shikimori"
-import { createClient } from '@supabase/supabase-js'
-import { cookies } from 'next/headers'
 import { Footer } from "@/components/layout/footer"
 import { ScrollToTop } from "@/components/layout/scroll-to-top"
 import type { Metadata } from "next"
@@ -12,37 +10,6 @@ import {
   buildCatalogCanonical,
   resolveGenreParam,
 } from "@/lib/seo/catalog-filters"
-
-async function getUserProfile() {
-  try {
-    const cookieStore = await cookies()
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-    
-    if (!supabaseUrl || !supabaseAnonKey) return null
-    
-    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-      global: {
-        headers: {
-          cookie: cookieStore.toString()
-        }
-      }
-    })
-    
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return null
-    
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('allow_nsfw_search')
-      .eq('id', user.id)
-      .single()
-    
-    return profile
-  } catch {
-    return null
-  }
-}
 
 interface CatalogPageProps {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>
@@ -199,9 +166,19 @@ export default async function CatalogPage({ searchParams }: CatalogPageProps) {
   const score = typeof params.score === 'string' ? params.score : undefined
   const search = typeof params.search === 'string' ? params.search : undefined
 
-  // Получаем настройку пользователя
-  const profile = await getUserProfile()
-  const allowNsfw = profile?.allow_nsfw_search || false
+  // NSFW-настройку профиля здесь БОЛЬШЕ НЕ ЧИТАЕМ.
+  //
+  // Чтение cookies() делало страницу динамической: именно из-за него /catalog
+  // (и /genre/*) отдавались с `Cache-Control: private, no-cache, no-store`,
+  // то есть каждый хит рендерился на сервере заново и платил полный сетевой
+  // круг к Shikimori (в аудите — TTFB 1,1 с и выше).
+  //
+  // Динамику заменяем на безопасный дефолт + клиентскую догрузку: сервер
+  // всегда отдаёт «безопасную» версию (гостевую, ту же, что видит краулер и
+  // анонимный посетитель), а CatalogClient после гидратации, когда профиль
+  // уже доступен в AuthProvider, перезапрашивает список с allow_nsfw_search.
+  // Для страницы, которая в 99% случаев нужна без NSFW, это чистый выигрыш.
+  const allowNsfw = false
 
   // Формируем начальные фильтры
   const initialFilters: CatalogFilters = {
@@ -231,6 +208,7 @@ export default async function CatalogPage({ searchParams }: CatalogPageProps) {
     console.error('[catalog] Не удалось получить первую страницу на сервере:', error)
     return []
   })
+
 
   // Schema.org разметка каталога (CollectionPage + BreadcrumbList)
   const collectionJsonLd = {

@@ -2,6 +2,7 @@
 
 import { cookies, headers } from "next/headers"
 import { redirect } from "next/navigation"
+import { revalidatePath, revalidateTag } from "next/cache"
 import { createHash } from "node:crypto"
 import { createClient } from "@supabase/supabase-js"
 import webpush from "web-push"
@@ -1876,6 +1877,12 @@ export async function upsertEditorialReview(input: {
     .select("id, anime_id, content, author, created_at, updated_at")
     .single()
   if (error) throw error
+  // /watch кэширует обзор редакции (next.revalidate в app/watch/[id]), поэтому
+  // после сохранения сбрасываем именно его тег — иначе правка появится только
+  // через пять минут или после ручного редеплоя.
+  revalidateTag(`editorial-review-${animeId}`)
+  revalidateTag("editorial-reviews")
+  revalidatePath(`/watch/${animeId}`)
   return data as EditorialReviewRow
 }
 
@@ -1884,5 +1891,8 @@ export async function deleteEditorialReview(animeId: string) {
   const id = assertEditorialAnimeId(animeId)
   const { error } = await supabase.from("editorial_reviews").delete().eq("anime_id", id)
   if (error) throw error
+  revalidateTag(`editorial-review-${id}`)
+  revalidateTag("editorial-reviews")
+  revalidatePath(`/watch/${id}`)
   return true
 }

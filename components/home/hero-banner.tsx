@@ -135,12 +135,20 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime, recommendationRea
   const [rotation, setRotation] = useState({ x: 0, y: 0 })
   const [isHovering, setIsHovering] = useState(false)
   const [dvdOpen, setDvdOpen] = useState(false)
-  const [isLoaded, setIsLoaded] = useState(false)
+  // Контент героя обязан быть в HTML. Раньше здесь стоял `isLoaded=false` +
+  // setTimeout(100), и заголовок тайтла, метаданные, кнопки и вся обложка
+  // попадали в разметку ТОЛЬКО после гидратации. Последствия были двойные:
+  // поисковик видел пустой первый экран (на главной не оставалось ни одного
+  // H1/H2 и ни одной ссылки на /watch), а LCP уезжал на сотни миллисекунд.
+  // Теперь стартовое значение — true: SSR отдаёт готовый баннер.
+  const [isLoaded, setIsLoaded] = useState(true)
   const [isMobile, setIsMobile] = useState(false)
 
+  // Вход в анимацию — без 100-мс задержки. Класс вешает браузер, а не React:
+  // к моменту гидратации CSS-переходы уже готовы, и ничего не «прыгает».
   useEffect(() => {
-    const timer = setTimeout(() => setIsLoaded(true), 100)
-    return () => clearTimeout(timer)
+    const raf = requestAnimationFrame(() => setIsLoaded(true))
+    return () => cancelAnimationFrame(raf)
   }, [])
 
   useEffect(() => {
@@ -512,12 +520,20 @@ export function HeroBanner({ topOfWeekAnime, recommendedAnime, recommendationRea
                   style={{ backfaceVisibility: 'hidden' }}
                 >
                   <div className="relative w-full h-full" style={transitionContentStyle}>
+                    {/*
+                      priority — это не только preload, но и отсутствие
+                      loading="lazy": именно этот <img> (лицевая сторона
+                      кейса) и есть LCP-элемент первого экрана. Раньше он
+                      уходил с loading="lazy" и вставал в очередь после
+                      всего остального.
+                    */}
                     <Image
                       src={posterImage}
                       alt={anime.title}
                       fill
                       className="object-cover"
                       sizes="(max-width: 768px) 150px, 320px"
+                      priority
                       onError={() => setPosterImageError(true)}
                       unoptimized={posterImageError || posterImage.startsWith('data:image')}
                     />
