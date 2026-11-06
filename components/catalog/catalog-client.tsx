@@ -670,8 +670,14 @@ export function CatalogClient({
         {/* Заголовок и переключатель сетки */}
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-baseline gap-2">
+            {/*
+              H1 каталога. Раньше текста было ровно «Каталог» — без слова
+              «аниме», по которому страницу и ищут, и с потерей контекста в
+              сниппете. Добавляем описание рядом: h1 должен быть один, а не
+              дублироваться в подзаголовке.
+            */}
             <h1 className="text-lg sm:text-xl font-bold text-foreground border-l-4 border-orange-500 pl-2.5 dark:text-white">
-              Каталог
+              Каталог аниме
             </h1>
             {!loading && (
               <span className="text-muted-foreground text-xs hidden sm:inline-block">

@@ -102,3 +102,59 @@ describe("admin middleware protections", () => {
     expect(rejected.status).toBe(403)
   })
 })
+
+describe("www → apex редирект", () => {
+  it("308-редиректит www на apex, сохраняя путь и query", async () => {
+    const request = new NextRequest("https://www.weeb-x.com/catalog?genre=%D0%AD%D0%BA%D1%88%D0%B5%D0%BD")
+    request.headers.set("host", "www.weeb-x.com")
+
+    const response = await middleware(request)
+
+    expect(response.status).toBe(308)
+    expect(response.headers.get("location")).toBe(
+      "https://weeb-x.com/catalog?genre=%D0%AD%D0%BA%D1%88%D0%B5%D0%BD",
+    )
+    expect(response.headers.get("cache-control")).toContain("public")
+  })
+
+  it("не трогает apex-домен", async () => {
+    const request = new NextRequest("https://weeb-x.com/privacy")
+    request.headers.set("host", "weeb-x.com")
+
+    const response = await middleware(request)
+
+    expect(response.status).toBe(200)
+  })
+
+  it("учитывает X-Forwarded-Host за прокси (внутренний origin)", async () => {
+    // За Caddy request.url может быть http://localhost:3000 — судить о хосте
+    // посетителя можно только по заголовкам.
+    const request = new NextRequest("http://localhost:3000/news", {
+      headers: { "x-forwarded-host": "www.weeb-x.com" },
+    })
+
+    const response = await middleware(request)
+
+    expect(response.status).toBe(308)
+    expect(response.headers.get("location")).toBe("https://weeb-x.com/news")
+  })
+})
+
+describe("security headers hardening", () => {
+  it("HSTS включает includeSubDomains, но не preload", async () => {
+    vi.stubEnv("NODE_ENV", "production")
+    const response = await middleware(new NextRequest("https://weeb-x.com/privacy"))
+
+    const hsts = response.headers.get("strict-transport-security") ?? ""
+    expect(hsts).toContain("includeSubDomains")
+    expect(hsts).not.toContain("preload")
+  })
+
+  it("CSP не раскрывает внутренний DuckDNS-хост", async () => {
+    const response = await middleware(new NextRequest("https://weeb-x.com/"))
+    const csp = response.headers.get("content-security-policy") ?? ""
+
+    expect(csp).not.toContain("duckdns")
+    expect(csp).toContain("connect-src")
+  })
+})

@@ -544,3 +544,35 @@ export function LoadingBarSkeleton({ progress = 30 }: { progress?: number }) {
     </div>
   )
 }
+
+/**
+ * Скелетон основного содержимого главной (лента обновлений, новости,
+ * подборки). Он отдаётся сервером как `fallback` для Suspense вокруг
+ * HomePageClient: без него секция вообще не попадала в HTML, и поисковик
+ * видел главную без заголовков и без ссылок на тайтлы.
+ */
+export function HomePageClientSkeleton() {
+  return (
+    <div className="container mx-auto px-3 sm:px-4 relative z-10" aria-hidden>
+      <UpdatesBannerSkeleton />
+      <section className="mb-14 sm:mb-20">
+        <div className="mb-4 sm:mb-6">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <Skeleton className="h-7 w-7 rounded" />
+            <Skeleton className="h-8 w-40" />
+          </div>
+          <Skeleton className="h-4 w-56 mt-2" />
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
+          {[1, 2, 3, 4].map((item) => (
+            <div key={item} className="rounded-xl sm:rounded-2xl overflow-hidden border dark:border-zinc-800 p-3 space-y-3">
+              <Skeleton className="w-full aspect-[16/10] rounded-lg" />
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-2/3" />
+            </div>
+          ))}
+        </div>
+      </section>
+    </div>
+  )
+}

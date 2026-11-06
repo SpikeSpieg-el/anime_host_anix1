@@ -106,6 +106,12 @@ async function kodikRequest(
       },
       body: payload.toString(),
       signal: AbortSignal.timeout?.(12000),
+      // Без явного кэша POST-запрос в Next кэшируется БЕСКОНЕЧНО. Код в
+      // resolveBestPoster ленивым импортом дёргает Kodik ради обложки на
+      // каждой странице, где Shikimori-постер не подошёл, — это и давало
+      // подозрительно долгие SSR-ответы. Каталог меняется редко, 6 часов
+      // достаточно; при промахе работают таймаут и существующие fallback'и.
+      next: { revalidate: 21600 },
     })
 
     if (!res.ok) {

@@ -3,7 +3,6 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react"
 import { Anime } from "@/lib/shikimori"
 import { AnimeCard } from "@/components/shared/anime-card"
-import { ScheduleSkeleton } from "@/components/shared/skeleton"
 import { Calendar, Clock, AlertCircle, Filter, Bookmark, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useBookmarks } from "@/components/providers/bookmarks-provider"
@@ -29,7 +28,11 @@ function getAllAnimeFromSchedule(schedule: { [key: number]: Anime[] }): Anime[] 
 }
 
 export function ScheduleClient({ schedule: initialSchedule }: ScheduleClientProps) {
-  const [mounted, setMounted] = useState(false)
+  // Раньше стартовое значение было false и весь календарь (заголовок «Расписание»
+  // и все карточки дня) появлялся только после гидратации: в HTML /schedule не
+  // было ни одного H1 и ни одной ссылки на /watch. Теперь сервер отдаёт готовый
+  // список; лента дней смещается к «сегодня» уже после монтирования, чтобы не
+  // трогать разметку на сервере.
   const [selectedOffset, setSelectedOffset] = useState<number>(0)
   const [showBookmarksOnly, setShowBookmarksOnly] = useState<boolean>(false)
   const [schedule, setSchedule] = useState(initialSchedule)
@@ -82,20 +85,18 @@ export function ScheduleClient({ schedule: initialSchedule }: ScheduleClientProp
   }, [])
 
   useEffect(() => {
-    setMounted(true)
-    setTimeout(() => {
+    const timer = setTimeout(() => {
       const todayElement = document.getElementById('day-offset-0')
       if (todayElement && scrollRef.current) {
         todayElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' })
       }
     }, 300)
+    return () => clearTimeout(timer)
   }, [])
 
   // Load better posters for the currently selected day and adjacent days
   // Strategy: Load current day + 2 days left + 2 days right progressively
   useEffect(() => {
-    if (!mounted) return
-
     const loadPostersForDay = (dayId: number) => {
       // Skip if already loaded
       if (loadedDaysRef.current.has(dayId)) {
@@ -175,9 +176,7 @@ export function ScheduleClient({ schedule: initialSchedule }: ScheduleClientProp
         }
       }
     }
-  }, [mounted, selectedOffset, rollingDays, preloadBatch, getFromCache])
-
-  if (!mounted) return <ScheduleSkeleton />
+  }, [selectedOffset, rollingDays, preloadBatch, getFromCache])
 
   const currentDayInfo = rollingDays.find(d => d.offset === selectedOffset)!
   const activeAnimes = schedule[currentDayInfo.scheduleId] || []

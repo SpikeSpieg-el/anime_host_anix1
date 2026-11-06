@@ -1,5 +1,9 @@
-import { notFound, permanentRedirect } from "next/navigation"
+import { Suspense, cache } from "react"
+import { notFound } from "next/navigation"
 import { Navbar } from "@/components/layout/navbar"
+import { WatchPageWithWatchOrder } from "@/components/watch/watch-page-with-watch-order"
+import { CanonicalSlugGuard } from "@/components/watch/canonical-slug-guard"
+import { CanonicalPosterHint } from "@/components/watch/canonical-poster-hint"
 import { getAnimeById, getAnimeFranchise, type Anime } from "@/lib/shikimori"
 import dynamic from "next/dynamic"
 import { WatchPageHeaderSkeleton, PlayerSkeleton, EpisodeSelectorSkeleton, TextSkeleton } from "@/components/shared/skeleton"
@@ -17,6 +21,23 @@ import { isNoIndexAnime } from "@/lib/hentai-detector"
  */
 type ExtendedAnime = Anime
 
+/**
+ * Загрузка тайтла для /watch: обложка берётся ТОЛЬКО у Shikimori.
+ *
+ * `transformAnime(..., enableGenreFallback)` ходит за обложкой в
+ * resolveBestPoster, а тот при «плохом» постере перебирает AniList, Kitsu,
+ * Kodik и MAL. Для страницы просмотра это плохая сделка: /watch — самая
+ * массовая точка входа (2 108 адресов в карте сайта), и каждый тайтл со
+ * слабой обложкой платил внешними запросами ПЕРЕД первым байтом HTML.
+ *
+ * Правильный фолбэк здесь — сгенерированная заглушка (она же стоит на всех
+ * карточках), а не чужая обложка за три сетевых круга: замена картинки
+ * приедет клиентским запросом уже после отрисовки страницы.
+ */
+async function getWatchAnime(cleanId: string): Promise<Anime | null> {
+  return getAnimeById(cleanId, true, { allowExternalPosters: false })
+}
+
 export type EditorialReview = {
   id: string
   anime_id: string
@@ -26,8 +47,24 @@ export type EditorialReview = {
   updated_at: string
 }
 
-// Получение комментария редакции из Supabase REST API (без статического кэша)
-async function getEditorialReview(animeId: string): Promise<EditorialReview | null> {
+/**
+ * Комментарий редакции из Supabase REST API.
+ *
+ * Раньше здесь стоял `cache: 'no-store'` — и это была одна из двух причин,
+ * по которым /watch нельзя было кэшировать: страница помечалась как
+ * динамическая, а каждый заход платил сетевой круг к Supabase. При этом
+ * вызывалась функция ДВАЖДЫ на запрос (в generateMetadata и в самой
+ * странице), то есть два круга.
+ *
+ * Теперь:
+ *  - `next.revalidate` — 5 минут: обзор редакции меняется вручную, чаще
+ *    этого не нужно, а панель админки после сохранения вызывает
+ *    revalidatePath (см. app/admin/actions.ts);
+ *  - React `cache()` — дедупликация в пределах одного рендера, чтобы
+ *    generateMetadata и страница не сходили в базу дважды.
+ * Ошибки по-прежнему не валят страницу: разметка Review просто не появится.
+ */
+const getEditorialReview = cache(async (animeId: string): Promise<EditorialReview | null> => {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
@@ -44,7 +81,7 @@ async function getEditorialReview(animeId: string): Promise<EditorialReview | nu
           apikey: supabaseKey,
           Authorization: `Bearer ${supabaseKey}`,
         },
-        cache: 'no-store', // НЕ КЭШИРОВАТЬ! Запрос всегда получит свежие данные
+        next: { revalidate: 300, tags: ["editorial-reviews", `editorial-review-${animeId}`] },
       }
     )
 
@@ -59,24 +96,26 @@ async function getEditorialReview(animeId: string): Promise<EditorialReview | nu
     console.error("[EditorialReview] Ошибка выполнения запроса:", err)
     return null
   }
-}
+})
 
 /**
- * Страховочный редирект на канонический ЧПУ-адрес.
+ * Канонический slug для текущего запроса.
  *
  * Основную работу делает middleware (настоящий HTTP 301). Сюда доходят только
- * запросы с устаревшим slug, которого ещё нет в кэше middleware. Из-за
- * app/loading.tsx страница к этому моменту уже стримится с кодом 200, поэтому
+ * запросы с устаревшим slug, которого ещё нет в кэше middleware: из-за
+ * app/loading.tsx страница к этому моменту уже стримится с кодом 200, и
  * Next.js сможет лишь вставить <meta http-equiv="refresh" content="0;url=...">.
- * permanentRedirect (в отличие от redirect) даёт задержку 0 — поисковики считают
- * такой refresh постоянным; вдобавок на странице есть <link rel="canonical">.
+ *
+ * Раньше здесь стоял permanentRedirect прямо в теле страницы, и он стоил
+ * ДОРОГО на каждом обычном заходе: чтобы решить, нужен ли редирект,
+ * приходилось строить ожидаемый slug, а для этого — тащить полный объект
+ * тайтла из Shikimori ещё до старта рендера. Теперь функция асинхронная и
+ * получает тайтл уже загруженным, а вызывается ПОСЛЕ начала рендера
+ * (см. <CanonicalSlugGuard/>) — страница успевает отдать HTML и ссылки.
  */
-function ensureCanonicalParam(id: string, cleanId: string, title: string, episode?: number) {
-  const expectedParam = getWatchSegment(cleanId, title)
-  if (safeDecodeSegment(id) !== expectedParam) {
-    permanentRedirect(getWatchPath(cleanId, title, episode))
-  }
-  return expectedParam
+async function resolveCanonicalParam(id: string, cleanId: string, title: string): Promise<{ expected: string; isCanonical: boolean }> {
+  const expected = getWatchSegment(cleanId, title)
+  return { expected, isCanonical: safeDecodeSegment(id) === expected }
 }
 
 const WatchPageLayoutWrapper = dynamic(
@@ -111,7 +150,7 @@ export async function generateMetadata({
 
   const cleanId = parseWatchParam(id)
   const [rawAnime, editorialReview] = await Promise.all([
-    getAnimeById(cleanId, true),
+    getWatchAnime(cleanId),
     getEditorialReview(cleanId),
   ])
 
@@ -244,7 +283,7 @@ export default async function WatchPage({
 
   // Запрашиваем аниме и комментарий редакции параллельно
   const [rawAnime, editorialReview] = await Promise.all([
-    getAnimeById(cleanId, true),
+    getWatchAnime(cleanId),
     getEditorialReview(cleanId),
   ])
 
@@ -256,11 +295,22 @@ export default async function WatchPage({
   const rawTitle = anime.russian || anime.title || ""
   const animeTitle = cleanAnimeTitle(rawTitle) || `Аниме #${cleanId}`
 
-  // Страховка: обычно сюда уже приходит канонический адрес (301 из middleware).
-  const expectedParam = ensureCanonicalParam(id, cleanId, rawTitle, episode)
+  // Обычно сюда уже приходит канонический адрес (301 из middleware). Если нет —
+  // «страховочный» refresh отрисует клиентский <CanonicalSlugGuard/> ниже:
+  // проверка не должна задерживать первый байт HTML.
+  const { expected: expectedParam, isCanonical } = await resolveCanonicalParam(
+    id,
+    cleanId,
+    rawTitle,
+  )
 
-  const franchise = await getAnimeFranchise(cleanId)
-  const watchOrder = franchise
+  // Франшиза грузится ПОСЛЕ аниме и не блокирует первый байт: блок «порядок
+  // просмотра» всё равно рисуется ниже первого экрана, а на «Ван-Писе» это
+  // 30+ узлов. Обёртка уходит в Suspense, потокобезопасно отдаётся стримом.
+  const watchOrderPromise = getAnimeFranchise(cleanId).catch((error) => {
+    console.error('[watch] не удалось получить франшизу для', cleanId, error)
+    return []
+  })
 
   const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://weeb-x.com"
   const contentUrl = `${baseUrl}/watch/${expectedParam}`
@@ -379,12 +429,29 @@ export default async function WatchPage({
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: safeSerializeJson(videoObject) }}
       />
-      <WatchPageLayoutWrapper
-        anime={rawAnime}
-        initialEpisode={Number.isFinite(episode) && (episode as number) > 0 ? (episode as number) : undefined}
-        watchOrder={watchOrder}
-        editorialReview={editorialReview}
-      />
+      {!isCanonical && (
+        <CanonicalSlugGuard target={getWatchPath(cleanId, rawTitle, episode)} />
+      )}
+      <CanonicalPosterHint poster={anime.poster} />
+      <Suspense
+        fallback={
+          <div className="min-h-screen bg-background text-foreground">
+            <Navbar />
+            <div className="container mx-auto px-4 py-8 space-y-6">
+              <WatchPageHeaderSkeleton />
+              <PlayerSkeleton />
+              <EpisodeSelectorSkeleton />
+            </div>
+          </div>
+        }
+      >
+        <WatchPageWithWatchOrder
+          anime={rawAnime}
+          initialEpisode={Number.isFinite(episode) && (episode as number) > 0 ? (episode as number) : undefined}
+          watchOrder={watchOrderPromise}
+          editorialReview={editorialReview}
+        />
+      </Suspense>
     </>
   )
 }

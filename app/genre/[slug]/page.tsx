@@ -2,8 +2,6 @@ import type { Metadata } from "next"
 import { cache } from "react"
 import { notFound } from "next/navigation"
 import Link from "next/link"
-import { cookies } from "next/headers"
-import { createClient } from "@supabase/supabase-js"
 import { Navbar } from "@/components/layout/navbar"
 import { Footer } from "@/components/layout/footer"
 import { ScrollToTop } from "@/components/layout/scroll-to-top"
@@ -24,8 +22,10 @@ import {
 } from "@/lib/seo/genre-landings"
 import type { GenreLanding } from "@/lib/seo/genre-landings"
 
-// Результаты зависят от allow_nsfw_search в профиле пользователя.
-export const dynamic = "force-dynamic"
+// Кэш вместо динамики: данные жанра меняются редко, а жанровых страниц
+// сорок. ISR здесь честнее, чем «рендер на каждый запрос»: смотри
+// комментарий у allowNsfw ниже.
+export const revalidate = 600
 
 // Только 40 жанров из GENRES_MAP. Без этого Next.js нарисовал бы страницу
 // для любого мусорного slug'а (/genre/aaaaaaaa), и роботы обходили бы паутину
@@ -34,30 +34,6 @@ export const dynamicParams = false
 
 const SITE_URL = "https://weeb-x.com"
 const PAGE_SIZE = 24
-
-async function canShowAdultGenres(): Promise<boolean> {
-  try {
-    const cookieStore = await cookies()
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-    if (!url || !anonKey) return false
-
-    const supabase = createClient(url, anonKey, {
-      global: { headers: { cookie: cookieStore.toString() } },
-    })
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return false
-
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("allow_nsfw_search")
-      .eq("id", user.id)
-      .single()
-    return profile?.allow_nsfw_search === true
-  } catch {
-    return false
-  }
-}
 
 /**
  * Первый экран жанра. React.cache мемоизирует выборку на время рендера, иначе
@@ -211,7 +187,15 @@ export default async function GenrePage({
   const genre = getGenreLanding(slug)
   if (!genre) notFound()
 
-  const allowNsfw = await canShowAdultGenres()
+  // Жанровые лендинги — главные SEO-страницы после /watch, и они обязаны
+  // кэшироваться. Чтение cookies() делало их dynamic: аудит показал
+  // `private, no-cache, no-store` и TTFB ~1 с на каждый хит, то есть
+  // рендер-на-запрос платил за все сорок жанров.
+  //
+  // NSFW-настройку профиля здесь не читаем: серверная версия всегда
+  // «безопасная» (censored=true, как у гостя и краулера). Пользователю с
+  // allow_nsfw_search Каталог догружает расширенный список на клиенте.
+  const allowNsfw = false
   const animes = await getGenreAnimes(genre.name, allowNsfw)
   const canonicalUrl = `${SITE_URL}${getGenrePath(genre.slug)}`
   const description = buildGenreDescription(genre, animes.length)

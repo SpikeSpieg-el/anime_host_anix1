@@ -58,12 +58,14 @@ const navItems = [
 ]
 
 export default function BeginnersPage() {
-  const [mounted, setMounted] = useState(false)
   const [activeSection, setActiveSection] = useState<string>("")
 
+  // Раньше страница отдавала `null` до монтирования (setMounted(true) в
+  // useEffect). В HTML /beginners не было вообще ничего: ни H1, ни текста
+  // гайда — только оболочка лейаута. Для страницы, которая и должна
+  // индексироваться по «как пользоваться сайтом», это потеря целиком.
+  // Теперь контент серверный, а scroll-хайлайт навешивается после гидратации.
   useEffect(() => {
-    setMounted(true)
-
     const handleScroll = () => {
       const activeItem = navItems.find(({ id }) => {
         const element = document.getElementById(id)
@@ -94,8 +96,6 @@ export default function BeginnersPage() {
     if (lastDigit >= 2 && lastDigit <= 4) return "Серии"
     return "Серий"
   }
-
-  if (!mounted) return null
 
   return (
     <main className="min-h-screen bg-background text-foreground pb-20 md:pb-24 selection:bg-orange-500/30 relative">

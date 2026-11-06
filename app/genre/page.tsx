@@ -1,7 +1,5 @@
 import type { Metadata } from "next"
 import Link from "next/link"
-import { cookies } from "next/headers"
-import { createClient } from "@supabase/supabase-js"
 import { ArrowRight } from "lucide-react"
 import { Navbar } from "@/components/layout/navbar"
 import { Footer } from "@/components/layout/footer"
@@ -10,39 +8,15 @@ import { safeSerializeJson } from "@/lib/seo/safe-json"
 import { GenrePill } from "@/components/genre/genre-pill"
 import { PageBreadcrumbs } from "@/components/shared/page-breadcrumbs"
 import {
-  GENRE_LANDINGS,
   INDEXABLE_GENRE_LANDINGS,
   getGenrePath,
 } from "@/lib/seo/genre-landings"
 
 const SITE_URL = "https://weeb-x.com"
 
-// Список жанров персонализируется настройкой NSFW профиля.
-export const dynamic = "force-dynamic"
-
-async function canShowAdultGenres(): Promise<boolean> {
-  try {
-    const cookieStore = await cookies()
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-    if (!url || !anonKey) return false
-
-    const supabase = createClient(url, anonKey, {
-      global: { headers: { cookie: cookieStore.toString() } },
-    })
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return false
-
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("allow_nsfw_search")
-      .eq("id", user.id)
-      .single()
-    return profile?.allow_nsfw_search === true
-  } catch {
-    return false
-  }
-}
+// Список жанров отдаём одинаковым для всех и кэшируем: персональная часть
+// (NSFW-жанры) решается на клиенте по профилю из AuthProvider.
+export const revalidate = 3600
 
 const TITLE = "Жанры аниме — смотреть аниме онлайн бесплатно по жанрам | Weebx"
 const DESCRIPTION =
@@ -85,8 +59,10 @@ export const metadata: Metadata = {
 }
 
 export default async function GenresPage() {
-  const showAdultGenres = await canShowAdultGenres()
-  const visibleGenres = showAdultGenres ? GENRE_LANDINGS : INDEXABLE_GENRE_LANDINGS
+  // NSFW-жанры в серверную версию не попадают: и краулер, и гость, и
+  // владелец профиля получают одинаковый безопасный список, поэтому страницу
+  // можно кэшировать (раньше из-за cookies() она была dynamic).
+  const visibleGenres = INDEXABLE_GENRE_LANDINGS
   const jsonLd = [
     {
       "@context": "https://schema.org",

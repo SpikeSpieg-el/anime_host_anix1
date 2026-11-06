@@ -6,8 +6,9 @@ import { Navbar } from '@/components/layout/navbar'
 import { Footer } from '@/components/layout/footer'
 import { FloatingNav } from '@/components/layout/floating-nav'
 import { HeroBanner } from './hero-banner'
-import { HeroBannerSkeleton } from '@/components/shared/skeleton'
+import { HeroBannerSkeleton, HomePageClientSkeleton } from '@/components/shared/skeleton'
 import { HomePageClient } from './home-client'
+import { HomeEasterEggs } from './home-easter-eggs'
 import { useState, useEffect, Suspense } from 'react'
 import type { Anime, RecommendationReason } from '@/lib/shikimori'
 import { useAuth } from '@/components/auth/auth-provider'
@@ -164,8 +165,20 @@ export function HomePageWrapper({
           <HeroBannerSkeleton />
         )}
       </section>
-      <Suspense fallback={null}>
+      {/*
+        ВАЖНО: без fallback={null}. Пустой фолбэк означал, что HomePageClient
+        (а значит — «Лента обновлений», новости, «Что посмотреть» и все ссылки
+        на /watch) не попадал в SSR-поток вообще: React ждал гидратации.
+        В HTML оставались только навбар, герой и футер. Скелетон ниже
+        отдаётся сервером и заменяется контентом стримом.
+      */}
+      <Suspense fallback={<HomePageClientSkeleton />}>
         <HomePageClient initialData={initialData} />
+      </Suspense>
+      {/* Своя Suspense-граница: useSearchParams внутри выбрасывает на клиент
+          только этот пустой компонент, а не всю главную. */}
+      <Suspense fallback={null}>
+        <HomeEasterEggs />
       </Suspense>
       <Footer />
     </main>
