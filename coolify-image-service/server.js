@@ -5,10 +5,25 @@ const path = require('path')
 const fs = require('fs')
 const crypto = require('crypto')
 const dns = require('dns').promises
+const {
+  ALLOWED_HOSTS,
+  SHIKIMORI_MIRRORS,
+  getExtraAllowedHosts,
+  isAllowedHost,
+  getReferer,
+  isSlowHost,
+  getFetchCandidates,
+  decodeDataUri,
+  parseImageParams,
+  contentTypeForFormat,
+} = require('./url-policy')
 
 const app = express()
 const PORT = process.env.PORT || 3100
 const CORS_ORIGIN = process.env.CORS_ORIGIN || 'https://weeb-x.com'
+// Свои хосты (например, <project>.supabase.co для загруженных обложек)
+// разрешаем только явно, через env: общий *.supabase.co открывать нельзя.
+const EXTRA_ALLOWED_HOSTS = getExtraAllowedHosts(process.env)
 
 // --- Email (nodemailer) ---
 const nodemailer = require('nodemailer')
@@ -64,113 +79,7 @@ function releaseFetchSlot() {
   }
 }
 
-// --- Allowed hosts for proxying ---
-const ALLOWED_HOSTS = [
-  // Booru/image boards
-  'konachan.net',
-  'safebooru.org',
-  'danbooru.donmai.us',
-  'zerochan.net',
-  's3.zerochan.net',
-  'static.zerochan.net',
-  'yande.re',
-  'files.yande.re',
-  // Anime databases
-  'shikimori.one',
-  'shikimori.me',
-  'shikimori.io',
-  'shikimori.org',
-  'anilist.co',
-  's4.anilist.co',
-  'kitsu.app',
-  'media.kitsu.app',
-  'media.kitsu.io',
-  // Kitsu returns signed poster URLs from this Backblaze B2 S3 bucket.
-  'kitsu-production-media.s3.us-west-002.backblazeb2.com',
-  'cdn.myanimelist.net',
-  'myanimelist.net',
-  'api.jikan.moe',
-  'kodikapi.com',
-  'kodik.info',
-  'cdn.kodik.info',
-  'img.youtube.com',
-  'i.ytimg.com',
-  'api.anilibria.tv',
-  // Manga
-  'mixlib.me',
-  'mangalib.me',
-  'remanga.org',
-  'reimg2.org',
-  'img.reimg.org',
-  'uploads.mangadex.org',
-  'meo.comick.pictures',
-  'cdn.mangaeden.com',
-  // Pinterest (custom arts)
-  'pinimg.com',
-  'i.pinimg.com',
-  // Common image hosts for custom arts
-  'imgur.com',
-  'i.imgur.com',
-  'discordapp.com',
-  'cdn.discordapp.com',
-  'media.discordapp.net',
-  'githubusercontent.com',
-  'raw.githubusercontent.com',
-  'github.com',
-  'objects.githubusercontent.com',
-  'picsum.photos',
-  'transparenttextures.com',
-  'catbox.moe',
-  'files.catbox.moe',
-  'litterbox.catbox.moe',
-  'postimg.cc',
-  'postimg.org'
-]
-
-// Domain-specific referer headers
-function getReferer(hostname) {
-  const referers = {
-    'konachan.net': 'https://konachan.net/',
-    'safebooru.org': 'https://safebooru.org/',
-    'zerochan.net': 'https://www.zerochan.net/',
-    's3.zerochan.net': 'https://www.zerochan.net/',
-    'mixlib.me': 'https://mangalib.me/',
-    'mangalib.me': 'https://mangalib.me/',
-    'shikimori.one': 'https://shikimori.one/',
-    'shikimori.me': 'https://shikimori.me/',
-    'shikimori.io': 'https://shikimori.io/',
-    'shikimori.org': 'https://shikimori.org/',
-    'remanga.org': 'https://remanga.org/',
-    'reimg2.org': 'https://remanga.org/',
-    'img.reimg.org': 'https://remanga.org/',
-    'uploads.mangadex.org': 'https://mangadex.org/',
-    'yande.re': 'https://yande.re/',
-    'files.yande.re': 'https://yande.re/',
-    'pinimg.com': 'https://www.pinterest.com/',
-    'i.pinimg.com': 'https://www.pinterest.com/',
-    'anilist.co': 'https://anilist.co/',
-    's4.anilist.co': 'https://anilist.co/',
-    'kitsu.app': 'https://kitsu.io/',
-    'media.kitsu.app': 'https://kitsu.io/',
-    'media.kitsu.io': 'https://kitsu.io/',
-    'kitsu-production-media.s3.us-west-002.backblazeb2.com': 'https://kitsu.io/',
-    'kodikapi.com': 'https://kodik.info/',
-    'kodik.info': 'https://kodik.info/',
-    'cdn.kodik.info': 'https://kodik.info/',
-    'cdn.myanimelist.net': 'https://myanimelist.net/',
-    'myanimelist.net': 'https://myanimelist.net/',
-    'danbooru.donmai.us': 'https://danbooru.donmai.us/',
-    'static.zerochan.net': 'https://www.zerochan.net/',
-    'img.youtube.com': 'https://www.youtube.com/',
-    'i.ytimg.com': 'https://www.youtube.com/',
-    'api.anilibria.tv': 'https://api.anilibria.tv/'
-  }
-  for (const [key, val] of Object.entries(referers)) {
-    if (hostname.includes(key)) return val
-  }
-  return ''
-}
-
+// Белый список хостов, referer-ы и ротация зеркал вынесены в url-policy.js
 // --- In-memory cache for images (100MB) ---
 const cache = new LRUCache({
   maxSize: 100 * 1024 * 1024,
@@ -196,16 +105,22 @@ function getDiskCachePath(cacheKey) {
 
 // --- Fetch image using native fetch (Node 20+) with proper AbortController ---
 
-// Зеркала Shikimori: основной домен .one периодически зависает целиком
-// (Cloudflare 522 от нерабочего бэкенда), а зеркала живут. Их ротация здесь
-// оживляет и старые сохранённые URL с .one (картинки в БД, кэши) — менять
-// ссылки нигде не нужно.
-const SHIKIMORI_MIRRORS = [
-  'shikimori.one',
-  'shikimori.me',
-  'shikimori.io',
-  'shikimori.org',
-]
+function buildFetchHeaders(hostname) {
+  const headers = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+    'Accept-Language': 'en-US,en;q=0.9',
+    'Connection': 'keep-alive',
+  }
+  // Referer считаем для КАЖДОГО кандидата: при ротации зеркал Shikimori
+  // реферер от .one на .io/.me может не подойти анти-хотлинку.
+  const referer = getReferer(hostname)
+  if (referer) headers['Referer'] = referer
+  if (hostname.includes('remanga.org') || hostname.includes('img.reimg.org')) {
+    headers['Origin'] = 'https://remanga.org'
+  }
+  return headers
+}
 
 async function fetchOnce(url, headers, timeoutMs) {
   const controller = new AbortController()
@@ -229,8 +144,9 @@ async function fetchOnce(url, headers, timeoutMs) {
     return { buffer, contentType }
   } catch (err) {
     if (err.name === 'AbortError') {
-      const fallbackParsed = new URL(url)
-      throw new Error(`Fetch timeout (${timeoutMs / 1000}s): ${fallbackParsed.hostname}`)
+      let host = url
+      try { host = new URL(url).hostname } catch {}
+      throw new Error(`Fetch timeout (${timeoutMs / 1000}s): ${host}`)
     }
     throw err
   } finally {
@@ -239,48 +155,43 @@ async function fetchOnce(url, headers, timeoutMs) {
 }
 
 async function fetchImage(url) {
-  const parsed = new URL(url)
-  const isAllowed = ALLOWED_HOSTS.some(h => parsed.hostname === h || parsed.hostname.endsWith('.' + h))
-  if (!isAllowed) {
+  // data:image/... не надо фетчить — картинка уже в URL. Раньше такие адреса
+  // уходили в allowlist и получали «Host not allowed: » (у data-URI нет хоста).
+  const inlineImage = decodeDataUri(url)
+  if (inlineImage) return inlineImage
+
+  let parsed
+  try {
+    parsed = new URL(url)
+  } catch {
+    throw new Error('Invalid URL: ' + String(url).slice(0, 200))
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    throw new Error('Unsupported protocol: ' + parsed.protocol)
+  }
+  if (!isAllowedHost(parsed.hostname, EXTRA_ALLOWED_HOSTS)) {
     throw new Error('Host not allowed: ' + parsed.hostname)
   }
 
-  const referer = getReferer(parsed.hostname)
-  const headers = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    'Referer': referer,
-    'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
-    'Accept-Language': 'en-US,en;q=0.9',
-    'Connection': 'keep-alive',
-  }
-
-  if (parsed.hostname.includes('remanga.org') || parsed.hostname.includes('img.reimg.org')) {
-    headers['Origin'] = 'https://remanga.org'
-  }
-
-  // Slow hosts get longer timeout
-  const slowHosts = ['files.yande.re', 'yande.re', 'konachan.net', 'zerochan.net', 's3.zerochan.net']
-  const isSlowHost = slowHosts.some(h => parsed.hostname === h || parsed.hostname.endsWith('.' + h))
-  const timeoutMs = isSlowHost ? 30000 : 15000
-
-  // Ротация только для ссылок с основного домена .one (реферер оставляем исходный)
-  const candidates = parsed.hostname === 'shikimori.one'
-    ? SHIKIMORI_MIRRORS.map(m => (m === 'shikimori.one' ? url : url.replace('https://shikimori.one', `https://${m}`)))
-    : [url]
+  const timeoutMs = isSlowHost(parsed.hostname) ? 30000 : 15000
+  // Ротация для ЛЮБОГО домена shikimori.*, а не только .one: ссылки на
+  // зеркала тоже надолго оседают в БД и в кэше браузера.
+  const candidates = getFetchCandidates(url)
 
   let lastError
   for (const candidate of candidates) {
+    const candidateHost = new URL(candidate).hostname
     try {
       await acquireFetchSlot()
       try {
-        return await fetchOnce(candidate, headers, timeoutMs)
+        return await fetchOnce(candidate, buildFetchHeaders(candidateHost), timeoutMs)
       } finally {
         releaseFetchSlot()
       }
     } catch (err) {
       lastError = err
       if (candidate !== url) {
-        console.warn(`[image-service] Зеркало ${new URL(candidate).hostname} не ответило (${err.message}), пробуем следующее`)
+        console.warn(`[image-service] Зеркало ${candidateHost} не ответило (${err.message}), пробуем следующее`)
       }
     }
   }
@@ -289,14 +200,19 @@ async function fetchImage(url) {
 }
 
 // --- Detect content-type from buffer magic bytes ---
-function detectContentType(buffer) {
+function detectContentType(buffer, fallback = 'image/jpeg') {
+  // SVG (в т.ч. сгенерированные обложки-заглушки) не имеет магических байт —
+  // без этой проверки data:image/svg+xml отдавался бы как image/jpeg.
+  if (/^\s*(?:<\?xml[^>]*>\s*)?<svg[\s>]/i.test(buffer.subarray(0, 256).toString('utf8'))) return 'image/svg+xml'
   if (buffer.length < 4) return 'image/jpeg'
   if (buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4E && buffer[3] === 0x47) return 'image/png'
   if (buffer[0] === 0xFF && buffer[1] === 0xD8 && buffer[2] === 0xFF) return 'image/jpeg'
   if (buffer[0] === 0x47 && buffer[1] === 0x49 && buffer[2] === 0x46) return 'image/gif'
   if (buffer[0] === 0x52 && buffer[1] === 0x49 && buffer[2] === 0x46 && buffer[3] === 0x46) return 'image/webp'
   if (buffer.length >= 12 && buffer[0] === 0x00 && buffer[1] === 0x00 && buffer[2] === 0x00 && buffer[8] === 0x66) return 'image/avif'
-  return 'image/jpeg'
+  // Если магические байты не узнали, но апстрим/дата-URI честно сказал
+  // image/* — верим ему, а не подсовываем image/jpeg.
+  return typeof fallback === 'string' && /^image\//i.test(fallback) ? fallback : 'image/jpeg'
 }
 
 async function optimizeImage(buffer, width, quality, format) {
@@ -342,43 +258,69 @@ app.use((req, res, next) => {
 app.use(express.json({ limit: '1mb' }))
 
 // --- Health check ---
-app.get('/health', (req, res) => {
-  res.json({
+// Обычный /health должен оставаться мгновенным: его дёргает Docker
+// HEALTHCHECK каждые 30с. Но «процесс жив» != «картинки грузятся» — поэтому
+// для диагностики есть /health?deep=1 с короткой проверкой апстрима.
+app.get('/health', async (req, res) => {
+  const body = {
     status: 'ok',
     cacheSize: cache.size,
     cacheItems: cache.size,
     activeFetches,
     queuedFetches: fetchQueue.length,
+    allowedHosts: ALLOWED_HOSTS.length + EXTRA_ALLOWED_HOSTS.length,
+    extraAllowedHosts: EXTRA_ALLOWED_HOSTS,
     uptime: process.uptime(),
     memoryMB: Math.round(process.memoryUsage().rss / 1024 / 1024)
-  })
+  }
+
+  if (req.query.deep === '1') {
+    const started = Date.now()
+    try {
+      await dns.resolve4('shikimori.one')
+      const { buffer } = await fetchOnce(
+        'https://shikimori.one/system/characters/original/1.jpg',
+        buildFetchHeaders('shikimori.one'),
+        4000
+      )
+      body.upstream = { ok: true, bytes: buffer.length, ms: Date.now() - started }
+    } catch (err) {
+      body.upstream = { ok: false, error: err.message, ms: Date.now() - started }
+    }
+  }
+
+  res.json(body)
 })
 
 // --- Connectivity test endpoint ---
+// Раньше здесь последовательно опрашивались 4 зеркала, причём каждое через
+// fetchImage() само запускало ротацию ещё на 4 запроса по 15с. Эндпоинт мог
+// висеть минутами и диагностика «контейнер работает?» была бесполезной.
+// Теперь всё параллельно, без каскадной ротации и с коротким таймаутом.
 app.get('/test-connectivity', async (req, res) => {
   const testHosts = ['shikimori.one', 'safebooru.org', 'konachan.net']
   const results = {}
 
-  for (const host of testHosts) {
+  await Promise.all(testHosts.map(async (host) => {
     try {
       const lookup = await dns.resolve4(host)
       results[host] = { dns: 'ok', ips: lookup }
     } catch (err) {
       results[host] = { dns: 'fail', error: err.message }
     }
-  }
+  }))
 
-  // Test actual fetch to a small image — across all Shikimori mirrors
   results.fetchTests = {}
-  for (const mirror of SHIKIMORI_MIRRORS) {
+  await Promise.all(SHIKIMORI_MIRRORS.map(async (mirror) => {
     try {
       const testUrl = `https://${mirror}/system/characters/original/1.jpg`
-      const { buffer, contentType } = await fetchImage(testUrl)
+      const { buffer, contentType } = await fetchOnce(testUrl, buildFetchHeaders(mirror), 5000)
       results.fetchTests[mirror] = { ok: true, size: buffer.length, contentType }
     } catch (err) {
       results.fetchTests[mirror] = { ok: false, error: err.message }
     }
-  }
+  }))
+
   const firstWorking = Object.entries(results.fetchTests).find(([, v]) => v.ok)
   results.fetchTest = firstWorking
     ? { ok: true, mirror: firstWorking[0], size: firstWorking[1].size, contentType: firstWorking[1].contentType }
@@ -390,9 +332,9 @@ app.get('/test-connectivity', async (req, res) => {
 // --- Optimize endpoint — replaces /_next/image ---
 app.get('/optimize', async (req, res) => {
   let url = req.query.url
-  const width = parseInt(req.query.w || req.query.width || '384', 10)
-  const quality = parseInt(req.query.q || req.query.quality || '60', 10)
-  const format = req.query.f || req.query.format || 'webp'
+  // Мусор/NaN в query раньше уходил в sharp и отдавал 502 вместо картинки.
+  const { width, quality, format } = parseImageParams(req.query)
+  const contentType = contentTypeForFormat(format)
 
   if (!url) return res.status(400).json({ error: 'Missing url' })
 
@@ -409,7 +351,6 @@ app.get('/optimize', async (req, res) => {
   // Check memory cache
   const memCached = cache.get(cacheKey)
   if (memCached) {
-    const contentType = format === 'avif' ? 'image/avif' : format === 'webp' ? 'image/webp' : 'image/jpeg'
     res.set('Content-Type', contentType)
     res.set('X-Cache', 'HIT-MEM')
     res.set('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800')
@@ -422,7 +363,6 @@ app.get('/optimize', async (req, res) => {
     try {
       const diskData = fs.readFileSync(diskPath)
       cache.set(cacheKey, diskData)
-      const contentType = format === 'avif' ? 'image/avif' : format === 'webp' ? 'image/webp' : 'image/jpeg'
       res.set('Content-Type', contentType)
       res.set('X-Cache', 'HIT-DISK')
       res.set('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800')
@@ -444,7 +384,6 @@ app.get('/optimize', async (req, res) => {
       console.warn('[disk-cache] Write failed:', e.message)
     }
 
-    const contentType = format === 'avif' ? 'image/avif' : format === 'webp' ? 'image/webp' : 'image/jpeg'
     res.set('Content-Type', contentType)
     res.set('X-Cache', 'MISS')
     res.set('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800')
@@ -499,7 +438,7 @@ app.get('/proxy', async (req, res) => {
       console.warn('[disk-cache] Write failed:', e.message)
     }
 
-    const contentType = detectContentType(buffer)
+    const contentType = detectContentType(buffer, upstreamCt)
     res.set('Content-Type', contentType)
     res.set('X-Cache', 'MISS')
     res.set('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800')

@@ -1,7 +1,7 @@
 import React from "react"
 import { Card, CollectionRating } from "./types"
 import { Rarity, rarityConfig } from "@/types/gacha"
-import { getProxiedSrc as getImageProxySrc } from "@/lib/image-loader"
+import { getProxiedSrc as getImageProxySrc, shouldBypassImageService, normalizeImageUrl } from "@/lib/image-loader"
 
 export function generateCardUniqueId(characterId: number, packId?: string): string {
   const uuid = crypto.randomUUID()
@@ -138,20 +138,26 @@ const IMAGE_SERVER_URL = process.env.NEXT_PUBLIC_IMAGE_SERVER_URL || ''
 
 export const getProxiedSrc = (url: string) => {
   if (!url) return url
+  const normalized = normalizeImageUrl(url)
+  // Те же правила, что в lib/image-loader: локальные файлы, data:/blob:,
+  // Supabase Storage и уже обёрнутые URL не отправляем в img-сервис.
+  if (shouldBypassImageService(normalized)) return normalized
   if (IMAGE_SERVER_URL) {
-    return `${IMAGE_SERVER_URL}/proxy?url=${encodeURIComponent(url)}`
+    return `${IMAGE_SERVER_URL}/proxy?url=${encodeURIComponent(normalized)}`
   }
-  if (isPinterestUrl(url)) return `/api/image-proxy?url=${encodeURIComponent(url)}`
-  return url
+  if (isPinterestUrl(normalized)) return `/api/image-proxy?url=${encodeURIComponent(normalized)}`
+  return normalized
 }
 
 export const getOptimizedThumbSrc = (url: string, width: number = 384, quality: number = 60) => {
   if (!url) return url
+  const normalized = normalizeImageUrl(url)
+  if (shouldBypassImageService(normalized)) return normalized
   if (IMAGE_SERVER_URL) {
-    return `${IMAGE_SERVER_URL}/optimize?url=${encodeURIComponent(url)}&w=${width}&q=${quality}&f=webp`
+    return `${IMAGE_SERVER_URL}/optimize?url=${encodeURIComponent(normalized)}&w=${width}&q=${quality}&f=webp`
   }
-  if (isPinterestUrl(url)) return `/api/image-proxy?url=${encodeURIComponent(url)}`
-  return `/_next/image?url=${encodeURIComponent(url)}&w=${width}&q=${quality}`
+  if (isPinterestUrl(normalized)) return `/api/image-proxy?url=${encodeURIComponent(normalized)}`
+  return `/_next/image?url=${encodeURIComponent(normalized)}&w=${width}&q=${quality}`
 }
 
 export const handleImageError = (

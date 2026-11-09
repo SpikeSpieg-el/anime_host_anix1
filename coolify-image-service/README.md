@@ -26,6 +26,37 @@
 |-----------|-------------|----------|
 | `PORT` | `3100` | Порт сервера |
 | `CORS_ORIGIN` | `https://weeb-x.com` | Разрешённый CORS origin |
+| `MAX_CONCURRENT_FETCHES` | `20` | Ограничение параллельных загрузок апстрима |
+| `EXTRA_ALLOWED_HOSTS` | пусто | Доп. хосты через запятую (например, свой `xxx.supabase.co`) |
+| `SUPABASE_STORAGE_HOST` | пусто | Хост Supabase Storage с загруженными обложками; можно передать полный URL |
+
+> `*.supabase.co` **намеренно не открыт целиком** — это чужой multitenant-домен.
+> Если обложки/арты лежат в своём бакете, укажите только свой хост. Либо
+> загружайте их напрямую: `lib/coolify-image-loader.js` и
+> `lib/image-loader.ts` теперь не отправляют `*.supabase.co/storage/` сюда.
+
+## Диагностика: «контейнер работает, а обложки не грузятся»
+
+`/health` отвечает 200, даже если контейнер потерял доступ к апстримам —
+это только проверка процесса (и её использует Docker `HEALTHCHECK`).
+Проверять надо так:
+
+```sh
+curl -s https://img.weeb-x.com/health
+curl -s 'https://img.weeb-x.com/health?deep=1'          # + быстрая проверка апстрима
+curl -s https://img.weeb-x.com/test-connectivity        # DNS и все зеркала Shikimori
+curl -s 'https://img.weeb-x.com/optimize?url=https%3A%2F%2Fshikimori.one%2Fsystem%2Fanimes%2Foriginal%2F16498.jpg&w=384&q=60&f=webp' -o /tmp/cover.webp -w '%{http_code} %{content_type}\n'
+```
+
+Типичные причины битых обложек при зелёном `/health`:
+
+| Ответ сервиса | Причина |
+|---|---|
+| `Host not allowed: …` | Хост не в белом списке (`EXTRA_ALLOWED_HOSTS` для своего Supabase) |
+| `Invalid URL` / `Host not allowed: ` (пусто) | Клиент прислал локальный путь, `data:` или `blob:` — теперь такие URL обслуживаются напрямую (data:image/* декодируется сервисом), а лоадеры их больше не проксируют |
+| `Upstream 404` / `Upstream 403` | Источник удалил картинку или включил хотлинк-защиту |
+| `Fetch timeout (15s)` | Зеркало Shikimori висит; ротация теперь работает для любого `shikimori.*`, а не только `.one` |
+| 502 с ошибкой sharp | Кривой `w`/`q`/`f` — теперь параметры клампятся к допустимым значениям |
 
 ## Эндпоинты
 
@@ -41,4 +72,9 @@
 - `url` — URL исходной картинки (обязательно)
 
 ### GET /health
-Возвращает статус сервиса и информацию о кэше.
+Возвращает статус сервиса и информацию о кэше (быстро, используется Docker healthcheck).
+`?deep=1` дополнительно делает короткую проверку доступности Shikimori.
+
+### GET /test-connectivity
+DNS по основным хостам и параллельная проверка картинок на всех зеркалах
+Shikimori (`fetchTest` — первое живое зеркало).
