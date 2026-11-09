@@ -18,6 +18,8 @@ import { recordWatchStart } from "@/components/providers/history-tracker"
 import { activityRecorder } from "@/components/providers/account-stats-recorder"
 import { Button } from "@/components/ui/button"
 import { useBookmarks } from "@/components/providers/bookmarks-provider"
+import { useCover } from "@/components/providers/cover-provider"
+import { isPlaceholderPoster, shouldRecoverPoster } from "@/lib/poster-url"
 import { useAuth } from "@/components/auth/auth-provider"
 import { isHentaiContent } from "@/lib/hentai-detector"
 import { AgeRatingBadge } from "@/components/watch/age-rating-badge"
@@ -90,6 +92,86 @@ export function WatchPageClient({ anime, initialEpisode }: WatchPageClientProps)
   const [isUpdatingFromPlayer, setIsUpdatingFromPlayer] = useState(false)
   const [posterLoading, setPosterLoading] = useState(true)
   const [isCoverModalOpen, setIsCoverModalOpen] = useState(false)
+
+  /**
+   * Восстановление настоящей обложки на /watch.
+   *
+   * Страница просмотра намеренно не ходит в AniList/Kitsu/Kodik/MAL на SSR
+   * (см. getWatchAnime в app/watch/[id]/page.tsx): для 2108 страниц это
+   * дорого. Поэтому тайтлы, у которых Shikimori отдаёт `missing_original.jpg`
+   * (сейчас это, например, Steel Ball Run / id 61469), приезжают с
+   * сгенерированной `data:image/svg+xml` заглушкой.
+   *
+   * Комментарий в page.tsx обещал, что замена «приедет клиентским запросом
+   * после отрисовки», но такого запроса не было: CoverProvider использовали
+   * только бейджи обновлений и блок «Порядок просмотра». Догоняем обложку
+   * здесь — один запрос к /api/posters и только для заглушек.
+   */
+  const { getPoster, forgetPoster } = useCover()
+  const [poster, setPoster] = useState(anime.poster)
+  const getPosterRef = useRef(getPoster)
+  getPosterRef.current = getPoster
+  const forgetPosterRef = useRef(forgetPoster)
+  forgetPosterRef.current = forgetPoster
+  const recoveryAttemptedRef = useRef(false)
+  // Один повтор после 404 «настоящей» обложки. Без счётчика onError гонял бы
+  // /api/posters по кругу: forgetPoster → recover → тот же битый URL → onError.
+  const MAX_POSTER_RETRIES = 2
+  const posterRetriesRef = useRef(0)
+
+  // При клиентском переходе на другой тайтл компонент переиспользуется —
+  // сбрасываем и состояние, и защиту от повторного запроса.
+  useEffect(() => {
+    setPoster(anime.poster)
+    setPosterLoading(true)
+    recoveryAttemptedRef.current = false
+    posterRetriesRef.current = 0
+  }, [anime.id, anime.poster])
+
+  const recoverPoster = useCallback(async () => {
+    if (recoveryAttemptedRef.current || posterRetriesRef.current >= MAX_POSTER_RETRIES) return
+    recoveryAttemptedRef.current = true
+    posterRetriesRef.current += 1
+
+    const animeId = String(anime.shikimoriId || anime.id)
+    try {
+      // shikimoriUrl пустой и excludeShikimori=true: /api/posters не вернёт
+      // ту же самую missing_original.jpg, а сразу спросит AniList/Kitsu/Kodik/MAL.
+      const recovered = await getPosterRef.current(
+        animeId,
+        "",
+        anime.originalTitle || anime.title,
+        anime.title,
+        false,
+        true,
+      )
+      // /api/posters может вернуть `/api/fallback-poster`. Не показываем его
+      // вместо уже имеющейся заглушки и, главное, не даём CoverProvider
+      // закешировать фолбэк на 7 дней — иначе при следующем заходе запрос
+      // к AniList/Kitsu/Kodik/MAL даже не состоится.
+      if (!recovered || isPlaceholderPoster(recovered)) {
+        forgetPosterRef.current(animeId)
+        return
+      }
+      setPoster(recovered)
+    } catch (error) {
+      console.warn(`[WatchPage] Не удалось подобрать обложку для ${animeId}:`, error)
+    }
+  }, [anime.id, anime.shikimoriId, anime.originalTitle, anime.title])
+
+  useEffect(() => {
+    if (shouldRecoverPoster(poster)) recoverPoster()
+  }, [poster, recoverPoster])
+
+  /** Если и «настоящая» обложка отдала 404 — пробуем ещё раз без Shikimori. */
+  const handlePosterError = useCallback(() => {
+    setPosterLoading(false)
+    if (isPlaceholderPoster(poster)) return
+    if (posterRetriesRef.current >= MAX_POSTER_RETRIES) return
+    forgetPosterRef.current(String(anime.shikimoriId || anime.id))
+    recoveryAttemptedRef.current = false
+    recoverPoster()
+  }, [poster, anime.id, anime.shikimoriId, recoverPoster])
   const [lastWatchedInfo, setLastWatchedInfo] = useState<{
     season?: number
     episode: number
@@ -209,11 +291,11 @@ export function WatchPageClient({ anime, initialEpisode }: WatchPageClientProps)
     if (episodeKey !== lastRecordedEpisode.current) {
       lastRecordedEpisode.current = episodeKey
       recordWatchStart(
-        { id: anime.id, title: anime.title, poster: anime.poster },
+        { id: anime.id, title: anime.title, poster },
         { episode: selectedEpisode, episodesTotal: availableEpisodes }
       )
     }
-  }, [selectedEpisode, isStarted, pathname, router, searchParams, anime, isUpdatingFromPlayer, availableEpisodes])
+  }, [selectedEpisode, isStarted, pathname, router, searchParams, anime, poster, isUpdatingFromPlayer, availableEpisodes])
 
   const scrollToPlayer = useCallback(() => {
     if (playerRef.current) {
@@ -357,7 +439,7 @@ export function WatchPageClient({ anime, initialEpisode }: WatchPageClientProps)
           <TitleSubscribeButton
             animeId={String(anime.shikimoriId || anime.id)}
             animeTitle={anime.title}
-            poster={anime.poster}
+            poster={poster}
             baselineEpisode={availableEpisodes}
           />
         </div>
@@ -367,11 +449,13 @@ export function WatchPageClient({ anime, initialEpisode }: WatchPageClientProps)
       <div className="relative overflow-hidden rounded-3xl bg-card/30 border border-border p-4 md:p-8">
         <div className="absolute inset-0 z-0" aria-hidden="true">
           <Image
-            src={anime.poster}
+            src={poster}
             alt=""
             fill
             className="object-cover scale-150 blur-2xl sm:blur-3xl opacity-30 sm:opacity-35"
             sizes="400px"
+            // data: — локальная SVG-заглушка, её нельзя отправлять в /optimize.
+            unoptimized={poster.startsWith("data:")}
           />
           <div className="absolute inset-0 bg-gradient-to-b from-card/85 via-card/70 to-card/50 dark:from-zinc-950/90 dark:via-zinc-950/85 dark:to-zinc-950/75" />
           <div className="absolute top-0 left-0 right-0 h-24 sm:h-32 bg-gradient-to-b from-primary/15 to-transparent opacity-60 pointer-events-none" />
@@ -403,14 +487,15 @@ export function WatchPageClient({ anime, initialEpisode }: WatchPageClientProps)
               className="group/poster relative w-24 aspect-[2/3] md:w-44 rounded-lg md:rounded-xl overflow-hidden shadow-2xl bg-muted ring-1 ring-border cursor-pointer hover:ring-primary/60 hover:shadow-primary/20 transition-all duration-300"
             >
               <Image
-                src={anime.poster}
+                src={poster}
                 alt={anime.title}
                 fill
                 className="object-cover group-hover/poster:scale-105 transition-transform duration-500 ease-out"
                 sizes="(max-width: 768px) 100px, 180px"
                 priority
+                unoptimized={poster.startsWith("data:")}
                 onLoad={() => setPosterLoading(false)}
-                onError={() => setPosterLoading(false)}
+                onError={handlePosterError}
               />
 
               {/* Бейдж статуса и оценка поверх обложки. pointer-events-none:
@@ -531,7 +616,7 @@ export function WatchPageClient({ anime, initialEpisode }: WatchPageClientProps)
       <PendingSubscribeOnMount
         animeId={String(anime.shikimoriId || anime.id)}
         animeTitle={anime.title}
-        poster={anime.poster}
+        poster={poster}
         baselineEpisode={availableEpisodes}
       />
 
@@ -565,7 +650,7 @@ export function WatchPageClient({ anime, initialEpisode }: WatchPageClientProps)
             <KodikPlayer
               shikimoriId={anime.shikimoriId}
               title={anime.title}
-              poster={anime.poster}
+              poster={poster}
               episode={selectedEpisode}
               maxEpisode={availableEpisodes}
               animeId={anime.id}
@@ -641,13 +726,13 @@ export function WatchPageClient({ anime, initialEpisode }: WatchPageClientProps)
       </div>
 
       {/* Gallery */}
-      <WatchPageGallery anime={anime} />
+      <WatchPageGallery anime={anime} poster={poster} />
 
       {/* Cover Modal */}
       <CoverModal
         isOpen={isCoverModalOpen}
         onClose={() => setIsCoverModalOpen(false)}
-        imageUrl={anime.poster}
+        imageUrl={poster}
         title={anime.title}
         subtitle={anime.originalTitle || anime.year?.toString()}
       />

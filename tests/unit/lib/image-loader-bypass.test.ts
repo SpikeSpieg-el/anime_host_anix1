@@ -53,6 +53,17 @@ describe("getProxiedSrc при настроенном img-сервисе", () =>
       `${IMG_SERVER}/proxy?url=${encodeURIComponent("https://shikimori.one/a.jpg")}`,
     )
   })
+
+  it("регрессия Steel Ball Run: сгенерированную SVG-обложку не оборачивает в /proxy", async () => {
+    // Ровно тот URL, который KodikPlayer отправлял на img.weeb-x.com и получал
+    // 502 «Host not allowed: » на странице /watch/61469-...
+    const { getProxiedSrc } = await loadLoader(IMG_SERVER)
+    const generated = `data:image/svg+xml;base64,${Buffer.from(
+      "<svg width='400' height='600' xmlns='http://www.w3.org/2000/svg'><rect width='100%' height='100%' fill='#1a0505'/></svg>",
+    ).toString("base64")}`
+    expect(getProxiedSrc(generated)).toBe(generated)
+    expect(getProxiedSrc(generated)).not.toContain("/proxy")
+  })
 })
 
 describe("getProxiedSrc без img-сервиса (регрессия старых тестов)", () => {

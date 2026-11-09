@@ -31,9 +31,12 @@ import {
 
 interface WatchPageGalleryProps {
   anime: Anime
+  /** Уже восстановленная обложка (может отличаться от anime.poster-заглушки). */
+  poster?: string
 }
 
-export function WatchPageGallery({ anime }: WatchPageGalleryProps) {
+export function WatchPageGallery({ anime, poster }: WatchPageGalleryProps) {
+  const cover = poster || anime.poster
   const [galleryCovers, setGalleryCovers] = useState<string[]>([])
   const [screenshotThumbnails, setScreenshotThumbnails] = useState<string[]>([])
   const [allScreenshots, setAllScreenshots] = useState<string[]>([])
@@ -55,7 +58,7 @@ export function WatchPageGallery({ anime }: WatchPageGalleryProps) {
     const loadGalleryData = async () => {
       setGalleryLoading(true)
       try {
-        setGalleryCovers([anime.poster])
+        setGalleryCovers([cover])
 
         const [thumbnailsData, screenshotsData, charactersData] = await Promise.all([
           getAnimeScreenshotsThumbnails(anime.shikimoriId),
@@ -80,7 +83,7 @@ export function WatchPageGallery({ anime }: WatchPageGalleryProps) {
 
     loadGalleryData()
     return () => { active = false }
-  }, [anime.poster, anime.shikimoriId])
+  }, [cover, anime.shikimoriId])
 
   useEffect(() => {
     if (screenshotThumbnails.length > 0) {

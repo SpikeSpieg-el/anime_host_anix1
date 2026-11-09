@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useCallback, useEffect, useState, useRef } from "react"
 import { isImageUrlFresh, isImageUrlSafeToPersist } from "@/lib/signed-image-url"
+import { isPlaceholderPoster } from "@/lib/poster-url"
 
 interface CoverCache {
   [animeId: string]: {
@@ -32,7 +33,9 @@ const CACHE_TTL = 7 * 24 * 60 * 60 * 1000 // 7 дней
 function isReusablePoster(poster: string): boolean {
   return Boolean(
     poster &&
-    !poster.startsWith('data:') &&
+    // Заглушки (`data:`, `/api/fallback-poster`, missing_original.jpg) в кэш
+    // не кладём: иначе временный сбой внешнего API закреплялся бы на 7 дней.
+    !isPlaceholderPoster(poster) &&
     !/^https?:\/\/shikimori\.(one|io|org)\/animes\/\d+\/?(?:\?.*)?$/i.test(poster) &&
     isImageUrlFresh(poster)
   )
@@ -106,6 +109,11 @@ export function CoverProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(false)
   const pendingRequestsRef = useRef<Map<string, Promise<string>>>(new Map())
   const pendingBackdropRequestsRef = useRef<Map<string, Promise<string | null>>>(new Map())
+  // Синхронное дополнение к setCache: forgetPoster зовут из onError и сразу
+  // же повторно вызывают getPoster. setCache обновит state только на следующем
+  // рендере, а getPoster в этот момент ещё держит старый `cache` в замыкании
+  // и вернёт ту самую битую обложку. Ref виден сразу — круг не замыкается.
+  const forgottenPostersRef = useRef<Set<string>>(new Set())
 
   // Загружаем кэш при монтировании
   useEffect(() => {
@@ -132,7 +140,7 @@ export function CoverProvider({ children }: { children: React.ReactNode }) {
     // `excludeShikimori` кэш не обходит намеренно: если постер без Shikimori
     // уже лежит в кэше, он и есть искомый.
     const cached = cache[animeId]
-    if (cached && isReusablePoster(cached.poster)) {
+    if (cached && !forgottenPostersRef.current.has(animeId) && isReusablePoster(cached.poster)) {
       console.log(`[CoverProvider] Poster cache hit for ${animeId}`)
       return cached.poster
     }
@@ -188,6 +196,7 @@ export function CoverProvider({ children }: { children: React.ReactNode }) {
             sources
           }
         }))
+        forgottenPostersRef.current.delete(animeId)
 
         return poster
       } catch (error) {
@@ -403,6 +412,7 @@ export function CoverProvider({ children }: { children: React.ReactNode }) {
    * возвращалась при каждом следующем заходе, снова ломая обложку.
    */
   const forgetPoster = useCallback((animeId: string) => {
+    forgottenPostersRef.current.add(animeId)
     setCache(prev => {
       if (!prev[animeId]) return prev
       const next = { ...prev }
@@ -430,6 +440,7 @@ export function CoverProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const clearCache = useCallback(() => {
+    forgottenPostersRef.current.clear()
     setCache({})
     if (typeof window !== "undefined") {
       window.localStorage.removeItem(CACHE_KEY)
