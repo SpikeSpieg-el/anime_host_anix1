@@ -2,7 +2,49 @@ const MAX_CONCURRENT = 6
 const MAX_RETRIES = 2
 const RETRY_DELAY_MS = 1000
 
-const IMAGE_SERVER_URL = process.env.NEXT_PUBLIC_IMAGE_SERVER_URL || ''
+const IMAGE_SERVER_URL = (process.env.NEXT_PUBLIC_IMAGE_SERVER_URL || '').replace(/\/+$/, '')
+
+/**
+ * Адреса, которые нельзя отправлять в img-сервис.
+ *
+ * Контейнер оптимизатора умеет только «скачать картинку по абсолютному
+ * http(s)-URL из белого списка хостов». Всё остальное он честно отклоняет
+ * 502-м, и обложка пропадает — хотя /health при этом зелёный:
+ *  - /posters/a.jpg — локальный файл (new URL('/…') падает);
+ *  - data:image/...  — сгенерированные заглушки (hostname пустой);
+ *  - blob:...        — предпросмотр перед загрузкой;
+ *  - *.supabase.co/storage/ — свои загрузки, их надо грузить напрямую;
+ *  - уже обёрнутый /proxy|/optimize — повторная обёртка ломает URL.
+ */
+export function shouldBypassImageService(url: string): boolean {
+  if (!url) return true
+  if (url.startsWith('/') && !url.startsWith('//')) return true
+  if (/^(data|blob):/i.test(url)) return true
+  if (/\.supabase\.co\/storage\//i.test(url)) return true
+  if (IMAGE_SERVER_URL && isImageServiceUrl(url)) return true
+  return !/^https?:\/\//i.test(url)
+}
+
+/** Уже обёрнутый адрес img-сервиса (сравниваем хост, а не префикс строки:
+ *  в продакшене встречаются и https://img.weeb-x.com, и :8443). */
+function isImageServiceUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url)
+    const server = new URL(IMAGE_SERVER_URL)
+    return parsed.hostname === server.hostname &&
+      (parsed.pathname === '/proxy' || parsed.pathname === '/optimize')
+  } catch {
+    return url.startsWith(IMAGE_SERVER_URL)
+  }
+}
+
+/**
+ * Protocol-relative ссылки (//shikimori.one/...) приводим к https: иначе
+ * браузер загрузит их напрямую, минуя прокси и его Referer.
+ */
+export function normalizeImageUrl(url: string): string {
+  return url.startsWith('//') ? `https:${url}` : url
+}
 
 /**
  * Склеивает строку из фрагментов в рантайме. Используется для доменов,
@@ -80,13 +122,15 @@ export function isExternalImageUrl(url: string): boolean {
 
 export function getProxiedSrc(url: string): string {
   if (!url) return ""
-  // Supabase Storage URLs are our own infrastructure — load directly, no proxy needed
-  if (url.includes('supabase.co/storage/')) return url
+  const normalized = normalizeImageUrl(url)
+  // Supabase Storage, data:/blob:, локальные файлы и уже обёрнутые адреса
+  // грузим напрямую: img-сервис их не умеет и вернёт 502.
+  if (shouldBypassImageService(normalized)) return normalized
   if (IMAGE_SERVER_URL) {
-    return `${IMAGE_SERVER_URL}/proxy?url=${encodeURIComponent(url)}`
+    return `${IMAGE_SERVER_URL}/proxy?url=${encodeURIComponent(normalized)}`
   }
-  if (isExternalImageUrl(url)) return `/api/image-proxy?url=${encodeURIComponent(url)}`
-  return url
+  if (isExternalImageUrl(normalized)) return `/api/image-proxy?url=${encodeURIComponent(normalized)}`
+  return normalized
 }
 
 export function loadImage(url: string): Promise<HTMLImageElement> {

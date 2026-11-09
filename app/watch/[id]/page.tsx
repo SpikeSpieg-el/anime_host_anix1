@@ -12,6 +12,7 @@ import { getSchemaPosterUrl } from "@/lib/shikimori/images"
 import { cleanAnimeTitle, getWatchPath, getWatchSegment, parseWatchParam, safeDecodeSegment } from "@/lib/seo/watch-url"
 import { safeSerializeJson } from "@/lib/seo/safe-json"
 import { isNoIndexAnime } from "@/lib/hentai-detector"
+import { isPlaceholderPoster } from "@/lib/poster-url"
 
 /**
  * Поля russian/english/japanese/kind теперь реально приходят из transformAnime
@@ -32,7 +33,10 @@ type ExtendedAnime = Anime
  *
  * Правильный фолбэк здесь — сгенерированная заглушка (она же стоит на всех
  * карточках), а не чужая обложка за три сетевых круга: замена картинки
- * приедет клиентским запросом уже после отрисовки страницы.
+ * приезжает клиентским запросом уже после отрисовки страницы — см.
+ * recoverPoster в components/watch/watch-page-client.tsx. Без него тайтлы с
+ * `missing_original.jpg` у Shikimori (например, Steel Ball Run / 61469)
+ * навсегда оставались с заглушкой, хотя на главной у них есть обложка AniList.
  */
 async function getWatchAnime(cleanId: string): Promise<Anime | null> {
   return getAnimeById(cleanId, true, { allowExternalPosters: false })
@@ -220,6 +224,13 @@ export async function generateMetadata({
   // NSFW отдаём с noindex: страница доступна пользователям, но не поисковикам.
   const shouldNoIndex = isNoIndexAnime(anime)
 
+  // Сгенерированную data:-заглушку (Steel Ball Run / 61469 и все тайтлы с
+  // missing_original.jpg) нельзя отдавать в og:image / twitter:image: соцсети
+  // и поисковики требуют абсолютный http(s)-адрес. Клиентская обложка всё
+  // равно будет восстановлена, а в разметке лучше честно отсутствовать, чем
+  // светить base64-строкой.
+  const metadataPoster = isPlaceholderPoster(anime.poster) ? undefined : anime.poster
+
   return {
     title,
     description,
@@ -232,14 +243,18 @@ export async function generateMetadata({
       description,
       type: "video.tv_show",
       url: canonicalUrl,
-      images: [
-        {
-          url: anime.poster,
-          width: 1200,
-          height: 630,
-          alt: `Смотреть ${mainTitle} онлайн`,
-        },
-      ],
+      ...(metadataPoster
+        ? {
+            images: [
+              {
+                url: metadataPoster,
+                width: 1200,
+                height: 630,
+                alt: `Смотреть ${mainTitle} онлайн`,
+              },
+            ],
+          }
+        : {}),
       siteName: "Weebx",
       locale: "ru_RU",
     },
@@ -247,7 +262,7 @@ export async function generateMetadata({
       card: "summary_large_image",
       title,
       description,
-      images: [anime.poster],
+      ...(metadataPoster ? { images: [metadataPoster] } : {}),
     },
     robots: shouldNoIndex
       ? { index: false, follow: true }
@@ -325,6 +340,9 @@ export default async function WatchPage({
     .filter((name, index, arr) => name && arr.indexOf(name) === index)
 
   const schemaType = anime.kind === "movie" ? "Movie" : "TVSeries"
+  const schemaPoster = isPlaceholderPoster(anime.poster)
+    ? ""
+    : getSchemaPosterUrl(anime.poster, baseUrl)
 
   const jsonLd: Record<string, any> = {
     "@context": "https://schema.org",
@@ -333,7 +351,7 @@ export default async function WatchPage({
     "alternateName": alternateNames,
     // baseUrl обязателен: без него разметка получила бы относительный путь к
     // прокси, и Google не засчитал бы изображение. См. getSchemaPosterUrl.
-    "image": getSchemaPosterUrl(anime.poster, baseUrl),
+    ...(schemaPoster ? { "image": schemaPoster } : {}),
     "description": anime.description?.replace(/\[.*?\]/g, "").slice(0, 200) || `Смотреть аниме ${animeTitle} онлайн`,
     "genre": anime.genres,
     "inLanguage": "ru",
@@ -374,7 +392,7 @@ export default async function WatchPage({
     "@type": "VideoObject",
     "name": episode ? `${animeTitle} - Серия ${episode}` : animeTitle,
     "description": anime.description?.replace(/\[.*?\]/g, "").slice(0, 200) || `Смотреть аниме ${animeTitle} онлайн`,
-    "thumbnailUrl": getSchemaPosterUrl(anime.poster, baseUrl),
+    ...(schemaPoster ? { "thumbnailUrl": schemaPoster } : {}),
     "uploadDate": anime.airedOn ? new Date(anime.airedOn).toISOString() : new Date().toISOString(),
     "inLanguage": "ru",
     "genre": anime.genres,
@@ -432,7 +450,7 @@ export default async function WatchPage({
       {!isCanonical && (
         <CanonicalSlugGuard target={getWatchPath(cleanId, rawTitle, episode)} />
       )}
-      <CanonicalPosterHint poster={anime.poster} />
+      <CanonicalPosterHint poster={schemaPoster ? anime.poster : undefined} />
       <Suspense
         fallback={
           <div className="min-h-screen bg-background text-foreground">

@@ -17,6 +17,8 @@ EXPOSE 3100
 ENV PORT=3100
 ENV CORS_ORIGIN=https://weeb-x.com
 ENV MAX_CONCURRENT_FETCHES=20
+ENV EXTRA_ALLOWED_HOSTS=
+ENV SUPABASE_STORAGE_HOST=
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD curl -f http://localhost:3100/health || exit 1
