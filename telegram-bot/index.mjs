@@ -63,12 +63,20 @@ async function fetchEpisodes(id) {
   return (await response.json()).episodes_aired
 }
 
+let startupStage = 'database connection'
+
 async function main() {
   await db.connect()
+  startupStage = 'single-instance lock'
   // Session lock requires direct Postgres or session-mode pooler, not transaction pooling.
   const { rows } = await db.query('SELECT pg_try_advisory_lock(85421001) AS locked')
   if (!rows[0].locked) throw new Error('Another bot instance is already running')
+  startupStage = 'database schema / migrations'
   await db.query('SELECT subscription_id FROM telegram_episode_cursors LIMIT 0')
+  await db.query('SELECT telegram_id FROM telegram_links LIMIT 0')
+  await db.query('SELECT code FROM telegram_link_codes LIMIT 0')
+  await db.query('SELECT anime_id FROM title_subscriptions LIMIT 0')
+  startupStage = 'Telegram setMyCommands'
   await telegram('setMyCommands', { commands: [
     { command: 'start', description: 'Помощь' },
     { command: 'link', description: 'Привязать аккаунт' },
@@ -95,5 +103,15 @@ async function main() {
     }
   }
 }
-main().catch(() => { console.error('[telegram] Startup failed: check configuration, migrations and single-instance lock'); process.exitCode = 1 })
+main().catch(error => {
+  // Only allowlisted codes, never raw messages/URLs/connection strings.
+  const codes = new Set(['ENOTFOUND', 'EAI_AGAIN', 'ECONNREFUSED', 'ETIMEDOUT',
+    'ENETUNREACH', 'ECONNRESET', '28P01', '28000', '3D000', '42P01', '42501',
+    'SELF_SIGNED_CERT_IN_CHAIN', 'DEPTH_ZERO_SELF_SIGNED_CERT',
+    'UNABLE_TO_VERIFY_LEAF_SIGNATURE', 'CERT_HAS_EXPIRED', 'UND_ERR_CONNECT_TIMEOUT'])
+  const code = [error?.code, error?.cause?.code].find(value => codes.has(value))
+  const status = /^Telegram API status (\d{3})$/.exec(error?.message || '')?.[1]
+  console.error(`[telegram] Startup failed at: ${startupStage}${code ? `; code=${code}` : ''}${status ? `; Telegram status=${status}` : ''}`)
+  process.exitCode = 1
+})
   .finally(() => db.end())
