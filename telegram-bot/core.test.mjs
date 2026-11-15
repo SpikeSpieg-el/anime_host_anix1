@@ -21,7 +21,7 @@ test('baseline, Telegram cursor and explicit episode preference are respected', 
   assert.equal(shouldNotify({ ...s, notify_new_episodes: false }, 7, null), false)
 })
 
-function fixture({ sendFails = false, active = true, cursor = null } = {}) {
+function fixture({ sendFails = false, active = true, cursor = 0 } = {}) {
   const writes = [], messages = [], fetches = []
   const row = { id: 's1', link_id: 'l1', anime_id: '123', chat_id: '42', anime_title: 'Test',
     baseline_episode: 3, notify_new_episodes: true, telegram_episode: cursor }
@@ -47,4 +47,14 @@ test('muted/unlinked during scan or already delivered: no delivery', async () =>
     const f = fixture(options); await scanEpisodes(f.args)
     assert.equal(f.messages.length, 0); assert.equal(f.writes.length, 0)
   }
+})
+test('first sight seeds the cursor instead of a backlog of old episodes', async () => {
+  // A subscription linked today: no Telegram cursor yet, baseline is old.
+  // The scan must seed the cursor with what already aired and stay silent.
+  const f = fixture({ cursor: null }); await scanEpisodes(f.args)
+  assert.equal(f.messages.length, 0)
+  assert.deepEqual(f.writes, [['s1', 'l1', 4], ['s2', 'l1', 4]])
+  // Next scan (cursor seeded): still silent, nothing new aired.
+  const g = fixture({ cursor: 4 }); await scanEpisodes(g.args)
+  assert.equal(g.messages.length, 0); assert.equal(g.writes.length, 0)
 })
