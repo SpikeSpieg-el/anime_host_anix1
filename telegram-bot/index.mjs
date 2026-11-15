@@ -107,18 +107,20 @@ async function main() {
   }
 }
 main().catch(error => {
-  const codes = new Set([
-    'ENOTFOUND', 'EAI_AGAIN', 'ECONNREFUSED', 'ETIMEDOUT', 'EHOSTUNREACH',
-    'ENETUNREACH', 'ECONNRESET', 'EPIPE', '28P01', '28000', '3D000',
-    '42P01', '42501', '53300', '57P03', 'XX000',
-    'SELF_SIGNED_CERT_IN_CHAIN', 'DEPTH_ZERO_SELF_SIGNED_CERT',
-    'UNABLE_TO_VERIFY_LEAF_SIGNATURE', 'CERT_HAS_EXPIRED',
-    'ERR_TLS_CERT_ALTNAME_INVALID', 'UND_ERR_CONNECT_TIMEOUT',
-  ])
+  const dbPass = (() => {
+    try { return decodeURIComponent(new URL(connectionString).password) } catch { return '' }
+  })()
+  const redact = s => {
+    let out = String(s || '').replace(/:\/\/[^/\s]+@/g, '://***@')
+    for (const secret of [token, connectionString, dbPass]) {
+      if (secret) out = out.replaceAll(secret, '[REDACTED]')
+    }
+    return out
+  }
   const list = [error, error?.cause, ...(Array.isArray(error?.errors) ? error.errors : [])]
-  const code = [...new Set(list.map(e => e?.code).filter(c => codes.has(c)))].join(',')
-  const status = /^Telegram API status (\d{3})$/.exec(error?.message || '')?.[1]
-  console.error(`[telegram] Startup failed at: ${startupStage}; type=${error?.name || 'Error'}${code ? `; code=${code}` : ''}${status ? `; Telegram status=${status}` : ''}`)
+  const code = [...new Set(list.map(e => e?.code).filter(Boolean))].join(',')
+  const msg = redact([...new Set(list.map(e => e?.message).filter(Boolean))].join(' | '))
+  console.error(`[telegram] Startup failed at: ${startupStage}; type=${error?.name || 'Error'}${code ? `; code=${code}` : ''}${msg ? `; msg=${msg}` : ''}`)
   process.exitCode = 1
 })
   .finally(() => db.end().catch(() => {}))
