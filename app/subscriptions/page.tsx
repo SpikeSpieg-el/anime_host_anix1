@@ -17,7 +17,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
-import { AlertTriangle, ArrowLeft, ArrowUpDown, Bell, BellOff, BellRing, LoaderCircle, RotateCcw, Save, Search, Trash2, X } from "lucide-react"
+import { AlertTriangle, ArrowLeft, ArrowUpDown, Bell, BellOff, BellRing, LoaderCircle, RotateCcw, Save, Search, Send, Trash2, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { SubscriptionsSkeleton } from "@/components/shared/skeleton"
@@ -81,6 +81,16 @@ export default function SubscriptionsPage() {
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [showAuthModal, setShowAuthModal] = useState(false)
+  /**
+   * Статус привязки Telegram — для подсказки про бота.
+   *
+   * `null` значит «не знаем» (запрос не удался): тогда подсказку не показываем
+   * вовсе, чтобы не врать человеку, у которого бот давно привязан.
+   */
+  const [telegramLink, setTelegramLink] = useState<{
+    linked: boolean
+    notificationsEnabled: boolean
+  } | null>(null)
   /** Тайтлы, для которых обложку уже пытались догрузить — чтобы не гонять повторно. */
   const attemptedRef = useRef<Set<string>>(new Set())
   /** Актуальная ссылка на `preloadBatch`; см. объяснение в его эффекте. */
@@ -131,6 +141,27 @@ export default function SubscriptionsPage() {
         ),
       )
       setError(null)
+
+      // Статус привязки Telegram нужен только для подсказки. Отдельный запрос
+      // рядом со списком, а не внутри него: подсказка — косметика, и падение
+      // этого запроса не должно выглядеть как «список не загрузился».
+      try {
+        const linkRes = await fetch("/api/telegram/link", {
+          headers: { Authorization: `Bearer ${token}` },
+          cache: "no-store",
+        })
+        const linkData = await linkRes.json().catch(() => null)
+        setTelegramLink(
+          linkRes.ok && linkData?.success
+            ? {
+                linked: Boolean(linkData.linked),
+                notificationsEnabled: linkData.notificationsEnabled !== false,
+              }
+            : null,
+        )
+      } catch {
+        setTelegramLink(null)
+      }
     } catch (e) {
       console.warn("[subscriptions] load failed:", e)
       setError("Не удалось загрузить список")
@@ -570,6 +601,27 @@ export default function SubscriptionsPage() {
           </div>
         ) : (
           <>
+            {/* Подсказка про Telegram-бота.
+                Сайт присылает пуши и колокольчик, но подписчики обычно не знают,
+                что те же уведомления может доставлять бот сообщением. Показываем
+                статус честно: привязан/не привязан, включён ли канал. */}
+            {telegramLink && (
+              <div className="mb-6 flex flex-col gap-3 rounded-2xl border border-orange-500/20 bg-orange-500/[0.04] p-3.5 dark:bg-orange-500/[0.06] sm:flex-row sm:items-center sm:justify-between sm:p-4">
+                <p className="flex items-start gap-2.5 text-xs leading-relaxed text-muted-foreground sm:text-sm dark:text-zinc-400">
+                  <Send className="mt-0.5 h-4 w-4 shrink-0 text-orange-500" />
+                  {telegramLink.linked
+                    ? telegramLink.notificationsEnabled
+                      ? "Уведомления о новых сериях могут приходить и в Telegram: бот присылает сообщение по каждому тайтлу из этого списка."
+                      : "Telegram-бот привязан, но уведомления в нём сейчас выключены — на сайте они продолжат приходить."
+                    : "Уведомления о новых сериях можно получать в Telegram: привяжите бота — он сам напишет, когда по тайтлу из списка выйдет серия."}
+                </p>
+                <Button asChild size="sm" variant="outline" className="h-9 shrink-0 rounded-xl border-border bg-secondary/50 text-xs text-muted-foreground transition-all hover:border-primary hover:text-foreground dark:border-zinc-800 dark:bg-zinc-900/60 dark:text-zinc-300 dark:hover:text-white sm:text-sm">
+                  <Link href="/link">
+                    {telegramLink.linked ? "Настройки Telegram" : "Подключить бота"}
+                  </Link>
+                </Button>
+              </div>
+            )}
             {items.length > 0 && (
               <div className="mb-6 flex flex-col gap-3 rounded-2xl border border-border bg-secondary/30 p-2 backdrop-blur-sm dark:border-zinc-800/80 dark:bg-zinc-900/50 sm:p-2.5 lg:flex-row lg:items-center lg:justify-between">
                 <div className="flex items-center gap-1.5 overflow-x-auto rounded-xl border border-border/60 bg-background/60 p-1 dark:border-zinc-800/80 dark:bg-zinc-950/60">

@@ -32,7 +32,21 @@ export async function scanEpisodes({ db, telegram, fetchEpisodes, siteUrl }) {
     try {
       if (!/^\d+$/.test(animeId)) continue
       const aired = await fetchEpisodes(animeId)
+      if (!Number.isInteger(aired)) continue
       for (const subscription of subscriptions) {
+        // First sight of this subscription after linking: the cursor is empty,
+        // and baseline_episode may be months old (it was recorded when the person
+        // subscribed on the website). Notifying now would fire a backlog of
+        // "episode N is out" for everything that aired since — exactly what the
+        // website never does. So the first scan only seeds the cursor with what
+        // has already aired; notifications start from the NEXT episode.
+        if (subscription.telegram_episode == null) {
+          await db.query(`INSERT INTO telegram_episode_cursors (subscription_id, link_id, episode)
+            VALUES ($1, $2, $3) ON CONFLICT (subscription_id, link_id)
+            DO UPDATE SET episode = GREATEST(telegram_episode_cursors.episode, EXCLUDED.episode)`,
+          [subscription.id, subscription.link_id, aired])
+          continue
+        }
         if (!shouldNotify(subscription, aired, subscription.telegram_episode)) continue
         // Re-read website settings immediately before delivery, not just at scan start.
         const { rows: active } = await db.query(`SELECT s.id FROM title_subscriptions s
