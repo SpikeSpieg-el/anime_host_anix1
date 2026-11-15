@@ -354,8 +354,7 @@ const handleNotificationsToggle = async (enabled: boolean) => {
               {message}
             </div>
             <p className="text-xs text-muted-foreground">
-              Теперь бот будет уведомлять о сериях из вашего списка отслеживания. Настроить список можно командой{" "}
-              <code className="bg-muted px-1.5 py-0.5 rounded text-foreground font-mono">/alerts</code> в боте.
+              Бот проверяет выход новых серий по вашим подпискам. Подписки редактируются на страницах тайтлов, а Telegram-уведомления — переключателем на этой странице. Проверить подключение в боте: /sync.
             </p>
             <button
               onClick={() => router.push("/")}
