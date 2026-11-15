@@ -18,7 +18,9 @@
     "test:all": "vitest run && playwright test",
     "analytics:check": "node scripts/check-analytics.mjs",
     "captcha:secret": "node scripts/generate-captcha-secret.mjs",
-    "sitemap:check": "node scripts/check-sitemap.mjs"
+    "sitemap:check": "node scripts/check-sitemap.mjs",
+    "bot:start": "node telegram-bot/index.mjs",
+    "bot:test": "node --test telegram-bot/core.test.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
