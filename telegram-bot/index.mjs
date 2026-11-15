@@ -8,7 +8,10 @@ const siteUrl = new URL(process.env.SITE_URL || 'https://weeb-x.com').origin
 const interval = Number(process.env.TELEGRAM_SCAN_INTERVAL_MS || 1800000)
 if (!token || !connectionString) throw new Error('TELEGRAM_BOT_TOKEN and DATABASE_URL are required')
 if (!Number.isFinite(interval) || interval < 60000) throw new Error('Scan interval must be >= 60000ms')
-const db = new pg.Client({ connectionString })
+const db = new pg.Client({
+  connectionString,
+  ssl: { rejectUnauthorized: false },
+})
 let stopping = false
 const abort = new AbortController()
 for (const signal of ['SIGTERM', 'SIGINT']) process.on(signal, () => { stopping = true; abort.abort() })
@@ -104,14 +107,18 @@ async function main() {
   }
 }
 main().catch(error => {
-  // Only allowlisted codes, never raw messages/URLs/connection strings.
-  const codes = new Set(['ENOTFOUND', 'EAI_AGAIN', 'ECONNREFUSED', 'ETIMEDOUT',
-    'ENETUNREACH', 'ECONNRESET', '28P01', '28000', '3D000', '42P01', '42501',
+  const codes = new Set([
+    'ENOTFOUND', 'EAI_AGAIN', 'ECONNREFUSED', 'ETIMEDOUT', 'EHOSTUNREACH',
+    'ENETUNREACH', 'ECONNRESET', 'EPIPE', '28P01', '28000', '3D000',
+    '42P01', '42501', '53300', '57P03', 'XX000',
     'SELF_SIGNED_CERT_IN_CHAIN', 'DEPTH_ZERO_SELF_SIGNED_CERT',
-    'UNABLE_TO_VERIFY_LEAF_SIGNATURE', 'CERT_HAS_EXPIRED', 'UND_ERR_CONNECT_TIMEOUT'])
-  const code = [error?.code, error?.cause?.code].find(value => codes.has(value))
+    'UNABLE_TO_VERIFY_LEAF_SIGNATURE', 'CERT_HAS_EXPIRED',
+    'ERR_TLS_CERT_ALTNAME_INVALID', 'UND_ERR_CONNECT_TIMEOUT',
+  ])
+  const list = [error, error?.cause, ...(Array.isArray(error?.errors) ? error.errors : [])]
+  const code = [...new Set(list.map(e => e?.code).filter(c => codes.has(c)))].join(',')
   const status = /^Telegram API status (\d{3})$/.exec(error?.message || '')?.[1]
-  console.error(`[telegram] Startup failed at: ${startupStage}${code ? `; code=${code}` : ''}${status ? `; Telegram status=${status}` : ''}`)
+  console.error(`[telegram] Startup failed at: ${startupStage}; type=${error?.name || 'Error'}${code ? `; code=${code}` : ''}${status ? `; Telegram status=${status}` : ''}`)
   process.exitCode = 1
 })
-  .finally(() => db.end())
+  .finally(() => db.end().catch(() => {}))
