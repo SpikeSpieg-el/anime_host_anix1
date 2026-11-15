@@ -1,4 +1,5 @@
 import pg from 'pg'
+import { randomUUID } from 'node:crypto'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { commandOf, createCode, scanEpisodes } from './core.mjs'
 
@@ -67,13 +68,33 @@ async function fetchEpisodes(id) {
 }
 
 let startupStage = 'database connection'
+const instanceId = randomUUID()
+const LEASE_SECONDS = 120
 
 async function main() {
   await db.connect()
   startupStage = 'single-instance lock'
-  // Session lock requires direct Postgres or session-mode pooler, not transaction pooling.
-  const { rows } = await db.query('SELECT pg_try_advisory_lock(85421001) AS locked')
-  if (!rows[0].locked) throw new Error('Another bot instance is already running')
+  // Transaction pooler (port 6543) drops session state between queries, so
+  // session-level advisory locks are unreliable. Use a lease row instead:
+  // an owner id + expiry, renewed by a background heartbeat every 30 seconds.
+  await db.query(`CREATE TABLE IF NOT EXISTS telegram_bot_lock (
+    id int PRIMARY KEY CHECK (id = 1), owner text NOT NULL, expires_at timestamptz NOT NULL)`)
+  const { rows } = await db.query(`INSERT INTO telegram_bot_lock (id, owner, expires_at)
+    VALUES (1, $1, now() + make_interval(secs => $2))
+    ON CONFLICT (id) DO UPDATE
+    SET owner = $1, expires_at = now() + make_interval(secs => $2)
+    WHERE telegram_bot_lock.expires_at < now()
+    RETURNING owner`, [instanceId, LEASE_SECONDS])
+  if (rows[0]?.owner !== instanceId) throw new Error('Another bot instance is already running')
+  const heartbeat = setInterval(() => {
+    db.query(`UPDATE telegram_bot_lock SET expires_at = now() + make_interval(secs => $2)
+      WHERE id = 1 AND owner = $1 RETURNING id`, [instanceId, LEASE_SECONDS])
+      .then(({ rows }) => {
+        if (!rows.length) { console.error('[telegram] Lost instance lock; exiting'); process.exit(1) }
+      })
+      .catch(error => console.error(`[telegram] Lease heartbeat failed: ${error.code || error.message}`))
+  }, 30000)
+  heartbeat.unref()
   startupStage = 'database schema / migrations'
   await db.query('SELECT subscription_id FROM telegram_episode_cursors LIMIT 0')
   await db.query('SELECT telegram_id FROM telegram_links LIMIT 0')
@@ -123,4 +144,8 @@ main().catch(error => {
   console.error(`[telegram] Startup failed at: ${startupStage}; type=${error?.name || 'Error'}${code ? `; code=${code}` : ''}${msg ? `; msg=${msg}` : ''}`)
   process.exitCode = 1
 })
-  .finally(() => db.end().catch(() => {}))
+  .finally(async () => {
+    // Release the lease so a restart does not wait out the remaining TTL.
+    try { await db.query('DELETE FROM telegram_bot_lock WHERE id = 1 AND owner = $1', [instanceId]) } catch {}
+    await db.end().catch(() => {})
+  })
