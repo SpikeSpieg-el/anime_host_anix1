@@ -1,7 +1,7 @@
 import pg from 'pg'
 import { randomUUID } from 'node:crypto'
 import { setTimeout as sleep } from 'node:timers/promises'
-import { commandOf, createCode, scanEpisodes } from './core.mjs'
+import { commandOf, createCode, errorLabel, scanEpisodes } from './core.mjs'
 
 const token = process.env.TELEGRAM_BOT_TOKEN
 const connectionString = process.env.DATABASE_URL
@@ -16,7 +16,11 @@ const db = new pg.Client({
 let stopping = false
 const abort = new AbortController()
 for (const signal of ['SIGTERM', 'SIGINT']) process.on(signal, () => { stopping = true; abort.abort() })
-db.on('error', () => { console.error('[telegram] Database connection lost'); process.exit(1) })
+db.on('error', error => { console.error(`[telegram] Database connection lost (${errorLabel(error)})`); process.exit(1) })
+
+function httpError(service, status) {
+  return Object.assign(new Error(`${service} HTTP ${status}`), { status })
+}
 
 async function telegram(method, body) {
   // Sequential requests, including deliveries, avoid global Telegram flood limits.
@@ -25,8 +29,12 @@ async function telegram(method, body) {
     method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
     signal: AbortSignal.any([abort.signal, AbortSignal.timeout(40000)]),
   })
+  if (!response.ok) throw httpError('Telegram API', response.status)
   const data = await response.json()
-  if (!data.ok) throw new Error(`Telegram API status ${data.error_code}`)
+  if (!data?.ok) {
+    if (Number.isInteger(data?.error_code)) throw httpError('Telegram API', data.error_code)
+    throw new Error('Invalid Telegram API response')
+  }
   return data.result
 }
 
@@ -63,8 +71,8 @@ async function fetchEpisodes(id) {
     headers: { 'User-Agent': 'Weebx-Telegram/0.1' },
     signal: AbortSignal.any([abort.signal, AbortSignal.timeout(15000)]),
   })
-  if (!response.ok) throw new Error('Episode source unavailable')
-  return (await response.json()).episodes_aired
+  if (!response.ok) throw httpError('Shikimori', response.status)
+  return (await response.json())?.episodes_aired
 }
 
 let startupStage = 'database connection'
@@ -85,14 +93,14 @@ async function main() {
     SET owner = $1, expires_at = now() + make_interval(secs => $2)
     WHERE telegram_bot_lock.expires_at < now()
     RETURNING owner`, [instanceId, LEASE_SECONDS])
-  if (rows[0]?.owner !== instanceId) throw new Error('Another bot instance is already running')
+  if (rows[0]?.owner !== instanceId) throw new Error('Instance lease is still held (another bot or a recent restart)')
   const heartbeat = setInterval(() => {
     db.query(`UPDATE telegram_bot_lock SET expires_at = now() + make_interval(secs => $2)
       WHERE id = 1 AND owner = $1 RETURNING id`, [instanceId, LEASE_SECONDS])
       .then(({ rows }) => {
         if (!rows.length) { console.error('[telegram] Lost instance lock; exiting'); process.exit(1) }
       })
-      .catch(error => console.error(`[telegram] Lease heartbeat failed: ${error.code || error.message}`))
+      .catch(error => console.error(`[telegram] Lease heartbeat failed (${errorLabel(error)})`))
   }, 30000)
   heartbeat.unref()
   startupStage = 'database schema / migrations'
@@ -108,22 +116,38 @@ async function main() {
   ] })
   let offset = 0
   let nextScan = 0
-  console.log('[telegram] Bot 0.1 started')
+  console.log(`[telegram] Bot 0.1 started; episode scan interval=${interval}ms`)
   while (!stopping) {
-    try {
-      if (Date.now() >= nextScan) {
-        await scanEpisodes({ db, telegram, fetchEpisodes, siteUrl })
-        await db.query('SELECT cleanup_telegram_link_codes()')
+    if (Date.now() >= nextScan) {
+      try {
+        const stats = await scanEpisodes({ db, telegram, fetchEpisodes, siteUrl })
+        console.log(`[telegram] Episode scan complete: ${JSON.stringify(stats)}`)
         nextScan = Date.now() + interval
+      } catch (error) {
+        if (stopping) break
+        console.error(`[telegram] Episode scan failed to load subscriptions (${errorLabel(error)}); retry in 60s`)
+        nextScan = Date.now() + 60000
       }
+      if (stopping) break
+      try {
+        await db.query('SELECT cleanup_telegram_link_codes()')
+      } catch (error) {
+        if (!stopping) console.error(`[telegram] Link code cleanup failed (${errorLabel(error)})`)
+      }
+    }
+    if (stopping) break
+    try {
       const updates = await telegram('getUpdates', { offset, timeout: 25, allowed_updates: ['message'] })
       for (const update of updates) {
         try { await handle(update.message) }
         catch { console.error('[telegram] Command failed; user can retry') }
         offset = update.update_id + 1
       }
-    } catch {
-      if (!stopping) { console.error('[telegram] Poll/scan failed; retrying'); await sleep(5000) }
+    } catch (error) {
+      if (!stopping) {
+        console.error(`[telegram] Telegram getUpdates failed (${errorLabel(error)}); retrying`)
+        await sleep(5000)
+      }
     }
   }
 }
