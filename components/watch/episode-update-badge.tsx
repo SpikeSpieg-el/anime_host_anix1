@@ -284,7 +284,7 @@ export function EpisodeUpdateBadge({ updates, onClearUpdate, onClearAll, classNa
           {updates.map((update, idx) => (
             <Link
               key={update.animeId}
-              href={getWatchPath(update.animeId, update.animeTitle)}
+              href={getWatchPath(update.animeId, update.animeTitle, update.newEpisode)}
               onClick={() => {
                 onClearUpdate?.(update.animeId)
                 setIsOpen(false)

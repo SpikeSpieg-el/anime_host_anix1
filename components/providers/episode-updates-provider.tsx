@@ -616,7 +616,7 @@ export function EpisodeUpdatesProvider({ children }: { children: React.ReactNode
                   userId: user.id,
                   title: `Weebx — Новая серия: ${update.animeTitle}`,
                   message: `Вышла серия ${update.newEpisode}${update.totalEpisodes ? ` из ${update.totalEpisodes}` : ""}`,
-                  url: getWatchPath(update.animeId, update.animeTitle),
+                  url: getWatchPath(update.animeId, update.animeTitle, update.newEpisode),
                 }),
               }).catch((e) => console.warn("Push send failed:", e))
             }

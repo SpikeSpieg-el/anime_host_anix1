@@ -244,16 +244,35 @@ export async function getAnnouncements(limit = 3) {
 export async function getAnimeById(
   id: string,
   enableGenreFallback: boolean = false,
-  options: { allowExternalPosters?: boolean } = {},
+  options: { allowExternalPosters?: boolean; fresh?: boolean } = {},
 ) {
   // Это самый дорогой вызов на сайте: /watch дёргает его дважды (metadata и
-  // сама страница), плюс middleware проверяет существование тайтла. Данные
-  // тайтла меняются раз в сутки, поэтому держим их в памяти час и отдаём даже
-  // протухшие в течение суток — свежесть догоняется фоном (см. client.ts).
+  // сама страница), плюс middleware проверяет существование тайтла.
+  //
+  // Название/обложка меняются редко, а вот `episodes_aired` — нет: именно по
+  // нему бот и колокольчик обещают «вышла серия N». Раньше здесь стоял час
+  // свежести (+ час Data Cache Next, и фоновый SWR мог продлить stale ещё
+  // на час), поэтому бот уже писал про серию 10, а /watch ещё показывал
+  // «Всего: 9» и обрезал ?episode=10 до 9. Держим свежесть 10 минут — как у
+  // проверки колокольчика (getFreshAnimeData, revalidate 600) — а протухшие
+  // данные по-прежнему отдаём в stale-окне, пока фон догоняет Shikimori.
+  //
+  // `fresh: true` — обход обычных кэшей (см. bypassCache в client.ts). Нужен
+  // только когда человек пришёл с номером серии, которого в кэше ещё нет:
+  // тогда один лишний запрос к Shikimori дешевле, чем страница, где серии из
+  // уведомления просто нет.
+  const fresh = options.fresh === true;
   const data = await shikimoriJson<ShikimoriAnime | null>(
     `${BASE_URL}/animes/${id}`,
-    { next: { revalidate: 3600 }, headers: HEADERS },
-    { fallback: null, ttlMs: 60 * 60_000, staleTtlMs: 24 * 60 * 60_000 },
+    fresh
+      ? { cache: "no-store", next: { revalidate: 0 }, headers: HEADERS }
+      : { next: { revalidate: 600 }, headers: HEADERS },
+    {
+      fallback: null,
+      ttlMs: 10 * 60_000,
+      staleTtlMs: 24 * 60 * 60_000,
+      bypassCache: fresh,
+    },
   );
   if (!data) return null;
   // disableExternalAPIs оставляет только обложку Shikimori (или заглушку) и не

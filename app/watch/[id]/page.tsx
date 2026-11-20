@@ -13,6 +13,7 @@ import { cleanAnimeTitle, getWatchPath, getWatchSegment, parseWatchParam, safeDe
 import { safeSerializeJson } from "@/lib/seo/safe-json"
 import { isNoIndexAnime } from "@/lib/hentai-detector"
 import { isPlaceholderPoster } from "@/lib/poster-url"
+import { refreshWatchAnimeForEpisode } from "@/lib/shikimori/watch-episode"
 
 /**
  * Поля russian/english/japanese/kind теперь реально приходят из transformAnime
@@ -296,9 +297,14 @@ export default async function WatchPage({
 
   const cleanId = parseWatchParam(id)
 
-  // Запрашиваем аниме и комментарий редакции параллельно
+  // Запрашиваем аниме и комментарий редакции параллельно.
+  // Аниме — через refreshWatchAnimeForEpisode: если в URL серия новее, чем
+  // знает кэш (ссылка из бота/колокольчика), один раз переспрашиваем
+  // Shikimori мимо кэшей, иначе сетка серий покажет устаревшее число.
   const [rawAnime, editorialReview] = await Promise.all([
-    getWatchAnime(cleanId),
+    refreshWatchAnimeForEpisode(episode, () => getWatchAnime(cleanId), () =>
+      getAnimeById(cleanId, true, { allowExternalPosters: false, fresh: true }),
+    ),
     getEditorialReview(cleanId),
   ])
 
