@@ -86,8 +86,11 @@ async function loadFromNetwork<T>(
   init: (RequestInit & { next?: any }) | undefined,
   options: { ttlMs: number; staleTtlMs: number; fallback: T },
   cached: ShikimoriCacheEntry | undefined,
+  cacheKey = shikimoriCacheKey(input, init),
+  onSuccess?: (data: T) => void,
 ): Promise<T> {
   const { ttlMs, staleTtlMs, fallback } = options;
+  const initialEntry = SHIKIMORI_JSON_CACHE.get(cacheKey);
 
   // Add rate limiting delay for non-cached requests
   const timeSinceLastRequest = Date.now() - lastRequestTime;
@@ -119,13 +122,14 @@ async function loadFromNetwork<T>(
     }
 
     const data = (await res.json()) as T;
-    if ((init?.method ?? "GET").toUpperCase() === "GET") {
-      SHIKIMORI_JSON_CACHE.set(shikimoriCacheKey(input, init), {
+    if ((init?.method ?? "GET").toUpperCase() === "GET" && SHIKIMORI_JSON_CACHE.get(cacheKey) === initialEntry) {
+      SHIKIMORI_JSON_CACHE.set(cacheKey, {
         freshUntil: Date.now() + ttlMs,
         staleUntil: Date.now() + Math.max(staleTtlMs, ttlMs),
         value: data
       });
     }
+    onSuccess?.(data);
     return data;
   } catch (error) {
     console.error(`[Shikimori] JSON parse or fetch error for ${input}:`, error);
@@ -141,7 +145,7 @@ async function loadFromNetwork<T>(
 export async function shikimoriJson<T>(
   input: string,
   init?: RequestInit & { next?: any },
-  options?: { ttlMs?: number; staleTtlMs?: number; fallback: T; }
+  options?: { ttlMs?: number; staleTtlMs?: number; fallback: T; bypassCache?: boolean }
 ): Promise<T> {
   // Фоновая перепроверка зеркал, если долго не проверяли
   maybeRefreshShikimoriMirror();
@@ -152,6 +156,35 @@ export async function shikimoriJson<T>(
   const method = (init?.method ?? "GET").toUpperCase();
 
   const cached = SHIKIMORI_JSON_CACHE.get(key);
+
+  // A requested episode newer than the normal cache needs a real network
+  // read, not Next's Data Cache or an ordinary SWR request in flight. Keep a
+  // separate, short-lived cache and deduplicate concurrent retries, so invalid
+  // links cannot cause an unbounded stream of requests to Shikimori. Never
+  // let an older SWR response overwrite the result of this fresh request.
+  if (options?.bypassCache && method === "GET") {
+    const freshKey = `${key}:watch-fresh`;
+    const recent = SHIKIMORI_JSON_CACHE.get(freshKey);
+    if (recent && Date.now() <= recent.freshUntil) return recent.value as T;
+    const inflight = SHIKIMORI_INFLIGHT.get(freshKey);
+    if (inflight) return inflight as Promise<T>;
+    const freshInit = { ...init, cache: "no-store" as const, next: { revalidate: 0 } };
+    const request = loadFromNetwork(
+      input, freshInit, { ttlMs: 15_000, staleTtlMs: 15_000, fallback: options.fallback },
+      undefined, freshKey, (data) => {
+        // Publish the confirmed result for ordinary page visits too. A slower
+        // request started earlier must not overwrite this newer entry.
+        SHIKIMORI_JSON_CACHE.set(key, {
+          freshUntil: Date.now() + ttlMs,
+          staleUntil: Date.now() + Math.max(staleTtlMs, ttlMs),
+          value: data,
+        });
+      },
+    ).finally(() => SHIKIMORI_INFLIGHT.delete(freshKey));
+    SHIKIMORI_INFLIGHT.set(freshKey, request);
+    return request;
+  }
+
   if (cached) {
     if (Date.now() <= cached.freshUntil) {
       return cached.value as T;
