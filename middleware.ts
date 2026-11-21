@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import type { NextFetchEvent, NextRequest } from "next/server"
 import { createClient } from "@supabase/supabase-js"
-import { doesWatchAnimeExist, getWatchRedirectPath } from "@/lib/seo/watch-redirect"
+import { doesWatchAnimeExist, getWatchRedirectPath, lookupWatchSegment } from "@/lib/seo/watch-redirect"
 import { getNewsRedirectPath } from "@/lib/seo/news-redirect"
 import { resolveGenreAlias } from "@/lib/seo/genre-landings"
 import { resolveCatalogGenreRedirect } from "@/lib/seo/catalog-filters"
@@ -43,8 +43,15 @@ const API_PATH_PREFIX = "/api/"
  */
 const IP_BLOCKLIST_EXEMPT_PATHS = ["/robots.txt", "/sitemap.xml"]
 
-/** User-Agent'ы поисковых роботов — только для диагностики в логах. */
-const SEARCH_BOT_UA_RE = /googlebot|yandexbot|bingbot|applebot|duckduckbot/i
+/**
+ * User-Agent'ы поисковых роботов: диагностика в логах и «строгий» режим /watch
+ * (синхронная проверка тайтла + 503 при недоступном Shikimori, см. ниже).
+ * Google-InspectionTool — «Проверка URL» в Search Console.
+ */
+const SEARCH_BOT_UA_RE = /googlebot|google-inspectiontool|yandexbot|bingbot|applebot|duckduckbot/i
+
+/** /manga/{только цифры} — id Shikimori/MAL, которых /manga/[id] не понимает. */
+const NUMERIC_MANGA_PATH_RE = /^\/manga\/\d+\/?$/
 
 // Umami (self-hosted analytics in Coolify): the browser must be allowed to load
 // the tracker script (<umami>/script.js) and to POST events to the same origin.
@@ -343,8 +350,54 @@ export async function middleware(request: NextRequest, event?: NextFetchEvent) {
   // поисковики считают временным редиректом → дубли в индексе.
   // (app/loading.tsx оборачивает в Suspense ВСЕ страницы, так что это касается
   // любого redirect()/notFound() внутри page.tsx, не только /watch.)
+  // Честный 404 для /manga/{числовой id}.
+  //
+  // /manga/[id] работает только с UUID MangaDex, а числовые id (Shikimori,
+  // MAL) раньше попадали туда из sitemap и ссылок в новостях. Страница
+  // отвечала «200 + Манга не найдена + noindex» — Search Console копил их в
+  // отчёте «Индексирование запрещено тегом noindex». 404 из middleware
+  // уходит до рендера, поэтому статус настоящий и адреса быстро выпадут.
+  if ((method === "GET" || method === "HEAD") && NUMERIC_MANGA_PATH_RE.test(pathname)) {
+    const response = new NextResponse("Not Found", {
+      status: 404,
+      headers: { "Content-Type": "text/plain; charset=utf-8" },
+    })
+    response.headers.set("Cache-Control", "public, max-age=3600")
+    return applySecurityHeaders(response, pathname)
+  }
+
   if ((method === "GET" || method === "HEAD") && pathname.startsWith("/watch/")) {
     const schedule = event ? (task: Promise<unknown>) => event.waitUntil(task) : undefined
+
+    // Поисковым роботам — строгий режим.
+    //
+    // Для людей адреса со slug'ом сверяются только с кэшем (без задержки), а
+    // недоступность Shikimori просто пропускается. Для робота это оборачивалось
+    // noindex'ом: страница уходила с «200», generateMetadata не получал тайтл
+    // (429/таймаут Shikimori) и отдавал «Аниме не найдено» + noindex. Так в
+    // отчёт «noindex» попадали вполне живые тайтлы (64084, 64398, 1 …).
+    //
+    // Поэтому роботу тайтл проверяем синхронно (результат кэшируется и сразу
+    // используется редиректом/404 ниже), а если Shikimori не ответил —
+    // отдаём 503 + Retry-After: для Google это «зайди позже», индекс не
+    // трогается. Живых посетителей это не касается.
+    const userAgent = request.headers.get("user-agent") || ""
+    const watchIdMatch = /^\/watch\/(\d+)(?:-[^/]*)?\/?$/.exec(pathname)
+    if (watchIdMatch && SEARCH_BOT_UA_RE.test(userAgent)) {
+      const segment = await lookupWatchSegment(watchIdMatch[1], fetch)
+      if (segment === undefined) {
+        console.warn(`[watch] Shikimori недоступен, роботу отдаём 503: path=${pathname} ua="${userAgent}"`)
+        const response = new NextResponse("Service Temporarily Unavailable", {
+          status: 503,
+          headers: {
+            "Content-Type": "text/plain; charset=utf-8",
+            "Retry-After": "120",
+            "Cache-Control": "no-store",
+          },
+        })
+        return applySecurityHeaders(response, pathname)
+      }
+    }
 
     const redirectPath = await getWatchRedirectPath(
       pathname,

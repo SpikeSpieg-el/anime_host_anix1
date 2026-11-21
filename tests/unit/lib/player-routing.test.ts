@@ -60,8 +60,74 @@ const SHIKI_40750 = {
   ],
 } as any
 
+// Реальные ответы Shikimori (снято 2026-11-21): обе классики — r_plus, обе
+// висели в Search Console с noindex. 11617 (DxD) — r_plus + жанр «Этти».
+const SHIKI_1 = {
+  id: 1, name: "Cowboy Bebop", russian: "Ковбой Бибоп", rating: "r_plus", score: "8.75",
+  kind: "tv", status: "released", aired_on: "1998-04-03", episodes: 26, episodes_aired: 0,
+  description: "2071 год. Человечество колонизировало всю Солнечную Систему...",
+  image: { original: "/system/animes/original/1.jpg", preview: "/system/animes/preview/1.jpg", x96: "", x48: "" },
+  genres: [
+    { id: 1, name: "Action", russian: "Экшен" },
+    { id: 24, name: "Sci-Fi", russian: "Фантастика" },
+    { id: 29, name: "Space", russian: "Космос" },
+  ],
+} as any
+
+const SHIKI_1575 = {
+  id: 1575, name: "Code Geass: Hangyaku no Lelouch", russian: "Код Гиас: Восставший Лелуш",
+  rating: "r_plus", score: "8.71", kind: "tv", status: "released", aired_on: "2006-10-06",
+  episodes: 25, episodes_aired: 0, description: "История рассказывает о недалёком будущем...",
+  image: { original: "/system/animes/original/1575.jpg", preview: "/system/animes/preview/1575.jpg", x96: "", x48: "" },
+  genres: [
+    { id: 1, name: "Action", russian: "Экшен" },
+    { id: 8, name: "Drama", russian: "Драма" },
+    { id: 24, name: "Sci-Fi", russian: "Фантастика" },
+    { id: 18, name: "Mecha", russian: "Меха" },
+    { id: 38, name: "Military", russian: "Военное" },
+    { id: 23, name: "School", russian: "Школа" },
+    { id: 31, name: "Super Power", russian: "Супер сила" },
+  ],
+} as any
+
+const SHIKI_11617 = {
+  id: 11617, name: "High School DxD", russian: "Старшая школа DxD", rating: "r_plus", score: "7.31",
+  kind: "tv", status: "released", aired_on: "2012-01-06", episodes: 12, episodes_aired: 12,
+  description: "Иссэй Хёдо — классический старшеклассник...",
+  image: { original: "/system/animes/original/11617.jpg", preview: "/system/animes/preview/11617.jpg", x96: "", x48: "" },
+  genres: [
+    { id: 1, name: "Action", russian: "Экшен" },
+    { id: 4, name: "Comedy", russian: "Комедия" },
+    { id: 9, name: "Ecchi", russian: "Этти" },
+    { id: 35, name: "Harem", russian: "Гарем" },
+  ],
+} as any
+
+describe("r_plus: классика индексируется, этти — нет", () => {
+  it("1 «Ковбой Бибоп» (r_plus, без этти) → индексируется", async () => {
+    const anime = await transformAnime(SHIKI_1, false, true)
+    expect(anime.isNsfw).toBe(false)
+    expect(isNoIndexAnime(anime)).toBe(false)
+  })
+
+  it("1575 «Код Гиас» (r_plus, без этти) → индексируется", async () => {
+    const anime = await transformAnime(SHIKI_1575, false, true)
+    expect(anime.isNsfw).toBe(false)
+    expect(isNoIndexAnime(anime)).toBe(false)
+  })
+
+  it("11617 «Старшая школа DxD» (r_plus + Этти) → noindex, но не хентай", async () => {
+    const anime = await transformAnime(SHIKI_11617, false, true)
+    expect(anime.isNsfw).toBe(true)
+    expect(isNoIndexAnime(anime)).toBe(true)
+    expect(isHentaiContent(anime)).toBe(false)
+  })
+})
+
 describe("реальные данные Shikimori → выбор плеера", () => {
-  it("61578 «Даже у студсовета есть косяки!» (r_plus) → Kodik, не хентай", async () => {
+  // genres: [] — у свежего онгоинга Shikimori ещё не разметил жанры, поэтому
+  // r_plus без жанров по-прежнему считается 18+ (перестраховка).
+  it("61578 «Даже у студсовета есть косяки!» (r_plus, без жанров) → Kodik, не хентай", async () => {
     const anime = await transformAnime(SHIKI_61578, false, true)
     expect(anime.shikimoriRating).toBe("r_plus")
     expect(anime.isNsfw).toBe(true)

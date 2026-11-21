@@ -1,11 +1,15 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { NextRequest } from "next/server"
 import { middleware } from "@/middleware"
+import { __resetWatchRedirectCache } from "@/lib/seo/watch-redirect"
 
 afterEach(() => {
   vi.unstubAllEnvs()
   vi.unstubAllGlobals()
+  __resetWatchRedirectCache()
 })
+
+const GOOGLEBOT_UA = "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)"
 
 function postAdmin(origin?: string, extraHeaders: Record<string, string> = {}) {
   const request = new NextRequest("https://weeb-x.com/admin", {
@@ -76,6 +80,66 @@ describe("SEO canonical redirects", () => {
     expect(response.headers.get("location")).toBe(
       "https://weeb-x.com/news/987654-testovaya-novost",
     )
+  })
+})
+
+describe("noindex-регресс: живые страницы не должны отдавать noindex роботу", () => {
+  it("числовой /manga/{id} получает честный 404, а не «200 + noindex»", async () => {
+    const fetchSpy = vi.fn()
+    vi.stubGlobal("fetch", fetchSpy)
+    const response = await middleware(new NextRequest("https://weeb-x.com/manga/96792"))
+    expect(response.status).toBe(404)
+    expect(fetchSpy).not.toHaveBeenCalled()
+  })
+
+  it("UUID MangaDex в /manga/ пропускается к странице", async () => {
+    const response = await middleware(
+      new NextRequest("https://weeb-x.com/manga/a1c7c817-4e59-43b7-9365-09675a149a6f"),
+    )
+    expect(response.status).toBe(200)
+  })
+
+  it("роботу при недоступном Shikimori — 503 + Retry-After вместо страницы с noindex", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("", { status: 429 })))
+    const request = new NextRequest("https://weeb-x.com/watch/64084-silneyshaya-vedma-v-mire-startovala", {
+      headers: { "user-agent": GOOGLEBOT_UA },
+    })
+    const response = await middleware(request)
+    expect(response.status).toBe(503)
+    expect(response.headers.get("retry-after")).toBe("120")
+  })
+
+  it("человеку при недоступном Shikimori 503 не отдаём (адрес со slug'ом — без задержки)", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("", { status: 429 })))
+    const response = await middleware(
+      new NextRequest("https://weeb-x.com/watch/64084-silneyshaya-vedma-v-mire-startovala"),
+    )
+    expect(response.status).toBe(200)
+  })
+
+  it("роботу устаревший slug сразу отдаёт настоящий 301 (без meta refresh)", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(
+      JSON.stringify({ russian: "Сердечный треугольник: женское общежитие Садзанами" }),
+      { status: 200 },
+    )))
+    const request = new NextRequest(
+      "https://weeb-x.com/watch/4849-serdechnyy-treugol-nik-zhenskoe-obshchezhitie-sadzanami",
+      { headers: { "user-agent": GOOGLEBOT_UA } },
+    )
+    const response = await middleware(request)
+    expect(response.status).toBe(301)
+    expect(response.headers.get("location")).toBe(
+      "https://weeb-x.com/watch/4849-serdechnyy-treugolnik-zhenskoe-obshchezhitie-sadzanami",
+    )
+  })
+
+  it("роботу несуществующий тайтл со slug'ом — честный 404", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("{}", { status: 404 })))
+    const request = new NextRequest("https://weeb-x.com/watch/99999999-net-takogo", {
+      headers: { "user-agent": GOOGLEBOT_UA },
+    })
+    const response = await middleware(request)
+    expect(response.status).toBe(404)
   })
 })
 

@@ -113,10 +113,20 @@ describe("isAnimeSafe", () => {
     expect(isAnimeSafe(makeShikimoriAnime())).toBe(true)
   })
 
-  it("blocks rx / x / r_plus ratings", () => {
+  it("blocks rx / x ratings", () => {
     expect(isAnimeSafe(makeShikimoriAnime({ rating: "rx" }))).toBe(false)
     expect(isAnimeSafe(makeShikimoriAnime({ rating: "x" }))).toBe(false)
-    expect(isAnimeSafe(makeShikimoriAnime({ rating: "r_plus" }))).toBe(false)
+  })
+
+  // r_plus = «Mild Nudity»: его ставят и «Ковбою Бибопу», и «Код Гиасу».
+  // 18+ он только вместе с жанром «Этти» или когда жанров ещё нет.
+  it("blocks r_plus only with Ecchi genre or without genres", () => {
+    expect(isAnimeSafe(makeShikimoriAnime({ rating: "r_plus" }))).toBe(true)
+    expect(
+      isAnimeSafe(makeShikimoriAnime({ rating: "r_plus", genres: [{ id: 9, name: "Ecchi", russian: "Этти" }] })),
+    ).toBe(false)
+    expect(isAnimeSafe(makeShikimoriAnime({ rating: "r_plus", genres: [] }))).toBe(false)
+    expect(isAnimeSafe(makeShikimoriAnime({ rating: "r_plus", genres: undefined }))).toBe(false)
   })
 
   it("blocks nsfw genres by id or name", () => {

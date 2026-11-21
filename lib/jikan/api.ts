@@ -467,16 +467,18 @@ function extractMalNewsContent(html: string): string | null {
 }
 
 /**
- * Sanitize MAL's raw news HTML: convert manga links to our internal catalog (MAL manga IDs
- * map 1:1 to ours), verify+convert anime links to internal `/watch/{id}` when Shikimori has a
+ * Sanitize MAL's raw news HTML: keep manga links external (our /manga/{id} uses MangaDex
+ * UUIDs, MAL numeric IDs never resolve there), verify+convert anime links to internal `/watch/{id}` when Shikimori has a
  * confirmed match, and make all remaining external links open in a new tab.
  */
 async function sanitizeMalNewsHtml(html: string): Promise<string> {
   let result = html;
 
+  // Манга MAL остаётся внешней ссылкой: /manga/{id} у нас — только UUID
+  // MangaDex, числовой id MAL там всегда «не найдена» + noindex.
   result = result.replace(
-    /href="https?:\/\/myanimelist\.net\/manga\/(\d+)\/?[^"]*"/g,
-    (_m, id) => `href="/manga/${id}"`
+    /href="(https?:\/\/myanimelist\.net\/manga\/\d+\/?[^"]*)"/g,
+    (_m, url) => `href="${url}" target="_blank" rel="noopener noreferrer nofollow"`
   );
 
   const animeIdRegex = /href="https?:\/\/myanimelist\.net\/anime\/(\d+)\/?[^"]*"/g;

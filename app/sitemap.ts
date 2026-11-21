@@ -196,28 +196,17 @@ const NOW = new Date()
  */
 const INCLUDE_IMAGES = false
 
-interface ShikimoriMangaListItem {
-  id: number
-  name: string
-  russian: string
-  kind: string
-  score: string
-  status: string
-  aired_on?: string
-}
-
-async function getPopularMangaIds(limit = 100): Promise<ShikimoriMangaListItem[]> {
-  try {
-    const data = await shikimoriJson<ShikimoriMangaListItem[]>(
-      `${BASE_URL}/mangas?limit=${limit}&order=popularity&censored=true`,
-      { next: { revalidate: 21600 } },
-      { fallback: [] }
-    )
-    return Array.isArray(data) ? data : []
-  } catch {
-    return []
-  }
-}
+/*
+ * Страниц манги в sitemap больше нет.
+ *
+ * Раньше сюда шли 100 популярных манг Shikimori как /manga/{shikimoriId}, но
+ * /manga/[id] понимает ТОЛЬКО UUID MangaDex (см. app/api/manga/info: числовой
+ * id → 400). Все 100 адресов отдавали «Манга не найдена» + noindex и висели
+ * в Search Console как «Индексирование запрещено тегом noindex»
+ * (/manga/96792, /manga/3986 …). Числовые адреса теперь получают честный 404
+ * в middleware. Вернуть мангу в карту сайта можно, когда появится источник
+ * с UUID MangaDex.
+ */
 
 async function getNewsIds(): Promise<Array<{ id: string; title: string; lastModified?: string }>> {
   const items: Array<{ id: string; title: string; lastModified?: string }> = []
@@ -418,7 +407,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       getPopularAlways(50),
       getOngoingList(50),
       getAnnouncements(50),
-      getPopularMangaIds(100),
       getNewsIds(),
     ])
 
@@ -427,7 +415,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       console.warn('[sitemap] Витринные данные не собраны за дедлайн, отдаём sitemap без динамической части')
       return [...staticPages, ...genrePages]
     }
-    const [popularNow, popularAlways, ongoing, announcements, mangaList, newsIds] = displayResult
+    const [popularNow, popularAlways, ongoing, announcements, newsIds] = displayResult
 
     // «Хвост» каталога — строго последовательно, с паузой. Одновременные
     // запросы к Shikimori упираются в 429, и страницы молча выпадают из
@@ -492,9 +480,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
       // NSFW-тайтлы не анонсируем поисковикам: страницы остаются доступными,
       // но с noindex (см. generateMetadata в app/watch/[id]/page.tsx).
+      // r_plus сам по себе не повод: «Ковбой Бибоп» и «Код Гиас» тоже r_plus.
+      // Правило «r_plus = 18+ только с жанром Этти» живёт в isAnimeSafe.
       const raw = rawById.get(source.id)
       if (raw && !isAnimeSafe(raw)) continue
-      if (source.rating === 'rx' || source.rating === 'x' || source.rating === 'r_plus') continue
+      if (source.rating === 'rx' || source.rating === 'x') continue
 
       seenAnimeIds.add(source.id)
 
@@ -529,17 +519,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       })
     }
 
-    // --- Страницы манги ---
-    const mangaPages: MetadataRoute.Sitemap = mangaList
-      .filter((m) => m.id)
-      .map((manga) => ({
-        url: `${SITE_URL}/manga/${manga.id}`,
-        lastModified: clampLastmod(manga.aired_on, NOW) ?? STATIC_PAGES_DATE,
-        changeFrequency: 'weekly' as const,
-        priority: 0.5,
-      }))
-      .filter((page) => isSitemapSafeUrl(page.url))
-
     // --- Страницы новостей ---
     const newsPages: MetadataRoute.Sitemap = newsIds
       .map(({ id, title, lastModified }) => ({
@@ -557,7 +536,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       ...staticPages,
       ...genrePages,
       ...animePages,
-      ...mangaPages,
       ...newsPages,
     ].map((entry) => ({
       ...entry,
