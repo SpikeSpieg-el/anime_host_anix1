@@ -75,10 +75,50 @@ export function generateSearchVariants(query: string): string[] {
 // --- STRICT SAFETY CHECK (Исправление проблемы с пародией) ---
 
 /**
- * Рейтинги Shikimori, которые не попадают в «безопасную» выдачу
- * (каталог без 18+, поиск, sitemap). Шире, чем хентай: сюда входит и r_plus.
+ * Рейтинги Shikimori, которые ВСЕГДА не попадают в «безопасную» выдачу
+ * (каталог без 18+, поиск, sitemap, индекс): хентай.
  */
-const ADULT_RATINGS = ["rx", "x", "r_plus"];
+const ADULT_RATINGS = ["rx", "x"];
+
+/**
+ * r_plus («R+ — Mild Nudity») — пограничный рейтинг, и сам по себе он НЕ
+ * означает этти.
+ *
+ * Shikimori (вслед за MAL) ставит r_plus огромному числу классики, где
+ * обнажёнка эпизодическая: «Ковбой Бибоп» (1), «Код Гиас» (1575),
+ * «Легенда о героях Галактики» (820), «Берсерк», «Акира», «Евангелион»,
+ * «Призрак в доспехах»… Раньше любой r_plus считался 18+: такие страницы
+ * получали noindex, а в Search Console копились сотнями в отчёте
+ * «Страница не проиндексирована: тег noindex».
+ *
+ * Теперь r_plus — «взрослый» только вместе с сигналом фансервиса:
+ *  - жанр «Этти» (Ecchi, id 9) — DxD, «Любовные неприятности», «Сэкирэй»;
+ *  - либо жанров нет вовсе (свежий онгоинг/анонс, Shikimori ещё не
+ *    разметил) — не зная, что внутри, перестраховываемся.
+ */
+const R_PLUS_RATING = "r_plus";
+
+/** Жанр «Этти» в Shikimori (сверено с GET /api/genres). */
+export const ECCHI_GENRE_ID = 9;
+
+function isEcchiGenre(g: { id?: number; name?: string; russian?: string } | null | undefined): boolean {
+  if (!g) return false;
+  if (g.id === ECCHI_GENRE_ID) return true;
+  const name = (g.name || "").toLowerCase();
+  const russian = (g.russian || "").toLowerCase();
+  return name === "ecchi" || russian === "этти";
+}
+
+/**
+ * r_plus считается 18+ (этти) только с жанром «Этти» или без разметки жанров.
+ * Для остальных рейтингов всегда false.
+ */
+export function isEcchiRPlus(item: Pick<ShikimoriAnime, "rating" | "genres">): boolean {
+  if ((item.rating || "").toLowerCase() !== R_PLUS_RATING) return false;
+  const genres = Array.isArray(item.genres) ? item.genres.filter(Boolean) : [];
+  if (genres.length === 0) return true;
+  return genres.some(isEcchiGenre);
+}
 
 /**
  * Хентай или нет — строгая проверка для выбора плеера.
@@ -129,8 +169,14 @@ export function isHentaiShikimoriAnime(item: ShikimoriAnime): boolean {
 /** true, если тайтл не показываем в «безопасной» выдаче (каталог, sitemap, поиск). */
 export function isAnimeSafe(item: ShikimoriAnime): boolean {
   // 1. Проверка рейтинга (самая надежная)
-  // rx = Hentai, x = Hentai (old notation), r_plus = Mild Nudity (Borderline)
+  // rx = Hentai, x = Hentai (old notation)
   if (ADULT_RATINGS.includes((item.rating || "").toLowerCase())) {
+    return false;
+  }
+
+  // r_plus = Mild Nudity — 18+ только вместе с жанром «Этти» (см. isEcchiRPlus):
+  // «Ковбой Бибоп» и «Код Гиас» тоже r_plus, но это не взрослый контент.
+  if (isEcchiRPlus(item)) {
     return false;
   }
 

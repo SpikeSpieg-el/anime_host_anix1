@@ -107,10 +107,29 @@ describe("transformAnime — поля для SEO-разметки /watch", () =>
 })
 
 describe("isAnimeSafe — фильтр NSFW для sitemap", () => {
-  it("отбраковывает r_plus / rx / x", () => {
-    expect(isAnimeSafe(makeShikimoriAnime({ rating: "r_plus" }))).toBe(false)
+  it("отбраковывает rx / x и r_plus с жанром Этти", () => {
     expect(isAnimeSafe(makeShikimoriAnime({ rating: "rx" }))).toBe(false)
     expect(isAnimeSafe(makeShikimoriAnime({ rating: "x" }))).toBe(false)
+    expect(
+      isAnimeSafe(makeShikimoriAnime({ rating: "r_plus", genres: [{ id: 9, name: "Ecchi", russian: "Этти" }] })),
+    ).toBe(false)
+  })
+
+  // Регресс Search Console «Индексирование запрещено тегом noindex»:
+  // классика с r_plus без этти не должна выпадать из sitemap.
+  it("пропускает r_plus без этти («Ковбой Бибоп», «Код Гиас»)", () => {
+    expect(
+      isAnimeSafe(
+        makeShikimoriAnime({
+          rating: "r_plus",
+          genres: [
+            { id: 1, name: "Action", russian: "Экшен" },
+            { id: 24, name: "Sci-Fi", russian: "Фантастика" },
+            { id: 29, name: "Space", russian: "Космос" },
+          ],
+        }),
+      ),
+    ).toBe(true)
   })
 
   it("отбраковывает хентай-жанры (12/59/61/539/540)", () => {
@@ -137,12 +156,22 @@ describe("isNoIndexAnime — 18+ не идут в индекс", () => {
     expect(isNoIndexAnime(makeAnime({ shikimoriRating: "rx" }))).toBe(true)
   })
 
-  // Граница noindex шире, чем граница хентая: этти (r_plus) тоже не индексируем,
-  // но в хентай-плеер при этом не уходит.
-  it("noindex для r_plus, хотя это не хентай", () => {
+  // Граница noindex шире, чем граница хентая: этти (r_plus + жанр Этти) тоже
+  // не индексируем, но в хентай-плеер при этом не уходит.
+  it("noindex для этти, хотя это не хентай", () => {
     const ecchi = makeAnime({ shikimoriRating: "r_plus", isNsfw: true, isHentai: false })
     expect(isNoIndexAnime(ecchi)).toBe(true)
     expect(isHentaiContent(ecchi)).toBe(false)
+  })
+
+  it("r_plus без этти индексируется (isNsfw=false из transformAnime)", () => {
+    expect(isNoIndexAnime(makeAnime({ shikimoriRating: "r_plus", isNsfw: false, isHentai: false }))).toBe(false)
+  })
+
+  it("фолбэк без isNsfw: r_plus закрываем только с жанром Этти или без жанров", () => {
+    expect(isNoIndexAnime(makeAnime({ shikimoriRating: "r_plus", genres: ["Экшен", "Космос"] }))).toBe(false)
+    expect(isNoIndexAnime(makeAnime({ shikimoriRating: "r_plus", genres: ["Комедия", "Этти"] }))).toBe(true)
+    expect(isNoIndexAnime(makeAnime({ shikimoriRating: "r_plus", genres: [] }))).toBe(true)
   })
 
   it("обычные тайтлы индексируются", () => {

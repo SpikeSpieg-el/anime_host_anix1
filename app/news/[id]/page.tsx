@@ -249,14 +249,18 @@ function sanitizeShikimoriHtml(html: string, animePosters: Map<number, string>):
     }
   )
 
-  // 4. Манга ссылки во внутренний маршрут /manga/ID
+  // 4. Манга — наружу, на Shikimori.
+  // Во внутренний /manga/{id} их вести нельзя: там живут только UUID
+  // MangaDex, а у Shikimori числовые id. Такие ссылки открывали «Манга не
+  // найдена» + noindex, и Google собирал их в отчёт «noindex» в Search
+  // Console (/manga/96792 и т.п.).
   result = result.replace(
     /href="https?:\/\/shikimori\.(one|me|org|io)\/mangas\/([\w-]+)"/g,
-    (_m, _domain, slug) => `href="/manga/${slug.split('-')[0]}"`
+    (_m, _domain, slug) => `href="https://shikimori.one/mangas/${slug}" target="_blank" rel="noopener noreferrer nofollow"`
   )
   result = result.replace(
     /href="\/mangas\/([\w-]+)"/g,
-    (_m, slug) => `href="/manga/${slug.split('-')[0]}"`
+    (_m, slug) => `href="https://shikimori.one/mangas/${slug}" target="_blank" rel="noopener noreferrer nofollow"`
   )
 
   // 5. Относительные ссылки Shikimori во внешние абсолютные

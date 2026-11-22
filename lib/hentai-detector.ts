@@ -80,16 +80,30 @@ export function isHentaiContent(anime: Anime): boolean {
  * индексация 18+ страниц на общем домене роняет весь сайт в SafeSearch
  * и мешает ранжированию обычных тайтлов.
  *
- * Здесь граница ШИРЕ, чем у isHentaiContent: noindex ставится и на r_plus
- * (этти) — в индекс такие страницы тоже не пускаем.
+ * Граница шире, чем у isHentaiContent: noindex ставится и на этти. Но этти —
+ * это НЕ любой r_plus. Shikimori ставит r_plus классике вроде «Ковбоя Бибопа»
+ * и «Код Гиаса», и раньше вся она уходила в noindex (сотни адресов в отчёте
+ * Search Console «Индексирование запрещено тегом noindex»). Теперь r_plus
+ * закрывается только с жанром «Этти» или без разметки жанров — то же
+ * правило, что в isAnimeSafe (anime.isNsfw), см. isEcchiRPlus.
  */
 export function isNoIndexAnime(anime: Anime): boolean {
   if (isHentaiContent(anime)) return true
-  if (anime.isNsfw) return true
 
-  const noIndexRatings = ['r_plus', 'r+']
-  if (anime.shikimoriRating && noIndexRatings.includes(anime.shikimoriRating.toLowerCase())) {
-    return true
+  // Основной сигнал — isNsfw из transformAnime (isAnimeSafe с тем же
+  // правилом для r_plus). typeof важен: undefined → падаем на фолбэк.
+  if (typeof anime.isNsfw === 'boolean') return anime.isNsfw
+
+  // Фолбэк для объектов без isNsfw (старые кэши, ручная сборка): у Anime
+  // жанры — русские названия, id в genreIds.
+  const rating = (anime.shikimoriRating || '').toLowerCase()
+  if (rating === 'r_plus' || rating === 'r+') {
+    const genres = (anime.genres || []).filter(Boolean)
+    if (genres.length === 0) return true
+    return genres.some((g) => {
+      const name = g.toLowerCase()
+      return name === 'этти' || name === 'ecchi' || anime.genreIds?.[g] === 9
+    })
   }
 
   return false

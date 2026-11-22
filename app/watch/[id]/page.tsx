@@ -14,6 +14,7 @@ import { safeSerializeJson } from "@/lib/seo/safe-json"
 import { isNoIndexAnime } from "@/lib/hentai-detector"
 import { isPlaceholderPoster } from "@/lib/poster-url"
 import { refreshWatchAnimeForEpisode } from "@/lib/shikimori/watch-episode"
+import { lookupWatchSegment } from "@/lib/seo/watch-redirect"
 
 /**
  * Поля russian/english/japanese/kind теперь реально приходят из transformAnime
@@ -41,6 +42,34 @@ type ExtendedAnime = Anime
  */
 async function getWatchAnime(cleanId: string): Promise<Anime | null> {
   return getAnimeById(cleanId, true, { allowExternalPosters: false })
+}
+
+/**
+ * Тайтл не пришёл — это точно «нет такого аниме» или Shikimori просто не ответил?
+ *
+ * getAnimeById отдаёт null в обоих случаях: и на 404, и на 429/5xx/таймаут
+ * (fallback в shikimoriJson). Раньше любое null превращалось в «Аниме не
+ * найдено» + noindex, а из-за app/loading.tsx — ещё и со статусом 200. Стоило
+ * Googlebot'у попасть на минуту rate limit'а Shikimori, и живой тайтл
+ * получал noindex (в отчёте Search Console так оказались 64084, 64398 и др.).
+ *
+ * Теперь:
+ *  - Shikimori уверенно ответил 404 → null: настоящий «не найдено» + noindex;
+ *  - тайтл существует → одна повторная попытка мимо кэша;
+ *  - ничего не известно (или повтор не помог) → бросаем ошибку. Её ловит
+ *    app/watch/[id]/error.tsx («временно недоступно, обновите»), а noindex
+ *    на живую страницу больше не ставится.
+ */
+async function resolveMissingWatchAnime(cleanId: string): Promise<Anime | null> {
+  const segment = await lookupWatchSegment(cleanId)
+  if (segment === null) return null
+
+  if (segment) {
+    const retry = await getAnimeById(cleanId, true, { allowExternalPosters: false, fresh: true })
+    if (retry) return retry
+  }
+
+  throw new Error(`[watch] Shikimori не отдал тайтл ${cleanId}: временная ошибка, noindex не ставим`)
 }
 
 export type EditorialReview = {
@@ -154,10 +183,11 @@ export async function generateMetadata({
   const episode = sp?.episode ? Number.parseInt(sp.episode, 10) : undefined
 
   const cleanId = parseWatchParam(id)
-  const [rawAnime, editorialReview] = await Promise.all([
+  const [loadedAnime, editorialReview] = await Promise.all([
     getWatchAnime(cleanId),
     getEditorialReview(cleanId),
   ])
+  const rawAnime = loadedAnime ?? (await resolveMissingWatchAnime(cleanId))
 
   if (!rawAnime) {
     return {
@@ -301,13 +331,16 @@ export default async function WatchPage({
   // Аниме — через refreshWatchAnimeForEpisode: если в URL серия новее, чем
   // знает кэш (ссылка из бота/колокольчика), один раз переспрашиваем
   // Shikimori мимо кэшей, иначе сетка серий покажет устаревшее число.
-  const [rawAnime, editorialReview] = await Promise.all([
+  const [loadedAnime, editorialReview] = await Promise.all([
     refreshWatchAnimeForEpisode(episode, () => getWatchAnime(cleanId), () =>
       getAnimeById(cleanId, true, { allowExternalPosters: false, fresh: true }),
     ),
     getEditorialReview(cleanId),
   ])
 
+  // null — только если Shikimori уверенно сказал «нет такого тайтла»;
+  // временная недоступность бросает ошибку (см. resolveMissingWatchAnime).
+  const rawAnime = loadedAnime ?? (await resolveMissingWatchAnime(cleanId))
   if (!rawAnime) return notFound()
 
   const anime = rawAnime as ExtendedAnime
