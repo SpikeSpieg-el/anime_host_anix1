@@ -2,7 +2,9 @@ import { BASE_URL, HEADERS, GENRES_MAP } from "./config";
 import { shikimoriJson } from "./client";
 import { transformAnime, transformTopic, transformAnimeCalendar } from "./transformers";
 import { getAnimeBackdrop } from "./images";
-import { generateSearchVariants, isAnimeSafe, normalizeShikimoriUrl, upgradeShikimoriUrl, transliterateRuToEn, containsCyrillic } from "./utils";
+import { isAnimeSafe, normalizeShikimoriUrl, upgradeShikimoriUrl } from "./utils";
+import { parseAnimeQuery } from "./smart-search";
+import { smartAnimeSearch } from "./search-engine";
 import { Anime, CatalogFilters, FranchiseItem, NewsItem, RecommendationReason, ShikimoriAnime, WeeklySchedule } from "./types";
 
 // --- Catalog & Search ---
@@ -61,47 +63,16 @@ export async function getAnimeCatalog(filters: CatalogFilters): Promise<Anime[]>
   // FORCE CENSOR
   if (!allowNsfw) params.append('censored', 'true');
 
-  // Логика поиска с транслитерацией
+  // Умный поиск: разбираем запрос («токийские мстители 4 сезон» → название +
+  // сезон), ищем волнами и ранжируем локально (см. smart-search.ts и
+  // search-engine.ts). Если из запроса нечего вытащить («4 сезон» без
+  // названия), ищем как есть — обычным путём ниже.
   if (search && search.trim() !== '') {
-    const trimmedSearch = search.trim();
-    const searchVariants = generateSearchVariants(trimmedSearch);
-    
-    if (searchVariants.length > 1) {
-      // Мульти-поиск (оригинал + транслит)
-      const promises = searchVariants.map(variant => {
-        const p = new URLSearchParams(params);
-        p.set('search', variant);
-        return shikimoriJson<ShikimoriAnime[]>(`${BASE_URL}/animes?${p.toString()}`, { next: { revalidate: 60 } }, { fallback: [] });
-      });
-      
-      const results = (await Promise.all(promises)).flat();
-      const unique = new Map<number, ShikimoriAnime>();
-      
-      results.forEach(item => {
-        if (!allowNsfw && !isAnimeSafe(item)) return; // Strict Filter
-        if (!unique.has(item.id)) unique.set(item.id, item);
-      });
-
-      // Сортировка по релевантности
-      const normalize = (s: string) => s.toLowerCase().trim();
-      const transformed = await Promise.all(Array.from(unique.values()).map(item => transformAnime(item, filters.enableGenreFallback, filters.disableExternalAPIs)));
-      const queries = searchVariants.map(normalize);
-
-      return transformed.sort((a, b) => {
-        const getScore = (anime: Anime) => {
-          const titles = [anime.title, anime.originalTitle].map(normalize);
-          let s = 0;
-          queries.forEach(q => {
-             if (titles.some(t => t === q)) s += 100;
-             else if (titles.some(t => t.includes(q))) s += 50;
-          });
-          return s + anime.rating;
-        };
-        return getScore(b) - getScore(a);
-      }).slice(0, limit);
-    } else {
-      params.append('search', trimmedSearch);
+    const parsed = parseAnimeQuery(search);
+    if (parsed.tokens.length > 0) {
+      return smartAnimeSearch(filters, params, parsed);
     }
+    params.append('search', search.trim());
   }
 
   const url = `${BASE_URL}/animes?${params.toString()}`;

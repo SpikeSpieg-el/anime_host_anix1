@@ -8,6 +8,7 @@ import { GridSkeleton } from '@/components/shared/skeleton'
 import type { Anime, CatalogFilters } from '@/lib/shikimori'
 import { RandomAnimeModal } from '@/components/catalog/random-anime-modal'
 import { AGE_RESTRICTED_GENRE_IDS, GENRES_MAP } from '@/lib/shikimori'
+import { buildSearchNotice } from '@/lib/shikimori/smart-search'
 import { fetchAnimeData } from '@/app/catalog/actions'
 import { fetchRandomAnime } from '@/app/catalog/actions/get-random-anime'
 import { saveCatalogFilters } from '@/lib/catalog-preferences'
@@ -725,6 +726,14 @@ export function CatalogClient({
             </button>
           </div>
         </div>
+
+        {/* Подсказка показывает, какие части сложного запроса были поняты. */}
+        {filters.search && buildSearchNotice(filters.search) && (
+          <p className="mb-4 inline-flex items-center gap-1.5 rounded-full border border-orange-500/30 bg-orange-500/10 px-3 py-1 text-sm text-orange-500">
+            <Sparkles className="h-4 w-4" />
+            {buildSearchNotice(filters.search)}
+          </p>
+        )}
 
         {/* Список аниме */}
         {(loading || isPending) && !loadingMore ? (

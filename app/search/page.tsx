@@ -2,7 +2,8 @@ import { PageBreadcrumbs } from "@/components/shared/page-breadcrumbs"
 import { Navbar } from "@/components/layout/navbar"
 import { AnimeCard } from "@/components/shared/anime-card"
 import { searchAnime, Anime } from "@/lib/shikimori"
-import { SearchX } from "lucide-react"
+import { buildSearchNotice } from "@/lib/shikimori/smart-search"
+import { SearchX, Sparkles } from "lucide-react"
 import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { ScrollToTop } from "@/components/layout/scroll-to-top"
@@ -127,6 +128,10 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
     ? `Результаты поиска: "${query}"`
     : "Найти аниме — новинки, онгоинги, сериалы на ночь"
 
+  // Подсказка «Искали по названию…, учли «4 сезон»» — чтобы пользователь
+  // понимал, что поиск понял из его запроса.
+  const searchNotice = query ? buildSearchNotice(query) : null
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       <Navbar />
@@ -152,7 +157,13 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
             Следи за выходом новых серий и смотри онлайн в HD с русской озвучкой на Weebx.
           </p>
         )}
-        {query && <div className="mb-8" />}
+        {searchNotice && (
+          <p className="mb-8 inline-flex items-center gap-1.5 rounded-full border border-orange-500/30 bg-orange-500/10 px-3 py-1 text-sm text-orange-500">
+            <Sparkles className="w-4 h-4" />
+            {searchNotice}
+          </p>
+        )}
+        {query && !searchNotice && <div className="mb-8" />}
 
         {results.length > 0 ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6">
