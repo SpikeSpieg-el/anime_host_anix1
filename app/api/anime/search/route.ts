@@ -6,6 +6,12 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams
     const query = searchParams.get('q') || ''
     const allowNsfw = searchParams.get('allowNsfw') === 'true'
+    // Подсказки в шапке просят больше 10 — уважаем limit (максимум 50,
+    // столько отдаёт сам Shikimori за один запрос).
+    const limitParam = Number(searchParams.get('limit'))
+    const limit = Number.isFinite(limitParam) && limitParam > 0
+      ? Math.min(Math.floor(limitParam), 50)
+      : 10
 
     if (!query.trim()) {
       return NextResponse.json({ results: [] })
@@ -14,7 +20,7 @@ export async function GET(request: NextRequest) {
     const results = await getAnimeCatalog({
       search: query,
       allowNsfw,
-      limit: 10,
+      limit,
       enableGenreFallback: false,
       disableExternalAPIs: false,
     })
