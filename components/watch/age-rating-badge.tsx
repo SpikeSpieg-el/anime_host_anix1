@@ -20,18 +20,6 @@ interface AgeRatingBadgeProps {
   rating: string | undefined | null
 }
 
-/**
- * Возрастной бейдж поверх обложки. По клику открывает окно-объяснение:
- * что означает метка на конкретном тайтле и легенду всей сетки 0+…18+.
- *
- * КОНФЛИКТ С ОБЛОЖКОЙ (исправлено): раньше бейдж вкладывался ВНУТРЬ
- * кликабельного постера (div role="button" открывает модалку обложки),
- * и клику по бейджу нужен был stopPropagation, а скринридер читал постер
- * одной строкой вместе с бейджем. Теперь бейдж рендерится как СОСЕД
- * постера (см. watch-page-client.tsx, обёртка relative shrink-0) —
- * события пересекаться не могут в принципе, поэтому здесь обычная
- * кнопка без перехвата всплытия.
- */
 export function AgeRatingBadge({ rating }: AgeRatingBadgeProps) {
   const [isOpen, setIsOpen] = useState(false)
 
@@ -51,9 +39,10 @@ export function AgeRatingBadge({ rating }: AgeRatingBadgeProps) {
         aria-label={`Возрастная категория ${info.label} — ${info.description}. Нажмите, чтобы прочитать, что это значит.`}
         title="Что означает эта метка?"
         className={cn(
-          "pointer-events-auto cursor-pointer px-1.5 py-0.5 rounded font-bold tracking-wide shadow-sm",
-          "text-[9px] md:text-[10px] transition-transform hover:scale-110 active:scale-95",
-          "inline-flex items-center gap-0.5",
+
+          "cursor-pointer px-2 py-0.5 rounded-md font-bold tracking-wide shadow-sm whitespace-nowrap",
+          "text-xs md:text-sm transition-transform hover:scale-105 active:scale-95",
+          "inline-flex items-center gap-1",
           info.badgeClass
         )}
       >

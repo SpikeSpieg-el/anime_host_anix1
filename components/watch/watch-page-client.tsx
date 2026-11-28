@@ -1,13 +1,23 @@
 "use client"
 
-import { useEffect, useState, useRef, useCallback, useMemo } from "react"
+import {
+  useEffect,
+  useState,
+  useRef,
+  useCallback,
+  useMemo,
+  type CSSProperties,
+} from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import Image from "next/image"
 import Link from "next/link"
 import {
   Bookmark,
+  Calendar,
+  Eye,
+  Layers,
   PlayCircle,
-  Star
+  Star,
 } from "lucide-react"
 import type { Anime } from "@/lib/shikimori"
 import { KodikPlayer } from "@/components/watch/kodik-player"
@@ -36,7 +46,6 @@ import {
   TitleSubscribeButton,
 } from "@/components/shared/title-subscribe-button"
 import { cn } from "@/lib/utils"
-import { Eye } from "lucide-react"
 import { AnalyticsEvent, trackEvent } from "@/lib/analytics"
 import { useExitIntent } from "@/hooks/use-exit-intent"
 import { GuestHookId, canShowGuestHook } from "@/lib/guest-hooks"
@@ -50,16 +59,66 @@ const getEpisodeText = (count: number): string => {
   if (count === 1) return "Серия"
   const lastDigit = count % 10
   const lastTwoDigits = count % 100
-  
+
   if (lastTwoDigits >= 11 && lastTwoDigits <= 14) return "Серий"
   if (lastDigit === 1) return "Серия"
   if (lastDigit >= 2 && lastDigit <= 4) return "Серии"
   return "Серий"
 }
 
+// Винительная форма для «смотрю N …»: 1 серию, 2 серии, 5 серий.
+const getWatchingEpisodeText = (count: number): string => {
+  const lastDigit = count % 10
+  const lastTwoDigits = count % 100
+
+  if (lastTwoDigits >= 11 && lastTwoDigits <= 14) return "серий"
+  if (lastDigit === 1) return "серию"
+  if (lastDigit >= 2 && lastDigit <= 4) return "серии"
+  return "серий"
+}
+
+function buildNotchedCardPath(
+  w: number,
+  h: number,
+  tabW: number,
+  tabH: number,
+  outerR: number,
+  notchR: number,
+  inset = 0,
+): string {
+  const xL = inset
+  const xR = w - inset
+  const yT = inset
+  const yB = h - inset
+  const yStep = tabH + inset
+
+  const R = Math.max(4, Math.min(outerR - inset, (h - tabH) / 2, w / 4))
+  const rOut = Math.max(4, Math.min(notchR - inset, tabH / 2))
+  const rIn = Math.max(4, Math.min(notchR + inset, tabH / 2))
+
+  const minTabW = R + rOut + 8
+  const clampedTabW = Math.max(minTabW, Math.min(tabW, w - R - rIn - 16))
+  const xNotch = w - clampedTabW + inset
+
+  return [
+    `M ${xL + R} ${yStep}`,
+    `L ${xNotch - rIn} ${yStep}`,
+    `A ${rIn} ${rIn} 0 0 0 ${xNotch} ${yStep - rIn}`,
+    `L ${xNotch} ${yT + rOut}`,
+    `A ${rOut} ${rOut} 0 0 1 ${xNotch + rOut} ${yT}`,
+    `L ${xR - R} ${yT}`,
+    `A ${R} ${R} 0 0 1 ${xR} ${yT + R}`,
+    `L ${xR} ${yB - R}`,
+    `A ${R} ${R} 0 0 1 ${xR - R} ${yB}`,
+    `L ${xL + R} ${yB}`,
+    `A ${R} ${R} 0 0 1 ${xL} ${yB - R}`,
+    `L ${xL} ${yStep + R}`,
+    `A ${R} ${R} 0 0 1 ${xL + R} ${yStep}`,
+    "Z",
+  ].join(" ")
+}
+
 export function WatchPageClient({ anime, initialEpisode }: WatchPageClientProps) {
-  // ВЫЧИСЛЕНИЕ РЕАЛЬНО ВЫШЕДШИХ СЕРИЙ:
-  // Если у онгоинга вышло 5 серий из 13, то доступно ТОЛЬКО 5 серий.
   const availableEpisodes = useMemo(() => {
     if (anime.episodesCurrent && anime.episodesCurrent > 0) {
       return anime.episodesCurrent
@@ -71,42 +130,24 @@ export function WatchPageClient({ anime, initialEpisode }: WatchPageClientProps)
   }, [anime.episodesCurrent, anime.episodesTotal])
 
   const totalPlannedEpisodes = anime.episodesTotal || availableEpisodes
-
-  // Понятная возрастная метка из сырого кода Shikimori (r → «16+», r_plus → «18+ Этти»).
-  // Нужна для NSFW-баннера над плеером; бейдж на обложке рисует AgeRatingBadge.
   const ageRating = getAgeRatingInfo(anime.shikimoriRating)
 
   const { user, profile } = useAuth()
   const { isSaved, toggle } = useBookmarks()
   const saved = isSaved(anime.id)
 
-  // Ограничиваем начальную серию в пределах реально вышедших серий
   const [selectedEpisode, setSelectedEpisode] = useState<number>(() => {
     const requested = initialEpisode || 1
     return Math.min(Math.max(1, requested), availableEpisodes)
   })
 
   const [isStarted, setIsStarted] = useState(false)
-  const [selectedCountry, setSelectedCountry] = useState<string>('RU')
+  const [selectedCountry, setSelectedCountry] = useState<string>("RU")
   const [isRegionDetected, setIsRegionDetected] = useState(false)
   const [isUpdatingFromPlayer, setIsUpdatingFromPlayer] = useState(false)
   const [posterLoading, setPosterLoading] = useState(true)
   const [isCoverModalOpen, setIsCoverModalOpen] = useState(false)
 
-  /**
-   * Восстановление настоящей обложки на /watch.
-   *
-   * Страница просмотра намеренно не ходит в AniList/Kitsu/Kodik/MAL на SSR
-   * (см. getWatchAnime в app/watch/[id]/page.tsx): для 2108 страниц это
-   * дорого. Поэтому тайтлы, у которых Shikimori отдаёт `missing_original.jpg`
-   * (сейчас это, например, Steel Ball Run / id 61469), приезжают с
-   * сгенерированной `data:image/svg+xml` заглушкой.
-   *
-   * Комментарий в page.tsx обещал, что замена «приедет клиентским запросом
-   * после отрисовки», но такого запроса не было: CoverProvider использовали
-   * только бейджи обновлений и блок «Порядок просмотра». Догоняем обложку
-   * здесь — один запрос к /api/posters и только для заглушек.
-   */
   const { getPoster, forgetPoster } = useCover()
   const [poster, setPoster] = useState(anime.poster)
   const getPosterRef = useRef(getPoster)
@@ -114,13 +155,9 @@ export function WatchPageClient({ anime, initialEpisode }: WatchPageClientProps)
   const forgetPosterRef = useRef(forgetPoster)
   forgetPosterRef.current = forgetPoster
   const recoveryAttemptedRef = useRef(false)
-  // Один повтор после 404 «настоящей» обложки. Без счётчика onError гонял бы
-  // /api/posters по кругу: forgetPoster → recover → тот же битый URL → onError.
   const MAX_POSTER_RETRIES = 2
   const posterRetriesRef = useRef(0)
 
-  // При клиентском переходе на другой тайтл компонент переиспользуется —
-  // сбрасываем и состояние, и защиту от повторного запроса.
   useEffect(() => {
     setPoster(anime.poster)
     setPosterLoading(true)
@@ -135,8 +172,6 @@ export function WatchPageClient({ anime, initialEpisode }: WatchPageClientProps)
 
     const animeId = String(anime.shikimoriId || anime.id)
     try {
-      // shikimoriUrl пустой и excludeShikimori=true: /api/posters не вернёт
-      // ту же самую missing_original.jpg, а сразу спросит AniList/Kitsu/Kodik/MAL.
       const recovered = await getPosterRef.current(
         animeId,
         "",
@@ -145,10 +180,6 @@ export function WatchPageClient({ anime, initialEpisode }: WatchPageClientProps)
         false,
         true,
       )
-      // /api/posters может вернуть `/api/fallback-poster`. Не показываем его
-      // вместо уже имеющейся заглушки и, главное, не даём CoverProvider
-      // закешировать фолбэк на 7 дней — иначе при следующем заходе запрос
-      // к AniList/Kitsu/Kodik/MAL даже не состоится.
       if (!recovered || isPlaceholderPoster(recovered)) {
         forgetPosterRef.current(animeId)
         return
@@ -163,7 +194,6 @@ export function WatchPageClient({ anime, initialEpisode }: WatchPageClientProps)
     if (shouldRecoverPoster(poster)) recoverPoster()
   }, [poster, recoverPoster])
 
-  /** Если и «настоящая» обложка отдала 404 — пробуем ещё раз без Shikimori. */
   const handlePosterError = useCallback(() => {
     setPosterLoading(false)
     if (isPlaceholderPoster(poster)) return
@@ -172,6 +202,7 @@ export function WatchPageClient({ anime, initialEpisode }: WatchPageClientProps)
     recoveryAttemptedRef.current = false
     recoverPoster()
   }, [poster, anime.id, anime.shikimoriId, recoverPoster])
+
   const [lastWatchedInfo, setLastWatchedInfo] = useState<{
     season?: number
     episode: number
@@ -180,44 +211,97 @@ export function WatchPageClient({ anime, initialEpisode }: WatchPageClientProps)
   } | null>(null)
 
   const { showExitPrompt, dismissPrompt: dismissExitPrompt } = useExitIntent({
-    enabled: isStarted, // Only track after user starts watching
-    minWatchTime: 30 // Show prompt after 30 seconds of watching
+    enabled: isStarted,
+    minWatchTime: 30,
   })
 
-  // Крючок «Гача / стартовый пак» — после старта 1-й серии (не перекрывает плеер)
   const [showStarterHook, setShowStarterHook] = useState(false)
-  // Крючок «Колода тайтла» — после просмотра / exit intent
   const [showDeckHook, setShowDeckHook] = useState(false)
   const starterHookArmed = useRef(false)
 
-  // Жанровые пилюли на мобиле уходят в горизонтальный скролл; по краям ряда —
-  // затемнение, которое показывается только там, где контент реально уходит
-  // за пределы блока (справа всегда есть что скроллить, слева — когда уже
-  // прокручено). Без скролль-детекции затемнение висело бы и там, где
-  // пилюли влезли целиком.
+  // Мягкое затухание краёв скролла жанров через CSS mask-image
+  // (не конфликтует с размытым фоном карточки в светлой и тёмной темах).
   const genreRowRef = useRef<HTMLDivElement>(null)
-  const [genreFade, setGenreFade] = useState<{ left: boolean; right: boolean }>({ left: false, right: false })
+  const [genreFade, setGenreFade] = useState<{ left: boolean; right: boolean }>({
+    left: false,
+    right: false,
+  })
+
   const updateGenreFade = useCallback(() => {
     const el = genreRowRef.current
     if (!el) return
     const max = el.scrollWidth - el.clientWidth
-    setGenreFade({ left: el.scrollLeft > 4, right: max > 4 && el.scrollLeft < max - 4 })
+    setGenreFade({
+      left: el.scrollLeft > 4,
+      right: max > 4 && el.scrollLeft < max - 4,
+    })
   }, [])
+
   useEffect(() => {
     updateGenreFade()
     const el = genreRowRef.current
     if (!el) return
     const onScroll = () => updateGenreFade()
-    el.addEventListener('scroll', onScroll, { passive: true })
-    window.addEventListener('resize', onScroll)
-    // Шрифты и раскладка могут доехать после первого рендера — пересчитать.
+    el.addEventListener("scroll", onScroll, { passive: true })
+    window.addEventListener("resize", onScroll)
     const timer = setTimeout(updateGenreFade, 400)
     return () => {
-      el.removeEventListener('scroll', onScroll)
-      window.removeEventListener('resize', onScroll)
+      el.removeEventListener("scroll", onScroll)
+      window.removeEventListener("resize", onScroll)
       clearTimeout(timer)
     }
   }, [updateGenreFade])
+
+  const genreMaskStyle = useMemo<CSSProperties | undefined>(() => {
+    if (!genreFade.left && !genreFade.right) return undefined
+    const mask =
+      genreFade.left && genreFade.right
+        ? "linear-gradient(to right, transparent, black 24px, black calc(100% - 24px), transparent)"
+        : genreFade.left
+          ? "linear-gradient(to right, transparent, black 24px, black)"
+          : "linear-gradient(to right, black, black calc(100% - 24px), transparent)"
+    return { maskImage: mask, WebkitMaskImage: mask }
+  }, [genreFade.left, genreFade.right])
+
+  const headerCardRef = useRef<HTMLElement>(null)
+  const headerTabRef = useRef<HTMLDivElement>(null)
+  const [notchedShape, setNotchedShape] = useState<{
+    w: number
+    h: number
+    clipPath: string
+    strokePath: string
+  } | null>(null)
+
+  useEffect(() => {
+    const cardEl = headerCardRef.current
+    const tabEl = headerTabRef.current
+    if (!cardEl || !tabEl) return
+
+    const updateShape = () => {
+      const w = cardEl.offsetWidth
+      const h = cardEl.offsetHeight
+      const tabW = tabEl.offsetWidth
+      const tabH = tabEl.offsetHeight
+      if (w < 80 || h < 80 || tabW <= 0 || tabH <= 0) return
+
+      const outerR = w < 640 ? 18 : 22
+      const notchR = 14
+      const clipPath = buildNotchedCardPath(w, h, tabW, tabH, outerR, notchR, 0)
+      const strokePath = buildNotchedCardPath(w, h, tabW, tabH, outerR, notchR, 0.5)
+
+      setNotchedShape((prev) =>
+        prev && prev.w === w && prev.h === h && prev.clipPath === clipPath
+          ? prev
+          : { w, h, clipPath, strokePath },
+      )
+    }
+
+    updateShape()
+    const observer = new ResizeObserver(updateShape)
+    observer.observe(cardEl)
+    observer.observe(tabEl)
+    return () => observer.disconnect()
+  }, [])
 
   const playerRef = useRef<HTMLDivElement>(null)
   const lastRecordedEpisode = useRef("")
@@ -225,7 +309,6 @@ export function WatchPageClient({ anime, initialEpisode }: WatchPageClientProps)
   const pathname = usePathname()
   const searchParams = useSearchParams()
 
-  // После начала просмотра (гость) — через ~45с показываем стартовый бонус под плеером
   useEffect(() => {
     if (user || !isStarted || starterHookArmed.current) return
     if (!canShowGuestHook(GuestHookId.STARTER_PACK)) return
@@ -239,23 +322,20 @@ export function WatchPageClient({ anime, initialEpisode }: WatchPageClientProps)
     return () => window.clearTimeout(timer)
   }, [user, isStarted])
 
-  // Exit intent → колода по тайтлу (ценность CCG, не «сохраните прогресс»)
   useEffect(() => {
     if (showExitPrompt && !user && canShowGuestHook(GuestHookId.TITLE_DECK)) {
-      setShowStarterHook(false) // один баннер за раз — не спамим
+      setShowStarterHook(false)
       setShowDeckHook(true)
     }
   }, [showExitPrompt, user])
 
-  // Загрузка сохранённого прогресса из localStorage. Не блокируем плеер,
-  // если браузер запретил доступ к хранилищу.
   useEffect(() => {
     try {
       const stored = window.localStorage.getItem(`last-watched-${anime.id}`)
       if (!stored) return
 
       const data = JSON.parse(stored)
-      if (data && typeof data.episode === 'number') {
+      if (data && typeof data.episode === "number") {
         setLastWatchedInfo(data)
       }
     } catch {
@@ -263,7 +343,6 @@ export function WatchPageClient({ anime, initialEpisode }: WatchPageClientProps)
     }
   }, [anime.id])
 
-  // Инициализация выбранной серии (с защитой от выходящих серий)
   useEffect(() => {
     if (!isStarted) {
       if (initialEpisode && initialEpisode > 0) {
@@ -274,7 +353,6 @@ export function WatchPageClient({ anime, initialEpisode }: WatchPageClientProps)
     }
   }, [initialEpisode, lastWatchedInfo, isStarted, availableEpisodes])
 
-  // Синхронизация истории и URL при изменении серии
   useEffect(() => {
     if (!isStarted || isUpdatingFromPlayer) return
 
@@ -292,16 +370,26 @@ export function WatchPageClient({ anime, initialEpisode }: WatchPageClientProps)
       lastRecordedEpisode.current = episodeKey
       recordWatchStart(
         { id: anime.id, title: anime.title, poster },
-        { episode: selectedEpisode, episodesTotal: availableEpisodes }
+        { episode: selectedEpisode, episodesTotal: availableEpisodes },
       )
     }
-  }, [selectedEpisode, isStarted, pathname, router, searchParams, anime, poster, isUpdatingFromPlayer, availableEpisodes])
+  }, [
+    selectedEpisode,
+    isStarted,
+    pathname,
+    router,
+    searchParams,
+    anime,
+    poster,
+    isUpdatingFromPlayer,
+    availableEpisodes,
+  ])
 
   const scrollToPlayer = useCallback(() => {
     if (playerRef.current) {
       const yOffset = -80
       const y = playerRef.current.getBoundingClientRect().top + window.pageYOffset + yOffset
-      window.scrollTo({ top: y, behavior: 'smooth' })
+      window.scrollTo({ top: y, behavior: "smooth" })
     }
   }, [])
 
@@ -324,8 +412,8 @@ export function WatchPageClient({ anime, initialEpisode }: WatchPageClientProps)
 
   const handleRegionDetected = (isRussia: boolean) => {
     setIsRegionDetected(true)
-    if (isRussia && selectedCountry === 'RU') {
-      setSelectedCountry('RU')
+    if (isRussia && selectedCountry === "RU") {
+      setSelectedCountry("RU")
     }
   }
 
@@ -333,12 +421,14 @@ export function WatchPageClient({ anime, initialEpisode }: WatchPageClientProps)
     const safeEpisode = Math.min(Math.max(1, newEpisode), availableEpisodes)
     if (safeEpisode !== selectedEpisode) {
       trackEvent(AnalyticsEvent.EPISODE_CHANGE, {
-        shikimori_id: anime.shikimoriId, episode: safeEpisode, source: "player",
+        shikimori_id: anime.shikimoriId,
+        episode: safeEpisode,
+        source: "player",
       })
       setIsUpdatingFromPlayer(true)
       setSelectedEpisode(safeEpisode)
       setIsStarted(true)
-      
+
       setTimeout(() => {
         setIsUpdatingFromPlayer(false)
       }, 150)
@@ -359,9 +449,6 @@ export function WatchPageClient({ anime, initialEpisode }: WatchPageClientProps)
     }
   }
 
-  // Kodik плеер работает внутри iframe, поэтому его реальное
-  // currentTime недоступно странице. Считаем только видимое активное время
-  // после старта серии, отдельное от общего времени на сайте.
   useEffect(() => {
     if (!isStarted) return
 
@@ -391,13 +478,20 @@ export function WatchPageClient({ anime, initialEpisode }: WatchPageClientProps)
     }
   }, [anime.id, isStarted, selectedEpisode])
 
+  const statusLabel =
+    anime.status === "Ongoing"
+      ? "Выходит"
+      : anime.status === "Announcement"
+        ? "Анонс"
+        : "Закончен"
+
+  const showOriginalTitle =
+    Boolean(anime.originalTitle) && anime.originalTitle !== anime.title
+
   return (
-    <div className="flex flex-col gap-6 pt-4 mx-auto">
+    <div className="flex flex-col gap-4 sm:gap-6 pt-2 sm:pt-4 mx-auto">
       {/* Navigation & Actions Toolbar */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        {/* Кнопка «Назад» раньше жила здесь отдельной <Button>. Теперь её
-            рисует <PageBreadcrumbs/> — вместе с крошками Главная / Каталог /
-            тайтл и с тем же fallback'ом на /catalog при пустой истории. */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <PageBreadcrumbs
           backFallback="/catalog"
           items={[
@@ -407,20 +501,7 @@ export function WatchPageClient({ anime, initialEpisode }: WatchPageClientProps)
           ]}
         />
 
-        {/* Закладка и подписка стоят рядом намеренно.
-            Это два ответа на вопрос «что мне делать с этим тайтлом», и
-            разносить их по разным углам экрана незачем: человек, который
-            хочет следить за новыми сериями, ищет «следить» рядом с
-            «сохранить», а не в шапке тайтла между жанрами.
-
-            Обе кнопки означают разное и друг без друга не работают:
-            закладка — «открыть потом», подписка — «напиши, когда выйдет».
-
-            baseline_episode = availableEpisodes, а не выбранная серия:
-            человек мог открыть тайтл, посмотреть первую серию и уйти — и всё
-            равно не хочет получать «вышла 2». Точка отсчёта — это «сколько
-            уже вышло», а не «где он остановился». */}
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
           <Button
             size="sm"
             variant="ghost"
@@ -429,7 +510,7 @@ export function WatchPageClient({ anime, initialEpisode }: WatchPageClientProps)
               "gap-2 transition-all border",
               saved
                 ? "bg-primary/10 border-primary/50 text-primary hover:bg-primary/20"
-                : "bg-card border-border text-muted-foreground hover:text-foreground hover:bg-card/80"
+                : "bg-card border-border text-muted-foreground hover:text-foreground hover:bg-card/80",
             )}
           >
             <Bookmark className={cn("w-4 h-4", saved && "fill-current")} />
@@ -445,33 +526,85 @@ export function WatchPageClient({ anime, initialEpisode }: WatchPageClientProps)
         </div>
       </div>
 
-      {/* Header Info */}
-      <div className="relative overflow-hidden rounded-3xl bg-card/30 border border-border p-4 md:p-8">
-        <div className="absolute inset-0 z-0" aria-hidden="true">
+      {/* Header Info Card */}
+      <section
+        ref={headerCardRef}
+        className="relative pt-[50px] px-4 pb-4 sm:pt-[56px] sm:px-6 sm:pb-6 lg:pt-[60px] lg:px-7 lg:pb-7"
+      >
+        {/* Размытый фон, обрезанный строго по фигурной форме с «ушком» */}
+        <div
+          className={cn(
+            "absolute inset-0 z-0 overflow-hidden bg-card/40 pointer-events-none select-none",
+            !notchedShape && "rounded-2xl md:rounded-3xl border border-border/80",
+          )}
+          style={
+            notchedShape
+              ? { clipPath: `path("${notchedShape.clipPath}")` }
+              : undefined
+          }
+          aria-hidden="true"
+        >
           <Image
             src={poster}
             alt=""
             fill
-            className="object-cover scale-150 blur-2xl sm:blur-3xl opacity-30 sm:opacity-35"
+            className="object-cover scale-125 blur-2xl sm:blur-3xl opacity-25 dark:opacity-30"
             sizes="400px"
-            // data: — локальная SVG-заглушка, её нельзя отправлять в /optimize.
             unoptimized={poster.startsWith("data:")}
           />
-          <div className="absolute inset-0 bg-gradient-to-b from-card/85 via-card/70 to-card/50 dark:from-zinc-950/90 dark:via-zinc-950/85 dark:to-zinc-950/75" />
-          <div className="absolute top-0 left-0 right-0 h-24 sm:h-32 bg-gradient-to-b from-primary/15 to-transparent opacity-60 pointer-events-none" />
+          <div className="absolute inset-0 bg-gradient-to-br from-background/90 via-background/80 to-background/70 dark:from-zinc-950/90 dark:via-zinc-950/82 dark:to-zinc-950/75" />
+          <div className="absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-primary/10 to-transparent" />
         </div>
 
-        <div className="flex flex-row items-start gap-4 md:gap-8 relative z-10">
-          {/* Постер + бейдж возраста живут в обёртке-сиблинге. Бейдж НЕ вложен
-              в кликабельный постер (div role="button"): раньше из-за вложения
-              конфликтовали две кнопки — клику по бейджу нужен был
-              stopPropagation, чтобы не открыть обложку, а скринридер читал
-              постер одной строкой вместе с бейджем. Теперь это соседи:
-              клик по бейджу физически не может открыть обложку, и наоборот. */}
-          <div className="relative shrink-0">
+        {/* Единая непрерывная SVG-рамка по всему периметру с вырезом */}
+        {notchedShape && (
+          <svg
+            aria-hidden="true"
+            width={notchedShape.w}
+            height={notchedShape.h}
+            viewBox={`0 0 ${notchedShape.w} ${notchedShape.h}`}
+            className="absolute inset-0 z-10 w-full h-full pointer-events-none text-border/80"
+          >
+            <path
+              d={notchedShape.strokePath}
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1"
+            />
+          </svg>
+        )}
+
+        {/* Верхний правый выступ («ушко») с бейджами */}
+        <div
+          ref={headerTabRef}
+          className="absolute top-0 right-0 z-20 flex items-center gap-1.5 pl-4 pr-3 pt-2 pb-1 sm:pl-5 sm:pr-4 sm:pt-2 sm:pb-1"
+        >
+          <span
+            className={cn(
+              "inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] md:text-xs font-bold uppercase tracking-wide border",
+              anime.status === "Ongoing"
+                ? "bg-orange-500/15 border-orange-500/40 text-orange-600 dark:text-orange-400"
+                : "bg-background/60 dark:bg-white/[0.06] border-border/80 text-muted-foreground",
+            )}
+          >
+            {anime.status === "Ongoing" && (
+              <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse" />
+            )}
+            {statusLabel}
+          </span>
+
+          {ageRating && <AgeRatingBadge rating={anime.shikimoriRating} />}
+        </div>
+
+        <div className="relative z-10 grid grid-cols-[auto_minmax(0,1fr)] md:grid-rows-[auto_1fr] gap-x-3.5 sm:gap-x-5 md:gap-x-7 gap-y-4 md:gap-y-3 items-start">
+          {/* Poster */}
+          <div className="relative shrink-0 md:row-span-2">
             <div
               onClick={() => {
-                trackEvent(AnalyticsEvent.COVER_MODAL_OPEN, { shikimori_id: anime.shikimoriId, title: anime.title })
+                trackEvent(AnalyticsEvent.COVER_MODAL_OPEN, {
+                  shikimori_id: anime.shikimoriId,
+                  title: anime.title,
+                })
                 setIsCoverModalOpen(true)
               }}
               role="button"
@@ -479,47 +612,40 @@ export function WatchPageClient({ anime, initialEpisode }: WatchPageClientProps)
               onKeyDown={(e) => {
                 if (e.key === "Enter" || e.key === " ") {
                   e.preventDefault()
-                  trackEvent(AnalyticsEvent.COVER_MODAL_OPEN, { shikimori_id: anime.shikimoriId, title: anime.title })
+                  trackEvent(AnalyticsEvent.COVER_MODAL_OPEN, {
+                    shikimori_id: anime.shikimoriId,
+                    title: anime.title,
+                  })
                   setIsCoverModalOpen(true)
                 }
               }}
               title="Нажмите, чтобы посмотреть обложку"
-              className="group/poster relative w-24 aspect-[2/3] md:w-44 rounded-lg md:rounded-xl overflow-hidden shadow-2xl bg-muted ring-1 ring-border cursor-pointer hover:ring-primary/60 hover:shadow-primary/20 transition-all duration-300"
+              className="group/poster relative w-[104px] sm:w-[132px] md:w-[164px] lg:w-[184px] aspect-[2/3] rounded-xl overflow-hidden shadow-xl bg-muted ring-1 ring-black/10 dark:ring-white/10 cursor-pointer hover:ring-primary/60 hover:shadow-primary/20 transition-all duration-300"
             >
               <Image
                 src={poster}
                 alt={anime.title}
                 fill
                 className="object-cover group-hover/poster:scale-105 transition-transform duration-500 ease-out"
-                sizes="(max-width: 768px) 100px, 180px"
+                sizes="(max-width: 640px) 110px, (max-width: 1024px) 170px, 190px"
                 priority
                 unoptimized={poster.startsWith("data:")}
                 onLoad={() => setPosterLoading(false)}
                 onError={handlePosterError}
               />
 
-              {/* Бейдж статуса и оценка поверх обложки. pointer-events-none:
-                  клики проходят сквозь них на постер (открытие просмотра). */}
-              <div className="absolute top-1.5 left-1.5 z-10 pointer-events-none">
-                <span className={cn(
-                  "px-1.5 py-0.5 rounded font-bold uppercase tracking-wide shadow-sm",
-                  "text-[9px] md:text-[10px]",
-                  anime.status === 'Ongoing' ? 'bg-orange-500 text-black' : 'bg-secondary text-secondary-foreground dark:bg-zinc-700 dark:text-white'
-                )}>
-                  {anime.status === 'Ongoing' ? 'Выходит' : anime.status === 'Announcement' ? 'Анонс' : 'Закончен'}
-                </span>
-              </div>
               {anime.rating > 0 && (
-                <div className="absolute bottom-1.5 left-1.5 z-10 pointer-events-none md:bottom-auto md:left-auto md:top-1.5 md:right-1.5">
-                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-black/70 backdrop-blur-[2px] text-white text-[10px] md:text-xs font-bold shadow-sm">
-                    <Star className="w-3 h-3 fill-yellow-500 text-yellow-500" />
+                <div className="absolute bottom-1.5 left-1.5 md:bottom-2 md:left-2 z-10 pointer-events-none">
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 md:px-2 md:py-0.5 rounded-md bg-black/75 backdrop-blur-sm ring-1 ring-white/10 text-white text-[11px] md:text-xs font-bold shadow-sm">
+                    <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
                     {anime.rating}
                   </span>
                 </div>
               )}
-              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/poster:opacity-100 transition-opacity duration-300 flex flex-col items-center justify-center gap-1 backdrop-blur-[2px]">
+
+              <div className="absolute inset-0 bg-black/45 opacity-0 group-hover/poster:opacity-100 transition-opacity duration-300 flex flex-col items-center justify-center gap-1 backdrop-blur-[2px]">
                 <Eye className="w-5 h-5 md:w-7 md:h-7 text-white drop-shadow-md" />
-                <span className="text-[10px] md:text-xs text-white font-medium drop-shadow-md hidden sm:inline-block">
+                <span className="text-[11px] md:text-xs text-white font-medium drop-shadow-md hidden sm:inline-block">
                   Обложка
                 </span>
               </div>
@@ -530,89 +656,77 @@ export function WatchPageClient({ anime, initialEpisode }: WatchPageClientProps)
                 </div>
               )}
             </div>
+          </div>
 
-            {/* Бейдж возраста — СОСЕД постера в обёртке, а не его потомок.
-                Прежняя пилюля «Возрастной рейтинг: R» жила в строке мета
-                под заголовком, сырой код Shikimori и ломала сгиб ряда.
-                Позиция — тот же правый нижний угол: на десктопе счёт
-                справа-сверху, статус слева-сверху, на мобиле счёт
-                слева-снизу, поэтому угол свободен во всех раскладках.
-                z-20 — поверх ховер-оверлея «Обложка». */}
-            {ageRating && (
-              <div className="absolute bottom-1.5 right-1.5 z-20 pointer-events-none">
-                <AgeRatingBadge rating={anime.shikimoriRating} />
+          {/* Title */}
+          <div className="flex flex-col justify-center min-w-0 self-center md:self-start">
+            <h1 className="font-unbounded font-black tracking-tight text-lg sm:text-2xl lg:text-3xl text-foreground leading-[1.2] break-words">
+              {anime.title}
+            </h1>
+          </div>
+
+          {/* Metadata & Genres */}
+          <div className="col-span-2 md:col-span-1 flex flex-col gap-2.5 sm:gap-3 min-w-0 pt-3 border-t border-border/60 md:pt-1 md:border-t-0">
+            {/* Key Info Strip */}
+            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+              {Boolean(anime.year) && (
+                <span className="inline-flex items-center gap-1 px-2 sm:px-2.5 py-1 rounded-lg bg-background/70 dark:bg-white/[0.06] backdrop-blur-sm border border-border/80 text-xs sm:text-sm font-semibold text-foreground whitespace-nowrap">
+                  <Calendar className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                  {anime.year}
+                </span>
+              )}
+
+              <span className="inline-flex items-center gap-1 px-2 sm:px-2.5 py-1 rounded-lg bg-background/70 dark:bg-white/[0.06] backdrop-blur-sm border border-border/80 text-xs sm:text-sm font-semibold text-foreground whitespace-nowrap">
+                <Layers className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                {availableEpisodes} / {totalPlannedEpisodes}{" "}
+                {getEpisodeText(totalPlannedEpisodes)}
+              </span>
+
+              <button
+                type="button"
+                onClick={scrollToPlayer}
+                className="inline-flex items-center gap-1 px-2 sm:px-2.5 py-1 rounded-lg bg-primary/15 hover:bg-primary/25 border border-primary/30 text-primary text-xs sm:text-sm font-semibold whitespace-nowrap transition-colors cursor-pointer"
+              >
+                <PlayCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-primary/20 shrink-0" />
+                <span className="sm:hidden">Смотрю: {selectedEpisode}</span>
+                <span className="hidden sm:inline">
+                  Сейчас смотрю: {selectedEpisode}{" "}
+                  {getWatchingEpisodeText(selectedEpisode)}
+                </span>
+              </button>
+            </div>
+
+            {/* Genres */}
+            {anime.genres && anime.genres.length > 0 && (
+              <div
+                ref={genreRowRef}
+                style={genreMaskStyle}
+                className="flex flex-nowrap md:flex-wrap items-center gap-1.5 sm:gap-2 overflow-x-auto md:overflow-visible no-scrollbar py-0.5"
+              >
+                {anime.genres.slice(0, 6).map((genre) => (
+                  <Link
+                    key={genre}
+                    href={`/catalog?genre=${encodeURIComponent(
+                      String(anime.genreIds?.[genre] ?? genre),
+                    )}`}
+                    className="shrink-0 inline-flex items-center px-3 py-1 rounded-full bg-background/60 dark:bg-white/[0.05] border border-border/75 hover:border-primary/50 hover:bg-primary/10 text-muted-foreground hover:text-primary text-xs sm:text-[13px] font-medium transition-colors"
+                    onClick={() =>
+                      trackEvent(AnalyticsEvent.CATALOG_FILTER_CLICK, {
+                        filter: "genre",
+                        value: genre,
+                        location: "watch_page",
+                      })
+                    }
+                  >
+                    {genre}
+                  </Link>
+                ))}
               </div>
             )}
           </div>
-
-          <div className="flex flex-col gap-2 md:gap-4 flex-1 min-w-0 pt-1">
-            <h1 className="font-unbounded font-black tracking-tight text-xl md:text-3xl lg:text-4xl text-foreground leading-tight">
-              {anime.title}
-            </h1>
-            
-            {/* Жанров здесь нет — они идут кнопками ниже. Раньше они были в
-                обоих местах одновременно («Экшен, Приключения, Фэнтези» в
-                строке метаданных и те же три кнопкой ниже), то есть один и
-                тот же список показывался дважды подряд. Кнопки полезнее: они
-                кликабельны и ведут в каталог, а текст — нет. */}
-            {/* Мета: единый ряд пилюль без точек-разделителей. Оценка, статус
-                И возрастная категория живут поверх обложки (см. постер), тут
-                их нет, чтобы не мелькать дважды. Возрастная пилюля с сырым
-                кодом Shikimori («Возрастной рейтинг: R+PLUS») отсюда убрана:
-                длинный текст ломал сгиб ряда на мобиле, а код был непонятен. */}
-            <div className="flex flex-wrap items-center gap-1.5">
-              <span className="px-2 py-0.5 rounded-md bg-muted text-xs md:text-sm text-foreground font-bold">
-                {anime.year}
-              </span>
-              <span className="px-2 py-0.5 rounded-md bg-muted text-xs md:text-sm text-foreground font-bold">
-                {availableEpisodes} / {totalPlannedEpisodes} {getEpisodeText(totalPlannedEpisodes)}
-              </span>
-            </div>
-
-            <div className="mt-1 md:mt-2 inline-flex items-center gap-2 text-primary text-sm md:text-base font-semibold">
-              <PlayCircle className="w-4 h-4 md:w-5 md:h-5 fill-orange-500/20" />
-              Сейчас смотрю: <span className="text-foreground">{selectedEpisode} серию</span>
-            </div>
-          </div>
         </div>
+      </section>
 
-        {/* Жанры на всю ширину блока. На мобиле — горизонтальный скролл:
-            пилюли больше не переносятся столбиком и не съедают высоту.
-            Затемнение слева/справа показывается только там, где контент
-            реально уходит за блок (genreFade считает это по scrollWidth
-            и scrollLeft, слушая scroll и resize). */}
-        {anime.genres && anime.genres.length > 0 && (
-          <div className="relative mt-1 md:mt-2">
-            {/* py-2 у скролл-полосы: пилюлям нужен воздух сверху и снизу,
-                иначе при горизонтальном скролле ряд выглядит приклеенным
-                к строке меты и к краю блока. Отступ сверху уменьшен, чтобы
-                суммарный ритм не разъехался. */}
-            <div ref={genreRowRef} className="flex flex-nowrap gap-2 overflow-x-auto no-scrollbar py-2 md:flex-wrap">
-              {anime.genres.slice(0, 6).map((genre) => (
-                <Link
-                  key={genre}
-                  href={`/catalog?genre=${encodeURIComponent(String(anime.genreIds?.[genre] ?? genre))}`}
-                  className="shrink-0 inline-flex items-center px-3 py-1.5 rounded-full bg-muted/50 border border-border hover:border-primary/40 hover:bg-primary/10 text-muted-foreground hover:text-primary text-xs md:text-sm font-medium transition-all duration-200"
-                  onClick={() => trackEvent(AnalyticsEvent.CATALOG_FILTER_CLICK, { filter: "genre", value: genre, location: "watch_page" })}
-                >
-                  {genre}
-                </Link>
-              ))}
-            </div>
-            <div className={cn(
-              "pointer-events-none absolute inset-y-0 -left-2 w-10 bg-gradient-to-r from-background to-transparent transition-opacity duration-200",
-              genreFade.left ? "opacity-100" : "opacity-0"
-            )} />
-            <div className={cn(
-              "pointer-events-none absolute inset-y-0 -right-2 w-10 bg-gradient-to-l from-background to-transparent transition-opacity duration-200",
-              genreFade.right ? "opacity-100" : "opacity-0"
-            )} />
-          </div>
-        )}
-      </div>
-
-      {/* Человек пришёл по ссылке от бота (`/watch/<id>?sub=1`) — подписываем
-          без лишнего клика. Молчаливый компонент, рендерится в пустоту. */}
       <PendingSubscribeOnMount
         animeId={String(anime.shikimoriId || anime.id)}
         animeTitle={anime.title}
@@ -623,12 +737,20 @@ export function WatchPageClient({ anime, initialEpisode }: WatchPageClientProps)
       {/* Player Section */}
       <div id="player" ref={playerRef} className="w-full scroll-mt-24">
         {anime.isNsfw && !profile?.allow_nsfw_search && (
-          <div role="alert" className="mb-3 rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">
-            Внимание: возрастная категория этого тайтла — {ageRating ? `${ageRating.label} (${ageRating.description})` : "18+"}. Вы открыли его напрямую; в безопасном поиске такой контент скрыт.
+          <div
+            role="alert"
+            className="mb-3 rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-800 dark:text-amber-200"
+          >
+            Внимание: возрастная категория этого тайтла —{" "}
+            {ageRating ? `${ageRating.label} (${ageRating.description})` : "18+"}. Вы
+            открыли его напрямую; в безопасном поиске такой контент скрыт.
           </div>
         )}
-        <RegionWarning selectedCountry={selectedCountry} isRegionDetected={isRegionDetected} />
-        
+        <RegionWarning
+          selectedCountry={selectedCountry}
+          isRegionDetected={isRegionDetected}
+        />
+
         <div className="rounded-2xl overflow-hidden border border-border bg-background shadow-2xl relative aspect-video">
           {isHentaiContent(anime) ? (
             <HentaiPlayer
@@ -672,10 +794,8 @@ export function WatchPageClient({ anime, initialEpisode }: WatchPageClientProps)
         </div>
       </div>
 
-      {/* Boosty Donation Banner */}
       <BoostyBanner />
 
-      {/* Крючок: стартовый пак / стартовый бонус — после начала просмотра */}
       {showStarterHook && !user && (
         <AuthPromptBanner
           variant="starter-pack"
@@ -687,7 +807,6 @@ export function WatchPageClient({ anime, initialEpisode }: WatchPageClientProps)
         />
       )}
 
-      {/* Крючок: колода по тайтлу — exit intent / после серии */}
       {showDeckHook && !user && (
         <AuthPromptBanner
           variant="title-deck"
@@ -703,16 +822,24 @@ export function WatchPageClient({ anime, initialEpisode }: WatchPageClientProps)
       )}
 
       {/* Episode Selector */}
-      <div id="episodes" className="bg-card/20 border border-border rounded-2xl p-4 md:p-6 backdrop-blur-sm">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+      <div
+        id="episodes"
+        className="bg-card/20 border border-border rounded-2xl p-4 sm:p-6 backdrop-blur-sm"
+      >
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-4 sm:mb-6">
           <h2 className="text-lg md:text-xl font-bold text-foreground">
             Список серий
           </h2>
-          <div className="text-xs font-medium px-3 py-1.5 rounded-full bg-muted text-muted-foreground self-start sm:self-auto">
+          <div className="text-xs font-medium px-3 py-1.5 rounded-full bg-muted text-muted-foreground">
             {totalPlannedEpisodes > availableEpisodes ? (
-              <>Вышло: <span className="text-foreground">{availableEpisodes}</span> из <span className="text-foreground">{totalPlannedEpisodes}</span></>
+              <>
+                Вышло: <span className="text-foreground">{availableEpisodes}</span> из{" "}
+                <span className="text-foreground">{totalPlannedEpisodes}</span>
+              </>
             ) : (
-              <>Всего: <span className="text-foreground">{availableEpisodes}</span></>
+              <>
+                Всего: <span className="text-foreground">{availableEpisodes}</span>
+              </>
             )}
           </div>
         </div>
