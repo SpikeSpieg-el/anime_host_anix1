@@ -159,20 +159,64 @@ describe("KodikPlayer: плашка «Следующая серия»", () => {
     expect(mounted.onEpisodeChange).not.toHaveBeenCalled()
   })
 
-  it("показывается по ended, даже если плеер не присылает время серии", async () => {
+  it("ended без времени серии плашку не открывает, даже через несколько минут просмотра", async () => {
     vi.useFakeTimers({ toFake: ["Date"] })
     const base = Date.now()
 
     mounted = await mountPlayer({ shikimoriId: "21", title: "One Piece", episode: 4, maxEpisode: 12 })
     clickButton(mounted.container, "Смотреть 4 серию")
 
-    // Плеер молчит про время — сразу после старта ended принимать нельзя
     postFromPlayer(mounted.container, { key: "kodik_player_video_ended", value: {} })
     expect(nextEpisodeCard(mounted.container)).toBeNull()
 
-    // Прошло 2 минуты просмотра — это уже похоже на конец серии
+    // Часы идут, а позиция неизвестна — ничего не решаем по таймеру
     vi.setSystemTime(base + 120_000)
     postFromPlayer(mounted.container, { key: "kodik_player_video_ended", value: {} })
+    expect(nextEpisodeCard(mounted.container)).toBeNull()
+  })
+
+  it("после преролла и опенинга плашки нет, а в конце серии появляется", async () => {
+    mounted = await mountPlayer({ shikimoriId: "21", title: "One Piece", episode: 1, maxEpisode: 12 })
+    clickButton(mounted.container, "Смотреть 1 серию")
+
+    postFromPlayer(mounted.container, { key: "kodik_player_init", value: { duration: 1440 } })
+    // Преролл: время около нуля, затем ended рекламы
+    postFromPlayer(mounted.container, { key: "kodik_player_timeupdate", value: { seconds: 5, duration: 1440 } })
+    postFromPlayer(mounted.container, { key: "kodik_player_video_ended", value: {} })
+    expect(nextEpisodeCard(mounted.container)).toBeNull()
+
+    // Опенинг (~90 сек) — плашки быть не должно
+    postFromPlayer(mounted.container, { key: "kodik_player_timeupdate", value: { seconds: 90, duration: 1440 } })
+    expect(nextEpisodeCard(mounted.container)).toBeNull()
+
+    // Серия дошла до конца
+    postFromPlayer(mounted.container, { key: "kodik_player_timeupdate", value: { seconds: 1400, duration: 1440 } })
+    expect(nextEpisodeCard(mounted.container)).not.toBeNull()
+  })
+
+  it("ended из рекламы, пришедший на ~минуте ролика, не всплывает в опенинге", async () => {
+    mounted = await mountPlayer({ shikimoriId: "21", title: "One Piece", episode: 1, maxEpisode: 12 })
+    clickButton(mounted.container, "Смотреть 1 серию")
+
+    // Длительность неизвестна (плеер не прислал), ролик закончился на 80-й секунде
+    postFromPlayer(mounted.container, { key: "kodik_player_timeupdate", value: { seconds: 80 } })
+    postFromPlayer(mounted.container, { key: "kodik_player_video_ended", value: {} })
+    expect(nextEpisodeCard(mounted.container)).toBeNull()
+
+    // Опенинг идёт дальше — всё ещё без плашки
+    postFromPlayer(mounted.container, { key: "kodik_player_timeupdate", value: { seconds: 150 } })
+    expect(nextEpisodeCard(mounted.container)).toBeNull()
+  })
+
+  it("длительность из события duration_update (число) тоже учитывается", async () => {
+    mounted = await mountPlayer({ shikimoriId: "21", title: "One Piece", episode: 1, maxEpisode: 12 })
+    clickButton(mounted.container, "Смотреть 1 серию")
+
+    postFromPlayer(mounted.container, { key: "kodik_player_duration_update", value: 1440 })
+    postFromPlayer(mounted.container, { key: "kodik_player_timeupdate", value: { seconds: 1300 } })
+    expect(nextEpisodeCard(mounted.container)).toBeNull()
+
+    postFromPlayer(mounted.container, { key: "kodik_player_timeupdate", value: { seconds: 1400 } })
     expect(nextEpisodeCard(mounted.container)).not.toBeNull()
   })
 

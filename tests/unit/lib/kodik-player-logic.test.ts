@@ -186,10 +186,30 @@ describe("isEndingReached — плашка не должна вылезать в
     expect(isEndingReached({ currentSec: 1300, domSkipActive: true })).toBe(true)
   })
 
-  it("короткая серия (< 5 мин) не показывается по авто-правилу, но показывается по ended", () => {
+  it("короткая серия (< 5 мин) и по авто-правилу, и по ended плашку не открывает", () => {
+    // Такой ролик — скорее реклама/превью, а не полноценная серия.
     const short = { duration: 200, currentSec: 195 }
     expect(isEndingReached(short)).toBe(false)
-    expect(isEndingReached({ ...short, videoEnded: true })).toBe(true)
+    expect(isEndingReached({ ...short, videoEnded: true })).toBe(false)
+  })
+
+  it("ended рекламного ролика (до 5 мин, при позиции в его конце) плашку не открывает", () => {
+    expect(isEndingReached({ duration: 150, currentSec: 149, videoEnded: true })).toBe(false)
+    expect(isEndingReached({ duration: 90, currentSec: 90, videoEnded: true })).toBe(false)
+  })
+
+  it("ended в середине серии (досмотреть до конца не успели) — плашки нет", () => {
+    expect(isEndingReached({ ...episode, currentSec: 720, videoEnded: true })).toBe(false)
+  })
+
+  it("ended в хвосте полноценной серии с неизвестным временем — плашка есть", () => {
+    expect(isEndingReached({ ...episode, currentSec: 1380, videoEnded: true })).toBe(true)
+  })
+
+  it("опенинг (первые ~90 секунд) не открывает плашку ни по каким сигналам, кроме размеченного эндинга", () => {
+    expect(isEndingReached({ ...episode, currentSec: 90, videoEnded: true })).toBe(false)
+    expect(isEndingReached({ ...episode, currentSec: 90, isPlaying: true })).toBe(false)
+    expect(isEndingReached({ currentSec: 90, videoEnded: true })).toBe(false)
   })
 
   it("на паузе авто-правило не срабатывает", () => {
@@ -197,15 +217,20 @@ describe("isEndingReached — плашка не должна вылезать в
     expect(isEndingReached({ ...episode, currentSec: 1400, isPlaying: true })).toBe(true)
   })
 
-  it("без времени серии ended принимается только после минуты просмотра", () => {
-    expect(isEndingReached({ currentSec: null, watchedWallSec: 120, videoEnded: true })).toBe(true)
-    expect(isEndingReached({ currentSec: null, watchedWallSec: 10, videoEnded: true })).toBe(false)
-    expect(isEndingReached({ watchedWallSec: 10, videoEnded: true })).toBe(false)
+  it("без времени серии ended не открывает плашку, сколько бы ни прошло времени", () => {
+    // Раньше ended от преролла считался концом серии через минуту «просмотра» по часам.
+    expect(isEndingReached({ ...episode, currentSec: null, videoEnded: true })).toBe(false)
+    expect(isEndingReached({ ...episode, videoEnded: true })).toBe(false)
   })
 
   it("мусорная длительность (рекламный ролик) не открывает плашку", () => {
     expect(isEndingReached({ duration: 30, currentSec: 29, videoEnded: true })).toBe(false)
     expect(isEndingReached({ duration: 60, currentSec: 59 })).toBe(false)
+  })
+
+  it("без длительности ended по позиции не подтверждается (может быть реклама)", () => {
+    expect(isEndingReached({ currentSec: 90, videoEnded: true })).toBe(false)
+    expect(isEndingReached({ currentSec: 1400, videoEnded: true })).toBe(false)
   })
 })
 
@@ -247,8 +272,19 @@ describe("isSeekedBackBeforeEnding", () => {
     ).toBe(true)
   })
 
-  it("для коротких серий без маркеров не срабатывает", () => {
-    expect(isSeekedBackBeforeEnding({ currentSec: 10, duration: 200 })).toBe(false)
+  it("вне временного гейта (начало, реклама, опенинг) гасит плашку", () => {
+    expect(isSeekedBackBeforeEnding({ currentSec: 10, duration: 1440 })).toBe(true)
+    expect(isSeekedBackBeforeEnding({ currentSec: 90, duration: 1440, videoEnded: true })).toBe(true)
+  })
+
+  it("неизвестная позиция ничего не меняет", () => {
+    expect(isSeekedBackBeforeEnding({ currentSec: null, duration: 1440 })).toBe(false)
+    expect(isSeekedBackBeforeEnding({ duration: 1440 })).toBe(false)
+  })
+
+  it("сбрасывает ended, если откатились от конца серии (с гистерезисом)", () => {
+    expect(isSeekedBackBeforeEnding({ currentSec: 1340, duration: 1440, videoEnded: true })).toBe(false)
+    expect(isSeekedBackBeforeEnding({ currentSec: 1300, duration: 1440, videoEnded: true })).toBe(true)
   })
 })
 

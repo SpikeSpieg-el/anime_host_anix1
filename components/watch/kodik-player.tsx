@@ -146,7 +146,6 @@ export function KodikPlayer({
   const videoEndedRef = useRef<boolean>(false)
   const isDomEndingActiveRef = useRef<boolean>(false)
   const isPlayingRef = useRef<boolean>(true)
-  const playbackStartedAtRef = useRef<number>(0)
   const endingRangeRef = useRef<{ start: number; end?: number } | null>(null)
   const targetEpisodeRef = useRef<number | null>(null)
   const pendingEpisodeRef = useRef<number | null>(null)
@@ -226,12 +225,6 @@ export function KodikPlayer({
    */
   const translationsFetchedAtRef = useRef<number>(0)
 
-  /** Сколько секунд реально идёт просмотр (запасной сигнал конца серии). */
-  const watchedWallSeconds = useCallback(() => {
-    if (!playbackStartedAtRef.current) return null
-    return Math.max(0, (Date.now() - playbackStartedAtRef.current) / 1000)
-  }, [])
-
   // Единый сброс состояния «конец серии» — при смене серии ИЛИ озвучки
   // (иначе плашка перетекает на новый iframe, где видео ещё в начале).
   const resetEndingState = useCallback(() => {
@@ -244,7 +237,6 @@ export function KodikPlayer({
     videoEndedRef.current = false
     isDomEndingActiveRef.current = false
     isPlayingRef.current = true
-    playbackStartedAtRef.current = Date.now()
     endingRangeRef.current = null
     targetEpisodeRef.current = null
     pendingEpisodeRef.current = null
@@ -986,7 +978,6 @@ useEffect(() => {
         if (
           isEndingReached({
             currentSec: hasTimeRef.current ? lastSecondsRef.current : null,
-            watchedWallSec: watchedWallSeconds(),
             duration: durationRef.current || null,
             endingRange: endingRangeRef.current,
             domSkipActive: isDomEndingActiveRef.current,
@@ -1000,6 +991,7 @@ useEffect(() => {
             currentSec: hasTimeRef.current ? lastSecondsRef.current : null,
             duration: durationRef.current || null,
             endingRange: endingRangeRef.current,
+            domSkipActive: isDomEndingActiveRef.current,
           })
         ) {
           setIsNearEnd(false)
@@ -1013,7 +1005,7 @@ useEffect(() => {
 
     const interval = setInterval(checkDom, 400)
     return () => clearInterval(interval)
-  }, [isStarted, watchedWallSeconds])
+  }, [isStarted])
 
   // --- 2. ОБРАБОТЧИК POSTMESSAGE СОБЫТИЙ KODIK ---
   useEffect(() => {
@@ -1068,13 +1060,16 @@ useEffect(() => {
           setCurrentSeason((prev) => (prev === normalizedSeason ? prev : normalizedSeason))
         }
 
-        // Общая длительность видео
+        // Общая длительность видео. Числом приходит, например, событие
+        // `kodik_player_duration_update` — его тоже учитываем.
+        const durationFromKey = keyStr.includes("duration") ? parseSeconds(value) : undefined
         const possibleDuration =
           parseSeconds(value?.duration) ??
           parseSeconds(value?.total) ??
           parseSeconds(value?.video_duration) ??
           parseSeconds(data?.duration) ??
-          parseSeconds(data?.total)
+          parseSeconds(data?.total) ??
+          durationFromKey
 
         if (possibleDuration && possibleDuration >= 120) {
           durationRef.current = possibleDuration
@@ -1088,12 +1083,19 @@ useEffect(() => {
           parseSeconds(data?.seconds) ??
           parseSeconds(data?.time)
 
+        if (typeof currentSec === "number") {
+          lastSecondsRef.current = currentSec
+          hasTimeRef.current = true
+        }
+
         const curDuration = durationRef.current
         const endingRange = endingRangeRef.current
 
+        // Решения принимаются только по позиции в серии и её длительности
+        // (см. lib/kodik-player-logic.ts). Часы и «запомненные» события
+        // сами по себе плашку не открывают.
         const promptState = (overrides: Partial<Parameters<typeof isEndingReached>[0]> = {}) => ({
           currentSec: hasTimeRef.current ? lastSecondsRef.current : null,
-          watchedWallSec: watchedWallSeconds(),
           duration: curDuration || null,
           endingRange,
           domSkipActive: isDomEndingActiveRef.current,
@@ -1102,39 +1104,33 @@ useEffect(() => {
           ...overrides,
         })
 
-        // Событие окончания серии. Именно серии: ended от преролла
-        // сюда не пропускаем (см. isVideoEndedEvent).
+        if (typeof currentSec === "number" && curDuration > 0) {
+          setTimeLeftSeconds(Math.max(0, curDuration - currentSec))
+        }
+
+        // Событие окончания серии. Именно серии: ended от преролла/рекламы
+        // сюда не пропускаем (см. isVideoEndedEvent). Дополнительно требуем,
+        // чтобы позиция была в хвосте полноценной серии: ended без времени
+        // или на 1-2 минуте ролика флаг не ставит.
         if (isVideoEndedEvent(key) && isFromPlayerWindow) {
-          videoEndedRef.current = true
           if (isEndingReached(promptState({ videoEnded: true }))) {
+            videoEndedRef.current = true
             setIsNearEnd(true)
             setTimeLeftSeconds(0)
           }
         }
 
         if (typeof currentSec === "number") {
-          lastSecondsRef.current = currentSec
-          hasTimeRef.current = true
-
-          if (curDuration > 0) {
-            const left = Math.max(0, curDuration - currentSec)
-            setTimeLeftSeconds(left)
-          }
-
-          // Перемотали назад — плашку снимаем
+          // Вышли из зоны эндинга (перемотка, реклама, опенинг) — плашку снимаем
+          // и сбрасываем флаг «ended», чтобы он не всплыл позже.
           if (isSeekedBackBeforeEnding(promptState())) {
             setIsNearEnd(false)
             setIsDismissedEnd(false)
             videoEndedRef.current = false
-          }
-
-          // --- ОПРЕДЕЛЕНИЕ КОНЦА СЕРИИ ---
-          // Плашка показывается ТОЛЬКО если пройдены оба условия:
-          //   1. время воспроизведения уже в зоне, где эндинг возможен
-          //      (не раньше 60-й секунды и не раньше 45% серии);
-          //   2. есть сигнал конца: ended / кнопка в DOM / маркер эндинга /
-          //      последние 90 секунд серии.
-          if (isEndingReached(promptState())) {
+          } else if (isEndingReached(promptState())) {
+            // --- ОПРЕДЕЛЕНИЕ КОНЦА СЕРИИ ---
+            // Плашка ТОЛЬКО если позиция в зоне эндинга и есть сигнал конца:
+            // ended в хвосте серии / кнопка в DOM / маркер эндинга / последние 90 секунд.
             setIsNearEnd(true)
           }
         }
@@ -1199,7 +1195,6 @@ useEffect(() => {
     onEpisodeChange,
     onProgressUpdate,
     selectedTranslation,
-    watchedWallSeconds,
   ])
 
   // Плашка «Скоро / Озвучка не найдена» — единственный контент блока плеера,
@@ -1388,10 +1383,11 @@ useEffect(() => {
 
           {/*
             ПЛАШКА СЛЕДУЮЩЕЙ СЕРИИ
-            Показывается только в зоне эндинга: не раньше 60-й секунды
-            и не раньше 45% серии. Сигналы конца: ended именно серии,
-            активная кнопка «Пропустить эндинг» в DOM, маркер эндинга
-            или последние 90 секунд серии. Правила — в lib/kodik-player-logic.ts.
+            Решает только позиция в самой серии (не часы): не раньше 60-й
+            секунды и не раньше 45% серии. Сигналы конца: ended в хвосте
+            полноценной серии, активная кнопка «Пропустить эндинг» в DOM,
+            маркер эндинга или последние 90 секунд серии.
+            Правила — в lib/kodik-player-logic.ts.
             Если следующей серии нет — вместо кнопки честно об этом говорим.
           */}
           {isStarted && isNearEnd && !isDismissedEnd && (

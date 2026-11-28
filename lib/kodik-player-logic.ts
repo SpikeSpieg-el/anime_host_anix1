@@ -177,6 +177,20 @@ export function isEpisodeMissingFromTranslation(
 /* ------------------------------------------------------------------ */
 /* Показ плашки «Следующая серия»                                      */
 /* ------------------------------------------------------------------ */
+/*
+ * Принцип: плашка зависит только от ПОЗИЦИИ В САМОЙ СЕРИИ и её длительности,
+ * а не от часов, ошибок плеера или «запомненных» событий.
+ *
+ * Что здесь было не так (и почему плашка вылезала то в начале, то после
+ * рекламы, то после опенинга):
+ *  - проход по времени «минута с момента старта» (wall-clock) открывал
+ *    плашку, даже когда видео ещё шло рекламный ролик или опенинг;
+ *  - `ended` без времени воспроизведения (ролик) принимался за конец серии;
+ *  - флаг «серия закончилась» не сбрасывался, если длительность неизвестна,
+ *    и «прилипал» к следующим частям просмотра.
+ * Теперь каждое правило проверяется по текущей позиции, а флаги, которые
+ * не подтверждены позицией, не сохраняются.
+ */
 
 /**
  * До 60-й секунды серии эндинга не бывает — плашка не показывается,
@@ -193,7 +207,11 @@ export const MIN_PROMPT_PROGRESS_RATIO = 0.45
 /** Длительность короче этой считаем мусором (рекламный ролик, превью). */
 export const MIN_TRUSTED_DURATION_SEC = 120
 
-/** Авто-правило «последние 90 секунд» применяем только к нормальным сериям. */
+/**
+ * Минимальная длительность, при которой материал считаем серией, а не
+ * рекламой/превью. Только для серий такой длины работают правила конца
+ * («ended» и «последние 90 секунд»).
+ */
 export const MIN_DURATION_FOR_AUTO_PROMPT_SEC = 300
 
 /** За сколько секунд до конца показываем плашку, если эндинг не размечен. */
@@ -201,6 +219,9 @@ export const AUTO_PROMPT_TAIL_SEC = 90
 
 /** Насколько раньше начала эндинга «перемотка назад» гасит плашку. */
 export const SEEK_BACK_TOLERANCE_SEC = 5
+
+/** Запас гистерезиса: после перемотки дальше этого от конца плашка гаснет. */
+export const SEEK_BACK_HYSTERESIS_SEC = 20
 
 export interface EndingRange {
   start: number
@@ -210,19 +231,17 @@ export interface EndingRange {
 export interface EndingPromptState {
   /** Последнее достоверное время воспроизведения серии, сек. */
   currentSec?: number | null
-  /**
-   * Сколько секунд прошло с начала просмотра (обычные часы).
-   * Запасной вариант на случай, когда плеер вообще не присылает
-   * время воспроизведения, — отличает конец серии от конца преролла.
-   */
-  watchedWallSec?: number | null
   /** Длительность серии, сек. */
   duration?: number | null
   /** Размеченный диапазон эндинга (из cuepoints/маркеров плеера). */
   endingRange?: EndingRange | null
   /** В DOM плеера активна кнопка «Пропустить эндинг». */
   domSkipActive?: boolean
-  /** Плеер прислал событие окончания видео. */
+  /**
+   * Плеер прислал событие окончания видео. Учитывается только вместе с
+   * позицией в конце серии (см. `isEndingReached`), поэтому `ended`
+   * от рекламы сам по себе ничего не открывает.
+   */
   videoEnded?: boolean
   /** Видео сейчас воспроизводится (не на паузе). */
   isPlaying?: boolean
@@ -230,33 +249,38 @@ export interface EndingPromptState {
 
 /** Длительность, которой можно доверять. */
 export function trustedDuration(duration?: number | null): number | undefined {
+  if (duration === null || duration === undefined) return undefined
   const value = Number(duration)
   if (!Number.isFinite(value)) return undefined
   if (value < MIN_TRUSTED_DURATION_SEC) return undefined
   return Math.floor(value)
 }
 
-/** Сколько секунд реального просмотра считаем достаточным подтверждением. */
-export const MIN_PROMPT_WALL_SEC = MIN_PROMPT_CURRENT_SEC
+/** Длительность, по которой можно считать материал полноценной серией. */
+function episodeLengthDuration(duration?: number | null): number | undefined {
+  const trusted = trustedDuration(duration)
+  if (trusted === undefined || trusted < MIN_DURATION_FOR_AUTO_PROMPT_SEC) return undefined
+  return trusted
+}
+
+/** Время воспроизведения, если оно известно (`null`/`undefined`/мусор → undefined). */
+function knownPosition(value?: number | null): number | undefined {
+  if (value === null || value === undefined) return undefined
+  const num = Number(value)
+  return Number.isFinite(num) ? num : undefined
+}
 
 /**
  * Временной гейт: дошли ли мы вообще до той части серии,
- * где эндинг физически возможен.
+ * где эндинг физически возможен. Только по позиции — без часов.
  */
 export function isEndingPromptAllowed(state: EndingPromptState): boolean {
-  const current = Number(state.currentSec)
-  const hasCurrent = Number.isFinite(current) && current >= MIN_PROMPT_CURRENT_SEC
+  const current = knownPosition(state.currentSec)
+  if (current === undefined || current < MIN_PROMPT_CURRENT_SEC) return false
 
-  const wall = Number(state.watchedWallSec)
-  const hasWall = Number.isFinite(wall) && wall >= MIN_PROMPT_WALL_SEC
-
-  // Нужно хоть какое-то подтверждение, что серия действительно идёт.
-  // Без него любое ended-событие (преролл, чужой iframe) открывало плашку.
-  if (!hasCurrent && !hasWall) return false
-
-  // Если точное время серии известно — эндинг не может идти раньше 45%.
+  // Если длительность серии известна — эндинг не может идти раньше 45%.
   const duration = trustedDuration(state.duration)
-  if (duration !== undefined && hasCurrent && current < duration * MIN_PROMPT_PROGRESS_RATIO) {
+  if (duration !== undefined && current < duration * MIN_PROMPT_PROGRESS_RATIO) {
     return false
   }
 
@@ -266,18 +290,25 @@ export function isEndingPromptAllowed(state: EndingPromptState): boolean {
 /**
  * Пора ли показывать «Следующую серию».
  *
- * Обязательны ОБА условия:
- *  1. пройден временной гейт (`isEndingPromptAllowed`);
- *  2. есть хотя бы один сигнал конца серии.
+ * Нужны ОБА условия:
+ *  1. позиция прошла временной гейт (`isEndingPromptAllowed`);
+ *  2. есть сигнал конца серии, подтверждённый позицией:
+ *     - `ended` от плеера, но только для полноценной серии и в её хвосте;
+ *     - активная кнопка «Пропустить эндинг» в DOM;
+ *     - маркер эндинга, до которого досмотрели;
+ *     - последние 90 секунд серии (если она не на паузе).
  */
 export function isEndingReached(state: EndingPromptState): boolean {
   if (!isEndingPromptAllowed(state)) return false
 
-  const current = Number(state.currentSec)
-  const duration = trustedDuration(state.duration)
+  const current = knownPosition(state.currentSec) as number
+  const length = episodeLengthDuration(state.duration)
 
-  // 1. Плеер сказал, что видео закончилось.
-  if (state.videoEnded) return true
+  // 1. Плеер сказал, что видео закончилось, и позиция — в хвосте серии.
+  //    `ended` прероллов/роликов сюда не проходит: у них нет длины серии.
+  if (state.videoEnded && length !== undefined && current >= length - AUTO_PROMPT_TAIL_SEC) {
+    return true
+  }
 
   // 2. В DOM плеера активна кнопка «Пропустить эндинг».
   if (state.domSkipActive) return true
@@ -286,9 +317,9 @@ export function isEndingReached(state: EndingPromptState): boolean {
   const range = state.endingRange
   if (range && range.start > 0 && current >= range.start) return true
 
-  // 4. Эндиг не размечен — показываем за 90 секунд до конца.
-  if (duration !== undefined && duration >= MIN_DURATION_FOR_AUTO_PROMPT_SEC) {
-    const left = duration - current
+  // 4. Эндинг не размечен — показываем за 90 секунд до конца (не на паузе).
+  if (length !== undefined) {
+    const left = length - current
     if (left >= 0 && left <= AUTO_PROMPT_TAIL_SEC && state.isPlaying !== false) return true
   }
 
@@ -296,28 +327,31 @@ export function isEndingReached(state: EndingPromptState): boolean {
 }
 
 /**
- * Пользователь перемотал назад (или время откатилось к началу после
- * «ended» от преролла) — плашку нужно снять, а флаг конца серии сбросить.
+ * Пора ли гасить плашку: пользователь перемотал назад, ушёл из гейта
+ * (например, снова на рекламу/опенинг) или откатился от эндинга.
+ * Неизвестная позиция — не повод менять состояние.
  */
 export function isSeekedBackBeforeEnding(state: EndingPromptState): boolean {
-  const current = Number(state.currentSec)
-  if (!Number.isFinite(current)) return false
+  const current = knownPosition(state.currentSec)
+  if (current === undefined) return false
 
   // Кнопка «Пропустить эндинг» в DOM — живой сигнал, эндинг правда идёт.
-  // А вот `videoEnded` тут учитывать НЕЛЬЗЯ: флаг мог остаться от
-  // ended-события рекламного ролика, и тогда плашка не снялась бы никогда.
   if (state.domSkipActive) return false
 
-  const duration = trustedDuration(state.duration)
-  const threshold =
-    state.endingRange && state.endingRange.start > 0
-      ? state.endingRange.start - SEEK_BACK_TOLERANCE_SEC
-      : duration !== undefined && duration >= MIN_DURATION_FOR_AUTO_PROMPT_SEC
-      ? duration - AUTO_PROMPT_TAIL_SEC - 20
-      : 0
+  // Вне временного гейта (начало, реклама, опенинг, перемотка в начало).
+  if (!isEndingPromptAllowed(state)) return true
 
-  if (threshold <= 0) return false
-  return current < threshold
+  const range = state.endingRange
+  if (range && range.start > 0) {
+    return current < range.start - SEEK_BACK_TOLERANCE_SEC
+  }
+
+  const length = episodeLengthDuration(state.duration)
+  if (length !== undefined) {
+    return current < length - AUTO_PROMPT_TAIL_SEC - SEEK_BACK_HYSTERESIS_SEC
+  }
+
+  return false
 }
 
 /* ------------------------------------------------------------------ */
